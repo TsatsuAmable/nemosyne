@@ -62,7 +62,6 @@ const SECONDARY_ACTIONS: SecondaryAction[] = [
   { id: 'undo', label: 'Undo last analysis', intent: { type: 'history.undo' } as ApplicationIntent },
   { id: 'redo', label: 'Redo analysis', intent: { type: 'history.redo' } as ApplicationIntent },
   { id: 'vault', label: 'Evidence vault', intent: null },
-  { id: 'assess', label: 'Explain current view', intent: null },
 ] as const;
 
 function downloadPackage(bytes: Uint8Array, filename: string): void {
@@ -87,7 +86,6 @@ function replayFailureMessage(detail: string): string {
 export function mountInvestigationShell(
   actions: InvestigationActions,
 ): InvestigationShellHandle {
-  // Ensure design tokens are injected
   injectCssVariables();
 
   const root = document.createElement('section');
@@ -113,11 +111,9 @@ export function mountInvestigationShell(
     pointer-events: none;
   `;
 
-  // Toast manager for notifications
   const toastManager = document.createElement('nms-toast-manager');
   root.appendChild(toastManager);
 
-  // Header
   const header = document.createElement('header');
   header.style.cssText = `
     grid-area: header;
@@ -142,7 +138,6 @@ export function mountInvestigationShell(
   `;
   root.appendChild(header);
 
-  // Sidebar
   const sidebar = document.createElement('aside');
   sidebar.style.cssText = `
     grid-area: sidebar;
@@ -156,7 +151,6 @@ export function mountInvestigationShell(
     pointer-events: auto;
   `;
 
-  // Primary actions section
   const primarySection = document.createElement('div');
   primarySection.innerHTML = `
     <h2 style="font-size: var(--nms-font-size-meta); letter-spacing: 0.1em; color: var(--nms-color-interaction-focus); font-weight: 650; margin: 0 0 var(--nms-spacing-x12);">Primary Actions</h2>
@@ -164,15 +158,14 @@ export function mountInvestigationShell(
   `;
   sidebar.appendChild(primarySection);
 
-  // Secondary actions section
   const secondarySection = document.createElement('details');
   secondarySection.innerHTML = `
     <summary style="cursor: pointer; color: var(--nms-color-text-secondary); font-size: var(--nms-font-size-meta); font-weight: 500; margin-bottom: var(--nms-spacing-x8);">More tools</summary>
     <div id="secondary-actions" style="display: flex; flex-direction: column; gap: var(--nms-spacing-x8); margin-top: var(--nms-spacing-x8); padding-top: var(--nms-spacing-x12); border-top: 1px solid var(--nms-color-surface-border);"></div>
   `;
   sidebar.appendChild(secondarySection);
+  root.appendChild(sidebar);
 
-  // Canvas area
   const canvasArea = document.createElement('div');
   canvasArea.style.cssText = `
     grid-area: canvas;
@@ -181,7 +174,6 @@ export function mountInvestigationShell(
   `;
   root.appendChild(canvasArea);
 
-  // Status strip
   const statusStrip = document.createElement('footer');
   statusStrip.style.cssText = `
     grid-area: status;
@@ -201,25 +193,21 @@ export function mountInvestigationShell(
   `;
   root.appendChild(statusStrip);
 
-  // Representation outcome modal (for "Explain current view")
   const explainModal = document.createElement('nms-modal');
   explainModal.setAttribute('size', 'md');
   explainModal.setAttribute('title', 'Representation Assessment');
   root.appendChild(explainModal);
 
-  // Replay modal
   const replayModal = document.createElement('nms-modal');
   replayModal.setAttribute('size', 'md');
   replayModal.setAttribute('title', 'Replay Investigation');
   root.appendChild(replayModal);
 
-  // Dataset picker modal
   const datasetModal = document.createElement('nms-modal');
   datasetModal.setAttribute('size', 'lg');
   datasetModal.setAttribute('title', 'Choose Dataset');
   root.appendChild(datasetModal);
 
-  // Command palette
   const commandPalette = document.createElement('nms-command-palette') as HTMLNemosyneCommandPaletteElement;
   root.appendChild(commandPalette);
 
@@ -243,7 +231,6 @@ export function mountInvestigationShell(
       statusDetails.textContent = detail;
     }
     refreshContext();
-    // Auto-clear success/error after 5s
     if (state !== 'ready') {
       setTimeout(() => {
         if (statusMessage.textContent === message) {
@@ -331,13 +318,9 @@ export function mountInvestigationShell(
     container.appendChild(btn);
   };
 
-  // Build primary actions
   PRIMARY_ACTIONS.forEach(action => createActionButton(action, primaryActionsContainer));
-
-  // Build secondary actions
   SECONDARY_ACTIONS.forEach(action => createSecondaryButton(action, secondaryActionsContainer));
 
-  // Add max elements input to secondary
   const budgetWrapper = document.createElement('div');
   budgetWrapper.style.display = 'flex';
   budgetWrapper.style.flexDirection = 'column';
@@ -349,7 +332,6 @@ export function mountInvestigationShell(
   `;
   secondaryActionsContainer.appendChild(budgetWrapper);
 
-  // Export button
   const exportBtn = header.querySelector('#export-btn') as HTMLElement;
   exportBtn.addEventListener('click', async () => {
     const bytes = await actions.exportPortableInvestigation();
@@ -358,14 +340,12 @@ export function mountInvestigationShell(
     setStatus(`Investigation exported (${bytes.byteLength} bytes)`, 'success');
   });
 
-// Settings button
   const settingsBtn = header.querySelector('#settings-btn') as HTMLElement;
   settingsBtn.addEventListener('click', () => {
     actions.dispatchIntent({ type: 'settings.open' } as unknown as ApplicationIntent);
     setStatus('Settings opened', 'success');
   });
 
-  // Assess button
   const assessBtn = budgetWrapper.querySelector('#assess-btn') as HTMLElement;
   assessBtn.addEventListener('click', () => {
     const rawBudget = (document.getElementById('max-elements') as HTMLInputElement)?.value.trim();
@@ -374,7 +354,6 @@ export function mountInvestigationShell(
     setStatus(outcome.kind === 'decision' ? `View decision recorded: ${outcome.decisionId}` : `NIL outcome recorded: ${outcome.nilId}`, 'success');
   });
 
-  // Replay functionality
   const replayContent = `
     <div style="display: grid; gap: var(--nms-spacing-x16);">
       <label>
@@ -441,7 +420,6 @@ export function mountInvestigationShell(
     });
   }
 
-  // Mark moment handler for primary action
   const markMomentAction = PRIMARY_ACTIONS.find(a => a.id === 'mark-moment');
   if (markMomentAction) {
     markMomentAction.handler = () => {
@@ -450,7 +428,6 @@ export function mountInvestigationShell(
     };
   }
 
-  // Vault handler for secondary action
   const vaultAction = SECONDARY_ACTIONS.find(a => a.id === 'vault');
   if (vaultAction) {
     vaultAction.handler = () => {
@@ -458,17 +435,11 @@ export function mountInvestigationShell(
     };
   }
 
-  // Event listeners
   const unsubscribeDatasetContext = actions.subscribeDatasetContext?.(refreshContext) ?? null;
 
-  // Keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.metaKey || e.ctrlKey) {
       switch (e.key.toLowerCase()) {
-        case 'k':
-          e.preventDefault();
-          (commandPalette as HTMLNemosyneCommandPaletteElement).toggle();
-          break;
         case 'e':
           e.preventDefault();
           exportBtn.click();
@@ -480,7 +451,6 @@ export function mountInvestigationShell(
       }
     }
     if (e.key === 'Escape') {
-      // Close any open modals
       const modals: Array<HTMLNemosyneModalElement | HTMLNemosyneCommandPaletteElement> = [
         explainModal as HTMLNemosyneModalElement,
         replayModal as HTMLNemosyneModalElement,
@@ -492,7 +462,6 @@ export function mountInvestigationShell(
   };
   document.addEventListener('keydown', handleKeyDown);
 
-  // Command palette commands
   const commands: CommandPaletteCommand[] = [
     { id: 'load-sample', label: 'Explore another dataset', description: 'Cycle to the next sample dataset', shortcut: '⌘D', category: 'Data', action: async () => { await actions.dispatchIntent({ type: 'dataset.cycle', step: 1 }); setStatus(`Loaded ${actions.currentDatasetName() ?? 'sample dataset'}`, 'success'); } },
     { id: 'run-analysis', label: 'Find anomalies', description: 'Run anomaly detection on current dataset', shortcut: '⌘A', category: 'Analysis', action: async () => { await actions.dispatchIntent({ type: 'analysis.apply', operation: 'anomaly' }); setStatus(`Evidence ready (${actions.analysisResultCount()} result)`, 'success'); } },
