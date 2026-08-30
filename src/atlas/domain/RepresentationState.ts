@@ -368,24 +368,48 @@ export class RepresentationState {
    * Canonical V3 arbitration path. DatasetEvidence is the analytical source of
    * truth; no TypeScript-computed analytical placeholder can affect ranking.
    */
+  /**
+   * Evaluate a representation decision without mutating canonical representation
+   * state. UI previews and other speculative callers must use this path rather
+   * than the committing arbitration method below.
+   */
+  previewRepresentationFromEvidence(
+    evidence: DatasetEvidence,
+    requirements?: RepresentationRequirements,
+  ): RepresentationDecision {
+    const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
+    // Deliberately bypass computeDatasetSignatureFromEvidence(), which updates
+    // activeSignature. Preview must leave every active* field untouched.
+    const signature = datasetEvidenceToSignature(evidence);
+    return this.rankRepresentationFromEvidence(evidence, signature, req);
+  }
+
   arbitrateRepresentationFromEvidence(
     evidence: DatasetEvidence,
     requirements?: RepresentationRequirements,
   ): RepresentationDecision {
     const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
     const signature = this.computeDatasetSignatureFromEvidence(evidence);
-    const bootstrapDecision = new EvidenceBackedMoneta().arbitrate(
-      evidence,
-      signature,
-      req,
-    ).decision;
-    const decision = this.learnedRuntime
-      ? applyPinnedLearnedFitnessRuntime(bootstrapDecision, this.learnedRuntime)
-      : bootstrapDecision;
+    const decision = this.rankRepresentationFromEvidence(evidence, signature, req);
     this.activeDecision = decision;
     this.activeStrategy = decision.embodiment.spatialStrategy;
     this.activeRequirements = req;
     return decision;
+  }
+
+  private rankRepresentationFromEvidence(
+    evidence: DatasetEvidence,
+    signature: DatasetSignature,
+    requirements: RepresentationRequirements,
+  ): RepresentationDecision {
+    const bootstrapDecision = new EvidenceBackedMoneta().arbitrate(
+      evidence,
+      signature,
+      requirements,
+    ).decision;
+    return this.learnedRuntime
+      ? applyPinnedLearnedFitnessRuntime(bootstrapDecision, this.learnedRuntime)
+      : bootstrapDecision;
   }
 
   arbitrateStrategyFromEvidence(

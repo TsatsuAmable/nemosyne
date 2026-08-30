@@ -133,7 +133,10 @@ export class NemosyneSession {
     };
   }
 
-  async exportPortablePackage(environment: PortablePackageEnvironment = {}): Promise<Uint8Array> {
+  async exportPortablePackage(
+    environment: PortablePackageEnvironment = {},
+    kernelVersionOverride?: string
+  ): Promise<Uint8Array> {
     const core = this._atlas.toState();
     if (!core.originalDataset) {
       throw new Error('Cannot export portable investigation without an original dataset');
@@ -148,7 +151,7 @@ export class NemosyneSession {
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
-    const kernelVersion = this._atlas.kernelVersion() ?? 'unknown';
+    const kernelVersion = kernelVersionOverride ?? this._atlas.kernelVersion() ?? 'unknown';
     const investigationDigest = await this._atlas.aggregate.computeDigest(kernelVersion, {
       nilOutcomes: nilOutcomes.outcomes,
       researchContext: this._researchContext,
@@ -207,6 +210,22 @@ export class NemosyneSession {
       nilOutcomesBytes:
         nilOutcomes.outcomes.length > 0 ? strToU8(JSON.stringify(nilOutcomes)) : undefined,
     });
+  }
+
+  /** Export a persisted snapshot in isolation from the mutable live Atlas/session. */
+  static async exportPortableSnapshot(
+    json: NemosyneSessionJSON,
+    environment: PortablePackageEnvironment = {}
+  ): Promise<Uint8Array> {
+    const atlas = new AtlasCore({ kernel: null });
+    const session = NemosyneSession.deserialize(json, atlas);
+    const lastImplementationVersion = [...json.analysisResults]
+      .reverse()
+      .find((result) => typeof result.implementationVersion === 'string')
+      ?.implementationVersion;
+    const archivedKernelVersion =
+      json.representationDecision?.kernelVersion ?? lastImplementationVersion ?? 'unknown';
+    return session.exportPortablePackage(environment, archivedKernelVersion);
   }
 
   loadFromJSON(json: NemosyneSessionJSON): void {
