@@ -407,7 +407,7 @@ export class WorldUIManager {
     // boot-time GPU overhead for panels hidden in normal analyst sessions.
     this.panelRolesManager.registerPanel('operationLog', 'Operation Log', 'diagnostic');
     this.panelRolesManager.registerPanel('interactionCoach', 'Interaction Coach', 'system');
-    this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'context');
+    this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'secondary');
     this.panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic');
 
     this.recommendationPanel = new RecommendationPanel(this.analystAnchor, {
@@ -461,9 +461,9 @@ export class WorldUIManager {
     this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
     this.panelRolesManager.registerPanel('network', 'Collaboration Network', 'diagnostic');
-    this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'task');
-    this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'task');
-    this.panelRolesManager.registerPanel('vault', 'Evidence Vault', 'task');
+    this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'primary');
+    this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'primary');
+    this.panelRolesManager.registerPanel('vault', 'Evidence Vault', 'primary');
 
     // Superuser / Dev Lab panels — gated to DEVELOPER mode only. Pre-registered
     // so the Super User wheel category can list them before first construction.
@@ -475,7 +475,7 @@ export class WorldUIManager {
     this.panelRolesManager.registerPanel(
       'su-gesture-confidence',
       'Gesture Confidence HUD',
-      'superuser'
+      'diagnostic'
     );
   }
 

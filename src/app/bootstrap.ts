@@ -14,10 +14,10 @@ import {
 } from './devTrace.ts';
 import { assessAnalystRepresentation } from './AnalystRepresentationAssessment.ts';
 import {
-  mountAnalystJourneyControls,
-  type AnalystJourneyActions,
-  type AnalystJourneyControlsHandle,
-} from './AnalystJourneyControls.ts';
+  mountInvestigationShell,
+  type InvestigationActions,
+  type InvestigationShellHandle,
+} from './InvestigationShell.ts';
 import {
   createApplicationIntentDispatcher,
   type ApplicationIntentDispatcher,
@@ -27,7 +27,7 @@ import { bindInputCallbacksToApplicationIntents } from './intents/InputIntentBin
 export interface AppInstance {
   world: World;
   dispatchIntent: ApplicationIntentDispatcher;
-  analystJourneyControls: AnalystJourneyControlsHandle;
+  investigationShell: InvestigationShellHandle;
 }
 
 /**
@@ -63,10 +63,10 @@ function applicationIntentDispatcher(world: World): ApplicationIntentDispatcher 
   });
 }
 
-function analystJourneyActions(
+function investigationActions(
   world: World,
   dispatchIntent: ApplicationIntentDispatcher,
-): AnalystJourneyActions {
+): InvestigationActions {
   return {
     dispatchIntent,
     currentDatasetName: () =>
@@ -230,8 +230,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
   return {
     world,
     dispatchIntent,
-    analystJourneyControls: mountAnalystJourneyControls(
-      analystJourneyActions(world, dispatchIntent),
+    investigationShell: mountInvestigationShell(
+      investigationActions(world, dispatchIntent),
     ),
   };
 }

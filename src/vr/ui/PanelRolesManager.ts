@@ -1,23 +1,20 @@
 /**
- * Panel Roles Taxonomy & Diagnostic Mode Separation (Sprint 24.4).
+ * Simplified Panel Roles Taxonomy (P1-UV1).
  *
- * Enforces UX spatial rules:
- * - Panel roles: workspace | task | context | diagnostic | transient | system.
- * - Max 2 task panels open simultaneously.
- * - Diagnostic panels hidden unless in DEVELOPER mode.
- * - Auto-dismiss and minimize-all support.
+ * Roles:
+ * - primary: Primary analyst actions (load, analyze, record, vault, lens)
+ * - secondary: Secondary tools (settings, assess, undo/redo)
+ * - diagnostic: Debug/diagnostic panels (telemetry, performance, network, console)
+ * - system: System panels (settings - always accessible)
+ *
+ * UI Modes:
+ * - ANALYST: Standard mode (diagnostic panels hidden by default)
+ * - DEVELOPER: Diagnostic panels accessible
  */
 
-export type PanelRole =
-  | 'workspace'
-  | 'task'
-  | 'context'
-  | 'diagnostic'
-  | 'transient'
-  | 'system'
-  | 'superuser';
+export type PanelRole = 'primary' | 'secondary' | 'diagnostic' | 'system';
 
-export type UIMode = 'RESEARCH' | 'ANALYST' | 'DEVELOPER';
+export type UIMode = 'ANALYST' | 'DEVELOPER';
 
 export interface PanelRegistration {
   id: string;
@@ -30,7 +27,8 @@ export interface PanelRegistration {
 export class PanelRolesManager {
   private _uiMode: UIMode = 'ANALYST';
   private _panels = new Map<string, PanelRegistration>();
-  private _maxTaskPanels = 2;
+  private _maxPrimaryPanels = 3;
+  private _maxSecondaryPanels = 2;
 
   constructor(initialMode: UIMode = 'ANALYST') {
     this._uiMode = initialMode;
@@ -43,7 +41,7 @@ export class PanelRolesManager {
   setUIMode(mode: UIMode): void {
     this._uiMode = mode;
     if (mode !== 'DEVELOPER') {
-      // Automatically close diagnostic panels in research or analyst mode
+      // Automatically close diagnostic panels in analyst mode
       for (const panel of this._panels.values()) {
         if (panel.role === 'diagnostic') {
           panel.isOpen = false;
@@ -66,19 +64,29 @@ export class PanelRolesManager {
     const panel = this._panels.get(id);
     if (!panel) return false;
 
-    // Diagnostic and superuser panels cannot open unless in DEVELOPER mode
-    if ((panel.role === 'diagnostic' || panel.role === 'superuser') && this._uiMode !== 'DEVELOPER') {
+    // Diagnostic panels cannot open unless in DEVELOPER mode
+    if (panel.role === 'diagnostic' && this._uiMode !== 'DEVELOPER') {
       return false;
     }
 
-    // Enforce max task panels rule
-    if (panel.role === 'task') {
-      const openTasks = Array.from(this._panels.values()).filter(
-        (p) => p.role === 'task' && p.isOpen && p.id !== id
+    // Enforce max primary panels rule
+    if (panel.role === 'primary') {
+      const openPrimary = Array.from(this._panels.values()).filter(
+        (p) => p.role === 'primary' && p.isOpen && p.id !== id
       );
-      if (openTasks.length >= this._maxTaskPanels) {
-        // Dismiss the oldest open task panel
-        openTasks[0].isOpen = false;
+      if (openPrimary.length >= this._maxPrimaryPanels) {
+        // Dismiss the oldest open primary panel
+        openPrimary[0].isOpen = false;
+      }
+    }
+
+    // Enforce max secondary panels rule
+    if (panel.role === 'secondary') {
+      const openSecondary = Array.from(this._panels.values()).filter(
+        (p) => p.role === 'secondary' && p.isOpen && p.id !== id
+      );
+      if (openSecondary.length >= this._maxSecondaryPanels) {
+        openSecondary[0].isOpen = false;
       }
     }
 
@@ -103,9 +111,17 @@ export class PanelRolesManager {
 
   minimizeAll(): void {
     for (const panel of this._panels.values()) {
-      if (panel.role !== 'workspace') {
+      if (panel.role !== 'system') {
         panel.isOpen = false;
       }
     }
+  }
+
+  getAllPanels(): PanelRegistration[] {
+    return Array.from(this._panels.values());
+  }
+
+  getPanel(id: string): PanelRegistration | undefined {
+    return this._panels.get(id);
   }
 }
