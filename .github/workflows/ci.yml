@@ -209,6 +209,13 @@ jobs:
             exit 1
           fi
 
+      - name: Prove production bundle excludes RF-062H dev evidence
+        run: |
+          if grep -R --binary-files=without-match -n -E 'quest-3s-rust-boundary-10m|/__loadtest-results|\[QUEST 10M\]|\[LOAD TEST\]' dist; then
+            echo 'ordinary production bundle contains RF-062H dev/research evidence tooling' >&2
+            exit 1
+          fi
+
       - name: Upload tested production bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
