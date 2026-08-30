@@ -8,16 +8,7 @@ const contracts = [
   {
     file: 'AnalysisStoryExporter.ts',
     name: 'AnalysisStoryHost',
-    members: [
-      '_logInteraction',
-      '_originalDataset',
-      '_transformedDataset',
-      'analysisHistory',
-      'currentEntry',
-      'engine',
-      'telemetryCollector',
-      'uiManager',
-    ],
+    members: ['_logInteraction', 'atlas', 'currentEntry', 'engine', 'telemetryCollector', 'uiManager'],
   },
   {
     file: 'CollaborationCoordinator.ts',
