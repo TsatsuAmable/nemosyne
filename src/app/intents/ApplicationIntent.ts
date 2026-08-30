@@ -15,7 +15,8 @@ export type ApplicationIntent =
   | { type: 'analysis.reset' }
   | { type: 'history.undo' }
   | { type: 'history.redo' }
-  | { type: 'workspace.toggleStatisticalLens' };
+  | { type: 'workspace.toggleStatisticalLens' }
+  | { type: 'settings.open' };
 
 export interface ApplicationIntentHandlers {
   cycleDataset(step: number): void | Promise<void>;
@@ -24,6 +25,7 @@ export interface ApplicationIntentHandlers {
   undoHistory(): void | Promise<void>;
   redoHistory(): void | Promise<void>;
   toggleStatisticalLens(): void | Promise<void>;
+  openSettings(): void | Promise<void>;
 }
 
 export type ApplicationIntentDispatcher = (
@@ -67,6 +69,8 @@ export function createApplicationIntentDispatcher(
         return handlers.redoHistory();
       case 'workspace.toggleStatisticalLens':
         return handlers.toggleStatisticalLens();
+      case 'settings.open':
+        return handlers.openSettings();
       default: {
         const exhaustive: never = intent;
         throw new Error(
