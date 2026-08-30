@@ -24,6 +24,49 @@ class SessionStoreStub {
   }
 }
 
+/**
+ * Mirrors the production SessionStore split: loadSession accepts only valid
+ * schema-v2 dataset-bearing snapshots, while arbitrary metadata uses getItem.
+ */
+class ProductionShapeSessionStoreStub {
+  private _sessions = new Map<string, Record<string, unknown>>();
+  private _items = new Map<string, Record<string, unknown>>();
+  readonly sessionReadIds: string[] = [];
+  readonly itemReadIds: string[] = [];
+
+  async saveSession(id: string, snapshot: Record<string, unknown>): Promise<void> {
+    this._sessions.set(id, snapshot);
+  }
+
+  async loadSession(id: string): Promise<Record<string, unknown> | null> {
+    this.sessionReadIds.push(id);
+    const snapshot = this._sessions.get(id);
+    if (!snapshot || snapshot.schemaVersion !== 2) return null;
+    const hasDataset =
+      (snapshot.dataset && typeof snapshot.dataset === 'object') ||
+      (snapshot.currentDataset && typeof snapshot.currentDataset === 'object') ||
+      (snapshot.originalDataset && typeof snapshot.originalDataset === 'object');
+    return hasDataset ? snapshot : null;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    this._sessions.delete(id);
+  }
+
+  async hasSession(id: string): Promise<boolean> {
+    return this._sessions.has(id);
+  }
+
+  async setItem(id: string, value: Record<string, unknown>): Promise<void> {
+    this._items.set(id, value);
+  }
+
+  async getItem(id: string): Promise<Record<string, unknown> | null> {
+    this.itemReadIds.push(id);
+    return this._items.get(id) ?? null;
+  }
+}
+
 describe('P1-U6 Vault archive lifecycle', () => {
   let store: VaultArchiveStore;
 
@@ -59,6 +102,35 @@ describe('P1-U6 Vault archive lifecycle', () => {
     // Delete
     await store.deleteArchive(archiveId);
     expect(await store.listArchives()).toHaveLength(0);
+  });
+
+  it('persists the archive index through the production arbitrary-value channel', async () => {
+    const productionStore = new ProductionShapeSessionStoreStub();
+    const vault = new VaultArchiveStore(productionStore as unknown as SessionStore);
+
+    const archiveId = await vault.freezeInvestigation(
+      'Production archive',
+      {
+        schemaVersion: 2,
+        originalDataset: { name: 'production-data' },
+        datasetVersion: 1,
+        eventLedger: [],
+      },
+      {
+        datasetFingerprint: 'fp-production',
+        datasetName: 'production-data',
+        investigationDigest: null,
+        eventCount: 0,
+        discoveryCount: 0,
+      }
+    );
+
+    const archives = await vault.listArchives();
+    expect(archives).toHaveLength(1);
+    expect(archives[0].archiveId).toBe(archiveId);
+    expect(await vault.loadArchive(archiveId)).toMatchObject({ datasetVersion: 1 });
+    expect(productionStore.itemReadIds).toContain('__vault_archive_index__');
+    expect(productionStore.sessionReadIds).not.toContain('__vault_archive_index__');
   });
 
   it('refuses to load an archive with a non-archive ID', async () => {
