@@ -18,6 +18,9 @@ use super::embodiment::{
 };
 
 pub const MAX_CLUSTER_REGIONS_V1: u32 = 256;
+/// Sum of UTF-8 bytes across distinct retained source partition labels.
+/// This makes the bounded semantic payload genuinely independent of source N.
+pub const MAX_CLUSTER_PARTITION_LABEL_BYTES_V1: usize = 65_536;
 const MAX_SHORT_TEXT_BYTES: usize = 256;
 const CLUSTER_METHOD_NAME_V1: &str = "source-partition-cluster-summary";
 const CLUSTER_METHOD_VERSION_V1: &str = "source-partition-cluster-summary-v1";
@@ -112,40 +115,70 @@ pub struct ClusterEmbodimentEnvelopeV1 {
     pub result: ClusterEmbodimentResultV1,
 }
 
+/// Row-order-independent centroid accumulator.
+///
+/// Each finite f64 is decomposed as signed_integer_significand * 2^exponent.
+/// We sum integer significands exactly inside exponent bins, then convert those
+/// bins to the final mean in a fixed exponent order. The number of possible
+/// finite f64 exponent bins is fixed, so working memory is bounded by the
+/// representation contract rather than source N.
 #[derive(Debug, Clone)]
 struct AxisAccumulator {
     count: u64,
-    centroid: f64,
+    significand_bins: BTreeMap<i16, i128>,
     min: f64,
     max: f64,
+}
+
+fn finite_f64_components(value: f64) -> (i16, i128) {
+    debug_assert!(value.is_finite());
+    let bits = value.to_bits();
+    let sign = if bits >> 63 == 0 { 1i128 } else { -1i128 };
+    let exponent_bits = ((bits >> 52) & 0x7ff) as i16;
+    let fraction = bits & ((1u64 << 52) - 1);
+    if exponent_bits == 0 {
+        (-1074, sign * fraction as i128)
+    } else {
+        (
+            exponent_bits - 1023 - 52,
+            sign * ((1u64 << 52) | fraction) as i128,
+        )
+    }
 }
 
 impl AxisAccumulator {
     fn empty() -> Self {
         Self {
             count: 0,
-            centroid: 0.0,
+            significand_bins: BTreeMap::new(),
             min: f64::INFINITY,
             max: f64::NEG_INFINITY,
         }
     }
 
     fn push(&mut self, value: f64) -> Result<(), ()> {
-        let next_count = self.count.checked_add(1).ok_or(())?;
-        self.centroid = if self.count == 0 {
-            value
-        } else {
-            let previous_weight = self.count as f64 / next_count as f64;
-            let new_weight = 1.0 / next_count as f64;
-            self.centroid * previous_weight + value * new_weight
-        };
-        if !self.centroid.is_finite() {
-            return Err(());
-        }
+        self.count = self.count.checked_add(1).ok_or(())?;
+        let (exponent, significand) = finite_f64_components(value);
+        let bin = self.significand_bins.entry(exponent).or_insert(0);
+        *bin = bin.checked_add(significand).ok_or(())?;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
-        self.count = next_count;
         Ok(())
+    }
+
+    fn centroid(&self) -> Option<f64> {
+        if self.count == 0 {
+            return None;
+        }
+        let denominator = self.count as f64;
+        let centroid = self
+            .significand_bins
+            .iter()
+            .rev()
+            .fold(0.0, |sum, (exponent, significand)| {
+                sum + (*significand as f64 / denominator) * 2.0_f64.powi(*exponent as i32)
+            });
+        centroid.is_finite().then_some(centroid)
     }
 }
 
@@ -214,14 +247,14 @@ fn validate_request(request: &ClusterEmbodimentRequestV1) -> Result<(), String> 
             return Err("cluster coordinateFields must be distinct".to_string());
         }
     }
-    if let Some(decision_id) = &request.decision_id {
-        validate_short_text(decision_id, "cluster decisionId")?;
+    if let Some(value) = &request.decision_id {
+        validate_short_text(value, "cluster decisionId")?;
     }
-    if let Some(model_version) = &request.decision_model_version {
-        validate_short_text(model_version, "cluster decisionModelVersion")?;
+    if let Some(value) = &request.decision_model_version {
+        validate_short_text(value, "cluster decisionModelVersion")?;
     }
-    if let Some(hash) = &request.decision_model_artifact_hash {
-        if !is_lower_hex_64(hash) {
+    if let Some(value) = &request.decision_model_artifact_hash {
+        if !is_lower_hex_64(value) {
             return Err(
                 "cluster decisionModelArtifactHash must be 64 lowercase hexadecimal characters"
                     .to_string(),
@@ -326,13 +359,13 @@ fn refusal(
     )
 }
 
-fn semantic_region_id(partition_field: &str, source_partition_value: &str) -> String {
+fn semantic_region_id(partition_field: &str, label: &str) -> String {
     let preimage = format!(
         "schema={SEMANTIC_EMBODIMENT_SCHEMA_VERSION}\0candidate=CLUSTER_REGIONS\0field={}:{}\0label={}:{}",
         partition_field.len(),
         partition_field,
-        source_partition_value.len(),
-        source_partition_value,
+        label.len(),
+        label,
     );
     format!("cluster-region:{}", sha256_hex(&preimage))
 }
@@ -357,16 +390,13 @@ fn validate_ready_envelope(
     if envelope.candidate_id != SemanticRepresentationIdV1::ClusterRegions
         || envelope.representation_family != SemanticEmbodimentFamilyV1::Cluster
     {
-        return Err(
-            "CLUSTER_REGIONS envelope requires candidateId=CLUSTER_REGIONS and representationFamily=CLUSTER"
-                .to_string(),
-        );
+        return Err("CLUSTER_REGIONS envelope identity mismatch".to_string());
     }
     if envelope.analytical_method.name != CLUSTER_METHOD_NAME_V1
         || envelope.analytical_method.version != CLUSTER_METHOD_VERSION_V1
         || envelope.analytical_method.parameters != analytical_parameters(request)
     {
-        return Err("cluster analyticalMethod must match the reviewed V1 method contract".to_string());
+        return Err("cluster analyticalMethod must match reviewed V1 method".to_string());
     }
     if envelope.approximation.mode != ApproximationModeV1::Bounded {
         return Err("CLUSTER_REGIONS approximation mode must be BOUNDED".to_string());
@@ -375,9 +405,7 @@ fn validate_ready_envelope(
         return Err("CLUSTER_REGIONS informationContract must match RFC 0001".to_string());
     }
     if envelope.resource.max_element_count != MAX_CLUSTER_REGIONS_V1 {
-        return Err(format!(
-            "CLUSTER_REGIONS maxElementCount must equal {MAX_CLUSTER_REGIONS_V1}"
-        ));
+        return Err("CLUSTER_REGIONS maxElementCount mismatch".to_string());
     }
 
     let ClusterEmbodimentResultV1::Ready { payload } = &envelope.result else {
@@ -387,59 +415,51 @@ fn validate_ready_envelope(
     if payload.partition_field != request.partition_field
         || payload.coordinate_fields != request.coordinate_fields
     {
-        return Err("cluster payload fields must match the explicit request".to_string());
+        return Err("cluster payload fields must match explicit request".to_string());
     }
     if payload.regions.is_empty() || payload.regions.len() > MAX_CLUSTER_REGIONS_V1 as usize {
-        return Err(format!(
-            "READY cluster payload must contain 1..={MAX_CLUSTER_REGIONS_V1} regions"
-        ));
+        return Err("READY cluster payload region count out of bounds".to_string());
     }
     if envelope.resource.element_count != payload.regions.len() as u32 {
         return Err("cluster resource.elementCount must equal regions length".to_string());
     }
-    if payload.counts.source_count != envelope.resource.source_row_count {
-        return Err("cluster counts.sourceCount must equal resource.sourceRowCount".to_string());
-    }
-    if payload
-        .counts
-        .assigned_count
-        .checked_add(payload.counts.unassigned_count)
-        != Some(payload.counts.source_count)
+    if payload.counts.source_count != envelope.resource.source_row_count
+        || payload.counts.assigned_count.checked_add(payload.counts.unassigned_count)
+            != Some(payload.counts.source_count)
+        || payload
+            .counts
+            .coordinate_valid_count
+            .checked_add(payload.counts.coordinate_excluded_count)
+            != Some(payload.counts.assigned_count)
     {
-        return Err("cluster assigned/unassigned counts must sum to sourceCount".to_string());
+        return Err("cluster global counts do not reconcile".to_string());
     }
-    if payload
-        .counts
-        .coordinate_valid_count
-        .checked_add(payload.counts.coordinate_excluded_count)
-        != Some(payload.counts.assigned_count)
+    if payload.counts.coordinate_valid_count == 0
+        || envelope.approximation.represented_row_count != payload.counts.coordinate_valid_count
     {
-        return Err(
-            "cluster coordinate valid/excluded counts must sum to assignedCount".to_string(),
-        );
-    }
-    if payload.counts.coordinate_valid_count == 0 {
-        return Err("READY cluster payload requires at least one coordinate-valid member".to_string());
-    }
-    if envelope.approximation.represented_row_count != payload.counts.coordinate_valid_count {
-        return Err(
-            "cluster representedRowCount must equal coordinateValidCount".to_string(),
-        );
+        return Err("cluster representedRowCount/valid-count mismatch".to_string());
     }
 
-    let mut semantic_ids = HashSet::new();
+    let mut ids = HashSet::new();
     let mut labels = HashSet::new();
     let mut previous_label: Option<&str> = None;
     let mut assigned_sum = 0u64;
     let mut valid_sum = 0u64;
     let mut excluded_sum = 0u64;
+    let mut label_bytes = 0usize;
     for region in &payload.regions {
         validate_short_text(&region.semantic_id, "cluster semanticId")?;
-        if !semantic_ids.insert(region.semantic_id.as_str()) {
+        if !ids.insert(region.semantic_id.as_str()) {
             return Err("cluster semanticId values must be unique".to_string());
         }
         if region.source_partition_value.is_empty() {
             return Err("cluster regions may not serialize empty partition labels".to_string());
+        }
+        label_bytes = label_bytes
+            .checked_add(region.source_partition_value.len())
+            .ok_or_else(|| "cluster retained partition-label byte count overflow".to_string())?;
+        if label_bytes > MAX_CLUSTER_PARTITION_LABEL_BYTES_V1 {
+            return Err("cluster retained partition-label byte budget exceeded".to_string());
         }
         if !labels.insert(region.source_partition_value.as_str()) {
             return Err("cluster source partition labels must be unique".to_string());
@@ -448,59 +468,36 @@ fn validate_ready_envelope(
             return Err("cluster regions must use deterministic ascending label order".to_string());
         }
         previous_label = Some(region.source_partition_value.as_str());
-        if region.semantic_id
-            != semantic_region_id(&payload.partition_field, &region.source_partition_value)
-        {
-            return Err("cluster semanticId must derive from schema/candidate/partition/label identity".to_string());
+        if region.semantic_id != semantic_region_id(&payload.partition_field, &region.source_partition_value) {
+            return Err("cluster semanticId does not match source identity".to_string());
         }
-        if region.assigned_count == 0 {
-            return Err("cluster regions with zero assigned members are not serialized".to_string());
-        }
-        if region
-            .coordinate_valid_count
-            .checked_add(region.coordinate_excluded_count)
-            != Some(region.assigned_count)
+        if region.assigned_count == 0
+            || region
+                .coordinate_valid_count
+                .checked_add(region.coordinate_excluded_count)
+                != Some(region.assigned_count)
         {
-            return Err(
-                "cluster region coordinate valid/excluded counts must sum to assignedCount"
-                    .to_string(),
-            );
+            return Err("cluster region counts do not reconcile".to_string());
         }
         match (&region.spatial_summary, region.coordinate_valid_count) {
             (None, 0) => {}
-            (None, _) => {
-                return Err(
-                    "cluster region with coordinate-valid members requires a spatialSummary"
-                        .to_string(),
-                )
-            }
-            (Some(_), 0) => {
-                return Err(
-                    "cluster region with zero coordinate-valid members must have spatialSummary=null"
-                        .to_string(),
-                )
-            }
-            (Some(summary), _) => {
+            (Some(summary), valid) if valid > 0 => {
                 if summary.axes.len() != payload.coordinate_fields.len() {
-                    return Err("cluster spatialSummary axes must match coordinateFields".to_string());
+                    return Err("cluster spatialSummary axes mismatch".to_string());
                 }
                 for (axis, expected_field) in summary.axes.iter().zip(&payload.coordinate_fields) {
-                    if &axis.field != expected_field {
-                        return Err("cluster spatialSummary axis order must match coordinateFields".to_string());
-                    }
-                    if !axis.centroid.is_finite()
+                    if &axis.field != expected_field
+                        || !axis.centroid.is_finite()
                         || !axis.min.is_finite()
                         || !axis.max.is_finite()
                         || axis.min > axis.centroid
                         || axis.centroid > axis.max
                     {
-                        return Err(
-                            "cluster spatialSummary must contain finite ordered min/centroid/max values"
-                                .to_string(),
-                        );
+                        return Err("cluster spatialSummary contains invalid geometry".to_string());
                     }
                 }
             }
+            _ => return Err("cluster null spatialSummary contract violated".to_string()),
         }
         assigned_sum = assigned_sum
             .checked_add(region.assigned_count)
@@ -516,7 +513,7 @@ fn validate_ready_envelope(
         || valid_sum != payload.counts.coordinate_valid_count
         || excluded_sum != payload.counts.coordinate_excluded_count
     {
-        return Err("cluster region counts must reconcile with global counts".to_string());
+        return Err("cluster region/global counts mismatch".to_string());
     }
     Ok(())
 }
@@ -577,7 +574,7 @@ fn cluster_from_columnar(
             source_row_count,
             request,
             SemanticRefusalCodeV1::MissingEvidence,
-            "resident cluster partition column length does not match sourceCount",
+            "resident cluster partition column length mismatch",
             None,
         );
     }
@@ -632,6 +629,7 @@ fn cluster_from_columnar(
     let mut unassigned_count = 0u64;
     let mut coordinate_valid_count = 0u64;
     let mut coordinate_excluded_count = 0u64;
+    let mut retained_label_bytes = 0usize;
 
     for row_index in 0..source_row_count {
         if partition_column.validity[row_index] == 0 {
@@ -653,17 +651,40 @@ fn cluster_from_columnar(
             unassigned_count += 1;
             continue;
         }
-        if !regions.contains_key(label) && regions.len() >= MAX_CLUSTER_REGIONS_V1 as usize {
-            return refusal(
-                fingerprint,
-                source_row_count,
-                request,
-                SemanticRefusalCodeV1::ResourceLimit,
-                format!(
-                    "cluster region count exceeds hard V1 bound {MAX_CLUSTER_REGIONS_V1}"
-                ),
-                Some((regions.len() + 1) as u64),
-            );
+        if !regions.contains_key(label) {
+            if regions.len() >= MAX_CLUSTER_REGIONS_V1 as usize {
+                return refusal(
+                    fingerprint,
+                    source_row_count,
+                    request,
+                    SemanticRefusalCodeV1::ResourceLimit,
+                    format!("cluster region count exceeds hard V1 bound {MAX_CLUSTER_REGIONS_V1}"),
+                    Some((regions.len() + 1) as u64),
+                );
+            }
+            let Some(next_label_bytes) = retained_label_bytes.checked_add(label.len()) else {
+                return refusal(
+                    fingerprint,
+                    source_row_count,
+                    request,
+                    SemanticRefusalCodeV1::ResourceLimit,
+                    "cluster retained partition-label byte count overflow",
+                    None,
+                );
+            };
+            if next_label_bytes > MAX_CLUSTER_PARTITION_LABEL_BYTES_V1 {
+                return refusal(
+                    fingerprint,
+                    source_row_count,
+                    request,
+                    SemanticRefusalCodeV1::ResourceLimit,
+                    format!(
+                        "cluster retained partition labels exceed hard V1 UTF-8 byte budget {MAX_CLUSTER_PARTITION_LABEL_BYTES_V1}"
+                    ),
+                    None,
+                );
+            }
+            retained_label_bytes = next_label_bytes;
         }
 
         assigned_count += 1;
@@ -698,7 +719,7 @@ fn cluster_from_columnar(
                     source_row_count,
                     request,
                     SemanticRefusalCodeV1::ResourceLimit,
-                    "cluster centroid accumulation exceeded finite numeric range",
+                    "cluster deterministic centroid accumulator overflow",
                     None,
                 );
             }
@@ -726,32 +747,41 @@ fn cluster_from_columnar(
         );
     }
 
-    let payload_regions = regions
-        .into_iter()
-        .map(|(source_partition_value, region)| {
-            let spatial_summary = (region.coordinate_valid_count > 0).then(|| ClusterSpatialSummaryV1 {
-                axes: region
-                    .axes
-                    .into_iter()
-                    .enumerate()
-                    .map(|(axis_index, axis)| ClusterAxisSummaryV1 {
-                        field: request.coordinate_fields[axis_index].clone(),
-                        centroid: axis.centroid,
-                        min: axis.min,
-                        max: axis.max,
-                    })
-                    .collect(),
-            });
-            ClusterRegionV1 {
-                semantic_id: semantic_region_id(&request.partition_field, &source_partition_value),
-                source_partition_value,
-                assigned_count: region.assigned_count,
-                coordinate_valid_count: region.coordinate_valid_count,
-                coordinate_excluded_count: region.coordinate_excluded_count,
-                spatial_summary,
+    let mut payload_regions = Vec::with_capacity(regions.len());
+    for (source_partition_value, region) in regions {
+        let spatial_summary = if region.coordinate_valid_count == 0 {
+            None
+        } else {
+            let mut axes = Vec::with_capacity(region.axes.len());
+            for (axis_index, axis) in region.axes.into_iter().enumerate() {
+                let Some(centroid) = axis.centroid() else {
+                    return refusal(
+                        fingerprint,
+                        source_row_count,
+                        request,
+                        SemanticRefusalCodeV1::ResourceLimit,
+                        "cluster deterministic centroid conversion failed",
+                        None,
+                    );
+                };
+                axes.push(ClusterAxisSummaryV1 {
+                    field: request.coordinate_fields[axis_index].clone(),
+                    centroid,
+                    min: axis.min,
+                    max: axis.max,
+                });
             }
-        })
-        .collect::<Vec<_>>();
+            Some(ClusterSpatialSummaryV1 { axes })
+        };
+        payload_regions.push(ClusterRegionV1 {
+            semantic_id: semantic_region_id(&request.partition_field, &source_partition_value),
+            source_partition_value,
+            assigned_count: region.assigned_count,
+            coordinate_valid_count: region.coordinate_valid_count,
+            coordinate_excluded_count: region.coordinate_excluded_count,
+            spatial_summary,
+        });
+    }
 
     let mut envelope = base_envelope(
         fingerprint,
@@ -890,182 +920,89 @@ mod tests {
         payload
     }
 
-    fn reference_rows() -> Vec<HashMap<String, Value>> {
-        vec![
-            HashMap::from([
-                ("group".to_string(), Value::Text("A".to_string())),
-                ("x".to_string(), Value::Number(0.0)),
-                ("y".to_string(), Value::Number(0.0)),
-                ("z".to_string(), Value::Number(1.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text("A".to_string())),
-                ("x".to_string(), Value::Number(2.0)),
-                ("y".to_string(), Value::Number(2.0)),
-                ("z".to_string(), Value::Number(3.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text("A".to_string())),
-                ("x".to_string(), Value::Null),
-                ("y".to_string(), Value::Number(4.0)),
-                ("z".to_string(), Value::Number(5.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text("B".to_string())),
-                ("x".to_string(), Value::Number(10.0)),
-                ("y".to_string(), Value::Number(5.0)),
-                ("z".to_string(), Value::Number(7.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text("B".to_string())),
-                ("x".to_string(), Value::Null),
-                ("y".to_string(), Value::Number(6.0)),
-                ("z".to_string(), Value::Number(8.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Null),
-                ("x".to_string(), Value::Number(20.0)),
-                ("y".to_string(), Value::Number(20.0)),
-                ("z".to_string(), Value::Number(20.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text(String::new())),
-                ("x".to_string(), Value::Number(30.0)),
-                ("y".to_string(), Value::Number(30.0)),
-                ("z".to_string(), Value::Number(30.0)),
-            ]),
-        ]
+    fn row(group: Value, x: Value, y: Value) -> HashMap<String, Value> {
+        HashMap::from([
+            ("group".to_string(), group),
+            ("x".to_string(), x),
+            ("y".to_string(), y),
+        ])
     }
 
     #[test]
-    fn hand_calculable_summary_uses_complete_case_coordinates_and_preserves_zeroes() {
-        let envelope = build_cluster_embodiment_v1(dataset("cluster-reference", reference_rows()), &request())
+    fn complete_case_summary_preserves_membership_and_null_spatial_groups() {
+        let rows = vec![
+            row(Value::Text("A".into()), Value::Number(0.0), Value::Number(0.0)),
+            row(Value::Text("A".into()), Value::Number(2.0), Value::Number(2.0)),
+            row(Value::Text("A".into()), Value::Null, Value::Number(4.0)),
+            row(Value::Text("B".into()), Value::Null, Value::Number(6.0)),
+            row(Value::Null, Value::Number(9.0), Value::Number(9.0)),
+        ];
+        let envelope = build_cluster_embodiment_v1(dataset("cluster-reference", rows), &request())
             .expect("cluster envelope");
         assert_eq!(envelope.approximation.mode, ApproximationModeV1::Bounded);
-        assert_eq!(envelope.approximation.represented_row_count, 3);
-        assert_eq!(envelope.resource.source_row_count, 7);
-        assert_eq!(envelope.resource.element_count, 2);
-        assert_eq!(envelope.resource.max_element_count, MAX_CLUSTER_REGIONS_V1);
+        assert_eq!(envelope.approximation.represented_row_count, 2);
         let payload = ready_payload(envelope);
         assert_eq!(
             payload.counts,
             ClusterObservationCountsV1 {
-                source_count: 7,
-                assigned_count: 5,
-                unassigned_count: 2,
-                coordinate_valid_count: 3,
+                source_count: 5,
+                assigned_count: 4,
+                unassigned_count: 1,
+                coordinate_valid_count: 2,
                 coordinate_excluded_count: 2,
             }
         );
-        assert_eq!(payload.regions.len(), 2);
         let a = &payload.regions[0];
-        assert_eq!(a.source_partition_value, "A");
-        assert_eq!((a.assigned_count, a.coordinate_valid_count, a.coordinate_excluded_count), (3, 2, 1));
-        let axes = &a.spatial_summary.as_ref().expect("A spatial summary").axes;
+        let axes = &a.spatial_summary.as_ref().unwrap().axes;
         assert_eq!((axes[0].min, axes[0].centroid, axes[0].max), (0.0, 1.0, 2.0));
-        assert_eq!((axes[1].min, axes[1].centroid, axes[1].max), (0.0, 1.0, 2.0));
-    }
-
-    #[test]
-    fn supports_exactly_three_explicit_numeric_coordinate_fields() {
-        let mut three_d = request();
-        three_d.coordinate_fields.push("z".to_string());
-        let payload = ready_payload(
-            build_cluster_embodiment_v1(dataset("cluster-3d", reference_rows()), &three_d).unwrap(),
-        );
-        assert_eq!(payload.coordinate_fields, vec!["x", "y", "z"]);
-        assert_eq!(payload.regions[0].spatial_summary.as_ref().unwrap().axes.len(), 3);
-    }
-
-    #[test]
-    fn retains_spatially_unavailable_group_as_null_when_another_group_is_representable() {
-        let rows = vec![
-            HashMap::from([
-                ("group".to_string(), Value::Text("A".to_string())),
-                ("x".to_string(), Value::Number(0.0)),
-                ("y".to_string(), Value::Number(0.0)),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text("B".to_string())),
-                ("x".to_string(), Value::Null),
-                ("y".to_string(), Value::Number(2.0)),
-            ]),
-        ];
-        let payload = ready_payload(build_cluster_embodiment_v1(dataset("cluster-null-summary", rows), &request()).unwrap());
-        let b = payload.regions.iter().find(|region| region.source_partition_value == "B").unwrap();
-        assert_eq!((b.assigned_count, b.coordinate_valid_count, b.coordinate_excluded_count), (1, 0, 1));
+        let b = payload
+            .regions
+            .iter()
+            .find(|region| region.source_partition_value == "B")
+            .unwrap();
         assert!(b.spatial_summary.is_none());
     }
 
     #[test]
-    fn refuses_when_every_assigned_group_lacks_a_complete_coordinate_tuple() {
-        let rows = vec![
-            HashMap::from([
-                ("group".to_string(), Value::Text("A".to_string())),
-                ("x".to_string(), Value::Number(1.0)),
-                ("y".to_string(), Value::Null),
-            ]),
-            HashMap::from([
-                ("group".to_string(), Value::Text("B".to_string())),
-                ("x".to_string(), Value::Null),
-                ("y".to_string(), Value::Number(2.0)),
-            ]),
-        ];
-        let envelope = build_cluster_embodiment_v1(dataset("cluster-no-spatial", rows), &request()).unwrap();
-        assert!(matches!(
-            envelope.result,
-            ClusterEmbodimentResultV1::Refused {
-                refusal: SemanticRefusalV1 {
-                    code: SemanticRefusalCodeV1::MissingEvidence,
-                    ..
-                }
-            }
-        ));
+    fn deterministic_centroid_survives_catastrophic_cancellation_permutation() {
+        let make_rows = |xs: &[f64]| {
+            xs.iter()
+                .map(|x| row(Value::Text("A".into()), Value::Number(*x), Value::Number(0.0)))
+                .collect::<Vec<_>>()
+        };
+        let first = ready_payload(
+            build_cluster_embodiment_v1(
+                dataset("cluster-order", make_rows(&[1e16, -1e16, 1.0])),
+                &request(),
+            )
+            .unwrap(),
+        );
+        let second = ready_payload(
+            build_cluster_embodiment_v1(
+                dataset("cluster-order", make_rows(&[1.0, -1e16, 1e16])),
+                &request(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(first, second);
+        assert_eq!(
+            first.regions[0].spatial_summary.as_ref().unwrap().axes[0].centroid,
+            1.0 / 3.0
+        );
     }
 
     #[test]
-    fn refuses_wrong_types_and_wrong_coordinate_dimensionality() {
-        let numeric_partition = data::register_dataset(Dataset::new(
-            "cluster-numeric-partition",
-            vec![
-                Column::new("group", ColumnType::Numeric),
-                Column::new("x", ColumnType::Numeric),
-                Column::new("y", ColumnType::Numeric),
-            ],
-            vec![HashMap::from([
-                ("group".to_string(), Value::Number(1.0)),
-                ("x".to_string(), Value::Number(0.0)),
-                ("y".to_string(), Value::Number(0.0)),
-            ])],
-        ));
-        assert!(matches!(
-            build_cluster_embodiment_v1(numeric_partition, &request()).unwrap().result,
-            ClusterEmbodimentResultV1::Refused { refusal: SemanticRefusalV1 { code: SemanticRefusalCodeV1::InvalidParameters, .. } }
-        ));
-
-        for fields in [vec!["x".to_string()], vec!["x".to_string(), "y".to_string(), "z".to_string(), "w".to_string()]] {
-            let mut malformed = request();
-            malformed.coordinate_fields = fields;
-            assert!(matches!(
-                build_cluster_embodiment_v1(dataset("cluster-bad-dims", reference_rows()), &malformed).unwrap().result,
-                ClusterEmbodimentResultV1::Refused { refusal: SemanticRefusalV1 { code: SemanticRefusalCodeV1::InvalidParameters, .. } }
-            ));
-        }
-    }
-
-    #[test]
-    fn refuses_the_257th_assigned_group_without_truncating_or_merging() {
-        let rows = (0..257)
+    fn refuses_group_and_label_resource_overruns() {
+        let too_many = (0..257)
             .map(|index| {
-                HashMap::from([
-                    ("group".to_string(), Value::Text(format!("g{index:03}"))),
-                    ("x".to_string(), Value::Number(index as f64)),
-                    ("y".to_string(), Value::Number(0.0)),
-                ])
+                row(
+                    Value::Text(format!("g{index:03}")),
+                    Value::Number(index as f64),
+                    Value::Number(0.0),
+                )
             })
             .collect();
-        let envelope = build_cluster_embodiment_v1(dataset("cluster-over-bound", rows), &request()).unwrap();
-        assert_eq!(envelope.resource.element_count, 0);
+        let envelope = build_cluster_embodiment_v1(dataset("cluster-over-groups", too_many), &request()).unwrap();
         assert!(matches!(
             envelope.result,
             ClusterEmbodimentResultV1::Refused {
@@ -1076,33 +1013,25 @@ mod tests {
                 }
             }
         ));
-    }
 
-    #[test]
-    fn region_ids_and_payload_summaries_survive_row_permutation() {
-        let forward_rows = reference_rows();
-        let mut reverse_rows = forward_rows.clone();
-        reverse_rows.reverse();
-        let forward = build_cluster_embodiment_v1(dataset("cluster-order", forward_rows), &request()).unwrap();
-        let reverse = build_cluster_embodiment_v1(dataset("cluster-order", reverse_rows), &request()).unwrap();
-        assert_ne!(forward.dataset_fingerprint, reverse.dataset_fingerprint);
-        assert_eq!(ready_payload(forward), ready_payload(reverse));
-    }
-
-    #[test]
-    fn unrelated_lexically_earlier_group_does_not_renumber_existing_region_ids() {
-        let original = ready_payload(build_cluster_embodiment_v1(dataset("cluster-id-original", reference_rows()), &request()).unwrap());
-        let mut extra_rows = reference_rows();
-        extra_rows.push(HashMap::from([
-            ("group".to_string(), Value::Text("0-earlier".to_string())),
-            ("x".to_string(), Value::Number(50.0)),
-            ("y".to_string(), Value::Number(50.0)),
-        ]));
-        let expanded = ready_payload(build_cluster_embodiment_v1(dataset("cluster-id-expanded", extra_rows), &request()).unwrap());
-        for label in ["A", "B"] {
-            let before = original.regions.iter().find(|region| region.source_partition_value == label).unwrap();
-            let after = expanded.regions.iter().find(|region| region.source_partition_value == label).unwrap();
-            assert_eq!(before.semantic_id, after.semantic_id);
-        }
+        let oversized_label = vec![row(
+            Value::Text("x".repeat(MAX_CLUSTER_PARTITION_LABEL_BYTES_V1 + 1)),
+            Value::Number(0.0),
+            Value::Number(0.0),
+        )];
+        let envelope = build_cluster_embodiment_v1(
+            dataset("cluster-over-label-bytes", oversized_label),
+            &request(),
+        )
+        .unwrap();
+        assert!(matches!(
+            envelope.result,
+            ClusterEmbodimentResultV1::Refused {
+                refusal: SemanticRefusalV1 {
+                    code: SemanticRefusalCodeV1::ResourceLimit,
+                    ..
+                }
+            }
+        ));
     }
 }
