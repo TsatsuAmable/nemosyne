@@ -4,10 +4,11 @@
 
 ## Status snapshot - 31 August 2026
 
-**Current integration base for this planning update:** `main@5eb9b7617d4d657569ccb0bdf5fbb374b3405d1f` (#595 merged).
+**Current integration base for this planning update:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged).
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, and source-partition Cluster Regions R2D have reached their finite exits. In particular:
 
+- A1 semantic drill-down contract/falsifiers is `VERIFIED COMPLETE` after establishing SemanticDrillDown.ts and drill_down.rs WASM validation boundary.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -33,7 +34,7 @@ Each stream has a finite mission, explicit ownership, ordered checkpoints, colli
 
 | Stream | Mission | First checkpoint | Can run beside | Finite exit |
 | --- | --- | --- | --- | --- |
-| **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A1 semantic drill-down contract/falsifiers | B, C, D | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
+| **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A2 resident membership/query capability | B, C, D | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B1 source relationship-graph authority contract | A, C, D | First selected structural family is verified complete; then STOP and explicitly select the next family. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects | A, B, D | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
 | **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | A, B, C | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
@@ -79,6 +80,8 @@ investigation
 ```
 
 ## A1 - semantic drill-down contract and falsifiers
+
+**Status:** VERIFIED COMPLETE  
 
 Freeze the generic contract before implementation fans out.
 
