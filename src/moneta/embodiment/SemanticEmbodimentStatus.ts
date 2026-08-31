@@ -6,7 +6,9 @@ export type SemanticEmbodimentPresentationStatus =
 export type SemanticEmbodimentPresentationCandidateId =
   | 'AGGREGATE_VOLUME'
   | 'DISTRIBUTION_FIELD'
-  | 'DENSITY_FIELD';
+  | 'DENSITY_FIELD'
+  | 'CLUSTER_REGIONS'
+  | 'RELATIONSHIP_GRAPH';
 
 export const SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME = 'semantic-embodiment-status';
 
@@ -50,6 +52,20 @@ const CANDIDATE_COPY: Record<
     refused: 'The analytical kernel refused this aggregate request.',
     invalid: 'The returned payload did not match the governed aggregate contract.',
     unavailable: 'No current analytical aggregate result is available.',
+  },
+  CLUSTER_REGIONS: {
+    label: 'CLUSTERS',
+    pending: 'Summarising the explicit source partition in the analytical kernel.',
+    refused: 'No governed source partition could be embodied as cluster regions.',
+    invalid: 'The returned payload did not match the governed cluster-region contract.',
+    unavailable: 'No current source-authoritative cluster-region result is available.',
+  },
+  RELATIONSHIP_GRAPH: {
+    label: 'RELATIONSHIPS',
+    pending: 'Preparing the source-provided relationship graph in the analytical kernel.',
+    refused: 'No governed source edge list could be embodied as a relationship graph.',
+    invalid: 'The returned payload did not match the governed relationship-graph contract.',
+    unavailable: 'No current source-authoritative relationship graph is available.',
   },
 };
 
@@ -136,11 +152,7 @@ function statusMaterial(
   });
 }
 
-/**
- * Present semantic loading/refusal state without creating an analytical mark.
- * The surface is deliberately excluded from Artifact.nodeMeshes and therefore
- * cannot be counted, selected or interpreted as Rust analytical evidence.
- */
+/** Present analytical pending/refusal state without fabricating a data mark. */
 export function setSemanticEmbodimentPresentationStatus(
   group: THREE.Group,
   status: SemanticEmbodimentPresentationStatus,
