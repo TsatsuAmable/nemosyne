@@ -35,9 +35,9 @@ function neutralRequirements() {
 }
 
 describe('P1-R6B rank-effective family membership treatment', () => {
-  it('mints a new fitness model and treatment identity', () => {
-    expect(BOOTSTRAP_FITNESS_MODEL_VERSION).toBe('bootstrap-fitness-v3');
-    expect(FITNESS_TREATMENT_ID).toBe('fitness-treatment-v3');
+  it('retains the R6B family invariants under the current treatment identity', () => {
+    expect(BOOTSTRAP_FITNESS_MODEL_VERSION).toBe('bootstrap-fitness-v4');
+    expect(FITNESS_TREATMENT_ID).toBe('fitness-treatment-v4');
   });
 
   it('assigns every semantic candidate to exactly one canonical reasoning family', () => {
@@ -152,14 +152,14 @@ describe('P1-R6B rank-effective family membership treatment', () => {
     expect(component(temporal, 'task')).toBe(1);
   });
 
-  it('removes duplicate family-generated layout variants and records the new treatment in decisions', () => {
+  it('removes duplicate family-generated layout variants and records the current treatment in decisions', () => {
     const signature = minimalDatasetSignature(5_000, 3, 0, 0, 'r6b-search-space', 0);
     const decision = MonetaHypothesisEngine.arbitrate(signature, neutralRequirements());
     const ranked = decision.rankedCandidates ?? [];
 
-    expect(decision.fitnessModelVersion).toBe('bootstrap-fitness-v3');
-    expect(decision.provenance.fitnessModelVersion).toBe('bootstrap-fitness-v3');
-    expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v3');
+    expect(decision.fitnessModelVersion).toBe('bootstrap-fitness-v4');
+    expect(decision.provenance.fitnessModelVersion).toBe('bootstrap-fitness-v4');
+    expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v4');
 
     const density = ranked.filter((candidate) => candidate.candidateId === 'DENSITY_FIELD');
     expect(new Set(density.map((candidate) => candidate.family))).toEqual(new Set(['DISTRIBUTION']));
