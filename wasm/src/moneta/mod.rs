@@ -1,5 +1,7 @@
 pub mod aggregate_embodiment;
 pub mod cluster_embodiment;
+#[cfg(test)]
+mod cluster_embodiment_tests;
 pub mod constraints;
 pub mod density_embodiment;
 pub mod distribution_embodiment;
