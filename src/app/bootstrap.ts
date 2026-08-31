@@ -79,9 +79,6 @@ function investigationActions(
       world.currentEntry?.name ?? world.currentEntry?.label ?? world.currentEntry?.key ?? null,
     subscribeDatasetContext: (handler) =>
       world.eventBus.on(WorldTopics.DATASET_LOADED, () => {
-        // LoadDatasetUseCase publishes the logical transition synchronously;
-        // World assigns currentEntry immediately after it returns. Refresh on
-        // the next microtask so the shell reads the completed facade state.
         queueMicrotask(handler);
       }),
     assessRepresentation: (maxRenderedElements) =>
@@ -138,14 +135,6 @@ function devTraceBindings(world: World): DevTraceBindings {
   };
 }
 
-/**
- * P1-UV1 composition policy for the normal analyst path.
- *
- * Existing diagnostic surfaces stay constructed/registered so the explicit
- * developer route and evidence harnesses retain them, but they no longer
- * dominate first use. This is deliberately a composition-root policy rather
- * than another UI coordinator or a change to analytical owners.
- */
 function applyNormalAnalystShell(world: World): void {
   if (world.uiManager.panelRolesManager.uiMode === 'DEVELOPER') return;
 
@@ -160,9 +149,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
 
-  // The composition root accepts presentation-only commands (for example
-  // settings.open), while World/XR/input deliberately retain the narrower
-  // canonical analytical/application intent contract.
   const dispatchIntent = applicationIntentDispatcher(world);
   const dispatchCanonicalIntent: ApplicationIntentDispatcher = (intent) => dispatchIntent(intent);
 
@@ -174,9 +160,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
   });
   world.dispatchIntent = dispatchCanonicalIntent;
 
-  // Progressive disclosure and exact datum inspection are composed here rather
-  // than in World. Both consume the generic representation-selection surface
-  // and canonical analytical authority; neither can access or cache source rows.
   const semanticDetailTransition = new SemanticDetailTransition(
     world.representationSurface,
     world.atlas,
@@ -232,6 +215,12 @@ export async function bootstrapApp(): Promise<AppInstance> {
       './resourceEnvelopeDiagnostics.ts'
     );
     installResourceEnvelopeDiagnosticHook(world);
+  }
+
+  if (import.meta.env.VITE_NEMOSYNE_A5_PRODUCT_EVIDENCE === '1') {
+    const { installA5ProductEvidenceHook } = await import('./a5ProductEvidenceDiagnostics.ts');
+    const disposeA5Evidence = installA5ProductEvidenceHook(world);
+    world.registerExtensionDisposer(disposeA5Evidence);
   }
 
   if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
