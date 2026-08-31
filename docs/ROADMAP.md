@@ -4,7 +4,7 @@
 
 ## Status snapshot - 31 August 2026
 
-**Current integration base for this planning update:** `main@1ea2920` (#606 merged). Stream A is fully closed; Stream B B1 promotion is being finalized in #607 and B2 is the next forward checkpoint after that merge.
+**Current integration base for this planning update:** `main@1ea2920` (#606 merged). Stream A is fully closed; Stream B B1 is promoted and B2 is the active forward checkpoint.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, and the current Progressive Disclosure Stream A have reached their finite implementation exits. In particular:
 
@@ -13,7 +13,7 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - A3 semantic selection lineage, bounded observation reveal, and explicit return-to-structure are `VERIFIED COMPLETE` for the generic production path.
 - A4 exact datum/provenance inspection is `VERIFIED COMPLETE` after #605, using a second bounded authority query rather than a whole-dataset UI cache.
 - A5 cross-family product evidence and the independent STOP review establish the finite P1-R5 closure for Aggregate, Distribution, Density and source-partition Cluster, with #606 merged and all exact-head gates green.
-- Stream B B1 source relationship-graph authority contract has landed via #598 and passed independent adversarial review. #607 closes the promotion/fix-forward tranche; B1 becomes final only after #607's unchanged exact head passes the required gates and merges. `RELATIONSHIP_GRAPH` remains unavailable as a governed production representation until B2/B3 land.
+- Stream B B1 source relationship-graph authority contract is `VERIFIED COMPLETE` after #598, independent adversarial review closure (`review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`) and promotion at `main@1ea2920`. `RELATIONSHIP_GRAPH` remains disqualified in production until B2/B3 land; four DEFER findings are recorded as B2/B3 obligations in `roadmap/P1_R2E_RELATIONSHIP_GRAPH.md`.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -43,7 +43,7 @@ Only one forward implementation PR should be active at a time unless the user ex
 | Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
-| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B1 promotion #607; B2 next | **ACTIVE** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
+| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B2 resident Rust/WASM graph payload | **ACTIVE** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects | **QUEUED AFTER B** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
 | **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | **QUEUED AFTER C** | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
 
@@ -154,7 +154,7 @@ B must not create a competing graph-specific member-query API. C may present `Re
 
 # Stream B - Source-Authoritative Structural Representations
 
-**Status:** ACTIVE — B1 PROMOTION #607; B2 NEXT AFTER MERGE  
+**Status:** ACTIVE — SEQUENTIAL FORWARD PROGRAMME; B1 COMPLETE, B2 IN FLIGHT  
 **Primary programme:** P1-R2E in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
 **First selected family:** source-provided `RELATIONSHIP_GRAPH`.
 
@@ -166,7 +166,7 @@ The first slice is Relationship Graph because source-provided edges create the c
 
 ## B1 - Relationship Graph scientific/authority contract
 
-**Status:** VERIFIED COMPLETE ON #607 HEAD / PROMOTION PENDING FINAL EXACT-HEAD GATES + MERGE
+**Status:** VERIFIED COMPLETE — #598 landed, independent adversarial review closed (`review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`), promoted at `main@1ea2920`.
 
 - define accepted source edge authority and provenance;
 - define node identity, edge identity, directionality, multiplicity/self-loop policy, missing endpoint behavior and edge attributes included in V1;
@@ -184,10 +184,7 @@ The first slice is Relationship Graph because source-provided edges create the c
 - emit bounded stable semantic node/edge IDs and authoritative adjacency;
 - keep topology independent of Three.js layout;
 - preserve missing/dropped/refused counts explicitly;
-- prove deterministic ordering, source identity and resource limits across real WASM;
-- enforce the 2 MiB payload ceiling at Rust/WASM authority;
-- preserve strict graph-authority validation when the production graph requirements surface is wired;
-- extend #607's `Dataset -> buildDatasetSignature -> arbitrate` source-binding evidence through the actual Atlas/Worker/resident Rust path.
+- prove deterministic ordering, source identity and resource limits across real WASM.
 
 ## B3 - production cutover and thin graph adapter
 
@@ -195,8 +192,7 @@ The first slice is Relationship Graph because source-provided edges create the c
 - intercept the governed graph representation before row-derived or proximity-derived layout logic can create topology;
 - keep presentation layout purely presentational and visibly distinguish it from edge authority;
 - bind selection to stable semantic node/edge IDs;
-- fail closed on pending/refused/stale/invalid payloads;
-- prove pre-existing edge-drop paths are either fail-closed or unreachable for governed graph payloads.
+- fail closed on pending/refused/stale/invalid payloads.
 
 A's generic selection/drill-down contract is now frozen and must be consumed here. B3 may extend only the family-specific authority/payload/adaptation needed to satisfy that shared contract; it may not fork the generic semantic-detail API.
 
@@ -302,39 +298,237 @@ Canonical journeys remain:
 
 ### Stream C collision rule
 
-C owns product shell, world objects, UI hierarchy and interaction presentation. It must not alter scientific semantics owned by Moneta/Rust. If C needs new analytical meaning, that becomes a separately governed analytical tranche rather than a UI convenience.
+C owns product shell/world-object/presentation state and affordances. It consumes A/B semantic contracts. C must not modify Rust analytical reduction, candidate scientific meaning or source membership merely to support a visual treatment.
 
 ---
 
 # Stream D - Assurance & Private-Preview Readiness
 
 **Status:** QUEUED AFTER C  
+**Primary programmes:** `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`, `STREAM_C_SECURITY_ASSURANCE.md` (legacy execution name), issue #314 hardening backlog, and later P1-U9/P1-W gates.
 
-D begins only after B's selected structural family and C's visible-product convergence have reached their finite exits. It owns physical qualification, attributable validation operations, live-path security/privacy residuals and preview-readiness evidence. It must not promote physical or preview claims early.
+The file `STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current wave, all unresolved security/privacy/live-path findings in that document are owned by **Stream D**.
 
-## D1 - validation manifest + launcher
+D retains two conceptual sub-lanes because their file surfaces and evidence contracts are distinct, but they are **not executed in parallel under the current operating model**:
 
-- define attributable device/build/session/evidence identity;
-- make validation launch reproducible;
-- require evidence provenance for physical claims;
-- keep simulator-only claims separate from device-qualified claims.
+- **D-QV:** Quest validation operations and evidence attribution.
+- **D-SA:** security/privacy/supply-chain/WASM assurance.
 
-## D2 - security/privacy residual closure
+The forward implementation stream selects and completes one bounded D tranche at a time, with the same adversarial review/fix-forward and exact-head promotion discipline.
 
-- re-audit live production paths after C convergence;
-- close transport/storage/privacy defects relevant to preview deployment;
-- verify no development evidence instrumentation or debug-only surface is in production builds.
+## D1 - validation manifest and launcher
 
-## D3 - physical qualification
+Implement P1-QV QV0/QV1:
 
-- run Quest/device evidence only for claims that require hardware;
-- qualify locomotion, comfort, controller/hand/direct-touch behavior, performance and spatial readability;
-- keep device evidence tied to exact build/artifact identity.
+- one versioned validation manifest;
+- exact source/build identity and clean/dirty state;
+- explicit evidence class separate from result;
+- governed run modes/launcher without changing ordinary dev behavior;
+- session ID/evidence directory/runtime class/gate/profile attribution;
+- no automatic roadmap mutation.
 
-## D4 - private-preview readiness
+## D2 - evidence sink and adjudication
 
-- verify production wiring and deployment prerequisites;
-- establish rollback/recovery and incident-handling basics;
-- prove the preview path exposes the intended product rather than development/diagnostic surfaces.
+Implement QV2-QV4:
 
-**Finite exit:** D reaches the handoff into P1-W only when validation, security/privacy and physical qualification prerequisites are genuinely evidenced.
+- local declared Quest model/firmware metadata with measured/declarative distinction;
+- per-session bounded evidence directories;
+- analyzer validity separate from gate disposition;
+- `PASS | FAIL | PARTIAL | INVALID_RUN | BLOCKED` outcomes;
+- explicit prevention of current 10M boundary evidence being relabelled as final device qualification.
+
+## D3 - live-path security quick wins
+
+Prioritize isolated, production-path findings that do not collide with the earlier completed programmes:
+
+- RF-039 upload policy consolidation at the real `FileLoader -> Atlas -> Rust -> Dataset` path;
+- RF-041 remove unnecessary `unpkg` trust/import-map/CSP widening if production proof confirms it is unused;
+- RF-042 terminal control-sequence sanitization in the dev UX trace path.
+
+Each remains high-risk or production-path evidence-bearing according to `AGENTS.md`; helper-only tests are insufficient.
+
+## D4 - deeper privacy/WASM assurance
+
+- RF-040 telemetry consent/lifecycle truthfulness across actual stores/exports;
+- RF-043 parser/WASM ABI fuzz/property campaigns with deterministic regressions for discovered defects;
+- post-Moneta trap containment/recovery, stale-handle invalidation and state rehydration where the architecture can prove it safely;
+- audit relevant Rust `unsafe` invariants and hostile pointer/length boundaries.
+
+## D5 - guided physical UX validation readiness
+
+Implement QV5/QV6 after C's current treatment is stable enough to test:
+
+- controller/direct-touch semantic tasks;
+- capture/cancel/tracking-loss recovery;
+- precision escape and panel manipulation;
+- representation transition semantics;
+- accessibility modes;
+- bounded comfort/task outcome records;
+- dev-only validation dashboard excluded from production artifacts.
+
+Final P1-U9 evidence starts only after C's visible product convergence gate.
+
+## D6 - physical qualification and P1-W/private-preview handoff
+
+After C reaches its product convergence exit and other named prerequisites are satisfied:
+
+1. run P1-U9 physical Quest qualification on the converged treatment;
+2. add QV7 clean-production evidence handoff;
+3. execute P1-W production wiring only against surfaces that are no longer scheduled for structural replacement;
+4. close required security/privacy/production blockers;
+5. assemble the minimal private-preview promotion evidence.
+
+**Finite exit:** D has not completed merely because the validation harness exists. The stream exits only when the required assurance gates for the selected private-preview scope are satisfied and clean-production/device evidence is correctly classified.
+
+---
+
+# Sequential execution and integration rules
+
+## Ownership matrix
+
+| Surface | A | B | C | D |
+| --- | --- | --- | --- | --- |
+| Generic semantic drill-down / selection lineage | **frozen authority** | consumes | consumes | tests |
+| Representation-specific Rust/payload math | consumes | **OWNS while active** | no | assurance only |
+| Generic semantic Worker/loader/translator seam | **frozen contract** | narrow integration window | no scientific changes | tests/security only |
+| Product shell/world objects/presentation hierarchy | consumes | no | **OWNS when active** | validation only |
+| Quest validation scripts/manifests/evidence sink | no | no | consumer | **OWNS when active** |
+| Upload/auth/privacy/CSP/fuzz/live-path assurance | no | no | consumer | **OWNS when active** |
+| `docs/ROADMAP.md` status | checkpoint updates | checkpoint updates | checkpoint updates | checkpoint updates |
+
+## Collision-sensitive files
+
+The following are shared integration contracts and should change only in the active sequential tranche when that change is necessary:
+
+- `src/app/dataset/LoadDatasetUseCase.ts`;
+- `src/app/dataset/SemanticEmbodimentLoader.ts`;
+- `src/moneta/MonetaTopologyNode.ts`;
+- `src/moneta/VRTopologyTranslator.ts` or its successor;
+- generic representation/requirements contracts;
+- `src/vr/presentation/representation/RepresentationSurface.ts`;
+- shared analytical Worker/WASM bridge dispatch;
+- common CI/promotion workflow files.
+
+Representation-specific Rust modules, payload files, thin adapters, UI components and validation/security modules should be preferred so each tranche remains bounded and reviewable.
+
+## Integration order
+
+1. **A is frozen complete** at the generic progressive-disclosure contract and its four verified families.
+2. **B** consumes A's semantic-target/detail contract while adding one governed structural family at a time.
+3. **C** consumes the completed A/B semantic contracts to converge the investigator experience; it does not implement membership lookup or analytical facts.
+4. **D** follows C for final physical qualification and private-preview assurance; its internal assurance work is still executed as bounded sequential tranches.
+5. **P1-W** waits for C plus the required D assurance/device prerequisites.
+
+## Sync discipline
+
+Every checkpoint PR must:
+
+1. fetch live `main` before branch creation;
+2. state the exact base SHA;
+3. confirm the previous checkpoint is merged or abandoned;
+4. avoid stacked long-lived checkpoint branches;
+5. sync/reconcile any new `main` before final promotion when strict status checks require it;
+6. carry pre/post adversarial review for high-risk changes;
+7. merge only on exact-head evidence appropriate to the risk surface;
+8. fetch fresh `main` before beginning the next checkpoint.
+
+The single forward implementation stream should sync frequently with remote `main`, especially before touching the small but high-leverage shared contracts.
+
+## One forward implementation PR
+
+Default maximum:
+
+```text
+1 open forward implementation PR
+```
+
+Do not parallelize A/B/C/D implementation. Documentation-only closure/fix-forward commits should normally remain on the owning active PR rather than creating overlapping work. A different execution model requires an explicit user decision.
+
+---
+
+# Cross-cutting quality model
+
+Independent adversarial review is not a separate feature stream. It is mandatory process inside the single forward implementation stream.
+
+For high-risk work, use:
+
+```text
+pre-implementation adversarial contract
+  -> bounded implementation
+  -> focused falsifiers
+  -> production-path evidence
+  -> post-implementation adversarial review
+  -> exact-head promotion gates
+  -> merge
+  -> fresh-main re-fence where the programme requires a STOP review
+```
+
+Green CI is necessary, not sufficient. `VERIFIED COMPLETE` requires the evidence claimed by the owning programme plus an independent review disposition.
+
+Status vocabulary:
+
+- **PLANNED:** work is specified but no implementation claim exists.
+- **IMPLEMENTATION PARTIAL:** some checkpoints landed but the stream exit is unsatisfied.
+- **IMPLEMENTATION LANDED / REVIEW ACTIVE:** implementation path exists and required independent/physical evidence remains.
+- **VERIFIED COMPLETE:** finite scope is implemented, exact evidence is satisfied and independent review found no unresolved blocker.
+- **BLOCKED:** a named unmet prerequisite or falsified invariant prevents promotion.
+- **DEFERRED:** intentionally outside the current wave; no implementation should begin without explicit reactivation.
+
+---
+
+# Work explicitly deferred from this wave
+
+Do **not** start these merely because capacity exists:
+
+- inferred clustering (`k`-means, DBSCAN/HDBSCAN, mixtures, spectral clustering, etc.) under the R2D source-partition identity;
+- inferred relationship topology such as k-NN/correlation/similarity edges without a separate governed treatment;
+- P2 RepresentationGraph/compositional representation search;
+- generative geometry as a substitute for governed semantic payloads;
+- broad automatic learned-representation expansion;
+- the full major dependency-modernization programme in issue #300 while the current structural/product/assurance programmes are moving;
+- Node/toolchain/Three.js/Rust major migrations that would create cross-programme churn without a specific blocker.
+
+Safe isolated patch/minor dependency maintenance and narrowly justified CI-action updates may proceed only when selected as the current bounded forward tranche and when they retain exact-head evidence.
+
+---
+
+# Completed and subordinate programme authorities
+
+These remain authoritative for their scoped contracts/evidence even when their status headers reflect the checkpoint at which they were written:
+
+- `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md` - semantic embodiment architecture and R5/R2E requirements;
+- `roadmap/P1_R2C_DENSITY_TRUTH.md` - completed density truth rail;
+- `roadmap/P1_R2D_CLUSTER_REGIONS.md` - completed source-partition Cluster Regions V1 rail;
+- `review/P1_R2D_C5_STOP_REVIEW_2026-08-31.md` - R2D independent closure evidence;
+- `review/P1_R5_A5_STOP_REVIEW_2026-08-31.md` - P1-R5 progressive-disclosure closure evidence;
+- `rfcs/0001-source-partition-cluster-authority.md` - durable R2D scientific decision;
+- `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md` - visible product convergence specification;
+- `roadmap/P1_UV0_BASELINE_INVENTORY.md` - executable visible baseline/inventory;
+- `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md` - Quest validation operations specification;
+- `STREAM_C_SECURITY_ASSURANCE.md` - legacy-named security assurance finding set, now owned by current Stream D;
+- `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md` - implementation-quality policy from the prior wave, still useful as process guidance but not the current Stream A mission;
+- issue #314 - post-Moneta hardening backlog;
+- issue #300 - major dependency modernization, deferred as a broad sprint during this wave.
+
+Historical review plans keep their original stream names for provenance. Do not reinterpret those labels as current concurrent ownership.
+
+---
+
+# Private-preview dependency chain
+
+The high-level dependency remains:
+
+```text
+preserved source data
+  -> truthful analytical evidence
+  -> reproducible identity/replay
+  -> bounded dataset-level representations
+  -> progressive disclosure and structural breadth
+  -> coherent investigator UX
+  -> simulator-testable XR proof
+  -> governed physical Quest proof
+  -> production wiring and security/privacy assurance
+  -> minimal private preview
+```
+
+A/B/C/D are now ordered programme boundaries for reaching that chain without duplicate authority. They are not permission to weaken scientific, UX, security or evidence gates, and they are not to be implemented in parallel under the current operating model.
