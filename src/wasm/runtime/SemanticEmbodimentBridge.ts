@@ -4,6 +4,10 @@ import type {
   DistributionEmbodimentRequestV1,
   SemanticEmbodimentEnvelopeV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import type {
+  ClusterEmbodimentEnvelopeV1,
+  ClusterEmbodimentRequestV1,
+} from '../../moneta/representation/ClusterEmbodimentPayload.ts';
 import {
   allocBuffer,
   allocBytes,
@@ -29,6 +33,13 @@ interface AggregateSemanticRuntime {
     outLen: number,
   ): number;
   moneta_build_density_embodiment_v1(
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
+  moneta_build_cluster_embodiment_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
@@ -164,6 +175,51 @@ export function buildDensitySemanticEmbodimentV1(
       if (written !== required) return null;
       const bytes = readBytes(output.ptr, written);
       return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
+    } finally {
+      deallocBuffer(output.ptr, output.len);
+    }
+  } finally {
+    deallocBytes(inputPtr, inputLen);
+  }
+}
+
+/**
+ * Invoke the Rust-owned R2D C2 source-partition builder against an existing
+ * canonical resident dataset handle. Only explicit field names and provenance
+ * cross this boundary; TypeScript performs no grouping or spatial reduction.
+ */
+export function buildClusterSemanticEmbodimentV1(
+  handle: number,
+  request: ClusterEmbodimentRequestV1,
+): ClusterEmbodimentEnvelopeV1 | null {
+  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
+  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
+  if (typeof runtime.moneta_build_cluster_embodiment_v1 !== 'function') return null;
+
+  const input = new TextEncoder().encode(JSON.stringify(request));
+  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
+  try {
+    const required = runtime.moneta_build_cluster_embodiment_v1(
+      handle,
+      inputPtr,
+      inputLen,
+      0,
+      0,
+    );
+    if (!Number.isSafeInteger(required) || required <= 0) return null;
+
+    const output = allocBuffer(required);
+    try {
+      const written = runtime.moneta_build_cluster_embodiment_v1(
+        handle,
+        inputPtr,
+        inputLen,
+        output.ptr,
+        output.len,
+      );
+      if (written !== required) return null;
+      const bytes = readBytes(output.ptr, written);
+      return JSON.parse(new TextDecoder().decode(bytes)) as ClusterEmbodimentEnvelopeV1;
     } finally {
       deallocBuffer(output.ptr, output.len);
     }
