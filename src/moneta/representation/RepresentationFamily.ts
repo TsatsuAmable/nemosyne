@@ -117,6 +117,9 @@ export function isLayoutCompatibleWithFamily(
  * A single family assignment prevents unrelated family evidence or a configured
  * family prior from changing the utility of an otherwise identical candidate.
  *
+ * Ordering is intentional: the derived family index preserves the previous
+ * within-family search order for candidates that remain admissible.
+ *
  * This is a rank-effective contract. Changes require a new fitness treatment.
  */
 export const CANDIDATE_TO_REASONING_FAMILY: Record<
@@ -124,36 +127,37 @@ export const CANDIDATE_TO_REASONING_FAMILY: Record<
   RepresentationFamily
 > = {
   POINT_SET: 'POINT',
-  DENSITY_FIELD: 'DISTRIBUTION',
+  MATRIX_FIELD: 'POINT',
   DISTRIBUTION_FIELD: 'DISTRIBUTION',
+  DENSITY_FIELD: 'DISTRIBUTION',
   CLUSTER_REGIONS: 'CLUSTER',
   AGGREGATE_VOLUME: 'AGGREGATE',
+  RELATIONSHIP_GRAPH: 'GRAPH',
+  SPATIAL_REGION: 'FIELD',
+  MANIFOLD_EMBEDDING: 'TOPOLOGY',
   TEMPORAL_TRAJECTORY: 'TEMPORAL',
   HIERARCHICAL_SPACE: 'HIERARCHICAL',
-  RELATIONSHIP_GRAPH: 'GRAPH',
-  MATRIX_FIELD: 'POINT',
-  MANIFOLD_EMBEDDING: 'TOPOLOGY',
-  SPATIAL_REGION: 'FIELD',
   MULTISCALE_FIELD: 'FREQUENCY',
 };
 
+const CANDIDATE_REASONING_ENTRIES = Object.entries(CANDIDATE_TO_REASONING_FAMILY) as [
+  SemanticRepresentationId,
+  RepresentationFamily,
+][];
+
 /**
- * Candidate IDs considered under each reasoning family. Every candidate occurs
- * exactly once. This membership is rank-effective; it must not be confused with
- * payload-kind or renderer dispatch.
+ * Derived reverse index used by bootstrap candidate generation. It is not an
+ * independent authority: editing CANDIDATE_TO_REASONING_FAMILY is the only way
+ * to change reasoning-family membership.
  */
-export const FAMILY_TO_CANDIDATE_IDS: Record<RepresentationFamily, SemanticRepresentationId[]> = {
-  POINT: ['POINT_SET', 'MATRIX_FIELD'],
-  DISTRIBUTION: ['DISTRIBUTION_FIELD', 'DENSITY_FIELD'],
-  CLUSTER: ['CLUSTER_REGIONS'],
-  AGGREGATE: ['AGGREGATE_VOLUME'],
-  GRAPH: ['RELATIONSHIP_GRAPH'],
-  FIELD: ['SPATIAL_REGION'],
-  TOPOLOGY: ['MANIFOLD_EMBEDDING'],
-  TEMPORAL: ['TEMPORAL_TRAJECTORY'],
-  HIERARCHICAL: ['HIERARCHICAL_SPACE'],
-  FREQUENCY: ['MULTISCALE_FIELD'],
-};
+export const FAMILY_TO_CANDIDATE_IDS = Object.fromEntries(
+  ALL_REPRESENTATION_FAMILIES.map((family) => [
+    family,
+    CANDIDATE_REASONING_ENTRIES
+      .filter(([, assignedFamily]) => assignedFamily === family)
+      .map(([candidateId]) => candidateId),
+  ])
+) as Record<RepresentationFamily, SemanticRepresentationId[]>;
 
 export function isCandidateAssignedToReasoningFamily(
   candidateId: SemanticRepresentationId,
