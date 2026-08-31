@@ -238,7 +238,7 @@ test('R2C M4 proves bounded visible density across scale and semantic shapes', a
       physicalQuestEvidence: false,
       payloadBytesAreJsonProxy: true,
       workerWasmBytesAreLinearMemoryObservationsNotTransientAllocationPeaks: true,
-      exactTransientRustPairVectorPeakMeasured: false,
+      densityBuilderSourceSizedPairBuffer: 'absent-two-pass-column-scan',
       sceneRenderCountersAreLastWholeSceneFrame: true,
       screenshotRetained: true,
     },
