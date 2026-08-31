@@ -85,9 +85,9 @@ Primary executable evidence includes `tests/stream-a-a4-exact-datum-inspection.t
 
 ## Observation-level intent remains legitimate
 
-**PASS within Moneta's governed decision contract.** Progressive disclosure makes points non-default; it does not outlaw points. An explicit individual/observation-identity task remains the legitimate route to `POINT_SET` when its hard constraints are feasible. Aggregate and other identity-losing structures are disqualified when individual observation identity is critical rather than silently substituted.
+**PASS within Moneta's governed decision contract.** Progressive disclosure makes points non-default; it does not outlaw points or force them. `individual-inspection` alone may legitimately choose another representation that preserves observation identity and exact metrics, such as `MATRIX_FIELD`. When the investigator's explicit observation-level requirements additionally require information that `POINT_SET` uniquely preserves among the feasible candidates in the fixture—individual identity, exact metrics, and outlier-boundary visibility—Moneta selects `POINT_SET`.
 
-This is a task/representation decision, not a fallback from failed semantic membership.
+That distinction is intentional: POINT_SET remains reachable for a scientifically specific observation-level task, but failed semantic membership never falls back to points and individual inspection does not become a hard-coded geometry alias.
 
 ## Governing falsifiers
 
@@ -101,6 +101,7 @@ This is a task/representation decision, not a fallback from failed semantic memb
 8. **Late exact result can overwrite changed context:** PASS; stale async result is suppressed.
 9. **Missing provenance is invented:** PASS; unavailable per-row provenance is explicit.
 10. **Evidence can silently become stale after authority/status edits:** PASS; the A5 workflow trigger surface is mechanically pinned across ranking, semantic transport, Rust family authority, drill-down, presentation, family harnesses, this STOP record, and the canonical roadmap.
+11. **Progressive disclosure makes POINT_SET unreachable or mandatory for individual inspection:** PASS; a specific point-preserving observation contract can select POINT_SET, while individual inspection alone is free to choose another admissible identity-preserving representation.
 
 ## Adversarial findings closed during A5
 
@@ -122,6 +123,12 @@ The initial A5 browser hook imported `World` from the application layer, and arc
 
 **Resolved.** The hook now depends only on the narrow capability shape derived from `runAggregateEvidenceScenario`; `bootstrap.ts` remains the composition root. Architecture policy passed on the corrected evidence head.
 
+### A5-RF-004 — individual inspection was incorrectly treated as a POINT_SET alias
+
+The first closure falsifier asserted that a generic `individual-inspection` requirement must choose `POINT_SET`. Hosted Vitest correctly falsified that assumption: the fixture chose `MATRIX_FIELD`, which also preserves individual identity and exact metrics.
+
+**Resolved.** The test now encodes the real product/scientific requirement. Individual inspection is not a geometry alias; POINT_SET must remain reachable when explicit critical information needs make it the appropriate candidate. This preserves Moneta's representation intelligence while preventing progressive disclosure from making points unreachable.
+
 ## Promotion evidence on reviewed head
 
 On `f1516db29ab1faba8cd4eb77c32f90b5311c2b99` the following passed before this STOP record was authored:
@@ -135,7 +142,7 @@ On `f1516db29ab1faba8cd4eb77c32f90b5311c2b99` the following passed before this S
 - standalone Density browser evidence;
 - standalone Cluster browser evidence.
 
-Approval/Q9 were still completing when the structured A5 artifact was reviewed. The final closure head must pass them and all retriggered exact-head gates before merge.
+The final closure head must pass approval/Q9 and all retriggered exact-head gates before merge. The STOP document's trigger coverage ensures these documentation/status corrections cannot inherit the earlier evidence without re-execution.
 
 ## Residuals explicitly outside this VERIFIED COMPLETE claim
 
