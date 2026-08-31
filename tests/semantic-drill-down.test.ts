@@ -8,6 +8,14 @@ import {
   type SemanticDetailEnvelopeV1,
 } from '../src/moneta/representation/SemanticDrillDown.ts';
 
+import {
+  buildAggregateSemanticEmbodimentV1,
+  buildClusterSemanticEmbodimentV1,
+  buildDensitySemanticEmbodimentV1,
+  buildDistributionSemanticEmbodimentV1,
+  querySemanticDetailV1,
+} from '../src/wasm/runtime/SemanticEmbodimentBridge.ts';
+
 function detailFixture(): SemanticDetailEnvelopeV1 {
   return {
     schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
@@ -45,6 +53,291 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
     if (!bridge.isReady()) {
       throw new Error('A1 tests require the real WASM runtime');
     }
+  });
+
+  describe('WASM querySemanticDetailV1 integration', () => {
+    let handle: number;
+    let fingerprint: string;
+
+    beforeAll(() => {
+      const rawData = {
+        name: 'test-dataset',
+        columns: [
+          { name: 'id', type: 'CATEGORICAL' as const },
+          { name: 'group', type: 'CATEGORICAL' as const },
+          { name: 'value', type: 'NUMERIC' as const },
+          { name: 'value2', type: 'NUMERIC' as const },
+        ],
+        rows: [
+          { id: 'obs-1', group: 'A', value: 10.0, value2: 10.0 },
+          { id: 'obs-2', group: 'A', value: 20.0, value2: 20.0 },
+          { id: 'obs-3', group: 'B', value: 30.0, value2: 30.0 },
+          { id: 'obs-4', group: 'B', value: 40.0, value2: 40.0 },
+          { id: 'obs-5', group: 'B', value: 50.0, value2: 50.0 },
+        ],
+        rowIds: ['obs-1', 'obs-2', 'obs-3', 'obs-4', 'obs-5'],
+      };
+      handle = bridge.loadDatasetJson(rawData);
+      expect(handle).toBeGreaterThan(0);
+      fingerprint = bridge.datasetFingerprint(handle)!;
+      expect(fingerprint).toBeTruthy();
+    });
+
+    it('successfully queries CLUSTER observation details', () => {
+      const clusterRequest = {
+        schemaVersion: 1 as const,
+        candidateId: 'CLUSTER_REGIONS' as const,
+        partitionField: 'group',
+        coordinateFields: ['value', 'value2'],
+      };
+      const clusterEmbodiment = buildClusterSemanticEmbodimentV1(handle, clusterRequest);
+      expect(clusterEmbodiment).not.toBeNull();
+      expect(clusterEmbodiment!.result.status).toBe('READY');
+
+      let regionBId = '';
+      if (clusterEmbodiment!.result.status === 'READY') {
+        const payload = clusterEmbodiment!.result.payload;
+        if (payload.kind === 'CLUSTER_REGIONS') {
+          const regionB = payload.data.regions.find(r => r.sourcePartitionValue === 'B');
+          regionBId = regionB!.semanticId;
+        }
+      }
+      expect(regionBId).not.toBe('');
+
+      const detailRequest = {
+        schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        target: {
+          datasetFingerprint: fingerprint,
+          decisionId: 'decision-123',
+          representationFamily: 'CLUSTER' as any,
+          semanticObjectId: regionBId,
+        },
+        limit: 2,
+        offset: 0,
+        investigationContext: 'Test cluster query',
+      };
+
+      const envelope = querySemanticDetailV1(handle, detailRequest, clusterRequest, 1);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.result.status).toBe('READY');
+      if (envelope!.result.status === 'READY') {
+        expect(envelope!.result.totalMemberCount).toBe(3);
+        expect(envelope!.result.returnedCount).toBe(2);
+        expect(envelope!.result.observationIds).toEqual(['obs-3', 'obs-4']);
+        expect(envelope!.result.compactViews).toHaveLength(2);
+        expect(envelope!.result.compactViews![0]).toEqual({ id: 'obs-3', group: 'B', value: 30.0, value2: 30.0 });
+      }
+
+      // test pagination offset
+      const offsetRequest = {
+        ...detailRequest,
+        limit: 10,
+        offset: 1,
+      };
+      const envelopeOffset = querySemanticDetailV1(handle, offsetRequest, clusterRequest, 1);
+      expect(envelopeOffset).not.toBeNull();
+      expect(envelopeOffset!.result.status).toBe('READY');
+      if (envelopeOffset!.result.status === 'READY') {
+        expect(envelopeOffset!.result.totalMemberCount).toBe(3);
+        expect(envelopeOffset!.result.returnedCount).toBe(2);
+        expect(envelopeOffset!.result.observationIds).toEqual(['obs-4', 'obs-5']);
+      }
+    });
+
+    it('rejects query with mismatched fingerprint', () => {
+      const clusterRequest = {
+        schemaVersion: 1,
+        candidateId: 'CLUSTER_REGIONS' as any,
+        partitionField: 'group',
+        coordinateFields: ['value', 'value2'],
+      };
+      const detailRequest = {
+        schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        target: {
+          datasetFingerprint: 'b'.repeat(64),
+          decisionId: 'decision-123',
+          representationFamily: 'CLUSTER' as any,
+          semanticObjectId: 'cluster-0',
+        },
+        limit: 10,
+        offset: 0,
+        investigationContext: 'Test bad fingerprint',
+      };
+      const envelope = querySemanticDetailV1(handle, detailRequest, clusterRequest, 1);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.result.status).toBe('REFUSED');
+      if (envelope!.result.status === 'REFUSED') {
+        expect(envelope!.result.refusal.code).toBe('CHANGED_DATASET');
+      }
+    });
+
+    it('successfully queries AGGREGATE observation details', () => {
+      const aggregateRequest = {
+        schemaVersion: 1 as const,
+        candidateId: 'AGGREGATE_VOLUME' as const,
+        groupingField: 'group',
+        measure: {
+          field: 'value',
+          function: 'SUM' as const,
+        },
+      };
+      const aggregateEmbodiment = buildAggregateSemanticEmbodimentV1(handle, aggregateRequest);
+      expect(aggregateEmbodiment).not.toBeNull();
+      expect(aggregateEmbodiment!.result.status).toBe('READY');
+
+      const detailRequest = {
+        schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        target: {
+          datasetFingerprint: fingerprint,
+          decisionId: 'decision-123',
+          representationFamily: 'AGGREGATE' as any,
+          semanticObjectId: 'aggregate-group:00001', // Group B (index 1)
+        },
+        limit: 10,
+        offset: 0,
+        investigationContext: 'Test aggregate query',
+      };
+
+      const envelope = querySemanticDetailV1(handle, detailRequest, aggregateRequest, 1);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.result.status).toBe('READY');
+      if (envelope!.result.status === 'READY') {
+        expect(envelope!.result.totalMemberCount).toBe(3);
+        expect(envelope!.result.observationIds).toEqual(['obs-3', 'obs-4', 'obs-5']);
+        expect(envelope!.result.compactViews![0]).toEqual({ id: 'obs-3', group: 'B', value: 30.0, value2: 30.0 });
+      }
+    });
+
+    it('successfully queries DISTRIBUTION observation details', () => {
+      const distributionRequest = {
+        schemaVersion: 1 as const,
+        candidateId: 'DISTRIBUTION_FIELD' as const,
+        measureField: 'value',
+        histogramBinCount: 5,
+        ecdfKnotCount: 5,
+        quantileProbabilities: [0.25, 0.5, 0.75],
+      };
+      const distributionEmbodiment = buildDistributionSemanticEmbodimentV1(handle, distributionRequest);
+      expect(distributionEmbodiment).not.toBeNull();
+      expect(distributionEmbodiment!.result.status).toBe('READY');
+
+      const detailRequest = {
+        schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        target: {
+          datasetFingerprint: fingerprint,
+          decisionId: 'decision-123',
+          representationFamily: 'DISTRIBUTION' as any,
+          semanticObjectId: 'distribution-bin:002', // Bin 2 ([26, 34)) -> matches 30 (obs-3)
+        },
+        limit: 10,
+        offset: 0,
+        investigationContext: 'Test distribution query',
+      };
+
+      const envelope = querySemanticDetailV1(handle, detailRequest, distributionRequest, 1);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.result.status).toBe('READY');
+      if (envelope!.result.status === 'READY') {
+        expect(envelope!.result.totalMemberCount).toBe(1);
+        expect(envelope!.result.observationIds).toEqual(['obs-3']);
+      }
+    });
+
+    it('successfully queries DENSITY observation details', () => {
+      const densityRequest = {
+        schemaVersion: 1 as const,
+        candidateId: 'DENSITY_FIELD' as const,
+        measureFieldX: 'value',
+        measureFieldY: 'value2',
+        binsX: 5,
+        binsY: 5,
+      };
+      const densityEmbodiment = buildDensitySemanticEmbodimentV1(handle, densityRequest);
+      expect(densityEmbodiment).not.toBeNull();
+      expect(densityEmbodiment!.result.status).toBe('READY');
+
+      const detailRequest = {
+        schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        target: {
+          datasetFingerprint: fingerprint,
+          decisionId: 'decision-123',
+          representationFamily: 'DENSITY' as any,
+          semanticObjectId: 'density-cell:2-2', // matches 30 (obs-3)
+        },
+        limit: 10,
+        offset: 0,
+        investigationContext: 'Test density query',
+      };
+
+      const envelope = querySemanticDetailV1(handle, detailRequest, densityRequest, 1);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.result.status).toBe('READY');
+      if (envelope!.result.status === 'READY') {
+        expect(envelope!.result.totalMemberCount).toBe(1);
+        expect(envelope!.result.observationIds).toEqual(['obs-3']);
+      }
+    });
+
+    it('refuses query if total matched members exceeds limit (1000)', () => {
+      const clusterRequest = {
+        schemaVersion: 1 as const,
+        candidateId: 'CLUSTER_REGIONS' as const,
+        partitionField: 'group',
+        coordinateFields: ['value', 'value2'],
+      };
+      const largeRows = [];
+      const largeRowIds = [];
+      for (let i = 0; i < 1001; i++) {
+        largeRows.push({ id: `obs-${i}`, group: 'A', value: i * 1.0, value2: i * 1.0 });
+        largeRowIds.push(`obs-${i}`);
+      }
+      const largeData = {
+        name: 'large-test-dataset',
+        columns: [
+          { name: 'id', type: 'CATEGORICAL' as const },
+          { name: 'group', type: 'CATEGORICAL' as const },
+          { name: 'value', type: 'NUMERIC' as const },
+          { name: 'value2', type: 'NUMERIC' as const },
+        ],
+        rows: largeRows,
+        rowIds: largeRowIds,
+      };
+      const largeHandle = bridge.loadDatasetJson(largeData);
+      const largeFingerprint = bridge.datasetFingerprint(largeHandle)!;
+
+      const largeClusterEmbodiment = buildClusterSemanticEmbodimentV1(largeHandle, clusterRequest);
+      let regionAId = '';
+      if (largeClusterEmbodiment!.result.status === 'READY') {
+        const payload = largeClusterEmbodiment!.result.payload;
+        if (payload.kind === 'CLUSTER_REGIONS') {
+          const regionA = payload.data.regions.find(r => r.sourcePartitionValue === 'A');
+          regionAId = regionA!.semanticId;
+        }
+      }
+
+      const detailRequest = {
+        schemaVersion: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        target: {
+          datasetFingerprint: largeFingerprint,
+          decisionId: 'decision-123',
+          representationFamily: 'CLUSTER' as any,
+          semanticObjectId: regionAId,
+        },
+        limit: 10,
+        offset: 0,
+        investigationContext: 'Test large cluster refusal',
+      };
+
+      const envelope = querySemanticDetailV1(largeHandle, detailRequest, clusterRequest, 1);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.result.status).toBe('REFUSED');
+      if (envelope!.result.status === 'REFUSED') {
+        expect(envelope!.result.refusal.code).toBe('RESOURCE_LIMIT');
+        expect(envelope!.result.refusal.message).toContain('exceeding the maximum progressive disclosure limit');
+      }
+
+      bridge.destroyDataset(largeHandle);
+    });
   });
 
   it('successfully round-trips a valid READY detail envelope', () => {

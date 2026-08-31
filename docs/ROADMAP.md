@@ -100,6 +100,8 @@ Required decisions/evidence:
 
 ## A2 - resident membership/query capability
 
+**Status:** VERIFIED COMPLETE  
+
 - implement the bounded membership/detail query at the canonical Rust/Worker dataset authority;
 - return only the requested bounded identity/compact view;
 - keep full source rows resident;

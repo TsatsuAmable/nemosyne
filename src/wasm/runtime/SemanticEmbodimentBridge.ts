@@ -8,6 +8,10 @@ import type {
   ClusterEmbodimentEnvelopeV1,
   ClusterEmbodimentRequestV1,
 } from '../../moneta/representation/ClusterEmbodimentPayload.ts';
+import type {
+  SemanticDetailRequestV1,
+  SemanticDetailEnvelopeV1,
+} from '../../moneta/representation/SemanticDrillDown.ts';
 import {
   allocBuffer,
   allocBytes,
@@ -40,6 +44,13 @@ interface AggregateSemanticRuntime {
     outLen: number,
   ): number;
   moneta_build_cluster_embodiment_v1(
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
+  moneta_query_semantic_detail_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
@@ -227,3 +238,56 @@ export function buildClusterSemanticEmbodimentV1(
     deallocBytes(inputPtr, inputLen);
   }
 }
+
+/**
+ * Invoke the Rust-owned progressive disclosure query resolver against an
+ * existing canonical resident dataset handle.
+ */
+export function querySemanticDetailV1(
+  handle: number,
+  request: SemanticDetailRequestV1,
+  embodimentRequest: unknown,
+  generation: number,
+): SemanticDetailEnvelopeV1 | null {
+  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
+  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
+  if (typeof runtime.moneta_query_semantic_detail_v1 !== 'function') return null;
+
+  const payload = {
+    request,
+    embodimentRequest,
+    generation,
+  };
+
+  const input = new TextEncoder().encode(JSON.stringify(payload));
+  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
+  try {
+    const required = runtime.moneta_query_semantic_detail_v1(
+      handle,
+      inputPtr,
+      inputLen,
+      0,
+      0,
+    );
+    if (!Number.isSafeInteger(required) || required <= 0) return null;
+
+    const output = allocBuffer(required);
+    try {
+      const written = runtime.moneta_query_semantic_detail_v1(
+        handle,
+        inputPtr,
+        inputLen,
+        output.ptr,
+        output.len,
+      );
+      if (written !== required) return null;
+      const bytes = readBytes(output.ptr, written);
+      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticDetailEnvelopeV1;
+    } finally {
+      deallocBuffer(output.ptr, output.len);
+    }
+  } finally {
+    deallocBytes(inputPtr, inputLen);
+  }
+}
+

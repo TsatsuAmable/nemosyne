@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use crate::moneta::embodiment::SemanticEmbodimentFamilyV1;
+use crate::data::Dataset;
+use crate::data::columnar::ColumnarDataset;
 
 pub const SEMANTIC_DETAIL_SCHEMA_VERSION: u32 = 1;
 pub const MAX_DETAIL_OBSERVATION_LIMIT_V1: u32 = 1000;
@@ -152,3 +154,612 @@ pub fn validate_detail_envelope(envelope: &mut SemanticDetailEnvelopeV1) -> Resu
 
     Ok(())
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SemanticDetailQueryV1 {
+    pub request: SemanticDetailRequestV1,
+    pub embodiment_request: serde_json::Value,
+    pub generation: u32,
+}
+
+pub fn query_semantic_detail_v1(
+    dataset_handle: u32,
+    query: SemanticDetailQueryV1,
+) -> SemanticDetailEnvelopeV1 {
+    // 1. Initial validation of the detail request:
+    let mut temp_envelope = SemanticDetailEnvelopeV1 {
+        schema_version: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        request: query.request.clone(),
+        result: SemanticDetailResultV1::Ready {
+            total_member_count: 0,
+            returned_count: 0,
+            observation_ids: vec![],
+            compact_views: None,
+        },
+        generation: query.generation,
+    };
+    if let Err(error) = validate_detail_envelope(&mut temp_envelope) {
+        return SemanticDetailEnvelopeV1 {
+            schema_version: SEMANTIC_DETAIL_SCHEMA_VERSION,
+            request: query.request,
+            result: SemanticDetailResultV1::Refused {
+                refusal: SemanticDetailRefusalV1 {
+                    code: SemanticDetailErrorCodeV1::ResourceLimit,
+                    message: format!("Request validation failed: {error}"),
+                },
+            },
+            generation: query.generation,
+        };
+    }
+
+    // 2. Fetch dataset and columnar dataset
+    let res = crate::data::with_dataset_and_columnar(dataset_handle, |dataset, columnar| {
+        // A. Fingerprint check:
+        let active_fingerprint = dataset.fingerprint();
+        if active_fingerprint != query.request.target.dataset_fingerprint {
+            return SemanticDetailResultV1::Refused {
+                refusal: SemanticDetailRefusalV1 {
+                    code: SemanticDetailErrorCodeV1::ChangedDataset,
+                    message: format!(
+                        "Dataset fingerprint mismatch: expected {}, got {}",
+                        query.request.target.dataset_fingerprint, active_fingerprint
+                    ),
+                },
+            };
+        }
+
+        // B. Evaluate membership of observations based on family:
+        let matched_indices_res = match query.request.target.representation_family {
+            SemanticEmbodimentFamilyV1::Cluster => {
+                evaluate_cluster_membership(dataset, columnar, &query.request, &query.embodiment_request)
+            }
+            SemanticEmbodimentFamilyV1::Aggregate => {
+                evaluate_aggregate_membership(dataset, columnar, &query.request, &query.embodiment_request)
+            }
+            SemanticEmbodimentFamilyV1::Distribution => {
+                evaluate_distribution_membership(dataset, columnar, &query.request, &query.embodiment_request)
+            }
+            SemanticEmbodimentFamilyV1::Density => {
+                evaluate_density_membership(dataset, columnar, &query.request, &query.embodiment_request)
+            }
+            _ => Err(SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!(
+                    "Unsupported representation family: {:?}",
+                    query.request.target.representation_family
+                ),
+            }),
+        };
+
+        let matched_indices = match matched_indices_res {
+            Ok(indices) => indices,
+            Err(refusal) => return SemanticDetailResultV1::Refused { refusal },
+        };
+
+        let total_member_count = matched_indices.len() as u32;
+
+        // C. Enforce the un-paginated resource limit (1000 observations):
+        if total_member_count > MAX_DETAIL_OBSERVATION_LIMIT_V1 {
+            return SemanticDetailResultV1::Refused {
+                refusal: SemanticDetailRefusalV1 {
+                    code: SemanticDetailErrorCodeV1::ResourceLimit,
+                    message: format!(
+                        "Target matches {} observations, exceeding the maximum progressive disclosure limit of {}",
+                        total_member_count, MAX_DETAIL_OBSERVATION_LIMIT_V1
+                    ),
+                },
+            };
+        }
+
+        // D. Paginate:
+        let offset = query.request.offset;
+        let limit = query.request.limit;
+        if offset >= total_member_count {
+            return SemanticDetailResultV1::Ready {
+                total_member_count,
+                returned_count: 0,
+                observation_ids: vec![],
+                compact_views: Some(vec![]),
+            };
+        }
+
+        let start = offset as usize;
+        let end = (offset + limit).min(total_member_count) as usize;
+        let page = &matched_indices[start..end];
+
+        let mut observation_ids = Vec::new();
+        let mut compact_views = Vec::new();
+
+        for &row_idx in page {
+            // Get observation ID:
+            let obs_id = if row_idx < dataset.row_ids.len() {
+                dataset.row_ids[row_idx].clone()
+            } else {
+                format!("row-{}", row_idx)
+            };
+            observation_ids.push(obs_id);
+
+            // Construct compact view:
+            let mut row_map = serde_json::Map::new();
+            if row_idx < dataset.rows.len() {
+                for (k, val) in &dataset.rows[row_idx] {
+                    row_map.insert(k.clone(), val.to_js_json_value());
+                }
+            }
+            compact_views.push(serde_json::Value::Object(row_map));
+        }
+
+        SemanticDetailResultV1::Ready {
+            total_member_count,
+            returned_count: observation_ids.len() as u32,
+            observation_ids,
+            compact_views: Some(compact_views),
+        }
+    });
+
+    let result = match res {
+        Some(val) => val,
+        None => SemanticDetailResultV1::Refused {
+            refusal: SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::StaleGeneration,
+                message: format!("Dataset handle {} not found or stale", dataset_handle),
+            },
+        },
+    };
+
+    SemanticDetailEnvelopeV1 {
+        schema_version: SEMANTIC_DETAIL_SCHEMA_VERSION,
+        request: query.request,
+        result,
+        generation: query.generation,
+    }
+}
+
+fn evaluate_cluster_membership(
+    dataset: &Dataset,
+    columnar: &ColumnarDataset,
+    request: &SemanticDetailRequestV1,
+    embodiment_request_json: &serde_json::Value,
+) -> Result<Vec<usize>, SemanticDetailRefusalV1> {
+    let embodiment_request: crate::moneta::cluster_embodiment::ClusterEmbodimentRequestV1 =
+        serde_json::from_value(embodiment_request_json.clone()).map_err(|err| {
+            SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!("Failed to parse ClusterEmbodimentRequestV1: {}", err),
+            }
+        })?;
+
+    let partition_index = dataset.columns.iter().position(|col| col.name == embodiment_request.partition_field).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!("unknown cluster partitionField {}", embodiment_request.partition_field),
+        }
+    })?;
+
+    let partition_column = columnar.categorical_column(partition_index).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: "cluster partitionField has no resident categorical column".to_string(),
+        }
+    })?;
+
+    let mut matching_code = None;
+    for (code, label) in partition_column.dictionary.iter().enumerate() {
+        if label.is_empty() {
+            continue;
+        }
+        let hash_id = semantic_region_id(&embodiment_request.partition_field, label);
+        if hash_id == request.target.semantic_object_id {
+            matching_code = Some(code);
+            break;
+        }
+    }
+
+    let target_code = matching_code.ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("No cluster region matches semanticObjectId {}", request.target.semantic_object_id),
+        }
+    })?;
+
+    let source_row_count = columnar.row_count();
+    let mut matched = Vec::new();
+    for row_idx in 0..source_row_count {
+        if row_idx < partition_column.validity.len()
+            && partition_column.validity[row_idx] != 0
+            && row_idx < partition_column.codes.len()
+            && partition_column.codes[row_idx] as usize == target_code
+        {
+            matched.push(row_idx);
+        }
+    }
+
+    Ok(matched)
+}
+
+fn semantic_region_id(partition_field: &str, label: &str) -> String {
+    let preimage = format!(
+        "schema=1\0candidate=CLUSTER_REGIONS\0field={}:{}\0label={}:{}",
+        partition_field.len(),
+        partition_field,
+        label.len(),
+        label,
+    );
+    format!("cluster-region:{}", crate::data::fingerprint::sha256_hex(&preimage))
+}
+
+fn evaluate_aggregate_membership(
+    dataset: &Dataset,
+    columnar: &ColumnarDataset,
+    request: &SemanticDetailRequestV1,
+    embodiment_request_json: &serde_json::Value,
+) -> Result<Vec<usize>, SemanticDetailRefusalV1> {
+    let embodiment_request: crate::moneta::aggregate_embodiment::AggregateEmbodimentRequestV1 =
+        serde_json::from_value(embodiment_request_json.clone()).map_err(|err| {
+            SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!("Failed to parse AggregateEmbodimentRequestV1: {}", err),
+            }
+        })?;
+
+    let grouping_index = dataset.columns.iter().position(|col| col.name == embodiment_request.grouping_field).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!("unknown groupingField {}", embodiment_request.grouping_field),
+        }
+    })?;
+
+    let grouping_column = columnar.categorical_column(grouping_index).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: "groupingField has no resident categorical column".to_string(),
+        }
+    })?;
+
+    let source_row_count = columnar.row_count();
+    let mut matched = Vec::new();
+
+    if request.target.semantic_object_id == "aggregate-group:missing" {
+        for row_idx in 0..source_row_count {
+            if row_idx < grouping_column.validity.len() && grouping_column.validity[row_idx] == 0 {
+                matched.push(row_idx);
+            }
+        }
+    } else if request.target.semantic_object_id.starts_with("aggregate-group:") {
+        let index_str = &request.target.semantic_object_id["aggregate-group:".len()..];
+        let index = index_str.parse::<usize>().map_err(|_| {
+            SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::DeletedTarget,
+                message: format!("Invalid aggregate-group index suffix: {}", index_str),
+            }
+        })?;
+
+        if index >= grouping_column.dictionary.len() {
+            return Err(SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::DeletedTarget,
+                message: format!(
+                    "Aggregate index {} out of bounds for grouping column (dictionary size: {})",
+                    index, grouping_column.dictionary.len()
+                ),
+            });
+        }
+
+        for row_idx in 0..source_row_count {
+            if row_idx < grouping_column.validity.len()
+                && grouping_column.validity[row_idx] != 0
+                && row_idx < grouping_column.codes.len()
+                && grouping_column.codes[row_idx] as usize == index
+            {
+                matched.push(row_idx);
+            }
+        }
+    } else {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("Invalid semanticObjectId {}", request.target.semantic_object_id),
+        });
+    }
+
+    Ok(matched)
+}
+
+fn evaluate_distribution_membership(
+    dataset: &Dataset,
+    columnar: &ColumnarDataset,
+    request: &SemanticDetailRequestV1,
+    embodiment_request_json: &serde_json::Value,
+) -> Result<Vec<usize>, SemanticDetailRefusalV1> {
+    let embodiment_request: crate::moneta::embodiment::DistributionEmbodimentRequestV1 =
+        serde_json::from_value(embodiment_request_json.clone()).map_err(|err| {
+            SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!("Failed to parse DistributionEmbodimentRequestV1: {}", err),
+            }
+        })?;
+
+    let measure_index = dataset.columns.iter().position(|col| col.name == embodiment_request.measure_field).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!("unknown measureField {}", embodiment_request.measure_field),
+        }
+    })?;
+
+    let measure_column = columnar.primitive_column(measure_index).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: "measureField has no resident numeric column".to_string(),
+        }
+    })?;
+
+    if !request.target.semantic_object_id.starts_with("distribution-bin:") {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!(
+                "semanticObjectId {} must start with distribution-bin:",
+                request.target.semantic_object_id
+            ),
+        });
+    }
+
+    let index_str = &request.target.semantic_object_id["distribution-bin:".len()..];
+    let bin_idx = index_str.parse::<usize>().map_err(|_| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("Invalid distribution bin index: {}", index_str),
+        }
+    })?;
+
+    let bin_count = embodiment_request.histogram_bin_count as usize;
+    if bin_idx >= bin_count {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("Bin index {} out of bounds (count: {})", bin_idx, bin_count),
+        });
+    }
+
+    let source_row_count = columnar.row_count();
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+    let mut has_finite = false;
+
+    for row_idx in 0..source_row_count {
+        if row_idx < measure_column.validity.len()
+            && measure_column.validity[row_idx] != 0
+            && row_idx < measure_column.values.len()
+        {
+            let val = measure_column.values[row_idx];
+            if val.is_finite() {
+                min = min.min(val);
+                max = max.max(val);
+                has_finite = true;
+            }
+        }
+    }
+
+    if !has_finite {
+        return Ok(vec![]);
+    }
+
+    let mut matched = Vec::new();
+
+    if min == max {
+        if bin_idx == 0 {
+            for row_idx in 0..source_row_count {
+                if row_idx < measure_column.validity.len()
+                    && measure_column.validity[row_idx] != 0
+                    && row_idx < measure_column.values.len()
+                {
+                    let val = measure_column.values[row_idx];
+                    if val.is_finite() && val == min {
+                        matched.push(row_idx);
+                    }
+                }
+            }
+        }
+        return Ok(matched);
+    }
+
+    let lower_bound = stable_lerp(min, max, bin_idx as f64 / bin_count as f64);
+    let final_bin = bin_idx + 1 == bin_count;
+    let upper_bound = if final_bin {
+        max
+    } else {
+        stable_lerp(min, max, (bin_idx + 1) as f64 / bin_count as f64)
+    };
+
+    for row_idx in 0..source_row_count {
+        if row_idx < measure_column.validity.len()
+            && measure_column.validity[row_idx] != 0
+            && row_idx < measure_column.values.len()
+        {
+            let val = measure_column.values[row_idx];
+            if val.is_finite() {
+                let matches = if final_bin {
+                    val >= lower_bound && val <= upper_bound
+                } else {
+                    val >= lower_bound && val < upper_bound
+                };
+                if matches {
+                    matched.push(row_idx);
+                }
+            }
+        }
+    }
+
+    Ok(matched)
+}
+
+fn stable_lerp(lower: f64, upper: f64, fraction: f64) -> f64 {
+    lower * (1.0 - fraction) + upper * fraction
+}
+
+fn evaluate_density_membership(
+    dataset: &Dataset,
+    columnar: &ColumnarDataset,
+    request: &SemanticDetailRequestV1,
+    embodiment_request_json: &serde_json::Value,
+) -> Result<Vec<usize>, SemanticDetailRefusalV1> {
+    let embodiment_request: crate::moneta::embodiment::DensityEmbodimentRequestV1 =
+        serde_json::from_value(embodiment_request_json.clone()).map_err(|err| {
+            SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!("Failed to parse DensityEmbodimentRequestV1: {}", err),
+            }
+        })?;
+
+    let idx_x = dataset.columns.iter().position(|col| col.name == embodiment_request.measure_field_x).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!("unknown density measureFieldX {}", embodiment_request.measure_field_x),
+        }
+    })?;
+
+    let idx_y = dataset.columns.iter().position(|col| col.name == embodiment_request.measure_field_y).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!("unknown density measureFieldY {}", embodiment_request.measure_field_y),
+        }
+    })?;
+
+    let col_x = columnar.primitive_column(idx_x).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: "measureFieldX has no resident numeric column".to_string(),
+        }
+    })?;
+
+    let col_y = columnar.primitive_column(idx_y).ok_or_else(|| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: "measureFieldY has no resident numeric column".to_string(),
+        }
+    })?;
+
+    if !request.target.semantic_object_id.starts_with("density-cell:") {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!(
+                "semanticObjectId {} must start with density-cell:",
+                request.target.semantic_object_id
+            ),
+        });
+    }
+
+    let coords_str = &request.target.semantic_object_id["density-cell:".len()..];
+    let parts: Vec<&str> = coords_str.split('-').collect();
+    if parts.len() != 2 {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("Invalid density cell coordinates: {}", coords_str),
+        });
+    }
+
+    let target_x = parts[0].parse::<usize>().map_err(|_| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("Invalid x coord: {}", parts[0]),
+        }
+    })?;
+
+    let target_y = parts[1].parse::<usize>().map_err(|_| {
+        SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!("Invalid y coord: {}", parts[1]),
+        }
+    })?;
+
+    let bx = embodiment_request.bins_x as usize;
+    let by = embodiment_request.bins_y as usize;
+
+    if target_x >= bx || target_y >= by {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::DeletedTarget,
+            message: format!(
+                "Coordinates ({}, {}) out of bounds (bins: {}x{})",
+                target_x, target_y, bx, by
+            ),
+        });
+    }
+
+    let source_row_count = columnar.row_count();
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    let mut has_finite = false;
+
+    for row_idx in 0..source_row_count {
+        if row_idx < col_x.validity.len()
+            && col_x.validity[row_idx] != 0
+            && row_idx < col_y.validity.len()
+            && col_y.validity[row_idx] != 0
+            && row_idx < col_x.values.len()
+            && row_idx < col_y.values.len()
+        {
+            let vx = col_x.values[row_idx];
+            let vy = col_y.values[row_idx];
+            if vx.is_finite() && vy.is_finite() {
+                min_x = min_x.min(vx);
+                max_x = max_x.max(vx);
+                min_y = min_y.min(vy);
+                max_y = max_y.max(vy);
+                has_finite = true;
+            }
+        }
+    }
+
+    if !has_finite {
+        return Ok(vec![]);
+    }
+
+    let domain_x = crate::moneta::embodiment::DensityDomainV1 { min: min_x, max: max_x };
+    let domain_y = crate::moneta::embodiment::DensityDomainV1 { min: min_y, max: max_y };
+
+    let mut matched = Vec::new();
+    for row_idx in 0..source_row_count {
+        if row_idx < col_x.validity.len()
+            && col_x.validity[row_idx] != 0
+            && row_idx < col_y.validity.len()
+            && col_y.validity[row_idx] != 0
+            && row_idx < col_x.values.len()
+            && row_idx < col_y.values.len()
+        {
+            let vx = col_x.values[row_idx];
+            let vy = col_y.values[row_idx];
+            if vx.is_finite() && vy.is_finite() {
+                let x_idx = bin_index_u(vx, &domain_x, bx);
+                let y_idx = bin_index_u(vy, &domain_y, by);
+                if x_idx == target_x && y_idx == target_y {
+                    matched.push(row_idx);
+                }
+            }
+        }
+    }
+
+    Ok(matched)
+}
+
+fn bin_index_u(value: f64, domain: &crate::moneta::embodiment::DensityDomainV1, bins: usize) -> usize {
+    if domain.min == domain.max {
+        return bins - 1;
+    }
+
+    let mut lo = 0usize;
+    let mut hi = bins;
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        let upper = if mid + 1 == bins {
+            domain.max
+        } else {
+            stable_lerp(domain.min, domain.max, (mid + 1) as f64 / bins as f64)
+        };
+        if value >= upper {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    lo.min(bins - 1)
+}
+

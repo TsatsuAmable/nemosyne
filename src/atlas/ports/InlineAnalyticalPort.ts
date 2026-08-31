@@ -8,6 +8,8 @@ import type {
   DatasetJSON,
   OperationSpec,
 } from '../../data/types.ts';
+import type { SemanticDetailRequestV1 } from '../../moneta/representation/SemanticDrillDown.ts';
+import { querySemanticDetailV1 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
 
 export class InlineAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _kernel: AnalyticalKernelPort;
@@ -98,6 +100,16 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
               this._kernel.destroyDataset(outHandle);
               value = outJson as T;
             }
+          }
+          break;
+        case 'semanticDetail':
+          if (handle) {
+            value = querySemanticDetailV1(
+              handle,
+              req.params.request as SemanticDetailRequestV1,
+              req.params.embodimentRequest,
+              req.generation
+            ) as T;
           }
           break;
         default:

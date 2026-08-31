@@ -11,7 +11,9 @@ import {
   buildClusterSemanticEmbodimentV1,
   buildDensitySemanticEmbodimentV1,
   buildDistributionSemanticEmbodimentV1,
+  querySemanticDetailV1,
 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
+import type { SemanticDetailRequestV1 } from '../../moneta/representation/SemanticDrillDown.ts';
 import type { ClusterEmbodimentRequestV1 } from '../../moneta/representation/ClusterEmbodimentPayload.ts';
 import type {
   AggregateEmbodimentRequestV1,
@@ -420,6 +422,21 @@ self.onmessage = async (ev: MessageEvent) => {
             throw new Error(
               `Rust ${operationName} semantic embodiment builder returned no envelope`
             );
+          }
+          resultKind = 'scalar';
+          break;
+        }
+        case 'semanticDetail': {
+          const kernelStartedAt = performance.now();
+          value = querySemanticDetailV1(
+            registeredHandle,
+            req.params.request as SemanticDetailRequestV1,
+            req.params.embodimentRequest,
+            req.generation
+          );
+          kernelMs = performance.now() - kernelStartedAt;
+          if (!value) {
+            throw new Error('Rust semantic detail query returned no envelope');
           }
           resultKind = 'scalar';
           break;

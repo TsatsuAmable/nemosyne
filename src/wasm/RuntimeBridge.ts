@@ -93,3 +93,8 @@ export {
   compileIntent,
   discoverStructures,
 } from './runtime/KernelContractBridge.ts';
+
+export {
+  querySemanticDetailV1,
+} from './runtime/SemanticEmbodimentBridge.ts';
+
