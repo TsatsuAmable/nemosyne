@@ -10,6 +10,8 @@ import {
   type SemanticEmbodimentEnvelopeV1,
 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 
+const DENSITY_CONSTANT_DOMAIN_POLICY = 'assign-final-bin-per-degenerate-axis';
+
 function request(): DensityEmbodimentRequestV1 {
   return {
     schemaVersion: 1,
@@ -26,6 +28,12 @@ function payload(envelope: SemanticEmbodimentEnvelopeV1 | null): BinnedDensityPa
   if (envelope?.result.status !== 'READY') throw new Error('expected READY density');
   if (envelope.result.payload.kind !== 'BINNED_DENSITY') throw new Error('expected BINNED_DENSITY payload');
   return envelope.result.payload.data;
+}
+
+function countAt(density: BinnedDensityPayloadV1, xIndex: number, yIndex: number): number {
+  const cell = density.grid.find((candidate) => candidate.xIndex === xIndex && candidate.yIndex === yIndex);
+  if (!cell) throw new Error(`missing density cell ${xIndex}:${yIndex}`);
+  return cell.count;
 }
 
 function loadPairs(name: string, pairs: Array<[number | null, number | null]>): number {
@@ -71,6 +79,12 @@ describe('P1-R density M2 Rust binned-density builder', () => {
       expect(envelope?.analyticalMethod).toMatchObject({
         name: 'bivariate-binned-density',
         version: 'binned-density-contract-v1',
+        parameters: {
+          binning: 'equal-width',
+          interval: 'left-closed-right-open-final-closed',
+          excludedPolicy: 'canonical-invalid-exclude-and-count',
+          constantDomain: DENSITY_CONSTANT_DOMAIN_POLICY,
+        },
       });
       expect(envelope?.provenance.algorithmVersion).toBe('bivariate-binned-density-columnar-v1');
       expect(envelope?.informationContract).toEqual({
@@ -94,6 +108,55 @@ describe('P1-R density M2 Rust binned-density builder', () => {
       expect(buildDensitySemanticEmbodimentV1(handle, request())).toEqual(envelope);
     } finally {
       bridge.destroyDataset(handle);
+    }
+  });
+
+  it('assigns constant X, constant Y, and both-constant mass to final degenerate-axis bins', () => {
+    const constantX = loadPairs('m2-density-constant-x', [
+      [5, 0],
+      [5, 1],
+      [5, 3],
+    ]);
+    const constantY = loadPairs('m2-density-constant-y', [
+      [0, 7],
+      [1, 7],
+      [3, 7],
+    ]);
+    const bothConstant = loadPairs('m2-density-both-constant', [
+      [4, 9],
+      [4, 9],
+      [4, 9],
+    ]);
+    try {
+      const x = payload(buildDensitySemanticEmbodimentV1(constantX, request()));
+      expect(x.domainX.min).toBe(x.domainX.max);
+      expect(x.grid).toHaveLength(4);
+      expect(countAt(x, 0, 0) + countAt(x, 0, 1)).toBe(0);
+      expect(countAt(x, 1, 0)).toBe(2);
+      expect(countAt(x, 1, 1)).toBe(1);
+      expect(x.grid.reduce((sum, cell) => sum + cell.count, 0)).toBe(x.counts.validCount);
+
+      const y = payload(buildDensitySemanticEmbodimentV1(constantY, request()));
+      expect(y.domainY.min).toBe(y.domainY.max);
+      expect(y.grid).toHaveLength(4);
+      expect(countAt(y, 0, 0) + countAt(y, 1, 0)).toBe(0);
+      expect(countAt(y, 0, 1)).toBe(2);
+      expect(countAt(y, 1, 1)).toBe(1);
+      expect(y.grid.reduce((sum, cell) => sum + cell.count, 0)).toBe(y.counts.validCount);
+
+      const both = payload(buildDensitySemanticEmbodimentV1(bothConstant, request()));
+      expect(both.domainX.min).toBe(both.domainX.max);
+      expect(both.domainY.min).toBe(both.domainY.max);
+      expect(both.grid).toHaveLength(4);
+      expect(countAt(both, 1, 1)).toBe(3);
+      expect(countAt(both, 0, 0)).toBe(0);
+      expect(countAt(both, 0, 1)).toBe(0);
+      expect(countAt(both, 1, 0)).toBe(0);
+      expect(both.grid.reduce((sum, cell) => sum + cell.count, 0)).toBe(both.counts.validCount);
+    } finally {
+      bridge.destroyDataset(constantX);
+      bridge.destroyDataset(constantY);
+      bridge.destroyDataset(bothConstant);
     }
   });
 

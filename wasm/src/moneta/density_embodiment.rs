@@ -13,7 +13,8 @@ use super::embodiment::{
     InformationContractV1, InformationTypeV1, RepresentationPayloadV1, ResourceEnvelopeV1,
     SemanticEmbodimentEnvelopeV1, SemanticEmbodimentFamilyV1, SemanticEmbodimentResultV1,
     SemanticPayloadProvenanceV1, SemanticRefusalCodeV1, SemanticRefusalV1,
-    SemanticRepresentationIdV1, MAX_DENSITY_CELLS_V1, SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+    SemanticRepresentationIdV1, BINNED_DENSITY_CONSTANT_DOMAIN_POLICY_V1,
+    MAX_DENSITY_CELLS_V1, SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
 };
 
 const DENSITY_METHOD_VERSION: &str = "binned-density-contract-v1";
@@ -36,7 +37,8 @@ fn analytical_parameters() -> serde_json::Value {
     serde_json::json!({
         "binning": "equal-width",
         "interval": "left-closed-right-open-final-closed",
-        "excludedPolicy": "canonical-invalid-exclude-and-count"
+        "excludedPolicy": "canonical-invalid-exclude-and-count",
+        "constantDomain": BINNED_DENSITY_CONSTANT_DOMAIN_POLICY_V1
     })
 }
 
@@ -182,15 +184,8 @@ fn build_grid(
         })
         .collect();
 
-    if domain_x.min == domain_x.max || domain_y.min == domain_y.max {
-        // Degenerate domains: all valid pairs fall into the single cell that covers the domain
-        // but our grid already has bx*by cells. For constant domains we collapse to single logical bin
-        // per degenerate axis? However contract requires grid == binsX*binsY, so we keep grid but
-        // only the final cell is inclusive? For simplicity, distribute via same logic: if constant
-        // domain, lower==upper, stable_lerp returns same, but we still have multiple cells with zero width.
-        // To avoid misleading, we treat constant domain as single occupied cell at max index.
-    }
-
+    // V1 retains the full declared lattice. On each degenerate axis, every valid
+    // observation is assigned to that axis's final bin.
     for (vx, vy) in pairs {
         let x_idx = if domain_x.min == domain_x.max {
             bx - 1
@@ -206,7 +201,6 @@ fn build_grid(
                     idx = bx - 1;
                 }
             }
-            // Use partition logic similar to distribution
             let mut lo = 0usize;
             let mut hi = bx;
             while lo < hi {
@@ -502,6 +496,15 @@ mod tests {
         payload
     }
 
+    fn count_at(payload: &BinnedDensityPayloadV1, x: u32, y: u32) -> u64 {
+        payload
+            .grid
+            .iter()
+            .find(|cell| cell.x_index == x && cell.y_index == y)
+            .map(|cell| cell.count)
+            .expect("density cell")
+    }
+
     #[test]
     fn hand_calculable_density_preserves_counts_and_grid() {
         let envelope = build_density_embodiment_v1(
@@ -518,6 +521,10 @@ mod tests {
         assert_eq!(envelope.approximation.represented_row_count, 3);
         assert_eq!(envelope.resource.source_row_count, 5);
         assert_eq!(envelope.analytical_method.version, DENSITY_METHOD_VERSION);
+        assert_eq!(
+            envelope.analytical_method.parameters["constantDomain"],
+            BINNED_DENSITY_CONSTANT_DOMAIN_POLICY_V1
+        );
         assert_eq!(envelope.provenance.algorithm_version, DENSITY_ALGORITHM_VERSION);
         assert_eq!(
             envelope.information_contract.preserves,
@@ -532,9 +539,52 @@ mod tests {
         assert_eq!(payload.counts.excluded_count, 2);
         assert_eq!(payload.grid.len(), 4);
         assert_eq!(payload.grid.iter().map(|c| c.count).sum::<u64>(), 3);
-        // Check domain
         assert_eq!(payload.domain_x.min, 0.0);
         assert_eq!(payload.domain_y.min, 0.0);
+    }
+
+    #[test]
+    fn constant_axes_assign_mass_to_final_bin_without_collapsing_lattice() {
+        let constant_x = payload(
+            build_density_embodiment_v1(
+                handle(&[(Some(5.0), Some(0.0)), (Some(5.0), Some(1.0)), (Some(5.0), Some(3.0))]),
+                &request(),
+            )
+            .expect("constant-x envelope"),
+        );
+        assert_eq!(constant_x.domain_x.min, constant_x.domain_x.max);
+        assert_eq!(constant_x.grid.len(), 4);
+        assert_eq!(count_at(&constant_x, 0, 0) + count_at(&constant_x, 0, 1), 0);
+        assert_eq!(count_at(&constant_x, 1, 0), 2);
+        assert_eq!(count_at(&constant_x, 1, 1), 1);
+        assert_eq!(constant_x.grid.iter().map(|cell| cell.count).sum::<u64>(), 3);
+
+        let constant_y = payload(
+            build_density_embodiment_v1(
+                handle(&[(Some(0.0), Some(7.0)), (Some(1.0), Some(7.0)), (Some(3.0), Some(7.0))]),
+                &request(),
+            )
+            .expect("constant-y envelope"),
+        );
+        assert_eq!(constant_y.domain_y.min, constant_y.domain_y.max);
+        assert_eq!(count_at(&constant_y, 0, 0) + count_at(&constant_y, 1, 0), 0);
+        assert_eq!(count_at(&constant_y, 0, 1), 2);
+        assert_eq!(count_at(&constant_y, 1, 1), 1);
+        assert_eq!(constant_y.grid.iter().map(|cell| cell.count).sum::<u64>(), 3);
+
+        let both_constant = payload(
+            build_density_embodiment_v1(
+                handle(&[(Some(4.0), Some(9.0)), (Some(4.0), Some(9.0)), (Some(4.0), Some(9.0))]),
+                &request(),
+            )
+            .expect("both-constant envelope"),
+        );
+        assert_eq!(both_constant.domain_x.min, both_constant.domain_x.max);
+        assert_eq!(both_constant.domain_y.min, both_constant.domain_y.max);
+        assert_eq!(count_at(&both_constant, 1, 1), 3);
+        assert_eq!(count_at(&both_constant, 0, 0), 0);
+        assert_eq!(count_at(&both_constant, 0, 1), 0);
+        assert_eq!(count_at(&both_constant, 1, 0), 0);
     }
 
     #[test]
