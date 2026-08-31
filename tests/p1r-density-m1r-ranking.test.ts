@@ -25,8 +25,8 @@ describe('P1-R Density M1R ranking semantics', () => {
   const signature = minimalDatasetSignature(5_000, 3, 0, 0, 'density-m1r-ranking', 0);
 
   it('retains the corrected density ontology under the current rank-effective treatment', () => {
-    expect(BOOTSTRAP_FITNESS_MODEL_VERSION).toBe('bootstrap-fitness-v3');
-    expect(FITNESS_TREATMENT_ID).toBe('fitness-treatment-v3');
+    expect(BOOTSTRAP_FITNESS_MODEL_VERSION).toBe('bootstrap-fitness-v4');
+    expect(FITNESS_TREATMENT_ID).toBe('fitness-treatment-v4');
   });
 
   it('asks density tasks for bounded empirical bin mass rather than population density', () => {

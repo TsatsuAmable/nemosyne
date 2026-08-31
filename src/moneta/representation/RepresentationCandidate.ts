@@ -165,15 +165,21 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   CLUSTER_REGIONS: {
     id: 'CLUSTER_REGIONS',
-    name: 'Partitioned Cluster Regions',
-    description: 'Spatial zones bounding segmented clusters with centroid and boundary markers',
-    supports: ['cluster-partition', 'discrete-observations', 'aggregate-metrics'],
+    name: 'Source Partition Regions',
+    description: 'Bounded summaries of an explicitly declared source-authoritative partition using member counts, centroids, and descriptive axis-aligned coordinate envelopes',
+    supports: ['cluster-partition', 'aggregate-metrics'],
     preserves: [
       'cluster-separation',
       'aggregate-group-magnitude',
+    ],
+    loses: [
+      'individual-observation-identity',
+      'exact-metric-values',
+      'population-density-distribution',
+      'empirical-bivariate-bin-mass',
+      'empirical-distribution-shape',
       'outlier-boundary-visibility',
     ],
-    loses: ['exact-metric-values'],
     scaleCharacteristics: {
       minN: 20,
       maxN: 100_000,
@@ -185,7 +191,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
       occlusionResistance: 0.8,
       cognitiveLoad: 0.5,
     },
-    constraints: [{ description: 'Requires discrete cluster structure or multi-modal density' }],
+    constraints: [{ description: 'Requires an explicit source-authoritative partition plus 2 or 3 distinct numeric coordinate fields' }],
   },
 
   AGGREGATE_VOLUME: {

@@ -5,10 +5,27 @@ import { RepresentationHypothesisEngine } from '../src/moneta/index.ts';
 describe('Phase 8: Synthetic Dataset Validation Suite', () => {
   describe.each(SYNTHETIC_FIXTURES)('$name ($expectedFamily)', (fixture) => {
     it(`correctly selects ${fixture.expectedFamily} with explainable evidence`, () => {
+      // Cluster fixtures are hypothesis-only synthetic facts and therefore have no
+      // resident named columns to validate. Under the governed R2D V1 contract we
+      // still make source authority explicit here instead of letting cluster-like
+      // evidence or a categorical count stand in for analyst intent. Rust remains
+      // responsible for validating these names against a real resident dataset.
+      const requirements =
+        fixture.expectedFamily === 'CLUSTER'
+          ? {
+              ...fixture.requirements,
+              primaryDimensions: ['x', 'y'],
+              clusterAuthority: {
+                kind: 'SOURCE_PARTITION' as const,
+                field: 'clusterLabel',
+              },
+            }
+          : fixture.requirements;
+
       const decision = RepresentationHypothesisEngine.reason(
         fixture.facts,
         null,
-        fixture.requirements,
+        requirements,
         {
           spectralFacts: fixture.spectralFacts,
           datasetFingerprint: `synth-${fixture.name}`,

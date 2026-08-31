@@ -1,5 +1,5 @@
 /**
- * MonetaHypothesisEngine — V3 bootstrap representation hypothesis solver.
+ * MonetaHypothesisEngine — V4 bootstrap representation hypothesis solver.
  *
  * Stage 1: hard feasibility filtering.
  * Stage 2: explicit, versioned bootstrap fitness evaluation.
@@ -124,7 +124,7 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
 }
 
 export class MonetaHypothesisEngine {
-  readonly version = '2.1.0-v3-bootstrap';
+  readonly version = '2.1.0-v4-bootstrap';
   readonly fitnessModel: BootstrapFitnessModel;
   private readonly fitnessModelArtifactHash: string | null;
 
@@ -386,7 +386,7 @@ export class MonetaHypothesisEngine {
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
-      version: '2.1.0-v3-bootstrap',
+      version: '2.1.0-v4-bootstrap',
       datasetFingerprint: signature.provenance.datasetFingerprint,
       requirementsHash,
       fitnessModelVersion: this.fitnessModel.version,
@@ -667,6 +667,43 @@ export class MonetaHypothesisEngine {
       };
     }
 
+    if (candidate.id === 'CLUSTER_REGIONS') {
+      const authority = reqs.clusterAuthority;
+      const coordinateFields = reqs.primaryDimensions ?? [];
+      const authorityValid =
+        authority?.kind === 'SOURCE_PARTITION' &&
+        authority.field.length > 0 &&
+        authority.field.trim() === authority.field;
+      const coordinateFieldsValid =
+        coordinateFields.length >= 2 &&
+        coordinateFields.length <= 3 &&
+        coordinateFields.every(
+          (field) => field.length > 0 && field.trim() === field
+        ) &&
+        new Set(coordinateFields).size === coordinateFields.length &&
+        (!authorityValid || !coordinateFields.includes(authority.field));
+
+      if (!authorityValid || !coordinateFieldsValid) {
+        return {
+          passed: false,
+          reason:
+            'CLUSTER_REGIONS requires one explicit SOURCE_PARTITION field plus 2 or 3 distinct coordinate fields; categorical/color/layout/density inference is not authority',
+          code: 'cluster-authority-required',
+        };
+      }
+      if (
+        signature.schema.categoricalCount < 1 ||
+        signature.schema.numericCount < coordinateFields.length
+      ) {
+        return {
+          passed: false,
+          reason:
+            'Dataset signature cannot support the declared source partition and requested cluster coordinate dimensionality',
+          code: 'cluster-authority-required',
+        };
+      }
+    }
+
     if (
       layout === 'FORCE_DIRECTED_3D' &&
       top !== 'GRAPH' &&
@@ -812,7 +849,7 @@ export class MonetaHypothesisEngine {
       provenance: {
         generatedAt: 0,
         engine: 'MonetaHypothesisEngine',
-        version: '2.1.0-v3-bootstrap',
+        version: '2.1.0-v4-bootstrap',
         datasetFingerprint,
         requirementsHash,
         fitnessModelVersion: this.fitnessModel.version,

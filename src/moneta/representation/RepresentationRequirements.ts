@@ -92,6 +92,18 @@ export interface ProgressiveDisclosureRequirement {
   }>;
 }
 
+/**
+ * R2D V1 cluster authority is deliberately source-bound. Future inferred
+ * clustering methods must add a separately governed discriminant rather than
+ * masquerading as SOURCE_PARTITION authority.
+ */
+export interface SourcePartitionClusterAuthority {
+  kind: 'SOURCE_PARTITION';
+  field: string;
+}
+
+export type ClusterAuthorityRequirement = SourcePartitionClusterAuthority;
+
 export interface RepresentationRequirements {
   task: AnalyticalTask;
   primaryDimensions?: string[];
@@ -108,6 +120,12 @@ export interface RepresentationRequirements {
   hardwareConstraints: HardwareConstraint;
   dimensionalityRequirements?: DimensionalityRequirement;
   progressiveDisclosure?: ProgressiveDisclosureRequirement;
+  /**
+   * Explicit scientific authority for CLUSTER_REGIONS. Merely having a
+   * categorical/color field, a property named `cluster`, or multimodal density
+   * is not authority. C1 supports only a caller-declared source partition.
+   */
+  clusterAuthority?: ClusterAuthorityRequirement;
   /**
    * Maximum fraction of marks that may be excluded from the view frustum /
    * depth range before a candidate is disqualified. Renamed from
@@ -151,6 +169,7 @@ export const PreservationGoalSchema = v.picklist([
 const FiniteNonNegative = v.pipe(v.number(), v.finite(), v.minValue(0));
 const PositiveInteger = v.pipe(v.number(), v.finite(), v.integer(), v.minValue(1));
 const UnitInterval = v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(1));
+const NonEmptyString = v.pipe(v.string(), v.minLength(1));
 
 export const HardwareEnvelopeSchema = v.strictObject({
   deviceTier: v.optional(v.picklist(['quest2', 'quest3', 'questpro', 'desktop'])),
@@ -199,6 +218,11 @@ const PreservationGoalRequirementSchema = v.strictObject({
   priority: v.picklist(['CRITICAL', 'DESIRED', 'OPTIONAL']),
 });
 
+const ClusterAuthorityRequirementSchema = v.strictObject({
+  kind: v.literal('SOURCE_PARTITION'),
+  field: NonEmptyString,
+});
+
 export const RepresentationRequirementsSchema = v.strictObject({
   task: AnalyticalTaskSchema,
   primaryDimensions: v.optional(v.array(v.string())),
@@ -237,6 +261,7 @@ export const RepresentationRequirementsSchema = v.strictObject({
       ),
     })
   ),
+  clusterAuthority: v.optional(ClusterAuthorityRequirementSchema),
   maxFrustumExclusionTolerance: UnitInterval,
   interactionBudget: v.picklist(['LOW', 'MEDIUM', 'HIGH']),
 });
@@ -269,6 +294,41 @@ export function validateRepresentationRequirements(input: unknown): Representati
     }
     seenLevels.add(level.level);
   }
+
+  if (requirements.clusterAuthority) {
+    const partitionField = requirements.clusterAuthority.field;
+    if (partitionField.trim() !== partitionField) {
+      throw new Error(
+        'RepresentationRequirements: clusterAuthority.field must not contain surrounding whitespace'
+      );
+    }
+    const coordinateFields = requirements.primaryDimensions ?? [];
+    if (coordinateFields.length < 2 || coordinateFields.length > 3) {
+      throw new Error(
+        'RepresentationRequirements: SOURCE_PARTITION cluster authority requires exactly 2 or 3 primaryDimensions'
+      );
+    }
+    if (
+      coordinateFields.some(
+        (field) => field.length === 0 || field.trim() !== field
+      )
+    ) {
+      throw new Error(
+        'RepresentationRequirements: cluster coordinate fields must be non-empty and contain no surrounding whitespace'
+      );
+    }
+    if (new Set(coordinateFields).size !== coordinateFields.length) {
+      throw new Error(
+        'RepresentationRequirements: cluster coordinate fields must be distinct'
+      );
+    }
+    if (coordinateFields.includes(partitionField)) {
+      throw new Error(
+        'RepresentationRequirements: cluster partition field must be distinct from coordinate fields'
+      );
+    }
+  }
+
   return requirements;
 }
 
