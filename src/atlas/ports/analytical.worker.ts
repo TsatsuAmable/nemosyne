@@ -8,9 +8,11 @@ import type {
 import * as bridge from '../../wasm/RuntimeBridge.ts';
 import {
   buildAggregateSemanticEmbodimentV1,
+  buildClusterSemanticEmbodimentV1,
   buildDensitySemanticEmbodimentV1,
   buildDistributionSemanticEmbodimentV1,
 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
+import type { ClusterEmbodimentRequestV1 } from '../../moneta/representation/ClusterEmbodimentPayload.ts';
 import type {
   AggregateEmbodimentRequestV1,
   DensityEmbodimentRequestV1,
@@ -404,6 +406,11 @@ self.onmessage = async (ev: MessageEvent) => {
             value = buildDensitySemanticEmbodimentV1(
               registeredHandle,
               req.params as unknown as DensityEmbodimentRequestV1
+            );
+          } else if (req.params.candidateId === 'CLUSTER_REGIONS') {
+            value = buildClusterSemanticEmbodimentV1(
+              registeredHandle,
+              req.params as unknown as ClusterEmbodimentRequestV1
             );
           } else {
             throw new Error(`Unsupported semantic embodiment candidate: ${operationName}`);
