@@ -28,7 +28,11 @@ type SemanticMonetaDataInput = MonetaDataInput & {
 function usesSemanticEmbodiment(
   candidateId: string | undefined
 ): candidateId is SemanticEmbodimentPresentationCandidateId {
-  return candidateId === 'AGGREGATE_VOLUME' || candidateId === 'DISTRIBUTION_FIELD';
+  return (
+    candidateId === 'AGGREGATE_VOLUME' ||
+    candidateId === 'DISTRIBUTION_FIELD' ||
+    candidateId === 'DENSITY_FIELD'
+  );
 }
 
 export class MonetaTopologyNode {
