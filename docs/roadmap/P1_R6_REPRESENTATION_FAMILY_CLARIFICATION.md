@@ -1,22 +1,22 @@
 # P1-R6 Representation Family / Layout Clarification
 
-**Status:** R6A MERGED (#583) / R6B IMPLEMENTED ON BRANCH / REVIEW ACTIVE  
-**Base:** `main@a00388eaa1476b3b3fe4b31d99f3770b1b42ac88` (#583 merged)  
+**Status:** VERIFIED COMPLETE (#583/#584) / STOP GATE SATISFIED  
+**Integration base:** `main@c9a089564284466d249d181e9408f5822f4ac196` (#584 merged)  
 **Parent:** `P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md` R6  
 **Entry condition:** P1-R2C Density Truth stop gate satisfied.  
 **Purpose:** make Moneta's reasoning families, layout compatibility, semantic candidate identity, and Rust-owned embodiment authority impossible to conflate before another dataset-level representation is migrated.
 
-## Why R6 is next
+## Why R6 was required
 
 Density, distribution and aggregate demonstrate the same architectural lesson: a shared Three.js macro-layout does not define the analytical representation.
 
 `RepresentationFamily.ts` declares 10 reasoning families but the runtime has 7 `VRLayout` values. Several families legitimately share layouts. In particular, `DISTRIBUTION` and `AGGREGATE` are compatible with `GRID_3D`, but their production geometry/payloads are not point grids. Candidate-specific geometry and the governed semantic embodiment payload carry the representation meaning.
 
-R6 therefore precedes R2D cluster work. It is a bounded ontology/control-plane clarification, not a new rendering programme.
+R6 therefore preceded R2D cluster work. It was a bounded ontology/control-plane clarification, not a rendering programme.
 
-## R6A — make layout compatibility explicit
+## R6A - make layout compatibility explicit
 
-**Status:** MERGED as #583.
+**Status:** MERGED as #583 / VERIFIED COMPLETE.
 
 **Invariant:** family/layout tables describe compatible macro-layout strategies only. They do not define semantic payload type, analytical method, or renderer authority.
 
@@ -31,9 +31,9 @@ R6A:
 
 **Exit:** satisfied on exact head `34121a8d4b6861c7462ba8c95ebb13328e508354`; CI, CodeQL, architecture, approval and Q9 passed before #583 merged.
 
-## R6B — remove rank-effective duplicate family aliases
+## R6B - remove rank-effective duplicate family aliases
 
-**Status:** IMPLEMENTED ON `fix/p1r-r6-family-membership-treatment` / REVIEW ACTIVE.
+**Status:** MERGED as #584 / VERIFIED COMPLETE.
 
 R6A's adversarial review found that candidate family membership was not descriptive. `MonetaHypothesisEngine` generated the Cartesian product of a family's candidates and layouts, while `BootstrapFitnessModel` used the selected family in structure scoring and configured priors. A semantic candidate listed under multiple families therefore became multiple ranking treatments and could inherit evidence/layout variants unrelated to its own scientific contract.
 
@@ -76,17 +76,17 @@ Canonical assignments are:
 
 R6B:
 
-1. introduces `CANDIDATE_TO_REASONING_FAMILY` as the canonical single-valued assignment;
-2. makes `FAMILY_TO_CANDIDATE_IDS` contain every semantic candidate exactly once;
-3. makes `BootstrapFitnessModel.evaluate()` fail closed when given a candidate/family pair that disagrees with the canonical assignment;
-4. gates family-specific structure evidence by the candidate capability that gives that evidence meaning (`cluster-partition`, `univariate-distribution`, `periodic-spectrum`, etc.);
-5. leaves requirement/task coverage capability-driven, so a temporal trajectory can still satisfy periodicity without being relabelled as a frequency-family candidate;
-6. removes duplicate family-generated layout variants from bootstrap search without changing candidate payload or renderer authority;
-7. keeps all numeric bootstrap weights unchanged.
+1. introduced `CANDIDATE_TO_REASONING_FAMILY` as the canonical single-valued assignment;
+2. made `FAMILY_TO_CANDIDATE_IDS` contain every semantic candidate exactly once;
+3. made `BootstrapFitnessModel.evaluate()` fail closed when given a candidate/family pair that disagrees with the canonical assignment;
+4. gated family-specific structure evidence by the candidate capability that gives that evidence meaning (`cluster-partition`, `univariate-distribution`, `periodic-spectrum`, etc.);
+5. left requirement/task coverage capability-driven, so a temporal trajectory can still satisfy periodicity without being relabelled as a frequency-family candidate;
+6. removed duplicate family-generated layout variants from bootstrap search without changing candidate payload or renderer authority;
+7. kept all numeric bootstrap weights unchanged.
 
 ### Treatment identity
 
-This is intentionally rank-effective. The treatment therefore advances to:
+This is intentionally rank-effective. The treatment advanced to:
 
 - `BOOTSTRAP_FITNESS_MODEL_VERSION = bootstrap-fitness-v3`;
 - `FITNESS_TREATMENT_ID = fitness-treatment-v3`.
@@ -95,7 +95,7 @@ The treatment change means “same numeric weights, corrected candidate-family a
 
 ### R6B falsifiers
 
-Tests must prove:
+The exact-head tests prove:
 
 - all semantic candidates occur exactly once across `FAMILY_TO_CANDIDATE_IDS`;
 - invalid family/candidate scoring throws rather than silently receiving a neutral or favorable score;
@@ -103,25 +103,25 @@ Tests must prove:
 - measured high-variance/outlier evidence does not award `DENSITY_FIELD` the `DISTRIBUTION` family boost reserved for `univariate-distribution` capability;
 - a configured `CLUSTER` family preference cannot raise a density candidate's prior;
 - periodicity task coverage for `TEMPORAL_TRAJECTORY` remains intact through its explicit `periodic-spectrum` capability;
-- bootstrap search emits density only as `DISTRIBUTION/GRID_3D`, relationship graph only through the `GRAPH` family, and temporal trajectory only through the `TEMPORAL` family.
+- bootstrap search emits density only through its canonical `DISTRIBUTION` family, relationship graph only through `GRAPH`, and temporal trajectory only through `TEMPORAL`.
 
-**Exit:** exact-head CI/CodeQL/governance plus independent post-review prove that unsupported family credit and duplicate family variants are removed, with the treatment-version change visible in provenance.
+**Exit:** exact head `251a8c7bdac37510342d5ca9efb45819814adeac` passed CI, CodeQL, architecture policy, supply-chain pilot, approval gate and Q9 before #584 merged. The merged integration head is `c9a089564284466d249d181e9408f5822f4ac196`.
 
-## Stop gate before R2D
+## Stop gate outcome and R2D entry
 
-Do not begin Cluster Regions production migration until R6B has merged and its exact-head review passes.
+The R6 stop gate is satisfied. Cluster Regions may now begin as a separately governed scientific representation tranche.
 
-R2D must then separately decide the scientific authority for cluster evidence. At minimum distinguish:
+R2D must distinguish:
 
 - supplied partition labels or source-authoritative groups;
 - a separately governed Rust clustering method with method/metric/scaling/parameters/provenance;
-- presentation-only grouping, which must not be promoted as scientific cluster evidence.
+- presentation-only grouping, which must never be promoted as scientific cluster evidence.
 
-Geometry must never infer authoritative clusters from arbitrary layout positions.
+Geometry must never infer authoritative clusters from arbitrary layout positions. R2D V1 begins with supplied/source-authoritative partition labels only; inferred clustering remains outside that first vertical slice.
 
 ## Explicit non-goals
 
-- no R2D cluster payload or renderer implementation in R6;
+- no cluster payload or renderer implementation was introduced by R6;
 - no inferred k-NN/similarity/correlation topology;
 - no changes to density/distribution/aggregate Rust payloads;
 - no physical Quest qualification claim;
