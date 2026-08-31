@@ -85,7 +85,7 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
     requirements.primaryDimensions = ['x', 'y'];
 
     const decision = MonetaHypothesisEngine.arbitrate(clusterSignature(), requirements);
-    const clusterCandidates = decision.rankedCandidates.filter(
+    const clusterCandidates = (decision.rankedCandidates ?? []).filter(
       (candidate) => candidate.candidateId === 'CLUSTER_REGIONS'
     );
 
@@ -108,7 +108,7 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
     requirements.primaryDimensions = ['x', 'y', 'z'];
     const decision = MonetaHypothesisEngine.arbitrate(signature, requirements);
 
-    const clusterCandidates = decision.rankedCandidates.filter(
+    const clusterCandidates = (decision.rankedCandidates ?? []).filter(
       (candidate) => candidate.candidateId === 'CLUSTER_REGIONS'
     );
     expect(clusterCandidates.every((candidate) => candidate.disqualified)).toBe(true);
@@ -120,7 +120,7 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
       clusterSignature(),
       sourcePartitionRequirements()
     );
-    const clusterCandidates = decision.rankedCandidates.filter(
+    const clusterCandidates = (decision.rankedCandidates ?? []).filter(
       (candidate) => candidate.candidateId === 'CLUSTER_REGIONS'
     );
 
@@ -142,7 +142,7 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
       requirements
     );
     expect(
-      decisionWithoutPartitionCapacity.rankedCandidates
+      (decisionWithoutPartitionCapacity.rankedCandidates ?? [])
         .filter((candidate) => candidate.candidateId === 'CLUSTER_REGIONS')
         .every(
           (candidate) =>
@@ -157,7 +157,7 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
       requirements
     );
     expect(
-      decisionWithoutCoordinateCapacity.rankedCandidates
+      (decisionWithoutCoordinateCapacity.rankedCandidates ?? [])
         .filter((candidate) => candidate.candidateId === 'CLUSTER_REGIONS')
         .every(
           (candidate) =>
