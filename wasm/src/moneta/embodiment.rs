@@ -22,6 +22,8 @@ const MAX_SHORT_TEXT_BYTES: usize = 256;
 const MAX_MESSAGE_BYTES: usize = 1024;
 const MAX_GROUPING_FIELDS_V1: usize = 4;
 const EMPIRICAL_DISTRIBUTION_METHOD_NAME_V1: &str = "univariate-empirical-distribution";
+const BINNED_DENSITY_METHOD_NAME_V1: &str = "bivariate-binned-density";
+const BINNED_DENSITY_METHOD_VERSION_V1: &str = "binned-density-contract-v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -62,6 +64,7 @@ pub enum InformationTypeV1 {
     IndividualObservationIdentity,
     ExactMetricValues,
     PopulationDensityDistribution,
+    EmpiricalBivariateBinMass,
     EmpiricalDistributionShape,
     OutlierBoundaryVisibility,
     ClusterSeparation,
@@ -303,7 +306,13 @@ pub struct BinnedDensityPayloadV1 {
     pub bins_y: u32,
 }
 
-const BINNED_DENSITY_METHOD_NAME_V1: &str = "bivariate-binned-density";
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DensityAnalyticalParametersV1 {
+    binning: String,
+    interval: String,
+    excluded_policy: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -501,10 +510,11 @@ pub fn validate_distribution_request_contract(
 }
 
 fn validate_density_information_contract(contract: &InformationContractV1) -> Result<(), String> {
-    let expected_preserves = vec![InformationTypeV1::PopulationDensityDistribution];
+    let expected_preserves = vec![InformationTypeV1::EmpiricalBivariateBinMass];
     let expected_loses = vec![
         InformationTypeV1::IndividualObservationIdentity,
         InformationTypeV1::ExactMetricValues,
+        InformationTypeV1::PopulationDensityDistribution,
         InformationTypeV1::EmpiricalDistributionShape,
         InformationTypeV1::OutlierBoundaryVisibility,
     ];
@@ -984,20 +994,23 @@ fn validate_binned_density_payload(
         );
     }
     validate_density_information_contract(information_contract)?;
-    let method_name = analytical_method.name.to_ascii_lowercase();
-    if method_name != BINNED_DENSITY_METHOD_NAME_V1 {
+    if analytical_method.name != BINNED_DENSITY_METHOD_NAME_V1 {
         return Err(
-            "binned density analyticalMethod.name must identify the reviewed bivariate binned method"
+            "binned density analyticalMethod.name must exactly identify the reviewed bivariate binned method"
                 .to_string(),
         );
     }
-    let params = &analytical_method.parameters;
-    let binning = params.get("binning").and_then(|v| v.as_str()).unwrap_or("");
-    let interval = params.get("interval").and_then(|v| v.as_str()).unwrap_or("");
-    let excluded_policy = params.get("excludedPolicy").and_then(|v| v.as_str()).unwrap_or("");
-    if binning != "equal-width"
-        || interval != "left-closed-right-open-final-closed"
-        || excluded_policy != "canonical-invalid-exclude-and-count"
+    if analytical_method.version != BINNED_DENSITY_METHOD_VERSION_V1 {
+        return Err(format!(
+            "binned density analyticalMethod.version must equal {BINNED_DENSITY_METHOD_VERSION_V1}"
+        ));
+    }
+    let method_parameters: DensityAnalyticalParametersV1 =
+        serde_json::from_value(analytical_method.parameters.clone())
+            .map_err(|error| format!("invalid binned density method parameters: {error}"))?;
+    if method_parameters.binning != "equal-width"
+        || method_parameters.interval != "left-closed-right-open-final-closed"
+        || method_parameters.excluded_policy != "canonical-invalid-exclude-and-count"
     {
         return Err(
             "binned density method parameters must match the reviewed V1 policies".to_string(),
@@ -1024,13 +1037,6 @@ fn validate_binned_density_payload(
         return Err(format!(
             "density bins must be in 1..={MAX_DENSITY_BINS_X_V1} x 1..={MAX_DENSITY_BINS_Y_V1}"
         ));
-    }
-    if payload.domain_x.min.is_nan()
-        || payload.domain_x.max.is_nan()
-        || payload.domain_y.min.is_nan()
-        || payload.domain_y.max.is_nan()
-    {
-        return Err("density domains must not be NaN".to_string());
     }
     if !payload.domain_x.min.is_finite()
         || !payload.domain_x.max.is_finite()
@@ -1079,24 +1085,20 @@ fn validate_binned_density_payload(
     if resource.element_count as usize != expected_cells {
         return Err("resource.elementCount must equal density grid cell count".to_string());
     }
+
     let mut semantic_ids = HashSet::new();
+    let mut coordinates = HashSet::new();
     let mut total_count = 0u64;
-    let mut grid_sorted: Vec<(u32, u32, &DensityGridCellV1)> = payload
-        .grid
-        .iter()
-        .map(|cell| (cell.x_index, cell.y_index, cell))
-        .collect();
-    grid_sorted.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
-    for (x_idx, y_idx, cell) in grid_sorted {
+    for cell in &payload.grid {
         validate_short_text(&cell.semantic_id, "density cell semanticId")?;
         if !semantic_ids.insert(cell.semantic_id.clone()) {
             return Err("density semanticId values must be unique".to_string());
         }
-        if cell.x_index != x_idx || cell.y_index != y_idx {
-            return Err("density grid cells must be ordered by xIndex then yIndex".to_string());
-        }
         if cell.x_index >= payload.bins_x || cell.y_index >= payload.bins_y {
             return Err("density cell indices out of bounds".to_string());
+        }
+        if !coordinates.insert((cell.x_index, cell.y_index)) {
+            return Err("density grid coordinate pairs must be unique".to_string());
         }
         if !cell.x_lower_bound.is_finite()
             || !cell.x_upper_bound.is_finite()
@@ -1151,12 +1153,22 @@ fn validate_binned_density_payload(
             .checked_add(cell.count)
             .ok_or_else(|| "density grid count overflow".to_string())?;
     }
+    for x_index in 0..payload.bins_x {
+        for y_index in 0..payload.bins_y {
+            if !coordinates.contains(&(x_index, y_index)) {
+                return Err(
+                    "density grid must cover every xIndex/yIndex pair exactly once".to_string(),
+                );
+            }
+        }
+    }
     if total_count != counts.valid_count {
         return Err("density grid counts must sum to validCount".to_string());
     }
-    payload.grid.sort_by(|a, b| {
-        a.semantic_id
-            .cmp(&b.semantic_id)
+    payload.grid.sort_by(|left, right| {
+        left.x_index
+            .cmp(&right.x_index)
+            .then(left.y_index.cmp(&right.y_index))
     });
     Ok(())
 }

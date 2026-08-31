@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import {
+  BOOTSTRAP_FITNESS_MODEL_VERSION,
+} from '../src/moneta/representation/FitnessModel.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
 import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
@@ -12,10 +15,10 @@ describe('Moneta V3 live hypothesis engine', () => {
     const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
     const winner = decision.rankedCandidates?.find((candidate) => !candidate.disqualified);
 
-    expect(decision.fitnessModelVersion).toBe('bootstrap-fitness-v1');
-    expect(decision.provenance.fitnessModelVersion).toBe('bootstrap-fitness-v1');
+    expect(decision.fitnessModelVersion).toBe(BOOTSTRAP_FITNESS_MODEL_VERSION);
+    expect(decision.provenance.fitnessModelVersion).toBe(BOOTSTRAP_FITNESS_MODEL_VERSION);
     expect(decision.embodiment.spatialStrategy.provenance.fitnessModelVersion).toBe(
-      'bootstrap-fitness-v1'
+      BOOTSTRAP_FITNESS_MODEL_VERSION
     );
     expect(winner?.components.map((component) => component.component)).toContain('densityHandling');
     expect(winner?.components.map((component) => component.component)).toContain('configuredPrior');

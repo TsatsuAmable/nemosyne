@@ -26,13 +26,14 @@ function densityFixture(): SemanticEmbodimentEnvelopeV1 {
     approximation: {
       mode: 'BINNED',
       representedRowCount: 4,
-      description: 'Bivariate equal-width binned density grid',
+      description: 'Bivariate equal-width empirical bin-mass grid',
     },
     informationContract: {
-      preserves: ['population-density-distribution'],
+      preserves: ['empirical-bivariate-bin-mass'],
       loses: [
         'individual-observation-identity',
         'exact-metric-values',
+        'population-density-distribution',
         'empirical-distribution-shape',
         'outlier-boundary-visibility',
       ],
@@ -121,25 +122,27 @@ function densityPayload(envelope: SemanticEmbodimentEnvelopeV1): BinnedDensityPa
   return envelope.result.payload.data;
 }
 
-describe('P1-R density M1 binned density contract', () => {
+describe('P1-R density M1R binned density contract', () => {
   beforeAll(async () => {
     if (!bridge.isReady()) await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
-    if (!bridge.isReady()) throw new Error('M1 requires the real WASM runtime');
+    if (!bridge.isReady()) throw new Error('M1R requires the real WASM runtime');
   });
 
-  it('round-trips a distinct, bounded, count-truthful binned density deterministically', () => {
+  it('round-trips a distinct, bounded, count-truthful empirical bin-mass field deterministically', () => {
     const first = bridge.roundTripSemanticEmbodimentPayloadV1(densityFixture());
     expect(first).not.toBeNull();
     if (!first) throw new Error('expected validated density payload');
     const payload = densityPayload(first);
     expect(first.candidateId).toBe('DENSITY_FIELD');
     expect(first.representationFamily).toBe('DENSITY');
+    expect(first.analyticalMethod.version).toBe('binned-density-contract-v1');
     expect(first.approximation).toMatchObject({ mode: 'BINNED', representedRowCount: 4 });
     expect(first.informationContract).toEqual({
-      preserves: ['population-density-distribution'],
+      preserves: ['empirical-bivariate-bin-mass'],
       loses: [
         'individual-observation-identity',
         'exact-metric-values',
+        'population-density-distribution',
         'empirical-distribution-shape',
         'outlier-boundary-visibility',
       ],
@@ -151,9 +154,13 @@ describe('P1-R density M1 binned density contract', () => {
     });
     expect(payload.counts).toEqual({ sourceCount: 6, validCount: 4, excludedCount: 2 });
     expect(payload.grid.reduce((sum, cell) => sum + cell.count, 0)).toBe(4);
-    expect(payload.grid.length).toBe(4);
-    const serialized = JSON.stringify(first);
-    expect(serialized).not.toContain('"rows"');
+    expect(payload.grid.map((cell) => [cell.xIndex, cell.yIndex])).toEqual([
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+    ]);
+    expect(JSON.stringify(first)).not.toContain('"rows"');
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(first)).toEqual(first);
   });
 
@@ -180,7 +187,26 @@ describe('P1-R density M1 binned density contract', () => {
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(duplicateId)).toBeNull();
   });
 
-  it('rejects distribution alias, KDE/PDF claims, non-finite, and raw-row smuggling', () => {
+  it('rejects duplicate coordinates that hide a missing lattice cell', () => {
+    const duplicateCoordinate = densityFixture();
+    const grid = densityPayload(duplicateCoordinate).grid;
+    const source = grid[2];
+    const target = grid[3];
+    target.xIndex = source.xIndex;
+    target.yIndex = source.yIndex;
+    target.xLowerBound = source.xLowerBound;
+    target.xUpperBound = source.xUpperBound;
+    target.yLowerBound = source.yLowerBound;
+    target.yUpperBound = source.yUpperBound;
+    target.xUpperInclusive = source.xUpperInclusive;
+    target.yUpperInclusive = source.yUpperInclusive;
+
+    expect(grid).toHaveLength(4);
+    expect(new Set(grid.map((cell) => `${cell.xIndex}:${cell.yIndex}`)).size).toBe(3);
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(duplicateCoordinate)).toBeNull();
+  });
+
+  it('rejects continuous-density claims and unrelated information preservation', () => {
     const alias = densityFixture();
     alias.analyticalMethod.name = 'univariate-empirical-distribution';
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(alias)).toBeNull();
@@ -189,13 +215,46 @@ describe('P1-R density M1 binned density contract', () => {
     kdeClaim.analyticalMethod.name = 'continuous-density-kde';
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(kdeClaim)).toBeNull();
 
-    const preservesClaim = densityFixture();
-    preservesClaim.informationContract = {
-      preserves: ['empirical-distribution-shape'],
-      loses: ['individual-observation-identity', 'exact-metric-values'],
-    };
-    expect(bridge.roundTripSemanticEmbodimentPayloadV1(preservesClaim)).toBeNull();
+    const populationDensityClaim = densityFixture();
+    populationDensityClaim.informationContract.preserves = ['population-density-distribution'];
+    populationDensityClaim.informationContract.loses = [
+      'individual-observation-identity',
+      'exact-metric-values',
+      'empirical-distribution-shape',
+      'outlier-boundary-visibility',
+    ];
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(populationDensityClaim)).toBeNull();
 
+    const distributionClaim = densityFixture();
+    distributionClaim.informationContract.preserves = ['empirical-distribution-shape'];
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(distributionClaim)).toBeNull();
+  });
+
+  it('denies unknown or nested-smuggled method parameters and version drift', () => {
+    const unknownParameter = densityFixture();
+    unknownParameter.analyticalMethod.parameters = {
+      ...(unknownParameter.analyticalMethod.parameters as Record<string, unknown>),
+      metadata: 'not-part-of-v1',
+    };
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(unknownParameter)).toBeNull();
+
+    const nestedSmuggling = densityFixture();
+    nestedSmuggling.analyticalMethod.parameters = {
+      ...(nestedSmuggling.analyticalMethod.parameters as Record<string, unknown>),
+      provenance: { rows: [{ x: 1, y: 2 }] },
+    };
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(nestedSmuggling)).toBeNull();
+
+    const wrongVersion = densityFixture();
+    wrongVersion.analyticalMethod.version = 'binned-density-contract-v2';
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(wrongVersion)).toBeNull();
+
+    const caseDrift = densityFixture();
+    caseDrift.analyticalMethod.name = 'BIVARIATE-BINNED-DENSITY';
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(caseDrift)).toBeNull();
+  });
+
+  it('rejects non-finite values and raw-row smuggling', () => {
     const nonFinite = densityFixture();
     densityPayload(nonFinite).domainX.max = Number.POSITIVE_INFINITY;
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(nonFinite)).toBeNull();
@@ -207,15 +266,16 @@ describe('P1-R density M1 binned density contract', () => {
     ).toBeNull();
   });
 
-  it('keeps the candidate ontology bivariate binned and explicit about losses', () => {
+  it('keeps the candidate ontology bivariate, binned, and explicit about population-level loss', () => {
     const candidate = MONETA_REPRESENTATION_CANDIDATES.DENSITY_FIELD;
     expect(candidate.name).toBe('Binned Density Field');
     expect(`${candidate.name} ${candidate.description}`).not.toMatch(/continuous.*estimation|kde|pdf|contour/i);
-    expect(candidate.supports).toEqual(['continuous-density', 'discrete-observations']);
-    expect(candidate.preserves).toEqual(['population-density-distribution']);
+    expect(candidate.supports).toEqual(['binned-empirical-mass', 'discrete-observations']);
+    expect(candidate.preserves).toEqual(['empirical-bivariate-bin-mass']);
     expect(candidate.loses).toEqual([
       'individual-observation-identity',
       'exact-metric-values',
+      'population-density-distribution',
       'empirical-distribution-shape',
       'outlier-boundary-visibility',
     ]);

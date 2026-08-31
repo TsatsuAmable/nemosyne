@@ -185,6 +185,7 @@ const PreservationGoalRequirementSchema = v.strictObject({
     'individual-observation-identity',
     'exact-metric-values',
     'population-density-distribution',
+    'empirical-bivariate-bin-mass',
     'empirical-distribution-shape',
     'outlier-boundary-visibility',
     'cluster-separation',
@@ -352,12 +353,15 @@ export function createDefaultRequirements(
     task === 'distribution-analysis' ||
     task === 'identify-outliers' ||
     task === 'anomaly-detection';
+  const requestsDensity = intent.targetStructures.some((requirement) => requirement.type === 'density');
 
   const preservationGoals: PreservationGoal[] = [
     {
       information: requestsEmpiricalDistribution
         ? 'empirical-distribution-shape'
-        : 'population-density-distribution',
+        : requestsDensity
+          ? 'empirical-bivariate-bin-mass'
+          : 'population-density-distribution',
       priority: 'DESIRED',
     },
   ];
