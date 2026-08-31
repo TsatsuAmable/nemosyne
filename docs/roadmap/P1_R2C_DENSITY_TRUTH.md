@@ -1,13 +1,13 @@
 # P1-R2C Density Truth
 
-**Status:** M1 + M2 LANDED / CONTRACT FIX-FORWARD REQUIRED BEFORE M3  
+**Status:** M1 + M2 + M1R LANDED / M3 NEXT  
 **Parent programme:** `P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md` R2C  
-**Integration base:** `main@76abda6fc0380ed73aec656b65ecd29ecbd58e24` (#571 merged)  
+**Integration base:** `main@3cfbf41032a9760f467dd6a919b8b1fff882d61c` (#577 merged)  
 **Purpose:** complete one truthful, bounded, Rust-owned bivariate binned-density representation through the real product path, then stop for independent review before cluster or inferred-topology expansion.
 
 ## Why this document exists
 
-R2C already existed in the parent P1-R roadmap, but only as a generic density-builder item. #570 selected the concrete V1 object and #571 immediately landed the resident-handle Rust builder. The remaining work therefore needs a finite checkpoint sequence and a contract repair gate rather than an open-ended “continue density” instruction.
+R2C already existed in the parent P1-R roadmap, but only as a generic density-builder item. #570 selected the concrete V1 object and #571 immediately landed the resident-handle Rust builder. #576 then repaired the lattice, ontology/ranking and strict-method-schema gaps found by independent review, while #577 made constant-domain behavior explicit and fail-closed. The next finite checkpoint is therefore M3 production cutover rather than further contract expansion.
 
 This document refines the existing R2C tranche; it does not create a second representation programme. It inherits the parent invariant:
 
@@ -17,15 +17,16 @@ This document refines the existing R2C tranche; it does not create a second repr
 
 V1 is a **bivariate binned empirical field**. It is not a KDE, PDF, continuous-density estimator, contour model, clusterer, or manifold estimator.
 
-The current M1 ontology still awards the candidate stronger continuous/population-density semantics than a finite equal-width count lattice establishes. That contract must be corrected before the production cutover so Moneta does not rank a discrete binned object as though it were a governed continuous population-density estimate.
+M1R now binds the candidate to the information actually carried: empirical bivariate bin mass. `DENSITY_FIELD` no longer earns continuous/population-density semantics for a finite equal-width count lattice, and the rank-effective correction is explicitly versioned as `bootstrap-fitness-v2` / `fitness-treatment-v2`.
 
-The reviewed V1 method must bind:
+The reviewed V1 method binds:
 
 - two distinct explicit numeric fields;
 - deterministic equal-width bins on X and Y;
 - left-closed/right-open bins with final-bin inclusion;
 - canonical invalid-value exclusion and count reconciliation;
-- finite ordered domains and an explicit constant-domain policy;
+- finite ordered domains and explicit constant-domain policy `assign-final-bin-per-degenerate-axis`;
+- full declared lattice retention on degenerate axes, with mass allowed only in the final bin of each degenerate axis;
 - a hard `20 × 20 = 400` cell ceiling unless a later version is separately governed;
 - stable semantic cell IDs and complete unique `(xIndex, yIndex)` coverage;
 - exact method/version/provenance identity;
@@ -37,33 +38,35 @@ The reviewed V1 method must bind:
 
 Independent review found three contract gaps that M2 inherited but did not create:
 
-1. grid validation checks cell count but does not prove unique/complete coordinate-pair coverage;
-2. the candidate still advertises `continuous-density` / `population-density-distribution`, and the live fitness model gives ranking credit for those stronger semantics;
-3. density analytical parameters are read from a permissive generic JSON object rather than a strict unknown-field-rejecting method schema.
+1. grid validation checked cell count but did not prove unique/complete coordinate-pair coverage;
+2. the candidate advertised `continuous-density` / `population-density-distribution`, and the live fitness model awarded ranking credit for those stronger semantics;
+3. density analytical parameters were read from a permissive generic JSON object rather than a strict unknown-field-rejecting method schema.
 
-These are **M1R prerequisites for M3**, not a reason to discard the useful M2 builder.
+Those gaps are now closed by M1R rather than carried into production.
 
 ## Landed checkpoint: M2 — Rust resident-handle builder (#571)
 
 #571 computes the bivariate grid from the resident columnar dataset handle in Rust, crosses the JS boundary with handle + parameters rather than rows, derives deterministic domains, applies equal-width/inclusive-final assignment, and emits at most 400 cells.
 
-The bounded review did not find a second TypeScript analytical authority or row transfer in this builder. M2 remains **IMPLEMENTATION LANDED / REVIEW ACTIVE** because its returned envelope is validated by the still-incomplete M1 contract.
+The bounded review did not find a second TypeScript analytical authority or row transfer in this builder. After #576/#577, M2 passes through the corrected fail-closed M1R validator and is ready for the M3 production integration checkpoint.
 
 Residual implementation note: the current builder materializes all valid `(x,y)` pairs in a transient Rust vector before computing domains/grid. This is acceptable for the presently declared 500k-row candidate envelope if measured, but M4 should record peak memory and M2R should remove the materialization if it becomes a resource cliff; a two-pass column traversal can compute domains then bins without an O(N) pair copy.
 
-## M1R — contract repair and falsifier hardening
+## Landed checkpoint: M1R — contract repair and falsifier hardening (#576, #577)
 
-**Must complete before M3.**
+**Completed before M3.**
 
-- [ ] reject duplicate `(xIndex, yIndex)` cells and prove every coordinate in the declared `binsX × binsY` lattice occurs exactly once;
-- [ ] replace/clarify `continuous-density` and `population-density-distribution` claims so the candidate receives ranking credit only for the binned empirical information actually carried;
-- [ ] make density analytical-method parameters a strict typed schema with unknown-field rejection;
-- [ ] bind `analyticalMethod.version` / provenance algorithm identity to the reviewed V1 method where the representation-specific contract requires it;
-- [ ] add real-WASM mutations for duplicate/missing coordinates, unknown method parameters, method/version drift and former continuous/PDF-style claims;
-- [ ] explicitly test constant-domain semantics rather than relying on coincident zero-width cells as an accidental policy;
-- [ ] keep `DENSITY_FIELD` unresolved/non-production in the A2 migration inventory until M3.
+- [x] reject duplicate `(xIndex, yIndex)` cells and prove every coordinate in the declared `binsX × binsY` lattice occurs exactly once;
+- [x] replace `continuous-density` / `population-density-distribution` ranking claims with the truthful `binned-empirical-mass` / `empirical-bivariate-bin-mass` contract;
+- [x] make density analytical-method parameters a strict typed schema with unknown-field rejection;
+- [x] bind `analyticalMethod.version` and provenance algorithm identity to the reviewed V1 method;
+- [x] add real-WASM mutations for duplicate/missing coordinates, unknown/nested method parameters, method/version drift and former continuous/PDF-style claims;
+- [x] explicitly govern and test constant-domain semantics: retain the full lattice and assign observations to the final bin on each degenerate axis;
+- [x] keep `DENSITY_FIELD` unresolved/non-production in the A2 migration inventory until M3.
 
-**Exit:** the M1 contract is fail-closed and scientifically no stronger than the implemented binned object, while M2 still passes through the corrected validator.
+#576 closed RF-064/RF-065/RF-066 and versioned the rank-effective semantic correction. #577 closed the remaining constant-domain prerequisite by adding `constantDomain = assign-final-bin-per-degenerate-axis` to the strict method contract and proving X-constant, Y-constant, both-constant, count-conservation and policy-drift behavior through Rust and real WASM.
+
+**Exit:** satisfied. The M1 contract is fail-closed and scientifically no stronger than the implemented binned object, while M2 passes through the corrected validator. M3 is now unblocked.
 
 ## M3 — production cutover and row-free embodiment
 
@@ -105,12 +108,12 @@ The next representation choice must be explicitly railed from evidence:
 
 ## Collision and ownership rules
 
-M1R–M3 are collision-sensitive around:
+M3 is collision-sensitive around:
 
 - `wasm/src/moneta/**`;
 - `src/moneta/representation/SemanticEmbodimentPayload.ts`;
 - `src/moneta/representation/RepresentationCandidate.ts`;
-- `src/moneta/representation/FitnessModel.ts` / requirement vocabulary when the ontology correction affects ranking;
+- `src/moneta/representation/FitnessModel.ts` / requirement vocabulary when representation semantics affect ranking;
 - `src/wasm/runtime/SemanticEmbodimentBridge.ts`;
 - the analytical Worker semantic-embodiment operation;
 - `src/app/dataset/SemanticEmbodimentLoader.ts` / `LoadDatasetUseCase.ts`;
@@ -131,7 +134,6 @@ Only one open implementation PR may alter the density contract/production integr
 
 ## Suggested model routing
 
-- **M1R:** Frontier/high implementation; Frontier/xhigh independent review because ontology changes can alter ranking semantics.
 - **M3:** Frontier/xhigh for lifecycle, Worker fencing, authority and production-cutover review.
 - **M4:** Balanced/high for bounded evidence plumbing; Frontier/high for interpretation, claim promotion and fixes.
 
