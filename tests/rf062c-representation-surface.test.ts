@@ -35,6 +35,32 @@ function fakeDiagnostic(): MonetaDiagnosticHUD {
   } as unknown as MonetaDiagnosticHUD;
 }
 
+function makeSurface(
+  node: MonetaTopologyNode,
+  addInteractable: (mesh: THREE.Mesh, options: RepresentationInteractableOptions) => void = vi.fn()
+): RepresentationSurface {
+  return new RepresentationSurface(
+    {
+      scene: new THREE.Scene(),
+      cameraGroup: new THREE.Group(),
+      analystAnchor: new THREE.Group(),
+      getColorblindMode: () => 'none',
+      getFactProvider: () => ({ facts: () => null }),
+      addUpdatable: vi.fn(),
+      removeUpdatable: vi.fn(),
+      addInteractable,
+      removeInteractable: vi.fn(),
+      addDiagnosticPanel: vi.fn(),
+      removeDiagnosticPanel: vi.fn(),
+      setTooltipTargets: vi.fn(),
+      clearStructureHandles: vi.fn(),
+      rebuildStructureHandles: vi.fn(),
+      onSelectNode: vi.fn(),
+    },
+    { createNode: () => node, createDiagnostic: () => fakeDiagnostic() }
+  );
+}
+
 describe('RF-062C RepresentationSurface', () => {
   it('atomically replaces representation resources and preserves selection by semantic mesh name', () => {
     const first = fakeNode('row-1');
@@ -135,32 +161,31 @@ describe('RF-062C RepresentationSurface', () => {
   it('binds empirical-distribution meshes as distribution elements', () => {
     const node = fakeNode('distribution-bin:000', 'DISTRIBUTION_FIELD');
     const addInteractable = vi.fn();
-    const surface = new RepresentationSurface(
-      {
-        scene: new THREE.Scene(),
-        cameraGroup: new THREE.Group(),
-        analystAnchor: new THREE.Group(),
-        getColorblindMode: () => 'none',
-        getFactProvider: () => ({ facts: () => null }),
-        addUpdatable: vi.fn(),
-        removeUpdatable: vi.fn(),
-        addInteractable,
-        removeInteractable: vi.fn(),
-        addDiagnosticPanel: vi.fn(),
-        removeDiagnosticPanel: vi.fn(),
-        setTooltipTargets: vi.fn(),
-        clearStructureHandles: vi.fn(),
-        rebuildStructureHandles: vi.fn(),
-        onSelectNode: vi.fn(),
-      },
-      { createNode: () => node, createDiagnostic: () => fakeDiagnostic() }
-    );
+    const surface = makeSurface(node, addInteractable);
 
     surface.replace({ topology: 'TABULAR' }, null);
 
     expect(addInteractable).toHaveBeenCalledWith(
       node.artifact!.nodeMeshes[0],
       expect.objectContaining({ semantic: { kind: 'distribution-element' } })
+    );
+    surface.dispose();
+  });
+
+  it('binds density meshes as density cells rather than observations', () => {
+    const node = fakeNode('density-cell:000', 'DENSITY_FIELD');
+    const addInteractable = vi.fn();
+    const surface = makeSurface(node, addInteractable);
+
+    surface.replace({ topology: 'TABULAR' }, null);
+
+    expect(addInteractable).toHaveBeenCalledWith(
+      node.artifact!.nodeMeshes[0],
+      expect.objectContaining({ semantic: { kind: 'density-cell' } })
+    );
+    expect(addInteractable).not.toHaveBeenCalledWith(
+      node.artifact!.nodeMeshes[0],
+      expect.objectContaining({ semantic: { kind: 'observation' } })
     );
     surface.dispose();
   });
