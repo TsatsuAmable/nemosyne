@@ -31,6 +31,8 @@ describe('RF-062H dev/research evidence isolation', () => {
     ]) {
       expect(ui, forbidden).not.toContain(forbidden);
     }
+
+    expect(ui).not.toMatch(/panelRolesManager\.registerPanel\(\s*['"]loadTest['"]/);
   });
 
   it('reaches the installer only through the DEV-gated dynamic bootstrap seam', () => {
@@ -48,6 +50,9 @@ describe('RF-062H dev/research evidence isolation', () => {
 
     expect(installer).not.toMatch(/from ['"].*\/World\.ts['"]/);
     expect(installer).toContain('export function installDevEvidence');
+    expect(installer).toContain(
+      "panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic')",
+    );
     expect(installer).toContain("panelRolesManager.unregisterPanel('loadTest')");
     expect(installer).toContain('engine.removeUpdatable(loadTestDriver)');
     expect(installer).toContain('engine.removeUpdatable(questBoundaryProbe)');

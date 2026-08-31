@@ -84,6 +84,8 @@ export class CommandPalette extends BaseComponent {
   show(): void {
     if (this._open) return;
     this._previousFocus = document.activeElement as HTMLElement | null;
+    this._filteredCommands = [...this._commands];
+    this._selectedIndex = this.firstSelectableIndex();
     this._open = true;
     this.setAttribute('open', '');
     this.render();

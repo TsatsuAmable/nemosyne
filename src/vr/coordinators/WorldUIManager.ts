@@ -399,7 +399,6 @@ export class WorldUIManager {
     this.panelRolesManager.registerPanel('operationLog', 'Operation Log', 'diagnostic');
     this.panelRolesManager.registerPanel('interactionCoach', 'Interaction Coach', 'system');
     this.panelRolesManager.registerPanel('narrative', 'Narrative Strip', 'secondary');
-    this.panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic');
 
     this.recommendationPanel = new RecommendationPanel(this.analystAnchor, {
       getRecommendation: () => callbacks.getRecommendation?.() ?? null,

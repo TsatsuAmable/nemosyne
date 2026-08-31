@@ -184,7 +184,7 @@ export function mountInvestigationShell(actions: InvestigationActions): Investig
   root.appendChild(sidebar);
 
   const canvasArea = document.createElement('div');
-  canvasArea.style.cssText = 'grid-area: canvas; position: relative; pointer-events: auto;';
+  canvasArea.style.cssText = 'grid-area: canvas; position: relative; pointer-events: none;';
   root.appendChild(canvasArea);
 
   const statusStrip = document.createElement('footer');
