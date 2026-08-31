@@ -202,7 +202,7 @@ describe('P1-R density M1R binned density contract', () => {
     target.yUpperInclusive = source.yUpperInclusive;
 
     expect(grid).toHaveLength(4);
-    expect(new Set(grid.map((cell) => `${cell.xIndex}:${cell.yIndex}`))).toHaveLength(3);
+    expect(new Set(grid.map((cell) => `${cell.xIndex}:${cell.yIndex}`)).size).toBe(3);
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(duplicateCoordinate)).toBeNull();
   });
 
