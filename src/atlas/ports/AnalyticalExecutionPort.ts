@@ -9,7 +9,8 @@ export type AnalyticalOperationKind =
   | 'statistics'
   | 'spectralFacts'
   | 'cluster'
-  | 'semanticEmbodiment';
+  | 'semanticEmbodiment'
+  | 'semanticDetail';
 
 export interface AnalyticalDatasetPayload {
   readonly type: 'typed' | 'json';

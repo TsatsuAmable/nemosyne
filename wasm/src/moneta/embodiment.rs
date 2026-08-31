@@ -1399,6 +1399,44 @@ pub fn moneta_semantic_detail_v1_roundtrip(
     crate::write_bytes_out(&json, out_ptr, out_len)
 }
 
+#[wasm_bindgen]
+pub fn moneta_query_semantic_detail_v1(
+    dataset_handle: u32,
+    in_ptr: u32,
+    in_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let Some(bytes) = copy_host_input(in_ptr, in_len) else {
+        return 0;
+    };
+    let query: super::drill_down::SemanticDetailQueryV1 = match serde_json::from_slice(&bytes) {
+        Ok(value) => value,
+        Err(error) => {
+            crate::log_error(&format!(
+                "moneta_query_semantic_detail_v1 query parse failed: {error}"
+            ));
+            return 0;
+        }
+    };
+
+    let result_envelope = super::drill_down::query_semantic_detail_v1(
+        dataset_handle,
+        query,
+    );
+
+    let json = match serde_json::to_vec(&result_envelope) {
+        Ok(value) => value,
+        Err(error) => {
+            crate::log_error(&format!(
+                "moneta_query_semantic_detail_v1 serialization failed: {error}"
+            ));
+            return 0;
+        }
+    };
+    crate::write_bytes_out(&json, out_ptr, out_len)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
