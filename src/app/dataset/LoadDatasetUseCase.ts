@@ -62,6 +62,57 @@ export interface LoadDatasetResult {
   outcome: InvestigatorActionableOutcome | null;
 }
 
+function numericOverviewDimensions(
+  dataset: Dataset,
+  encodings: Record<string, string | undefined>
+): string[] {
+  const candidates = [
+    encodings.x,
+    encodings.y,
+    encodings.size,
+    encodings.pulse,
+    ...dataset.numericColumns.map((column) => column.name),
+  ];
+  const seen = new Set<string>();
+  const dimensions: string[] = [];
+  for (const candidate of candidates) {
+    if (!candidate || seen.has(candidate)) continue;
+    const column = dataset.getColumn(candidate);
+    if (column?.type !== 'NUMERIC') continue;
+    seen.add(candidate);
+    dimensions.push(candidate);
+    if (dimensions.length === 2) break;
+  }
+  return dimensions;
+}
+
+/**
+ * A fresh dataset opens at dataset structure, not at one-mark-per-observation
+ * inspection. Exact observations remain an explicit drill-down/inspection task.
+ * The dimensions are explicit requirements so semantic builders never choose a
+ * convenient measure column behind the investigator's back.
+ */
+function createDatasetFirstRequirements(
+  dataset: Dataset,
+  encodings: Record<string, string | undefined>
+): RepresentationRequirements {
+  const requirements = createDefaultRequirements(
+    'overview',
+    numericOverviewDimensions(dataset, encodings)
+  );
+  return {
+    ...requirements,
+    progressiveDisclosure: {
+      enabled: true,
+      levels: [
+        { level: 0, distanceThreshold: 8, reveals: ['dataset-structure'] },
+        { level: 1, distanceThreshold: 4, reveals: ['semantic-region', 'semantic-group'] },
+        { level: 2, distanceThreshold: 1.5, reveals: ['observations-on-request'] },
+      ],
+    },
+  };
+}
+
 /**
  * Owns the logical dataset → Moneta decision transition.
  *
@@ -81,10 +132,6 @@ export class LoadDatasetUseCase {
       authoritativeRepresentation,
     }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
-    const activeRequirements = preserveAnalyticalState
-      ? (requirements ?? createDefaultRequirements('individual-inspection'))
-      : createDefaultRequirements('individual-inspection');
-
     if (!preserveAnalyticalState) {
       // Preserve the existing production semantics exactly: Atlas first loads
       // a cloned baseline, then receives a second clone as the mutable current
@@ -102,6 +149,16 @@ export class LoadDatasetUseCase {
       entry.encodings ??
       kernelEncodings ??
       getDefaultEncodings({ dataset: embodiedDataset, topology });
+
+    const activeRequirements = preserveAnalyticalState
+      ? (requirements ?? createDefaultRequirements('individual-inspection'))
+      : authoritativeRepresentation
+        ? (requirements ?? createDefaultRequirements('individual-inspection'))
+        : createDatasetFirstRequirements(
+            embodiedDataset,
+            encodings as Record<string, string | undefined>
+          );
+
     const dataInput: SemanticMonetaDataInput = {
       topology,
       dataset: embodiedDataset,
