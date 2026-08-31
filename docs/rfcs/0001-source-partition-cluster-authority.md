@@ -22,8 +22,11 @@ For the first governed `CLUSTER_REGIONS` treatment:
 4. **The candidate ontology is narrowed.** `CLUSTER_REGIONS` supports source partition structure and aggregate group magnitude. It does not preserve individual observation identity, exact per-observation values, continuous/population density, empirical bivariate bin mass, within-group empirical distribution shape, or formal outlier boundaries.
 5. **Missing authority fails closed at arbitration.** `CLUSTER_REGIONS` is hard-disqualified when the source-partition declaration or the required coordinate declaration is absent or structurally incompatible. Cluster-like dataset evidence may affect other reasoning but cannot substitute for this authority declaration.
 6. **Execution validates the declaration against the resident dataset.** Arbitration can establish that a declaration exists and that the dataset signature has sufficient categorical/numeric capacity, but only the Rust/WASM resident-dataset owner may prove the named partition field is categorical, the named coordinate fields are numeric, and compute the bounded summary.
-7. **Rank-effective semantics are versioned.** The bootstrap numeric weights remain frozen, but the ontology/admissibility change mints `bootstrap-fitness-v4` / `fitness-treatment-v4` so provenance can distinguish decisions made under the new scientific treatment.
-8. **Inferred clustering is a separate future treatment.** Any learned or algorithmic clustering authority requires a separate RFC/treatment specifying metric, features, scaling, hyperparameters, randomness, missingness, uncertainty/stability, provenance, resource bounds, and validation evidence.
+7. **The V1 resource and missingness envelope is fixed.** At most **256 assigned partition groups** may be emitted. Crossing that bound returns `RESOURCE_LIMIT`; groups may not be merged, truncated, sampled, or silently dropped to fit. A row is spatially valid only when every requested coordinate in its 2D/3D tuple is valid and finite. Assigned rows failing that complete-case rule remain members of their source group but count toward `coordinateExcludedCount`. Each group records assigned and coordinate-valid counts. A group with no coordinate-valid members remains explicit with `spatialSummary: null`; if no assigned group has any coordinate-valid member, the request refuses with missing spatial evidence rather than fabricating layout geometry.
+8. **The summary is bounded, not exact observation embodiment.** READY output uses `BOUNDED` approximation semantics. Its spatial `representedRowCount` is the complete-case `coordinateValidCount`, not the source row count. Partition/group counts are still exact for the retained source partition. Centroids and axis-aligned bounds are descriptive summaries over the same complete-case coordinate tuples, never support/confidence boundaries.
+9. **Stable semantic identity follows source identity, not iteration order.** Region IDs must be derived deterministically from dataset fingerprint, partition-field identity, and canonical source partition label. Adding a lexically earlier unrelated group must not renumber existing region IDs. Empty/missing canonical partition labels are unassigned and do not become a region. Non-empty labels are preserved as source identity rather than trimmed/rewritten into another label.
+10. **Rank-effective semantics are versioned.** The bootstrap numeric weights remain frozen, but the ontology/admissibility change mints `bootstrap-fitness-v4` / `fitness-treatment-v4` so provenance can distinguish decisions made under the new scientific treatment.
+11. **Inferred clustering is a separate future treatment.** Any learned or algorithmic clustering authority requires a separate RFC/treatment specifying metric, features, scaling, hyperparameters, randomness, missingness, uncertainty/stability, provenance, resource bounds, and validation evidence.
 
 ## Options considered
 
@@ -51,6 +54,7 @@ Accepted. It gives Nemosyne a truthful dataset-level cluster-shaped object witho
 - Descriptive centroids/bounds may be presented, but renderer geometry must not imply support boundaries, non-overlap, density support, confidence regions, or separation margins.
 - Source partition labels may originate outside Nemosyne, but their scientific quality remains external unless separately governed evidence is supplied.
 - V1 deliberately rejects a partition field whose canonical logical type is numeric. Numeric identifiers must be ingested/declared as categorical labels before they can be source-partition authority.
+- Missing coordinates do not erase partition membership. Membership counts and spatial-representation counts are separately auditable.
 
 ### Ranking and provenance
 
@@ -61,14 +65,15 @@ Accepted. It gives Nemosyne a truthful dataset-level cluster-shaped object witho
 ### Architecture
 
 - TypeScript carries explicit intent and performs structural admissibility only.
-- Rust/WASM remains the sole analytical owner that validates named resident fields and computes scale-sensitive partition summaries.
-- Three.js receives bounded semantic payloads and must not group raw rows or infer cluster membership from presentation positions.
+- Rust/WASM remains the sole analytical owner that validates named resident fields, applies complete-case coordinate accounting, enforces the 256-group bound, and computes scale-sensitive partition summaries.
+- Three.js receives bounded semantic payloads and must not group raw rows, infer cluster membership from presentation positions, or invent positions for unavailable spatial summaries.
 
 ### Compatibility
 
 - `clusterAuthority` is an optional discriminated field on the serialisable requirements contract so non-cluster tasks and historical requirement shapes remain parseable.
 - Its absence is meaningful under v4: `CLUSTER_REGIONS` is unavailable rather than silently reconstructing the old implicit behavior.
 - The V1 categorical-only authority rule is intentionally narrower than the rail's general scalar-value possibility. It is a C1 schema decision, not a claim that numeric-coded partitions are scientifically invalid.
+- The 256-group ceiling is a V1 product/resource contract, not a scientific statement about how many clusters a dataset can contain.
 
 ### Delivery split
 
@@ -85,17 +90,21 @@ C1 must prove:
 - `CLUSTER_REGIONS` no longer claims density or outlier-boundary semantics;
 - measured cluster-like or density evidence cannot admit the candidate without `SOURCE_PARTITION` authority;
 - malformed authority/coordinate declarations fail closed;
-- a valid explicit authority declaration can admit the candidate only when the dataset signature has compatible categorical/numeric capacity.
+- a valid explicit authority declaration can admit the candidate only when the dataset signature has compatible categorical/numeric capacity;
+- C2/C3 implement the frozen 256-group, complete-case, `BOUNDED`, null-spatial-summary and stable-ID contract rather than choosing their own semantics.
 
 C2/C3 must additionally prove:
 
 - the exact named partition and coordinate fields are validated in Rust against the resident canonical dataset;
 - the partition field is logical categorical and each coordinate field is numeric;
 - no arbitrary categorical/color/`cluster` fallback exists;
-- output is bounded independently of source N and over-bound partitions refuse rather than merge/truncate/sample;
-- assigned, unassigned, coordinate-valid, and coordinate-excluded counts reconcile exactly;
-- clusters with no valid spatial members receive an explicit unavailable spatial summary rather than fabricated geometry;
-- semantic IDs and ordering are row-order invariant and canonical partition identities cannot collide;
+- output is bounded to 256 groups independently of source N and over-bound partitions refuse rather than merge/truncate/sample;
+- `sourceCount = assignedCount + unassignedCount` and `assignedCount = coordinateValidCount + coordinateExcludedCount` reconcile exactly, with the same invariant per group where applicable;
+- centroid and axis-aligned bounds use the same complete-case coordinate rows;
+- clusters with no valid spatial members remain explicit with `spatialSummary: null`; an all-spatially-invalid partition refuses;
+- READY approximation is `BOUNDED` and `representedRowCount = coordinateValidCount`;
+- semantic IDs are source-identity-derived, row-order invariant, and unaffected by unrelated group insertion;
+- empty/missing partition labels are unassigned rather than serialized as a cluster;
 - raw rows/observation arrays do not cross the semantic payload;
 - pending/refused/stale/invalid semantic output cannot fall back to legacy cluster spheres or points.
 
