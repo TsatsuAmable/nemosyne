@@ -24,6 +24,8 @@ const MAX_GROUPING_FIELDS_V1: usize = 4;
 const EMPIRICAL_DISTRIBUTION_METHOD_NAME_V1: &str = "univariate-empirical-distribution";
 const BINNED_DENSITY_METHOD_NAME_V1: &str = "bivariate-binned-density";
 const BINNED_DENSITY_METHOD_VERSION_V1: &str = "binned-density-contract-v1";
+pub const BINNED_DENSITY_CONSTANT_DOMAIN_POLICY_V1: &str =
+    "assign-final-bin-per-degenerate-axis";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -312,6 +314,7 @@ struct DensityAnalyticalParametersV1 {
     binning: String,
     interval: String,
     excluded_policy: String,
+    constant_domain: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -1011,6 +1014,7 @@ fn validate_binned_density_payload(
     if method_parameters.binning != "equal-width"
         || method_parameters.interval != "left-closed-right-open-final-closed"
         || method_parameters.excluded_policy != "canonical-invalid-exclude-and-count"
+        || method_parameters.constant_domain != BINNED_DENSITY_CONSTANT_DOMAIN_POLICY_V1
     {
         return Err(
             "binned density method parameters must match the reviewed V1 policies".to_string(),
@@ -1086,6 +1090,8 @@ fn validate_binned_density_payload(
         return Err("resource.elementCount must equal density grid cell count".to_string());
     }
 
+    let x_constant = payload.domain_x.min == payload.domain_x.max;
+    let y_constant = payload.domain_y.min == payload.domain_y.max;
     let mut semantic_ids = HashSet::new();
     let mut coordinates = HashSet::new();
     let mut total_count = 0u64;
@@ -1147,6 +1153,16 @@ fn validate_binned_density_payload(
         if cell.x_upper_inclusive != x_final || cell.y_upper_inclusive != y_final {
             return Err(
                 "only final density bins may be upper-inclusive in each dimension".to_string(),
+            );
+        }
+        if x_constant && !x_final && cell.count != 0 {
+            return Err(
+                "constant density X domains may carry mass only in the final X bin".to_string(),
+            );
+        }
+        if y_constant && !y_final && cell.count != 0 {
+            return Err(
+                "constant density Y domains may carry mass only in the final Y bin".to_string(),
             );
         }
         total_count = total_count
