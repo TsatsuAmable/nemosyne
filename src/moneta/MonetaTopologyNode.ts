@@ -13,7 +13,7 @@ import type {
 } from './types.ts';
 import type { RepresentationDecision } from './representation/RepresentationDecision.ts';
 import type { RepresentationGraph } from './representation/RepresentationGraph.ts';
-import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
+import type { ProductionSemanticEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
 import { representationGraphToRuntimeSpec } from './representation/RepresentationGraphRuntimeAdapter.ts';
 import {
   setSemanticEmbodimentPresentationStatus,
@@ -21,8 +21,8 @@ import {
 } from './embodiment/SemanticEmbodimentStatus.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
-  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
-  semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
 };
 
 function usesSemanticEmbodiment(
@@ -31,7 +31,8 @@ function usesSemanticEmbodiment(
   return (
     candidateId === 'AGGREGATE_VOLUME' ||
     candidateId === 'DISTRIBUTION_FIELD' ||
-    candidateId === 'DENSITY_FIELD'
+    candidateId === 'DENSITY_FIELD' ||
+    candidateId === 'CLUSTER_REGIONS'
   );
 }
 
