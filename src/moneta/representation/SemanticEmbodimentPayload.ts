@@ -14,6 +14,13 @@ export const MAX_DENSITY_BINS_X_V1 = 20 as const;
 export const MAX_DENSITY_BINS_Y_V1 = 20 as const;
 export const MAX_DENSITY_CELLS_V1 = MAX_DENSITY_BINS_X_V1 * MAX_DENSITY_BINS_Y_V1;
 
+export const MAX_CLUSTER_REGIONS_V1 = 1024 as const;
+export const MAX_CLUSTER_MEASURE_FIELDS_V1 = 3 as const;
+export const MAX_RELATIONSHIP_GRAPH_NODES_V1 = 5000 as const;
+export const MAX_RELATIONSHIP_GRAPH_EDGES_V1 = 20000 as const;
+export const MAX_RELATIONSHIP_GRAPH_ELEMENTS_V1 =
+  MAX_RELATIONSHIP_GRAPH_NODES_V1 + MAX_RELATIONSHIP_GRAPH_EDGES_V1;
+
 /**
  * Payload-family identity is deliberately distinct from layout family identity.
  * A semantic aggregate is still an aggregate if its presentation later uses a
@@ -216,6 +223,82 @@ export interface BinnedDensityPayloadV1 {
   binsY: number;
 }
 
+/**
+ * R2D V1 is source-partition embodiment, not an inferred clustering algorithm.
+ * `clusterField` must name an explicit categorical partition already present in
+ * the canonical dataset. Numeric measures are optional and merely summarize
+ * the supplied groups; they never create or alter group membership.
+ */
+export interface ClusterEmbodimentRequestV1 {
+  schemaVersion: typeof SEMANTIC_EMBODIMENT_SCHEMA_VERSION;
+  candidateId: 'CLUSTER_REGIONS';
+  clusterField: string;
+  measureFields: string[];
+  decisionId?: string;
+  decisionModelVersion?: string;
+  decisionModelArtifactHash?: string;
+}
+
+export interface ClusterObservationCountsV1 {
+  sourceCount: number;
+  assignedCount: number;
+  unassignedCount: number;
+}
+
+export interface ClusterAxisSummaryV1 {
+  field: string;
+  validCount: number;
+  min: number;
+  max: number;
+  mean: number;
+}
+
+export interface ClusterRegionV1 {
+  semanticId: string;
+  key: string;
+  count: number;
+  axes: ClusterAxisSummaryV1[];
+}
+
+export interface ClusterRegionsPayloadV1 {
+  clusterField: string;
+  measureFields: string[];
+  counts: ClusterObservationCountsV1;
+  regions: ClusterRegionV1[];
+}
+
+/**
+ * R2E V1 graph embodiment is deliberately source-authoritative. It transports
+ * only an existing dataset edge list. No k-NN, correlation, similarity or
+ * threshold graph may be inferred by the presentation or transport layers.
+ */
+export interface RelationshipGraphEmbodimentRequestV1 {
+  schemaVersion: typeof SEMANTIC_EMBODIMENT_SCHEMA_VERSION;
+  candidateId: 'RELATIONSHIP_GRAPH';
+  decisionId?: string;
+  decisionModelVersion?: string;
+  decisionModelArtifactHash?: string;
+}
+
+export interface RelationshipGraphNodeV1 {
+  semanticId: string;
+  sourceIdentity: string;
+  degree: number;
+}
+
+export interface RelationshipGraphEdgeV1 {
+  semanticId: string;
+  sourceSemanticId: string;
+  targetSemanticId: string;
+  weight?: number;
+}
+
+export interface RelationshipGraphPayloadV1 {
+  nodes: RelationshipGraphNodeV1[];
+  edges: RelationshipGraphEdgeV1[];
+  sourceEdgeCount: number;
+}
+
 export type RepresentationPayloadV1 =
   | {
       kind: 'AGGREGATE_VOLUME';
@@ -228,6 +311,14 @@ export type RepresentationPayloadV1 =
   | {
       kind: 'BINNED_DENSITY';
       data: BinnedDensityPayloadV1;
+    }
+  | {
+      kind: 'CLUSTER_REGIONS';
+      data: ClusterRegionsPayloadV1;
+    }
+  | {
+      kind: 'RELATIONSHIP_GRAPH';
+      data: RelationshipGraphPayloadV1;
     };
 
 export interface SemanticRefusalV1 {
