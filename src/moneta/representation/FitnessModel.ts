@@ -330,14 +330,18 @@ export class BootstrapFitnessModel {
     candidate: RepresentationCandidate
   ): number {
     const densityRequirement = requirements.requiredStructures.find((r) => r.type === 'density');
+    const densityEvidenceSource =
+      signature.epistemic?.facts['clusterStructure.densityVariation']?.source;
+    const hasAuthoritativeDensityEvidence =
+      densityEvidenceSource === 'measured' || densityEvidenceSource === 'derived';
     const knownDensityVariation =
+      hasAuthoritativeDensityEvidence &&
       typeof signature.clusterStructure.densityVariation === 'number' &&
       signature.clusterStructure.densityVariation > 0;
-    const densityRelevant =
-      (densityRequirement?.importance ?? 0) > 0 ||
-      knownDensityVariation ||
-      signature.cardinality.rowCount > 500;
+    const densityRelevant = (densityRequirement?.importance ?? 0) > 0 || knownDensityVariation;
 
+    // Cardinality is a scale fact, not density evidence. Large N by itself must
+    // not silently bias Moneta toward a density-capable candidate.
     if (!densityRelevant) return 1;
 
     const supportsContinuousDensity = candidate.supports.includes('continuous-density');
