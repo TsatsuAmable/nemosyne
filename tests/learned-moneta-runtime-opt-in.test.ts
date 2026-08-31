@@ -10,6 +10,9 @@ import {
   applyPinnedLearnedFitnessRuntime,
   LEARNED_MONETA_RUNTIME_VERSION,
 } from '../src/moneta/representation/LearnedMonetaRuntime.ts';
+import {
+  BOOTSTRAP_FITNESS_MODEL_VERSION,
+} from '../src/moneta/representation/FitnessModel.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
 import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
@@ -67,7 +70,7 @@ describe('pinned learned Moneta runtime composition', () => {
     const state = new RepresentationState();
     expect(state.getFitnessRuntimeIdentity()).toEqual({
       mode: 'bootstrap',
-      fitnessModelVersion: 'bootstrap-fitness-v1',
+      fitnessModelVersion: BOOTSTRAP_FITNESS_MODEL_VERSION,
       artifactHash: null,
     });
   });
