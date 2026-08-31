@@ -61,6 +61,20 @@ describe('P1-R Density M1R ranking semantics', () => {
     expect(component(evaluation, 'densityHandling')).toBe(1);
   });
 
+  it('does not treat large cardinality by itself as density evidence', () => {
+    const requirements = createDefaultRequirements('individual-inspection', 'LARGE');
+    requirements.requiredStructures = [];
+    requirements.preservationGoals = [];
+    const evaluation = new BootstrapFitnessModel().evaluate(
+      minimalDatasetSignature(250_000, 3, 0, 0, 'density-m1r-cardinality-only', 0),
+      requirements,
+      MONETA_REPRESENTATION_CANDIDATES.POINT_SET,
+      'POINT',
+    );
+
+    expect(component(evaluation, 'densityHandling')).toBe(1);
+  });
+
   it('does not award full density-handling credit to a one-sided continuous-density claim', () => {
     const requirements = createDefaultRequirements('spatial-analysis', 'LARGE');
     const partialContinuous: RepresentationCandidate = {
