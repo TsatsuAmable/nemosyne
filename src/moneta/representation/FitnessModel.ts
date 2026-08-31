@@ -14,7 +14,7 @@ import {
 import type { PerceptualFitnessEvidence } from '../evidence/PerceptualFitnessEvidence.ts';
 
 /**
- * V3 Gate 3 bootstrap model.
+ * V4 Gate 3 bootstrap model.
  *
  * These weights are engineering priors, not empirical probabilities. The model
  * is deliberately explicit and versioned so later learned models can replace it
@@ -31,13 +31,12 @@ export interface BootstrapFitnessWeights {
 }
 
 /**
- * V3 changes the rank-effective reasoning-family contract. Each semantic
- * candidate now has one canonical reasoning family; cross-task support comes
- * from explicit candidate capabilities rather than duplicate family aliases.
- * Family-specific structure evidence is also gated by the capability that gives
- * that family scientific meaning. The frozen numeric weights are unchanged.
+ * V4 preserves the R6B canonical-family treatment and frozen numeric weights,
+ * while making source-partition cluster authority explicit and narrowing
+ * CLUSTER_REGIONS to the information its bounded partition summary can actually
+ * preserve. This is rank-effective because information/capability scoring changes.
  */
-export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v3';
+export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v4';
 
 /**
  * Frozen study-treatment identity for the default ranking treatment.
@@ -49,7 +48,7 @@ export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v3';
  * promotion. The treatment id is recorded in decision provenance so a later
  * analyst can tell which treatment produced a decision.
  */
-export const FITNESS_TREATMENT_ID = 'fitness-treatment-v3';
+export const FITNESS_TREATMENT_ID = 'fitness-treatment-v4';
 
 export interface FitnessTreatmentManifest {
   readonly treatmentId: string;
@@ -71,7 +70,7 @@ export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
   treatmentId: FITNESS_TREATMENT_ID,
   weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   rationale:
-    'V3 preserves the frozen bootstrap weights while removing duplicate candidate-family aliases and requiring family-specific structure evidence to match the candidate capability that makes that family meaningful. Cross-task coverage remains capability-driven. This rank-effective correction is an explicit study-treatment change and requires treatment review before promotion.',
+    'V4 preserves the frozen bootstrap weights and R6B canonical-family rules while requiring explicit source-partition authority for CLUSTER_REGIONS and narrowing its information contract to partition distinction plus group magnitude. Observation identity, exact values, distribution shape, density semantics, and formal outlier boundaries are no longer credited to the bounded cluster summary.',
 };
 
 export interface FitnessComponent {
