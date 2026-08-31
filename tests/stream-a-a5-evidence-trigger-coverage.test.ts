@@ -63,4 +63,14 @@ describe('Stream A A5 cross-family evidence trigger coverage', () => {
       expect(workflow, `missing A5 family/harness trigger for ${path}`).toContain(`- '${path}'`);
     }
   });
+
+  it('reruns when the finite STOP disposition or canonical roadmap status changes', () => {
+    const workflow = readFileSync(WORKFLOW, 'utf8');
+    for (const path of [
+      'docs/ROADMAP.md',
+      'docs/review/P1_R5_A5_STOP_REVIEW_2026-08-31.md',
+    ]) {
+      expect(workflow, `missing A5 closure trigger for ${path}`).toContain(`- '${path}'`);
+    }
+  });
 });
