@@ -89,7 +89,7 @@ Accepted. This gives Nemosyne a truthful non-point structural object with a clea
 - node/edge envelope overflow;
 - silent reuse of the V4 treatment identity.
 
-Existing R6B, Density Truth and R2D cluster tests are carried through V5 to prove the new graph treatment does not erase those reviewed semantics.
+Existing R6B, Density Truth and R2D cluster tests are carried through V5 to prove the new graph treatment does not erase those reviewed semantics. B1 verifies the control-plane authority/admissibility contract only: endpoint resolution against the resident dataset, payload byte enforcement and production topology fidelity remain mandatory B2-B4 evidence rather than being inferred from this contract layer.
 
 ## Non-goals / future work
 
