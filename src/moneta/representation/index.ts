@@ -8,6 +8,7 @@ export * from './RepresentationGraphAdapter.ts';
 export * from './RepresentationGraphRuntimeAdapter.ts';
 export * from './NoFeasibleRepresentationError.ts';
 export * from './RepresentationRequirements.ts';
+export * from './RelationshipGraphAuthority.ts';
 export * from './SignatureBuilder.ts';
 export * from './FitnessModel.ts';
 export * from './DecisionPolicy.ts';

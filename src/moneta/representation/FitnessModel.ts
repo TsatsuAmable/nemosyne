@@ -14,7 +14,7 @@ import {
 import type { PerceptualFitnessEvidence } from '../evidence/PerceptualFitnessEvidence.ts';
 
 /**
- * V4 Gate 3 bootstrap model.
+ * V5 Gate 3 bootstrap model.
  *
  * These weights are engineering priors, not empirical probabilities. The model
  * is deliberately explicit and versioned so later learned models can replace it
@@ -31,12 +31,13 @@ export interface BootstrapFitnessWeights {
 }
 
 /**
- * V4 preserves the R6B canonical-family treatment and frozen numeric weights,
- * while making source-partition cluster authority explicit and narrowing
- * CLUSTER_REGIONS to the information its bounded partition summary can actually
- * preserve. This is rank-effective because information/capability scoring changes.
+ * V5 preserves the V4 source-partition cluster treatment and frozen numeric
+ * weights while making source-edge authority explicit for RELATIONSHIP_GRAPH.
+ * The graph candidate no longer receives graph-family structural credit merely
+ * from coarse topology/edge-count evidence and no longer claims cluster
+ * separation. This is rank-effective and therefore requires a new treatment.
  */
-export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v4';
+export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v5';
 
 /**
  * Frozen study-treatment identity for the default ranking treatment.
@@ -48,7 +49,7 @@ export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v4';
  * promotion. The treatment id is recorded in decision provenance so a later
  * analyst can tell which treatment produced a decision.
  */
-export const FITNESS_TREATMENT_ID = 'fitness-treatment-v4';
+export const FITNESS_TREATMENT_ID = 'fitness-treatment-v5';
 
 export interface FitnessTreatmentManifest {
   readonly treatmentId: string;
@@ -70,7 +71,7 @@ export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
   treatmentId: FITNESS_TREATMENT_ID,
   weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   rationale:
-    'Study-treatment V4 preserves the frozen bootstrap weights and R6B canonical-family rules while requiring explicit source-partition authority for CLUSTER_REGIONS and narrowing its information contract to partition distinction plus group magnitude. Observation identity, exact values, distribution shape, density semantics, and formal outlier boundaries are no longer credited to the bounded cluster summary.',
+    'Study-treatment V5 preserves the frozen bootstrap weights, R6B canonical-family rules, and V4 source-partition cluster semantics while requiring explicit SOURCE_EDGES authority for RELATIONSHIP_GRAPH. Graph topology credit now requires declared source authority plus source edges, and the graph candidate preserves edge connectivity and node identity without claiming cluster separation from presentation layout.',
 };
 
 export interface FitnessComponent {
@@ -252,6 +253,9 @@ export class BootstrapFitnessModel {
     const hasAuthoritativeHierarchyDepth =
       epistemic?.facts['cardinality.depth']?.source === 'measured' ||
       epistemic?.facts['cardinality.depth']?.source === 'derived';
+    const hasSourceGraphAuthority =
+      requirements.graphAuthority?.kind === 'SOURCE_EDGES' &&
+      signature.cardinality.edgeCount > 0;
 
     const knownHierarchyDepth =
       hasAuthoritativeHierarchyDepth &&
@@ -262,7 +266,7 @@ export class BootstrapFitnessModel {
     if (
       family === 'GRAPH' &&
       candidate.supports.includes('relational-topology') &&
-      (top === 'GRAPH' || signature.cardinality.edgeCount > 0)
+      hasSourceGraphAuthority
     ) score = 1;
     else if (
       family === 'HIERARCHICAL' &&

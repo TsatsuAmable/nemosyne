@@ -1,5 +1,5 @@
 /**
- * MonetaHypothesisEngine — V4 bootstrap representation hypothesis solver.
+ * MonetaHypothesisEngine — V5 bootstrap representation hypothesis solver.
  *
  * Stage 1: hard feasibility filtering.
  * Stage 2: explicit, versioned bootstrap fitness evaluation.
@@ -61,6 +61,7 @@ import {
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
 import { analyzeWinnerSensitivity } from './SensitivityAnalysis.ts';
 import type { HardConstraintCode } from './HardConstraintCode.ts';
+import { SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS } from './RelationshipGraphAuthority.ts';
 
 /**
  * Backward-compatible weight envelope. New code should prefer
@@ -124,7 +125,7 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
 }
 
 export class MonetaHypothesisEngine {
-  readonly version = '2.1.0-v4-bootstrap';
+  readonly version = '2.1.0-v5-bootstrap';
   readonly fitnessModel: BootstrapFitnessModel;
   private readonly fitnessModelArtifactHash: string | null;
 
@@ -386,7 +387,7 @@ export class MonetaHypothesisEngine {
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
-      version: '2.1.0-v4-bootstrap',
+      version: '2.1.0-v5-bootstrap',
       datasetFingerprint: signature.provenance.datasetFingerprint,
       requirementsHash,
       fitnessModelVersion: this.fitnessModel.version,
@@ -704,6 +705,38 @@ export class MonetaHypothesisEngine {
       }
     }
 
+    if (candidate.id === 'RELATIONSHIP_GRAPH') {
+      const authority = reqs.graphAuthority;
+      const authorityValid =
+        authority?.kind === 'SOURCE_EDGES' &&
+        (authority.directionality === 'DIRECTED' || authority.directionality === 'UNDIRECTED') &&
+        authority.nodeIdentity === 'DATASET_ROW' &&
+        authority.missingEndpointPolicy === 'REFUSE' &&
+        authority.parallelEdgePolicy === 'PRESERVE' &&
+        authority.selfLoopPolicy === 'PRESERVE';
+
+      if (!authorityValid || signature.cardinality.edgeCount <= 0) {
+        return {
+          passed: false,
+          reason:
+            'RELATIONSHIP_GRAPH requires explicit SOURCE_EDGES authority plus source-provided edges; GRAPH topology, edge-count heuristics, layout, proximity, correlation and k-NN inference are not authority',
+          code: 'graph-authority-required',
+        };
+      }
+
+      if (
+        rowCount > SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS.maxNodes ||
+        signature.cardinality.edgeCount > SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS.maxEdges
+      ) {
+        return {
+          passed: false,
+          reason:
+            `RELATIONSHIP_GRAPH exceeds V1 source-graph envelope (${SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS.maxNodes} nodes / ${SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS.maxEdges} edges)`,
+          code: 'graph-resource-envelope',
+        };
+      }
+    }
+
     if (
       layout === 'FORCE_DIRECTED_3D' &&
       top !== 'GRAPH' &&
@@ -849,7 +882,7 @@ export class MonetaHypothesisEngine {
       provenance: {
         generatedAt: 0,
         engine: 'MonetaHypothesisEngine',
-        version: '2.1.0-v4-bootstrap',
+        version: '2.1.0-v5-bootstrap',
         datasetFingerprint,
         requirementsHash,
         fitnessModelVersion: this.fitnessModel.version,

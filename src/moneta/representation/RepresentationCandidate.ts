@@ -271,18 +271,17 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   RELATIONSHIP_GRAPH: {
     id: 'RELATIONSHIP_GRAPH',
-    name: 'Topological Relationship Graph',
-    description: 'Force-directed network relaxation exposing relational edge topology',
+    name: 'Source Relationship Graph',
+    description: 'Source-authoritative node and edge topology whose presentation layout is explicitly non-authoritative',
     supports: ['relational-topology', 'discrete-observations'],
     preserves: [
       'relational-edge-connectivity',
       'individual-observation-identity',
-      'cluster-separation',
     ],
-    loses: ['exact-metric-values'],
+    loses: ['exact-metric-values', 'cluster-separation'],
     scaleCharacteristics: {
-      minN: 5,
-      maxN: 5000,
+      minN: 2,
+      maxN: 4096,
       optimalN: [20, 800],
       scalabilityRating: 0.5,
     },
@@ -291,7 +290,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
       occlusionResistance: 0.45,
       cognitiveLoad: 0.7,
     },
-    constraints: [{ description: 'Requires relational graph edges', requiresGraph: true }],
+    constraints: [{ description: 'Requires explicit SOURCE_EDGES authority and at least one source-provided edge', requiresGraph: true }],
   },
 
   MATRIX_FIELD: {

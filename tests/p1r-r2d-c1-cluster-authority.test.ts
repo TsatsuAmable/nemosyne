@@ -33,9 +33,9 @@ function clusterSignature() {
 }
 
 describe('P1-R2D C1 source-partition cluster authority', () => {
-  it('mints v4 because the cluster ontology and admissibility contract are rank-effective', () => {
-    expect(BOOTSTRAP_FITNESS_MODEL_VERSION).toBe('bootstrap-fitness-v4');
-    expect(FITNESS_TREATMENT_ID).toBe('fitness-treatment-v4');
+  it('retains the reviewed cluster contract under the current V5 treatment', () => {
+    expect(BOOTSTRAP_FITNESS_MODEL_VERSION).toBe('bootstrap-fitness-v5');
+    expect(FITNESS_TREATMENT_ID).toBe('fitness-treatment-v5');
   });
 
   it('narrows CLUSTER_REGIONS to a source-partition summary without density or outlier-boundary claims', () => {
@@ -129,8 +129,8 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
     expect(
       clusterCandidates.some((candidate) => candidate.disqualificationCode === 'cluster-authority-required')
     ).toBe(false);
-    expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v4');
-    expect(decision.provenance.version).toBe('2.1.0-v4-bootstrap');
+    expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v5');
+    expect(decision.provenance.version).toBe('2.1.0-v5-bootstrap');
   });
 
   it('fails the cluster candidate closed when the dataset signature cannot support the declaration', () => {
