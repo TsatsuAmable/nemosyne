@@ -6,9 +6,10 @@ import {
 
 function response(body: string | Uint8Array, url = ''): Response {
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body;
-  const result = new Response(bytes, {
+  const owned = Uint8Array.from(bytes);
+  const result = new Response(owned.buffer, {
     status: 200,
-    headers: { 'content-length': String(bytes.byteLength) },
+    headers: { 'content-length': String(owned.byteLength) },
   });
   Object.defineProperty(result, 'url', { value: url, configurable: true });
   return result;
