@@ -29,6 +29,7 @@ For source-authoritative `RELATIONSHIP_GRAPH` V1:
 10. **Topology and layout are separate objects.** `RELATIONSHIP_GRAPH` preserves source edge connectivity and node identity. A force-directed or other layout may position those nodes for presentation but cannot create, remove or reinterpret edges.
 11. **The ontology does not claim cluster truth.** Source graph connectivity alone does not preserve `cluster-separation`; that claim is removed and becomes an explicit information loss for this candidate.
 12. **Rank-effective semantics are versioned.** Bootstrap numeric weights remain frozen, while graph admissibility, structural scoring and information semantics advance to `bootstrap-fitness-v5` / `fitness-treatment-v5` and Moneta provenance `2.1.0-v5-bootstrap`.
+13. **Compatibility ontology provenance advances.** The candidate information-loss and constraint surface changes the compatibility `RepresentationGraph` output, so `BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION` advances to `bootstrap-ontology-v2` rather than emitting changed limitations under the old ontology identity.
 
 ## Options considered
 
@@ -65,6 +66,7 @@ Accepted. This gives Nemosyne a truthful non-point structural object with a clea
 - A graph-shaped signature without `SOURCE_EDGES` authority cannot admit `RELATIONSHIP_GRAPH`.
 - A `SOURCE_EDGES` declaration without actual source edges also cannot admit the candidate.
 - The V5 treatment records the rank-effective authority and ontology change while preserving the numeric bootstrap weights.
+- Compatibility `RepresentationGraph` provenance records `bootstrap-ontology-v2` for the narrowed graph limitations and constraints.
 
 ### Architecture
 
