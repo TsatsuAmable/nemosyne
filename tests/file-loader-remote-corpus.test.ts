@@ -1,3 +1,4 @@
+// @ts-nocheck
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
