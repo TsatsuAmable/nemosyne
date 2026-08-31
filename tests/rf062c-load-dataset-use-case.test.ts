@@ -45,7 +45,7 @@ function fakeAuthority(initial: Dataset) {
 }
 
 describe('RF-062C LoadDatasetUseCase', () => {
-  it('routes a fresh load through Atlas baseline/current ownership before building presentation input', () => {
+  it('routes a fresh load through Atlas ownership with dataset-level overview intent', () => {
     const source = dataset('source');
     const { authority, setOriginalDataset, setCurrentDataset } = fakeAuthority(source);
     const useCase = new LoadDatasetUseCase(authority);
@@ -69,7 +69,17 @@ describe('RF-062C LoadDatasetUseCase', () => {
     expect(result.embodiedDataset).toBe(working);
     expect(result.dataInput.dataset).toBe(working);
     expect(result.dataInput.encodings).toEqual({ color: 'value' });
-    expect(result.requirements.task).toBe('individual-inspection');
+    expect(result.requirements.task).toBe('overview');
+    expect(result.requirements.requiredStructures.map(({ type }) => type)).toEqual([
+      'distribution',
+      'density',
+    ]);
+    expect(
+      result.requirements.preservationGoals.some(
+        ({ information, priority }) =>
+          information === 'individual-observation-identity' && priority === 'CRITICAL'
+      )
+    ).toBe(false);
     expect(result.representationDecision).toBeNull();
     expect(result.outcome).toBeNull();
   });
