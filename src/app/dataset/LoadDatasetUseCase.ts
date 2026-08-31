@@ -42,6 +42,7 @@ export type DatasetLoadAuthority = Pick<
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
 };
 
 export interface LoadDatasetUseCaseOptions {
@@ -167,6 +168,7 @@ export class LoadDatasetUseCase {
         activeRequirements.primaryDimensions?.[1] ?? ''
       );
     } else if (representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
+      dataInput.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
       dataInput.semanticEmbodimentPromise = loadClusterSemanticEmbodiment(
         this.atlas,
         embodiedDataset,
