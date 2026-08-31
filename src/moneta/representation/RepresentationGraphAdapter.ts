@@ -12,7 +12,7 @@ import {
   type RepresentationPrimitiveKind,
 } from './RepresentationGraph.ts';
 
-export const BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION = 'bootstrap-ontology-v1' as const;
+export const BOOTSTRAP_REPRESENTATION_ONTOLOGY_VERSION = 'bootstrap-ontology-v2' as const;
 
 const CANDIDATE_TO_PRIMITIVE: Record<SemanticRepresentationId, RepresentationPrimitiveKind> = {
   POINT_SET: 'POINT_IDENTITY',
