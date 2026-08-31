@@ -13,6 +13,12 @@ export interface RepresentationInteractableOptions {
   onSelect?: (object: Object3D) => void;
 }
 
+export interface SemanticSelectionIdentity {
+  semanticId: string;
+  datasetFingerprint: string | null;
+  decisionId: string | null;
+}
+
 export interface RepresentationSurfaceDependencies {
   scene: Scene;
   cameraGroup: Group;
@@ -42,6 +48,37 @@ export interface RepresentationSurfaceFactories {
     dependencies: RepresentationSurfaceDependencies,
     node: MonetaTopologyNode
   ) => MonetaDiagnosticHUD;
+}
+
+function semanticSelectionIdentity(mesh: Mesh | null): SemanticSelectionIdentity | null {
+  if (!mesh) return null;
+  const semanticId =
+    typeof mesh.userData.semanticId === 'string' && mesh.userData.semanticId.length > 0
+      ? mesh.userData.semanticId
+      : mesh.name;
+  if (!semanticId) return null;
+  return {
+    semanticId,
+    datasetFingerprint:
+      typeof mesh.userData.datasetFingerprint === 'string'
+        ? mesh.userData.datasetFingerprint
+        : null,
+    decisionId:
+      typeof mesh.userData.provenance?.decisionId === 'string' &&
+      mesh.userData.provenance.decisionId.length > 0
+        ? mesh.userData.provenance.decisionId
+        : null,
+  };
+}
+
+function matchesSemanticSelection(mesh: Mesh, identity: SemanticSelectionIdentity): boolean {
+  const candidate = semanticSelectionIdentity(mesh);
+  return (
+    candidate !== null &&
+    candidate.semanticId === identity.semanticId &&
+    candidate.datasetFingerprint === identity.datasetFingerprint &&
+    candidate.decisionId === identity.decisionId
+  );
 }
 
 /** Owns the resources that constitute the currently rendered Moneta representation. */
@@ -89,7 +126,7 @@ export class RepresentationSurface {
       representationDecision,
       this.dependencies
     );
-    const selectedName = this.selectedMesh?.name || null;
+    const selectedIdentity = semanticSelectionIdentity(this.selectedMesh);
 
     this.disposeCurrent();
     this.currentNode = nextNode;
@@ -101,9 +138,10 @@ export class RepresentationSurface {
     this.dependencies.addDiagnosticPanel(diagnostic);
     this.dependencies.analystAnchor.add(diagnostic.mesh);
 
-    if (selectedName && nextNode.artifact?.nodeMeshes) {
+    if (selectedIdentity && nextNode.artifact?.nodeMeshes) {
       this.selectedMesh =
-        nextNode.artifact.nodeMeshes.find((mesh) => mesh.name === selectedName) ?? null;
+        nextNode.artifact.nodeMeshes.find((mesh) => matchesSemanticSelection(mesh, selectedIdentity)) ??
+        null;
     }
     return nextNode;
   }
@@ -112,8 +150,20 @@ export class RepresentationSurface {
     this.selectedMesh = mesh;
   }
 
+  getSelectedSemanticIdentity(): SemanticSelectionIdentity | null {
+    return semanticSelectionIdentity(this.selectedMesh);
+  }
+
   findMeshByName(name: string): Mesh | null {
     return this.currentNode?.artifact?.nodeMeshes?.find((mesh) => mesh.name === name) ?? null;
+  }
+
+  findMeshBySemanticIdentity(identity: SemanticSelectionIdentity): Mesh | null {
+    return (
+      this.currentNode?.artifact?.nodeMeshes?.find((mesh) =>
+        matchesSemanticSelection(mesh, identity)
+      ) ?? null
+    );
   }
 
   dispose(): void {
