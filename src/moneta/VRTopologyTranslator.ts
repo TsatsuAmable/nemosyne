@@ -25,6 +25,7 @@ type SemanticMonetaDataInput = MonetaDataInput & {
 };
 
 type ClusterSemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
   semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ClusterEmbodimentEnvelopeV1 | null>;
 };
@@ -57,6 +58,9 @@ export class VRTopologyTranslator {
     const { spec, facts } = monetaResult;
     const semanticInput = dataInput as SemanticMonetaDataInput;
     const clusterSemanticInput = dataInput as ClusterSemanticMonetaDataInput;
+    const governedClusterRegions =
+      spec.geometry === 'CLUSTER_VOLUME' &&
+      clusterSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
     const group = new THREE.Group();
@@ -71,10 +75,10 @@ export class VRTopologyTranslator {
     );
 
     // Governed dataset-level semantic candidates consume only bounded
-    // Rust-owned payloads. CLUSTER_VOLUME is reserved for CLUSTER_REGIONS and
-    // is intercepted before source-row resolution whether the semantic payload
-    // is READY, pending, refused or unavailable. There is deliberately no
-    // presentation-side grouping/sphere fallback.
+    // Rust-owned payloads. CLUSTER_VOLUME remains a presentation primitive;
+    // only an explicit CLUSTER_REGIONS authority marker intercepts it before
+    // source-row resolution. That governed path has deliberately no row-backed
+    // grouping/sphere fallback when evidence is pending, refused or unavailable.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
@@ -86,7 +90,7 @@ export class VRTopologyTranslator {
     } else if (spec.geometry === 'DENSITY_FIELD') {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
-    } else if (spec.geometry === 'CLUSTER_VOLUME') {
+    } else if (governedClusterRegions) {
       buildClusterSemanticRegions(group, nodeMeshes, clusterSemanticInput.semanticEmbodiment);
       edges = [];
     } else {
@@ -103,6 +107,8 @@ export class VRTopologyTranslator {
           edges,
           options
         );
+      } else if (spec.geometry === 'CLUSTER_VOLUME') {
+        scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
       } else {
         switch (spec.layout) {
           case 'GRID_3D':
@@ -183,7 +189,7 @@ export class VRTopologyTranslator {
       spec.geometry !== 'AGGREGATE_BARS' &&
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
       spec.geometry !== 'DENSITY_FIELD' &&
-      spec.geometry !== 'CLUSTER_VOLUME' &&
+      !governedClusterRegions &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory
