@@ -7,10 +7,7 @@ import { ScalableTopologyEmbodiment } from './embodiment/ScalableTopologyEmbodim
 import { TimeRibbonArtifactUpdater } from './embodiment/TimeRibbonArtifactUpdater.ts';
 import { TopologyInteractionOwner } from './embodiment/TopologyInteractionOwner.ts';
 import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.ts';
-import type {
-  ClusterEmbodimentEnvelopeV1,
-  ProductionSemanticEmbodimentEnvelopeV1,
-} from './representation/ClusterEmbodimentPayload.ts';
+import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import type {
   Artifact,
@@ -24,7 +21,11 @@ import type {
 } from './types.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
-  semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
+};
+
+type ClusterSemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | null;
 };
 
 export class VRTopologyTranslator {
@@ -54,6 +55,7 @@ export class VRTopologyTranslator {
     this._colorblindMode = options?.colorblindMode ?? 'none';
     const { spec, facts } = monetaResult;
     const semanticInput = dataInput as SemanticMonetaDataInput;
+    const clusterSemanticInput = dataInput as ClusterSemanticMonetaDataInput;
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
     const group = new THREE.Group();
@@ -75,32 +77,16 @@ export class VRTopologyTranslator {
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
-      scalable.buildAggregateBars(
-        group,
-        nodeMeshes,
-        semanticInput.semanticEmbodiment as SemanticEmbodimentEnvelopeV1 | null | undefined
-      );
+      scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else if (spec.geometry === 'DISTRIBUTION_FIELD') {
-      scalable.buildDistributionField(
-        group,
-        nodeMeshes,
-        semanticInput.semanticEmbodiment as SemanticEmbodimentEnvelopeV1 | null | undefined
-      );
+      scalable.buildDistributionField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else if (spec.geometry === 'DENSITY_FIELD') {
-      buildDensitySemanticField(
-        group,
-        nodeMeshes,
-        semanticInput.semanticEmbodiment as SemanticEmbodimentEnvelopeV1 | null | undefined
-      );
+      buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else if (spec.geometry === 'CLUSTER_VOLUME') {
-      buildClusterSemanticRegions(
-        group,
-        nodeMeshes,
-        semanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null | undefined
-      );
+      buildClusterSemanticRegions(group, nodeMeshes, clusterSemanticInput.semanticEmbodiment);
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
