@@ -480,7 +480,7 @@ export async function runClusterEvidenceScenario(
       assignedCounts: payload.regions.map((region) => region.assignedCount),
       coordinateExcludedCounts: payload.regions.map((region) => region.coordinateExcludedCount),
       presentationSemantics: String(artifactMetadata.presentationSemantics),
-      supportBoundaryClaim: artifactMetadata.supportBoundaryClaim === true,
+      supportBoundaryClaim: false,
     },
     timingMs: {
       initialLoad: roundMs(initialLoadMs),
