@@ -4,8 +4,10 @@ import type { RepresentationDecision } from '../../moneta/representation/Represe
 import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
+  type ClusterEmbodimentRequestV1,
   type DensityEmbodimentRequestV1,
   type DistributionEmbodimentRequestV1,
+  type RelationshipGraphEmbodimentRequestV1,
   type SemanticEmbodimentEnvelopeV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 
@@ -39,12 +41,77 @@ function isCurrent(
   );
 }
 
-/**
- * Start the A4 production aggregate payload request. The Worker receives dataset
- * rows only through its existing registration channel when it is not already
- * resident. The semantic execution request itself contains parameters and
- * provenance only, and runs against the Worker-local canonical Rust handle.
- */
+async function ensureResidentDataset(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  generation: number,
+  version: number,
+  fingerprint: string
+): Promise<boolean> {
+  const port = authority.executionPort;
+  if (!port) return false;
+  if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
+    if (!port.registerDataset) return false;
+    await port.registerDataset({
+      registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
+      dataset: { fingerprint, version },
+      generation,
+      payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
+    });
+  }
+  return isCurrent(authority, generation, version, fingerprint);
+}
+
+async function executeSemanticRequest(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision,
+  candidateId:
+    | 'AGGREGATE_VOLUME'
+    | 'DISTRIBUTION_FIELD'
+    | 'DENSITY_FIELD'
+    | 'CLUSTER_REGIONS'
+    | 'RELATIONSHIP_GRAPH',
+  request: Record<string, unknown>
+): Promise<SemanticEmbodimentEnvelopeV1 | null> {
+  const port = authority.executionPort;
+  const fingerprint = authority.datasetFingerprint;
+  const version = authority.datasetVersion;
+  const generation = authority.generation;
+  if (!port?.isAsync || !fingerprint) return null;
+  if (!(await ensureResidentDataset(authority, dataset, generation, version, fingerprint))) return null;
+
+  const result = await port.execute<SemanticEmbodimentEnvelopeV1>({
+    requestId: `semantic-${candidateId.toLowerCase()}-${generation}-${version}-${++requestSequence}`,
+    operation: 'semanticEmbodiment',
+    dataset: { fingerprint, version },
+    generation,
+    params: request,
+  });
+
+  if (!isCurrent(authority, generation, version, fingerprint)) return null;
+  if (
+    result.generation !== generation ||
+    result.datasetVersion !== version ||
+    result.datasetFingerprint !== fingerprint
+  ) {
+    return null;
+  }
+
+  const envelope = result.value;
+  if (
+    !envelope ||
+    envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
+    envelope.datasetFingerprint !== fingerprint ||
+    envelope.candidateId !== candidateId ||
+    envelope.provenance.decisionId !== decision.id
+  ) {
+    return null;
+  }
+  return envelope;
+}
+
+/** Start the Rust-owned aggregate request against the resident dataset capability. */
 export function loadAggregateSemanticEmbodiment(
   authority: SemanticEmbodimentAuthority,
   dataset: Dataset,
@@ -52,13 +119,6 @@ export function loadAggregateSemanticEmbodiment(
   encodings: AggregateEncodingSelection
 ): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
   if (decision.chosenCandidateId !== 'AGGREGATE_VOLUME') return undefined;
-
-  const port = authority.executionPort;
-  const fingerprint = authority.datasetFingerprint;
-  const version = authority.datasetVersion;
-  const generation = authority.generation;
-  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
-
   const request: AggregateEmbodimentRequestV1 = {
     schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
     candidateId: 'AGGREGATE_VOLUME',
@@ -67,51 +127,18 @@ export function loadAggregateSemanticEmbodiment(
     decisionId: decision.id,
     decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
     decisionModelArtifactHash:
-      decision.fitnessModelArtifactHash ??
-      decision.provenance.fitnessModelArtifactHash ??
-      undefined,
+      decision.fitnessModelArtifactHash ?? decision.provenance.fitnessModelArtifactHash ?? undefined,
   };
-
-  return (async () => {
-    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
-      if (!port.registerDataset) return null;
-      await port.registerDataset({
-        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
-        dataset: { fingerprint, version },
-        generation,
-        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
-      });
-    }
-
-    if (!isCurrent(authority, generation, version, fingerprint)) return null;
-
-    const result = await port.execute<SemanticEmbodimentEnvelopeV1>({
-      requestId: `semantic-aggregate-${generation}-${version}-${++requestSequence}`,
-      operation: 'semanticEmbodiment',
-      dataset: { fingerprint, version },
-      generation,
-      params: request as unknown as Record<string, unknown>,
-    });
-
-    if (!isCurrent(authority, generation, version, fingerprint)) return null;
-    const envelope = result.value;
-    if (
-      !envelope ||
-      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
-      envelope.datasetFingerprint !== fingerprint ||
-      envelope.candidateId !== 'AGGREGATE_VOLUME'
-    ) {
-      return null;
-    }
-    return envelope;
-  })().catch(() => null);
+  return executeSemanticRequest(
+    authority,
+    dataset,
+    decision,
+    'AGGREGATE_VOLUME',
+    request as unknown as Record<string, unknown>
+  ).catch(() => null);
 }
 
-/**
- * Start the M3 production empirical-distribution request. The measure is an
- * explicit analytical-intent input; an absent/invalid measure is transported
- * unchanged so Rust can refuse it rather than TypeScript selecting a column.
- */
+/** Start the Rust-owned empirical-distribution request with one explicit measure. */
 export function loadDistributionSemanticEmbodiment(
   authority: SemanticEmbodimentAuthority,
   dataset: Dataset,
@@ -119,13 +146,6 @@ export function loadDistributionSemanticEmbodiment(
   measureField: string
 ): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
   if (decision.chosenCandidateId !== 'DISTRIBUTION_FIELD') return undefined;
-
-  const port = authority.executionPort;
-  const fingerprint = authority.datasetFingerprint;
-  const version = authority.datasetVersion;
-  const generation = authority.generation;
-  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
-
   const request: DistributionEmbodimentRequestV1 = {
     schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
     candidateId: 'DISTRIBUTION_FIELD',
@@ -136,64 +156,27 @@ export function loadDistributionSemanticEmbodiment(
     decisionId: decision.id,
     decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
     decisionModelArtifactHash:
-      decision.fitnessModelArtifactHash ??
-      decision.provenance.fitnessModelArtifactHash ??
-      undefined,
+      decision.fitnessModelArtifactHash ?? decision.provenance.fitnessModelArtifactHash ?? undefined,
   };
-
-  return (async () => {
-    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
-      if (!port.registerDataset) return null;
-      await port.registerDataset({
-        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
-        dataset: { fingerprint, version },
-        generation,
-        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
-      });
-    }
-
-    if (!isCurrent(authority, generation, version, fingerprint)) return null;
-
-    const result = await port.execute<SemanticEmbodimentEnvelopeV1>({
-      requestId: `semantic-distribution-${generation}-${version}-${++requestSequence}`,
-      operation: 'semanticEmbodiment',
-      dataset: { fingerprint, version },
-      generation,
-      params: request as unknown as Record<string, unknown>,
-    });
-
-    if (!isCurrent(authority, generation, version, fingerprint)) return null;
-    if (
-      result.generation !== generation ||
-      result.datasetVersion !== version ||
-      result.datasetFingerprint !== fingerprint
-    ) {
-      return null;
-    }
-
-    const envelope = result.value;
-    if (
-      !envelope ||
-      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
-      envelope.datasetFingerprint !== fingerprint ||
-      envelope.candidateId !== 'DISTRIBUTION_FIELD' ||
-      envelope.representationFamily !== 'DISTRIBUTION' ||
-      envelope.provenance.decisionId !== decision.id ||
-      (envelope.result.status === 'READY' &&
-        envelope.result.payload.kind !== 'EMPIRICAL_DISTRIBUTION')
-    ) {
-      return null;
-    }
-    return envelope;
-  })().catch(() => null);
+  return executeSemanticRequest(
+    authority,
+    dataset,
+    decision,
+    'DISTRIBUTION_FIELD',
+    request as unknown as Record<string, unknown>
+  )
+    .then((envelope) => {
+      if (
+        envelope?.representationFamily !== 'DISTRIBUTION' ||
+        (envelope.result.status === 'READY' &&
+          envelope.result.payload.kind !== 'EMPIRICAL_DISTRIBUTION')
+      ) return null;
+      return envelope;
+    })
+    .catch(() => null);
 }
 
-/**
- * Start the R2C M3 production bivariate binned-density request. Both measures
- * come from explicit analytical requirements. Missing, duplicate, non-numeric,
- * or otherwise invalid fields are sent unchanged so the Rust authority can
- * refuse them rather than TypeScript substituting a convenient column.
- */
+/** Start the Rust-owned bivariate binned-density request with explicit measures. */
 export function loadDensitySemanticEmbodiment(
   authority: SemanticEmbodimentAuthority,
   dataset: Dataset,
@@ -202,13 +185,6 @@ export function loadDensitySemanticEmbodiment(
   measureFieldY: string
 ): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
   if (decision.chosenCandidateId !== 'DENSITY_FIELD') return undefined;
-
-  const port = authority.executionPort;
-  const fingerprint = authority.datasetFingerprint;
-  const version = authority.datasetVersion;
-  const generation = authority.generation;
-  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
-
   const request: DensityEmbodimentRequestV1 = {
     schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
     candidateId: 'DENSITY_FIELD',
@@ -219,53 +195,95 @@ export function loadDensitySemanticEmbodiment(
     decisionId: decision.id,
     decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
     decisionModelArtifactHash:
-      decision.fitnessModelArtifactHash ??
-      decision.provenance.fitnessModelArtifactHash ??
-      undefined,
+      decision.fitnessModelArtifactHash ?? decision.provenance.fitnessModelArtifactHash ?? undefined,
   };
+  return executeSemanticRequest(
+    authority,
+    dataset,
+    decision,
+    'DENSITY_FIELD',
+    request as unknown as Record<string, unknown>
+  )
+    .then((envelope) => {
+      if (
+        envelope?.representationFamily !== 'DENSITY' ||
+        (envelope.result.status === 'READY' && envelope.result.payload.kind !== 'BINNED_DENSITY')
+      ) return null;
+      return envelope;
+    })
+    .catch(() => null);
+}
 
-  return (async () => {
-    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
-      if (!port.registerDataset) return null;
-      await port.registerDataset({
-        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
-        dataset: { fingerprint, version },
-        generation,
-        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
-      });
-    }
+/**
+ * R2D source-partition request. `clusterField` is explicit analytical input;
+ * TypeScript never promotes a visual colour/category encoding into cluster truth.
+ */
+export function loadClusterSemanticEmbodiment(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision,
+  clusterField: string,
+  measureFields: string[]
+): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
+  if (decision.chosenCandidateId !== 'CLUSTER_REGIONS') return undefined;
+  const request: ClusterEmbodimentRequestV1 = {
+    schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+    candidateId: 'CLUSTER_REGIONS',
+    clusterField,
+    measureFields,
+    decisionId: decision.id,
+    decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
+    decisionModelArtifactHash:
+      decision.fitnessModelArtifactHash ?? decision.provenance.fitnessModelArtifactHash ?? undefined,
+  };
+  return executeSemanticRequest(
+    authority,
+    dataset,
+    decision,
+    'CLUSTER_REGIONS',
+    request as unknown as Record<string, unknown>
+  )
+    .then((envelope) => {
+      if (
+        envelope?.representationFamily !== 'CLUSTER' ||
+        (envelope.result.status === 'READY' && envelope.result.payload.kind !== 'CLUSTER_REGIONS')
+      ) return null;
+      return envelope;
+    })
+    .catch(() => null);
+}
 
-    if (!isCurrent(authority, generation, version, fingerprint)) return null;
-
-    const result = await port.execute<SemanticEmbodimentEnvelopeV1>({
-      requestId: `semantic-density-${generation}-${version}-${++requestSequence}`,
-      operation: 'semanticEmbodiment',
-      dataset: { fingerprint, version },
-      generation,
-      params: request as unknown as Record<string, unknown>,
-    });
-
-    if (!isCurrent(authority, generation, version, fingerprint)) return null;
-    if (
-      result.generation !== generation ||
-      result.datasetVersion !== version ||
-      result.datasetFingerprint !== fingerprint
-    ) {
-      return null;
-    }
-
-    const envelope = result.value;
-    if (
-      !envelope ||
-      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
-      envelope.datasetFingerprint !== fingerprint ||
-      envelope.candidateId !== 'DENSITY_FIELD' ||
-      envelope.representationFamily !== 'DENSITY' ||
-      envelope.provenance.decisionId !== decision.id ||
-      (envelope.result.status === 'READY' && envelope.result.payload.kind !== 'BINNED_DENSITY')
-    ) {
-      return null;
-    }
-    return envelope;
-  })().catch(() => null);
+/**
+ * R2E source-graph request. No graph-construction parameters exist here: Rust
+ * transports a source edge list or refuses instead of inventing topology.
+ */
+export function loadRelationshipGraphSemanticEmbodiment(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision
+): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
+  if (decision.chosenCandidateId !== 'RELATIONSHIP_GRAPH') return undefined;
+  const request: RelationshipGraphEmbodimentRequestV1 = {
+    schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+    candidateId: 'RELATIONSHIP_GRAPH',
+    decisionId: decision.id,
+    decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
+    decisionModelArtifactHash:
+      decision.fitnessModelArtifactHash ?? decision.provenance.fitnessModelArtifactHash ?? undefined,
+  };
+  return executeSemanticRequest(
+    authority,
+    dataset,
+    decision,
+    'RELATIONSHIP_GRAPH',
+    request as unknown as Record<string, unknown>
+  )
+    .then((envelope) => {
+      if (
+        envelope?.representationFamily !== 'GRAPH' ||
+        (envelope.result.status === 'READY' && envelope.result.payload.kind !== 'RELATIONSHIP_GRAPH')
+      ) return null;
+      return envelope;
+    })
+    .catch(() => null);
 }
