@@ -81,9 +81,14 @@ export class LoadDatasetUseCase {
       authoritativeRepresentation,
     }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
+    // A fresh dataset should first be understood as a dataset, not as a request
+    // to inspect every observation. Individual inspection remains available as
+    // an explicit/preserved analytical intent, but it is no longer the hidden
+    // default that biases initial representation arbitration toward point-like
+    // identity-preserving candidates.
     const activeRequirements = preserveAnalyticalState
       ? (requirements ?? createDefaultRequirements('individual-inspection'))
-      : createDefaultRequirements('individual-inspection');
+      : createDefaultRequirements('overview');
 
     if (!preserveAnalyticalState) {
       // Preserve the existing production semantics exactly: Atlas first loads
