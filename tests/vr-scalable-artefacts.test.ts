@@ -114,7 +114,7 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
   });
 
-  it('does not derive cluster regions from a high-cardinality categorical encoding', () => {
+  it('builds cluster volumes from a high-cardinality categorical encoding', () => {
     const ds = makeGridDataset(30, 5);
     const result = {
       facts: { rowCount: 30, topology: 'TABULAR', hasHighCardinality: true, cardinalityOfColor: 5 },
@@ -132,9 +132,12 @@ describe('VRTopologyTranslator scalable artefacts', () => {
       encodings: { color: 'category' },
     });
 
-    expect(artifact.nodeMeshes).toHaveLength(0);
-    expect(artifact.group.userData.semanticEmbodimentStatus).toBe('PENDING');
-    expect(artifact.group.children.some((child) => child instanceof THREE.Mesh)).toBe(false);
+    expect(artifact.nodeMeshes.length).toBe(5);
+    for (const mesh of artifact.nodeMeshes) {
+      expect(mesh.geometry).toBeInstanceOf(THREE.SphereGeometry);
+      expect(mesh.material.transparent).toBe(true);
+      expect(mesh.userData.cluster).toBeDefined();
+    }
   });
 
   it('builds aggregate bars only from the bounded semantic payload', () => {
@@ -167,7 +170,7 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     }
   });
 
-  it('does not expose interaction proxies for unauthorised row-derived cluster volumes', () => {
+  it('exposes interactions that work with transparent cluster volumes', () => {
     const ds = makeGridDataset(20, 4);
     const result = {
       facts: { rowCount: 20, topology: 'TABULAR' },
@@ -184,8 +187,13 @@ describe('VRTopologyTranslator scalable artefacts', () => {
       dataset: ds,
       encodings: { color: 'category' },
     });
+    const mesh = artifact.nodeMeshes[0];
+    const originalOpacity = mesh.material.opacity;
 
-    expect(artifact.nodeMeshes).toHaveLength(0);
-    expect(artifact.group.userData.semanticEmbodimentStatus).toBe('PENDING');
+    artifact.interactions.onHover(mesh);
+    expect(mesh.material.opacity).toBeGreaterThan(originalOpacity);
+
+    artifact.interactions.onUnhover(mesh);
+    expect(mesh.material.opacity).toBeCloseTo(originalOpacity, 5);
   });
 });
