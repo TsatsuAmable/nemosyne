@@ -45,12 +45,52 @@ export interface SemanticDetailTransitionSnapshot {
   readonly parent: SemanticSelectionIdentity | null;
   readonly returnedCount: number;
   readonly totalMemberCount: number;
+  readonly observationIds: readonly string[];
   readonly refusalReason: string | null;
 }
 
 export type SemanticDetailTransitionListener = (
   snapshot: SemanticDetailTransitionSnapshot,
 ) => void;
+
+export interface SemanticDatumLineageV1 {
+  readonly datasetFingerprint: string;
+  readonly observationId: string;
+  readonly decisionId: string;
+  readonly representationFamily: SemanticDetailRequestV1['target']['representationFamily'];
+  readonly semanticObjectId: string;
+  readonly generation: number;
+  readonly datasetVersion: number;
+  readonly investigationContext: string;
+  readonly kernelVersion: string;
+  readonly algorithmVersion: string;
+  readonly decisionModelVersion: string | null;
+  readonly decisionModelArtifactHash: string | null;
+}
+
+export type SemanticDatumSourceProvenanceV1 =
+  | {
+      readonly status: 'AVAILABLE';
+      readonly value: Readonly<Record<string, unknown>>;
+    }
+  | {
+      readonly status: 'UNAVAILABLE';
+      readonly reason: string;
+    };
+
+export type SemanticDatumInspectionResultV1 =
+  | {
+      readonly status: 'READY';
+      readonly observationId: string;
+      readonly fields: Readonly<Record<string, unknown>>;
+      readonly lineage: SemanticDatumLineageV1;
+      readonly sourceProvenance: SemanticDatumSourceProvenanceV1;
+    }
+  | {
+      readonly status: 'REFUSED';
+      readonly observationId: string;
+      readonly reason: string;
+    };
 
 type SemanticNodeInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
@@ -61,6 +101,17 @@ type DetailEmbodimentRequest =
   | DistributionEmbodimentRequestV1
   | DensityEmbodimentRequestV1
   | ClusterEmbodimentRequestV1;
+
+interface ActiveDetailContext {
+  readonly parent: SemanticSelectionIdentity;
+  readonly node: MonetaTopologyNode;
+  readonly envelope: ProductionSemanticEmbodimentEnvelopeV1;
+  readonly embodimentRequest: DetailEmbodimentRequest;
+  readonly request: SemanticDetailRequestV1;
+  readonly generation: number;
+  readonly version: number;
+  readonly fingerprint: string;
+}
 
 let detailRequestSequence = 0;
 
@@ -111,6 +162,7 @@ function detailEmbodimentRequest(
     envelope.candidateId === 'DISTRIBUTION_FIELD' &&
     envelope.result.payload.kind === 'EMPIRICAL_DISTRIBUTION'
   ) {
+    // Summary marks are analytical summaries, not member containers.
     if (!semanticObjectId.startsWith('distribution-bin:')) return null;
     const distribution = envelope.result.payload.data;
     if (distribution.histogram.length === 0 || distribution.ecdf.length === 0) return null;
@@ -195,10 +247,15 @@ function validateReadyEnvelope(
   return null;
 }
 
+function refusedInspection(observationId: string, reason: string): SemanticDatumInspectionResultV1 {
+  return { status: 'REFUSED', observationId, reason };
+}
+
 /**
- * A3 production transition from a dataset-level semantic object to a bounded
- * observation page. The selected structure remains the RepresentationSurface
- * selection; detail marks are an overlay, never a replacement representation.
+ * Production transition from a dataset-level semantic object to bounded
+ * observations and then, on demand, to one exact datum. The selected structure
+ * remains the RepresentationSurface selection; detail marks are an overlay,
+ * never a replacement representation.
  *
  * This controller intentionally has no dataset registration fallback. A
  * structure can only exist after its semantic embodiment has run against the
@@ -211,11 +268,13 @@ export class SemanticDetailTransition {
   private readonly snapshotListeners = new Set<SemanticDetailTransitionListener>();
   private requestToken = 0;
   private activeParent: SemanticSelectionIdentity | null = null;
+  private activeContext: ActiveDetailContext | null = null;
   private snapshotValue: SemanticDetailTransitionSnapshot = {
     status: 'IDLE',
     parent: null,
     returnedCount: 0,
     totalMemberCount: 0,
+    observationIds: [],
     refusalReason: null,
   };
 
@@ -240,11 +299,13 @@ export class SemanticDetailTransition {
     this.requestToken += 1;
     this.overlay.clear();
     this.activeParent = null;
+    this.activeContext = null;
     this.updateSnapshot({
       status: 'IDLE',
       parent: null,
       returnedCount: 0,
       totalMemberCount: 0,
+      observationIds: [],
       refusalReason: null,
     });
   }
@@ -255,6 +316,125 @@ export class SemanticDetailTransition {
     this.snapshotListeners.clear();
   }
 
+  /**
+   * Retrieve one exact datum from the resident Rust/Worker authority. The
+   * requested observation must be present in the current bounded membership
+   * page. A second semantic-detail query with limit=1 is issued at its exact
+   * authoritative offset; cached compact row maps from the overview request are
+   * deliberately ignored.
+   */
+  async inspectObservation(observationId: string): Promise<SemanticDatumInspectionResultV1> {
+    const context = this.activeContext;
+    if (!context || this.snapshotValue.status !== 'READY') {
+      return refusedInspection(observationId, 'no active bounded semantic detail');
+    }
+
+    const pageOffset = this.snapshotValue.observationIds.indexOf(observationId);
+    if (pageOffset < 0) {
+      return refusedInspection(observationId, 'observation is not in the active bounded detail page');
+    }
+    const exactOffset = context.request.offset + pageOffset;
+
+    const port = this.authority.executionPort;
+    if (!port?.isAsync || port.hasRegisteredDataset?.(context.generation, context.fingerprint) !== true) {
+      return refusedInspection(observationId, 'authoritative dataset is not resident in the analytical Worker');
+    }
+
+    if (
+      this.authority.generation !== context.generation ||
+      this.authority.datasetVersion !== context.version ||
+      this.authority.datasetFingerprint !== context.fingerprint ||
+      this.surface.currentNode !== context.node ||
+      !sameIdentity(this.surface.getSelectedSemanticIdentity(), context.parent)
+    ) {
+      return refusedInspection(observationId, 'semantic datum inspection context is stale');
+    }
+
+    const request: SemanticDetailRequestV1 = {
+      ...context.request,
+      limit: 1,
+      offset: exactOffset,
+      investigationContext: `${this.authority.sessionId}: inspect exact datum ${observationId} from ${context.parent.semanticId}`,
+    };
+
+    try {
+      const result = await port.execute<SemanticDetailEnvelopeV1>({
+        requestId: `semantic-datum-${context.generation}-${context.version}-${++detailRequestSequence}`,
+        operation: 'semanticDetail',
+        dataset: { fingerprint: context.fingerprint, version: context.version },
+        generation: context.generation,
+        params: {
+          request,
+          embodimentRequest: context.embodimentRequest,
+        },
+      });
+
+      if (
+        this.authority.generation !== context.generation ||
+        this.authority.datasetVersion !== context.version ||
+        this.authority.datasetFingerprint !== context.fingerprint ||
+        this.activeContext !== context ||
+        this.surface.currentNode !== context.node ||
+        !sameIdentity(this.surface.getSelectedSemanticIdentity(), context.parent) ||
+        result.generation !== context.generation ||
+        result.datasetVersion !== context.version ||
+        result.datasetFingerprint !== context.fingerprint ||
+        result.error ||
+        !result.value
+      ) {
+        return refusedInspection(observationId, 'semantic datum inspection became stale or failed');
+      }
+
+      const invalid = validateReadyEnvelope(result.value, request, context.generation);
+      if (invalid) return refusedInspection(observationId, invalid);
+      if (result.value.result.status === 'REFUSED') {
+        return refusedInspection(observationId, result.value.result.refusal.message);
+      }
+
+      const exact = result.value.result;
+      if (
+        exact.returnedCount !== 1 ||
+        exact.observationIds.length !== 1 ||
+        exact.observationIds[0] !== observationId ||
+        exact.compactViews?.length !== 1
+      ) {
+        return refusedInspection(observationId, 'exact datum query did not return the selected observation');
+      }
+
+      const fields = exact.compactViews[0];
+      if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
+        return refusedInspection(observationId, 'exact datum values are unavailable');
+      }
+
+      return {
+        status: 'READY',
+        observationId,
+        fields: structuredClone(fields),
+        lineage: {
+          datasetFingerprint: context.fingerprint,
+          observationId,
+          decisionId: context.request.target.decisionId,
+          representationFamily: context.request.target.representationFamily,
+          semanticObjectId: context.request.target.semanticObjectId,
+          generation: context.generation,
+          datasetVersion: context.version,
+          investigationContext: request.investigationContext,
+          kernelVersion: context.envelope.provenance.kernelVersion,
+          algorithmVersion: context.envelope.provenance.algorithmVersion,
+          decisionModelVersion: context.envelope.provenance.decisionModelVersion ?? null,
+          decisionModelArtifactHash: context.envelope.provenance.decisionModelArtifactHash ?? null,
+        },
+        sourceProvenance: {
+          status: 'UNAVAILABLE',
+          reason:
+            'The resident dataset provides stable observation identity but no governed per-row source provenance record.',
+        },
+      };
+    } catch {
+      return refusedInspection(observationId, 'semantic datum inspection request failed');
+    }
+  }
+
   private updateSnapshot(snapshot: SemanticDetailTransitionSnapshot): void {
     this.snapshotValue = snapshot;
     for (const listener of this.snapshotListeners) listener(snapshot);
@@ -263,11 +443,13 @@ export class SemanticDetailTransition {
   private refuse(parent: SemanticSelectionIdentity | null, reason: string): void {
     this.overlay.clear();
     this.activeParent = null;
+    this.activeContext = null;
     this.updateSnapshot({
       status: 'REFUSED',
       parent,
       returnedCount: 0,
       totalMemberCount: 0,
+      observationIds: [],
       refusalReason: reason,
     });
   }
@@ -279,6 +461,7 @@ export class SemanticDetailTransition {
       return;
     }
 
+    // Re-selecting the containing structure remains a secondary reverse path.
     if (sameIdentity(identity, this.activeParent) && this.snapshotValue.status === 'READY') {
       this.clear();
       return;
@@ -334,11 +517,22 @@ export class SemanticDetailTransition {
     const token = ++this.requestToken;
     this.overlay.clear();
     this.activeParent = identity;
+    this.activeContext = {
+      parent: identity,
+      node,
+      envelope,
+      embodimentRequest,
+      request,
+      generation,
+      version,
+      fingerprint,
+    };
     this.updateSnapshot({
       status: 'PENDING',
       parent: identity,
       returnedCount: 0,
       totalMemberCount: 0,
+      observationIds: [],
       refusalReason: null,
     });
 
@@ -397,6 +591,7 @@ export class SemanticDetailTransition {
           parent: identity,
           returnedCount: result.value.result.returnedCount,
           totalMemberCount: result.value.result.totalMemberCount,
+          observationIds: [...result.value.result.observationIds],
           refusalReason: null,
         });
       })

@@ -11,6 +11,7 @@ import '../ui/components/index.ts';
 import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import { SemanticDetailTransition } from './dataset/SemanticDetailTransition.ts';
 import { mountSemanticDetailReturnControl } from './dataset/SemanticDetailReturnControl.ts';
+import { mountSemanticDatumInspector } from './dataset/SemanticDatumInspector.ts';
 import {
   setupDevTraceRecorder,
   type DevTraceBindings,
@@ -173,15 +174,16 @@ export async function bootstrapApp(): Promise<AppInstance> {
   });
   world.dispatchIntent = dispatchCanonicalIntent;
 
-  // A3 progressive disclosure is composed here rather than in World: the
-  // controller sees only the generic representation selection surface and the
-  // canonical analytical authority. It cannot inspect or materialise source
-  // rows, and its teardown follows the same extension ownership contract.
+  // Progressive disclosure and exact datum inspection are composed here rather
+  // than in World. Both consume the generic representation-selection surface
+  // and canonical analytical authority; neither can access or cache source rows.
   const semanticDetailTransition = new SemanticDetailTransition(
     world.representationSurface,
     world.atlas,
   );
   const semanticDetailReturnControl = mountSemanticDetailReturnControl(semanticDetailTransition);
+  const semanticDatumInspector = mountSemanticDatumInspector(semanticDetailTransition);
+  world.registerExtensionDisposer(() => semanticDatumInspector.dispose());
   world.registerExtensionDisposer(() => semanticDetailReturnControl.dispose());
   world.registerExtensionDisposer(() => semanticDetailTransition.dispose());
 
