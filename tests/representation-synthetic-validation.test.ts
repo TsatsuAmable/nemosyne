@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { SYNTHETIC_FIXTURES } from './synthetic/representation-fixtures.ts';
-import { RepresentationHypothesisEngine } from '../src/moneta/index.ts';
+import {
+  RepresentationHypothesisEngine,
+  createSourceRelationshipGraphAuthority,
+} from '../src/moneta/index.ts';
 
 describe('Phase 8: Synthetic Dataset Validation Suite', () => {
   describe.each(SYNTHETIC_FIXTURES)('$name ($expectedFamily)', (fixture) => {
@@ -10,6 +13,10 @@ describe('Phase 8: Synthetic Dataset Validation Suite', () => {
       // still make source authority explicit here instead of letting cluster-like
       // evidence or a categorical count stand in for analyst intent. Rust remains
       // responsible for validating these names against a real resident dataset.
+      //
+      // Graph fixtures likewise describe a source-provided graph by construction.
+      // R2E B1 requires that source meaning to be explicit; GRAPH topology and a
+      // positive edge count alone are deliberately not scientific authority.
       const requirements =
         fixture.expectedFamily === 'CLUSTER'
           ? {
@@ -20,7 +27,12 @@ describe('Phase 8: Synthetic Dataset Validation Suite', () => {
                 field: 'clusterLabel',
               },
             }
-          : fixture.requirements;
+          : fixture.expectedFamily === 'GRAPH'
+            ? {
+                ...fixture.requirements,
+                graphAuthority: createSourceRelationshipGraphAuthority('UNDIRECTED'),
+              }
+            : fixture.requirements;
 
       const decision = RepresentationHypothesisEngine.reason(
         fixture.facts,
