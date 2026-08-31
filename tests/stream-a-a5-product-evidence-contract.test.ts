@@ -50,9 +50,14 @@ describe('Stream A A5 finite product-evidence contract', () => {
     expect(inspector).not.toContain('.rows');
   });
 
-  it('keeps POINT_SET legitimate for explicit feasible individual-inspection intent', () => {
+  it('keeps POINT_SET reachable for explicit observation-level information requirements', () => {
     const signature = minimalDatasetSignature(100, 3, 1, 0, 'a5-point-intent', 0);
     const requirements = createDefaultRequirements('individual-inspection', 'SMALL');
+    requirements.preservationGoals = [
+      { information: 'individual-observation-identity', priority: 'CRITICAL' },
+      { information: 'exact-metric-values', priority: 'CRITICAL' },
+      { information: 'outlier-boundary-visibility', priority: 'CRITICAL' },
+    ];
     const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
 
     expect(decision.chosenCandidateId).toBe('POINT_SET');
