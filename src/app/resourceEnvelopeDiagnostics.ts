@@ -7,6 +7,11 @@ import type {
 } from '../atlas/ports/AnalyticalExecutionPort.ts';
 import type { World } from '../vr/World.ts';
 import {
+  runDensityEvidenceScenario,
+  type DensityEvidenceScenarioResult,
+  type DensityEvidenceShape,
+} from './densityEvidenceDiagnostics.ts';
+import {
   runDistributionEvidenceScenario,
   type DistributionEvidenceScenarioResult,
 } from './distributionEvidenceDiagnostics.ts';
@@ -69,6 +74,10 @@ export interface ResourceEnvelopeDiagnosticHook {
     rowCount: number;
     measureField: string;
   }): Promise<DistributionEvidenceScenarioResult>;
+  runDensityScenario(input: {
+    rowCount: number;
+    shape: DensityEvidenceShape;
+  }): Promise<DensityEvidenceScenarioResult>;
 }
 
 declare global {
@@ -371,6 +380,7 @@ export function installResourceEnvelopeDiagnosticHook(world: World): () => void 
     schemaVersion: 1,
     runScenario: (input) => runScenario(world, input),
     runDistributionScenario: (input) => runDistributionEvidenceScenario(world, input),
+    runDensityScenario: (input) => runDensityEvidenceScenario(world, input),
   };
   window.__NEMOSYNE_RESOURCE_ENVELOPE__ = hook;
   return () => {
