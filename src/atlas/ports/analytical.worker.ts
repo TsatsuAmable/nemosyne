@@ -8,13 +8,17 @@ import type {
 import * as bridge from '../../wasm/RuntimeBridge.ts';
 import {
   buildAggregateSemanticEmbodimentV1,
+  buildClusterSemanticEmbodimentV1,
   buildDensitySemanticEmbodimentV1,
   buildDistributionSemanticEmbodimentV1,
+  buildRelationshipGraphSemanticEmbodimentV1,
 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
 import type {
   AggregateEmbodimentRequestV1,
+  ClusterEmbodimentRequestV1,
   DensityEmbodimentRequestV1,
   DistributionEmbodimentRequestV1,
+  RelationshipGraphEmbodimentRequestV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import type { DatasetJSON, OperationSpec } from '../../data/types.ts';
 
@@ -404,6 +408,16 @@ self.onmessage = async (ev: MessageEvent) => {
             value = buildDensitySemanticEmbodimentV1(
               registeredHandle,
               req.params as unknown as DensityEmbodimentRequestV1
+            );
+          } else if (req.params.candidateId === 'CLUSTER_REGIONS') {
+            value = buildClusterSemanticEmbodimentV1(
+              registeredHandle,
+              req.params as unknown as ClusterEmbodimentRequestV1
+            );
+          } else if (req.params.candidateId === 'RELATIONSHIP_GRAPH') {
+            value = buildRelationshipGraphSemanticEmbodimentV1(
+              registeredHandle,
+              req.params as unknown as RelationshipGraphEmbodimentRequestV1
             );
           } else {
             throw new Error(`Unsupported semantic embodiment candidate: ${operationName}`);
