@@ -10,6 +10,7 @@ import { WorldTopics } from '../utils/EventBus.ts';
 import '../ui/components/index.ts';
 import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import { SemanticDetailTransition } from './dataset/SemanticDetailTransition.ts';
+import { mountSemanticDetailReturnControl } from './dataset/SemanticDetailReturnControl.ts';
 import {
   setupDevTraceRecorder,
   type DevTraceBindings,
@@ -180,6 +181,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
     world.representationSurface,
     world.atlas,
   );
+  const semanticDetailReturnControl = mountSemanticDetailReturnControl(semanticDetailTransition);
+  world.registerExtensionDisposer(() => semanticDetailReturnControl.dispose());
   world.registerExtensionDisposer(() => semanticDetailTransition.dispose());
 
   applyNormalAnalystShell(world);
