@@ -5,7 +5,7 @@ Nemosyne keeps a small set of authoritative documents and a larger body of subor
 ## Governing authorities
 
 - [`Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) - canonical product, research, and architecture direction.
-- [`ROADMAP.md`](ROADMAP.md) - canonical live implementation status, programme order, Stream A/B/C state, and review findings.
+- [`ROADMAP.md`](ROADMAP.md) - canonical live implementation status, programme order, current Streams A-D ownership/collision rules, and review findings.
 - [`../AGENTS.md`](../AGENTS.md) - canonical tool-neutral engineering/agent contract.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) - active technical reference, subordinate to the governing vision where migration remains incomplete.
 
@@ -25,13 +25,13 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 - [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) - developer onboarding and codebase mental model.
 - [`MIGRATION.md`](MIGRATION.md) - migration reference where still applicable.
 - [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) - CI evidence/latency strategy and measured sharding work.
-- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) - Stream A implementation quality contract.
-- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) - Stream C security/live-path assurance programme.
+- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) - quality-process contract created under the previous A/B/C wave; still useful as engineering guidance but not the current Stream A mission.
+- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) - security/live-path finding set created under the previous A/B/C wave; unresolved findings are now owned by current Stream D.
 - [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) - governed statistical method inventory.
 - [`GETTING_STARTED.md`](GETTING_STARTED.md) - user/developer setup reference.
 - [`../README.md`](../README.md) - repository entry point.
 
-These documents may describe current implementation but must not override the governing authorities above.
+These documents may describe current implementation but must not override the governing authorities above. Historical stream labels retained in active evidence/reference documents are provenance, not current execution ownership.
 
 ## Product and spatial interaction reference
 
@@ -65,4 +65,4 @@ Study material is operational research governance; it does not override product/
 3. Historical documents must live under `archive/` and may not be cited as current authority.
 4. Machine-readable facts are not duplicated in agent prose.
 5. Any change to documentation authority or engineering instructions must pass `npm run docs:check`.
-6. If an active document conflicts with a governing authority, update or archive it as part of the next touching change.
+6. If an active document conflicts with a governing authority, update it, clearly subordinate its operational status to `ROADMAP.md`, or archive it as part of the next touching change.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-26",
+  "lastReviewed": "2026-08-31",
   "statuses": ["canonical", "active", "historical"],
   "documents": [
     {
@@ -66,19 +66,19 @@
     {
       "path": "docs/IMPLEMENTATION_PLAN_V3.md",
       "status": "active",
-      "authority": "implementation-sequencing",
+      "authority": "implementation-sequencing-reference",
       "owner": "engineering"
     },
     {
       "path": "docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
       "status": "active",
-      "authority": "stream-a-quality",
+      "authority": "implementation-quality-policy",
       "owner": "engineering"
     },
     {
       "path": "docs/STREAM_C_SECURITY_ASSURANCE.md",
       "status": "active",
-      "authority": "stream-c-security",
+      "authority": "security-assurance-findings",
       "owner": "security"
     },
     {
@@ -98,6 +98,12 @@
       "status": "active",
       "authority": "study-index",
       "owner": "research"
+    },
+    {
+      "path": "docs/archive/ROADMAP_PRE_A_D_STREAMS_2026-08-31.md",
+      "status": "historical",
+      "authority": "historical-roadmap",
+      "owner": "archive"
     },
     {
       "path": "docs/archive/TEST_READY_2026-08-26.md",
