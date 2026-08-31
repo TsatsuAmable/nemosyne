@@ -169,6 +169,12 @@ export interface KernelContractExports {
     outPtr: number,
     outLen: number
   ): number;
+  moneta_semantic_detail_v1_roundtrip(
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number
+  ): number;
   intent_compile(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
   atlas_discover_structures(
     inputPtr: number,

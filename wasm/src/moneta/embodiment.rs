@@ -1359,6 +1359,46 @@ pub fn moneta_semantic_embodiment_v1_roundtrip(
     crate::write_bytes_out(&json, out_ptr, out_len)
 }
 
+/// A1 semantic detail contract boundary probe. It intentionally performs no analytical work.
+/// Rust owns parsing, strict validation, normalization and serialization of the
+/// versioned detail request/result contract.
+#[wasm_bindgen]
+pub fn moneta_semantic_detail_v1_roundtrip(
+    in_ptr: u32,
+    in_len: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    let Some(bytes) = copy_host_input(in_ptr, in_len) else {
+        return 0;
+    };
+    let mut envelope: super::drill_down::SemanticDetailEnvelopeV1 = match serde_json::from_slice(&bytes) {
+        Ok(value) => value,
+        Err(error) => {
+            crate::log_error(&format!(
+                "moneta_semantic_detail_v1_roundtrip parse failed: {error}"
+            ));
+            return 0;
+        }
+    };
+    if let Err(error) = super::drill_down::validate_detail_envelope(&mut envelope) {
+        crate::log_error(&format!(
+            "moneta_semantic_detail_v1_roundtrip validation failed: {error}"
+        ));
+        return 0;
+    }
+    let json = match serde_json::to_vec(&envelope) {
+        Ok(value) => value,
+        Err(error) => {
+            crate::log_error(&format!(
+                "moneta_semantic_detail_v1_roundtrip serialization failed: {error}"
+            ));
+            return 0;
+        }
+    };
+    crate::write_bytes_out(&json, out_ptr, out_len)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
