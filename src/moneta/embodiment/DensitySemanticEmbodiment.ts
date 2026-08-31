@@ -37,6 +37,19 @@ export function buildDensitySemanticField(
   }
 
   const density = envelope.result.payload.data;
+  const expectedCellCount = density.binsX * density.binsY;
+  if (
+    !Number.isSafeInteger(density.binsX) ||
+    !Number.isSafeInteger(density.binsY) ||
+    density.binsX <= 0 ||
+    density.binsY <= 0 ||
+    density.grid.length !== expectedCellCount ||
+    envelope.resource.elementCount !== expectedCellCount
+  ) {
+    setSemanticEmbodimentPresentationStatus(group, 'INVALID', undefined, 'DENSITY_FIELD');
+    return;
+  }
+
   const artifactId = [
     'semantic-embodiment',
     envelope.datasetFingerprint,
