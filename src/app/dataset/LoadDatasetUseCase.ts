@@ -18,6 +18,7 @@ import { WorldTopics } from '../../utils/EventBus.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
 import {
   loadAggregateSemanticEmbodiment,
+  loadDensitySemanticEmbodiment,
   loadDistributionSemanticEmbodiment,
 } from './SemanticEmbodimentLoader.ts';
 
@@ -150,6 +151,14 @@ export class LoadDatasetUseCase {
         embodiedDataset,
         representationDecision,
         activeRequirements.primaryDimensions?.[0] ?? ''
+      );
+    } else if (representationDecision?.chosenCandidateId === 'DENSITY_FIELD') {
+      dataInput.semanticEmbodimentPromise = loadDensitySemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        activeRequirements.primaryDimensions?.[0] ?? '',
+        activeRequirements.primaryDimensions?.[1] ?? ''
       );
     }
 
