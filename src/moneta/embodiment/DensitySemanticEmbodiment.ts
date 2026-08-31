@@ -3,10 +3,18 @@ import { numericColor } from '../../data/Encodings.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../representation/SemanticEmbodimentPayload.ts';
 import { setSemanticEmbodimentPresentationStatus } from './SemanticEmbodimentStatus.ts';
 
+export const DENSITY_INSTANCED_SURFACE_NAME = 'density-instanced-cells';
+
 /**
- * Thin R2C M3 density presentation adapter. Rust owns field selection, domains,
- * bin assignment, counts, exclusions, semantic IDs, method identity and
- * provenance. This adapter maps the bounded binned payload to Three.js only.
+ * Thin R2C M3/M4 density presentation adapter. Rust owns field selection,
+ * domains, bin assignment, counts, exclusions, semantic IDs, method identity
+ * and provenance. The adapter maps that bounded payload to one rendered
+ * InstancedMesh plus non-rendering per-cell interaction proxies.
+ *
+ * The proxies deliberately remain ordinary Mesh objects so the existing
+ * tooltip/selection surface can address every Rust semantic cell by name.
+ * Their material is not rendered, so they contribute no draw calls. The
+ * visible InstancedMesh carries one instance per semantic cell.
  */
 export function buildDensitySemanticField(
   group: THREE.Group,
@@ -73,29 +81,48 @@ export function buildDensitySemanticField(
     provenance: envelope.provenance,
   };
 
-  for (const cell of density.grid) {
+  const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+  const visibleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.35,
+    metalness: 0.15,
+  });
+  const batch = new THREE.InstancedMesh(boxGeometry, visibleMaterial, expectedCellCount);
+  batch.name = DENSITY_INSTANCED_SURFACE_NAME;
+  batch.userData = {
+    ...commonMetadata,
+    semanticCellCount: expectedCellCount,
+    candidateLocalDrawCalls: 1,
+    interactionModel: 'non-rendering-semantic-proxies',
+  };
+
+  const proxyGeometry = new THREE.BoxGeometry(1, 1, 1);
+  const proxyMaterial = new THREE.MeshBasicMaterial();
+  proxyMaterial.visible = false;
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+
+  density.grid.forEach((cell, instanceIndex) => {
     const fraction = cell.count / maxCount;
     const height = cell.count === 0 ? 0.035 : 0.08 + 2.5 * fraction;
-    const geometry = new THREE.BoxGeometry(stepX * 0.88, height, stepZ * 0.88);
-    geometry.translate(0, height / 2, 0);
-    const color = numericColor(cell.count, 0, maxCount, 0x0072b2, 0xe69f00);
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      emissive: cell.count === 0 ? 0x001122 : color,
-      emissiveIntensity: cell.count === 0 ? 0.08 : 0.22,
-      transparent: cell.count === 0,
-      opacity: cell.count === 0 ? 0.18 : 0.9,
-      roughness: 0.35,
-      metalness: 0.15,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = cell.semanticId;
-    mesh.position.set(
-      -2 + (cell.xIndex + 0.5) * stepX,
-      0,
-      -2 + (cell.yIndex + 0.5) * stepZ
-    );
-    mesh.userData = {
+    const x = -2 + (cell.xIndex + 0.5) * stepX;
+    const z = -2 + (cell.yIndex + 0.5) * stepZ;
+    const colorValue = numericColor(cell.count, 0, maxCount, 0x0072b2, 0xe69f00);
+    const color = new THREE.Color(colorValue);
+
+    position.set(x, height / 2, z);
+    scale.set(stepX * 0.88, height, stepZ * 0.88);
+    matrix.compose(position, quaternion, scale);
+    batch.setMatrixAt(instanceIndex, matrix);
+    batch.setColorAt(instanceIndex, color);
+
+    const proxy = new THREE.Mesh(proxyGeometry, proxyMaterial);
+    proxy.name = cell.semanticId;
+    proxy.position.copy(position);
+    proxy.scale.copy(scale);
+    proxy.userData = {
       ...commonMetadata,
       semanticId: cell.semanticId,
       densityElementKind: 'BIN',
@@ -109,10 +136,20 @@ export function buildDensitySemanticField(
       yUpperInclusive: cell.yUpperInclusive,
       count: cell.count,
       countFraction: fraction,
+      instancedDensityBatch: batch,
+      densityInstanceIndex: instanceIndex,
+      densityInstanceBaseColor: color.getHex(),
+      nonRenderingSemanticProxy: true,
     };
-    group.add(mesh);
-    nodeMeshes.push(mesh);
-  }
+    group.add(proxy);
+    nodeMeshes.push(proxy);
+  });
+
+  batch.instanceMatrix.needsUpdate = true;
+  if (batch.instanceColor) batch.instanceColor.needsUpdate = true;
+  batch.computeBoundingBox();
+  batch.computeBoundingSphere();
+  group.add(batch);
 
   setSemanticEmbodimentPresentationStatus(group, 'READY', undefined, 'DENSITY_FIELD');
   group.userData.semanticEmbodiment = {
@@ -124,5 +161,11 @@ export function buildDensitySemanticField(
     measureFieldY: density.measureFieldY,
     resource: envelope.resource,
     provenance: envelope.provenance,
+  };
+  group.userData.densityRenderSurface = {
+    semanticCellCount: expectedCellCount,
+    renderedBatchCount: 1,
+    candidateLocalDrawCalls: 1,
+    interactionProxyCount: nodeMeshes.length,
   };
 }

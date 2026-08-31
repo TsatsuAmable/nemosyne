@@ -7,6 +7,36 @@ import type {
   VRTranslatorOptions,
 } from '../types.ts';
 
+type DensityProxyData = {
+  instancedDensityBatch?: THREE.InstancedMesh;
+  densityInstanceIndex?: number;
+  densityInstanceBaseColor?: number;
+};
+
+function recolorDensityInstance(mesh: THREE.Mesh, mode: 'hover' | 'base' | 'select'): boolean {
+  const data = mesh.userData as DensityProxyData;
+  const batch = data.instancedDensityBatch;
+  const index = data.densityInstanceIndex;
+  const baseColor = data.densityInstanceBaseColor;
+  if (
+    !(batch instanceof THREE.InstancedMesh) ||
+    !Number.isSafeInteger(index) ||
+    index === undefined ||
+    index < 0 ||
+    index >= batch.count ||
+    typeof baseColor !== 'number'
+  ) {
+    return false;
+  }
+
+  const color = new THREE.Color(baseColor);
+  if (mode === 'hover') color.lerp(new THREE.Color(0xffffff), 0.45);
+  if (mode === 'select') color.lerp(new THREE.Color(0xffcc33), 0.65);
+  batch.setColorAt(index, color);
+  if (batch.instanceColor) batch.instanceColor.needsUpdate = true;
+  return true;
+}
+
 export class TopologyInteractionOwner {
   constructor(private readonly _registeredActions: MetaphorActionHandlers) {}
 
@@ -20,6 +50,7 @@ export class TopologyInteractionOwner {
     const actions = { ...this._registeredActions, ...options?.metaphorActions };
     const base = {
       onHover: (mesh: THREE.Mesh) => {
+        if (recolorDensityInstance(mesh, 'hover')) return;
         if (
           (mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined
         ) {
@@ -40,6 +71,7 @@ export class TopologyInteractionOwner {
         }
       },
       onUnhover: (mesh: THREE.Mesh) => {
+        if (recolorDensityInstance(mesh, 'base')) return;
         if (
           (mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined
         ) {
@@ -54,6 +86,7 @@ export class TopologyInteractionOwner {
         }
       },
       onSelect: (mesh: THREE.Mesh) => {
+        if (recolorDensityInstance(mesh, 'select')) return;
         if (
           (mesh.material as THREE.MeshStandardMaterial | undefined)?.emissiveIntensity !== undefined
         ) {
