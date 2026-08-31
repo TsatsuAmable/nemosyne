@@ -16,12 +16,12 @@ The repository RFC policy requires an RFC when investigator-facing scientific se
 
 For the first governed `CLUSTER_REGIONS` treatment:
 
-1. **Authority is explicit and source-bound.** A representation request must declare exactly one `SOURCE_PARTITION` field. Merely being categorical, color-encoded, named `cluster`, correlated with other variables, or associated with multimodal density is not cluster authority.
+1. **Authority is explicit and source-bound.** A representation request must declare exactly one `SOURCE_PARTITION` field. For V1 that field must be a **logical categorical partition label** in the canonical dataset. Numeric-looking cluster codes are valid only when their dataset schema treats them as categorical labels; a continuous numeric measure is never promoted to a partition merely because it was named in a request. Merely being categorical, color-encoded, named `cluster`, correlated with other variables, or associated with multimodal density is not cluster authority.
 2. **Spatial coordinates are explicit.** The request must declare exactly two or three distinct coordinate fields, separate from the partition field. The analytical builder must verify that the declared coordinate fields are numeric and must not substitute other columns.
 3. **The object is a partition summary, not discovered clustering.** V1 represents supplied partition membership and bounded descriptive spatial summaries. It does not infer k-means, DBSCAN/HDBSCAN, mixture models, density modes, nearest-neighbour groups, force-layout groups, support boundaries, confidence regions, separation margins, or cluster validity.
 4. **The candidate ontology is narrowed.** `CLUSTER_REGIONS` supports source partition structure and aggregate group magnitude. It does not preserve individual observation identity, exact per-observation values, continuous/population density, empirical bivariate bin mass, within-group empirical distribution shape, or formal outlier boundaries.
 5. **Missing authority fails closed at arbitration.** `CLUSTER_REGIONS` is hard-disqualified when the source-partition declaration or the required coordinate declaration is absent or structurally incompatible. Cluster-like dataset evidence may affect other reasoning but cannot substitute for this authority declaration.
-6. **Execution validates the declaration against the resident dataset.** Arbitration can establish that a declaration exists and that the dataset signature has sufficient categorical/numeric capacity, but only the Rust/WASM resident-dataset owner may prove the named fields exist with the required types and compute the bounded summary.
+6. **Execution validates the declaration against the resident dataset.** Arbitration can establish that a declaration exists and that the dataset signature has sufficient categorical/numeric capacity, but only the Rust/WASM resident-dataset owner may prove the named partition field is categorical, the named coordinate fields are numeric, and compute the bounded summary.
 7. **Rank-effective semantics are versioned.** The bootstrap numeric weights remain frozen, but the ontology/admissibility change mints `bootstrap-fitness-v4` / `fitness-treatment-v4` so provenance can distinguish decisions made under the new scientific treatment.
 8. **Inferred clustering is a separate future treatment.** Any learned or algorithmic clustering authority requires a separate RFC/treatment specifying metric, features, scaling, hyperparameters, randomness, missingness, uncertainty/stability, provenance, resource bounds, and validation evidence.
 
@@ -39,17 +39,18 @@ Rejected. Density modes, nearest-neighbour proximity, and layout positions are d
 
 Rejected for V1. Choosing k-means, DBSCAN/HDBSCAN, spectral clustering, mixtures, or another method introduces measurement-scale, metric, hyperparameter, determinism, stability, performance, and post-selection questions that need their own governed treatment.
 
-### D. Represent only an explicitly declared source partition
+### D. Represent only an explicitly declared logical-categorical source partition
 
-Accepted. It gives Nemosyne a truthful dataset-level cluster-shaped object without pretending to discover cluster science. It also creates a clean authority boundary for later inferred-clustering work.
+Accepted. It gives Nemosyne a truthful dataset-level cluster-shaped object without pretending to discover cluster science. Requiring a categorical logical type also prevents a continuous numeric measurement from becoming a partition merely through request wiring. Broader typed scalar-partition support can be added later as an explicit contract extension if needed.
 
 ## Consequences
 
 ### Scientific
 
-- `CLUSTER_REGIONS` means “bounded summary of a declared partition,” not “the data contains scientifically validated clusters.”
+- `CLUSTER_REGIONS` means “bounded summary of a declared categorical partition,” not “the data contains scientifically validated clusters.”
 - Descriptive centroids/bounds may be presented, but renderer geometry must not imply support boundaries, non-overlap, density support, confidence regions, or separation margins.
 - Source partition labels may originate outside Nemosyne, but their scientific quality remains external unless separately governed evidence is supplied.
+- V1 deliberately rejects a partition field whose canonical logical type is numeric. Numeric identifiers must be ingested/declared as categorical labels before they can be source-partition authority.
 
 ### Ranking and provenance
 
@@ -67,6 +68,7 @@ Accepted. It gives Nemosyne a truthful dataset-level cluster-shaped object witho
 
 - `clusterAuthority` is an optional discriminated field on the serialisable requirements contract so non-cluster tasks and historical requirement shapes remain parseable.
 - Its absence is meaningful under v4: `CLUSTER_REGIONS` is unavailable rather than silently reconstructing the old implicit behavior.
+- The V1 categorical-only authority rule is intentionally narrower than the rail's general scalar-value possibility. It is a C1 schema decision, not a claim that numeric-coded partitions are scientifically invalid.
 
 ### Delivery split
 
@@ -83,16 +85,17 @@ C1 must prove:
 - `CLUSTER_REGIONS` no longer claims density or outlier-boundary semantics;
 - measured cluster-like or density evidence cannot admit the candidate without `SOURCE_PARTITION` authority;
 - malformed authority/coordinate declarations fail closed;
-- a valid explicit authority declaration can admit the candidate when the dataset signature has compatible categorical/numeric capacity.
+- a valid explicit authority declaration can admit the candidate only when the dataset signature has compatible categorical/numeric capacity.
 
 C2/C3 must additionally prove:
 
 - the exact named partition and coordinate fields are validated in Rust against the resident canonical dataset;
+- the partition field is logical categorical and each coordinate field is numeric;
 - no arbitrary categorical/color/`cluster` fallback exists;
 - output is bounded independently of source N and over-bound partitions refuse rather than merge/truncate/sample;
 - assigned, unassigned, coordinate-valid, and coordinate-excluded counts reconcile exactly;
 - clusters with no valid spatial members receive an explicit unavailable spatial summary rather than fabricated geometry;
-- semantic IDs and ordering are row-order invariant and scalar partition identities cannot collide;
+- semantic IDs and ordering are row-order invariant and canonical partition identities cannot collide;
 - raw rows/observation arrays do not cross the semantic payload;
 - pending/refused/stale/invalid semantic output cannot fall back to legacy cluster spheres or points.
 
