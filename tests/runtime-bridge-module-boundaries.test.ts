@@ -102,6 +102,7 @@ const publicFacadeExports = [
   'readU32',
   'refreshMemoryView',
   'requireRuntime',
+  'roundTripSemanticDetailEnvelopeV1',
   'roundTripSemanticEmbodimentPayloadV1',
   'runOperation',
   'sampleKeys',

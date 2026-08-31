@@ -54,6 +54,7 @@ export const WASM_TESTS = [
   'tests/runtime-bridge-concurrency.test.ts',
   'tests/runtime-recovery-endurance.test.ts',
   'tests/subsystem-resiliency-audit.test.ts',
+  'tests/semantic-drill-down.test.ts',
   'tests/vr-data-operations.test.ts',
   'tests/vr-metaphors.test.ts',
   'tests/vr-scalable-artefacts.test.ts',

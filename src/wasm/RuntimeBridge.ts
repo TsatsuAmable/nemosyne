@@ -89,6 +89,7 @@ export {
   adjustMonetaEvidence,
   adjustDracoEvidence,
   roundTripSemanticEmbodimentPayloadV1,
+  roundTripSemanticDetailEnvelopeV1,
   compileIntent,
   discoverStructures,
 } from './runtime/KernelContractBridge.ts';

@@ -1,5 +1,6 @@
 import type { Provenance } from '../../data/types.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import type { SemanticDetailEnvelopeV1 } from '../../moneta/representation/SemanticDrillDown.ts';
 import {
   allocBuffer,
   allocBytes,
@@ -142,6 +143,20 @@ export function roundTripSemanticEmbodimentPayloadV1(
   }
   return callJsonAbi(wasm.moneta_semantic_embodiment_v1_roundtrip.bind(wasm), input) as
     | SemanticEmbodimentEnvelopeV1
+    | null;
+}
+
+export function roundTripSemanticDetailEnvelopeV1(
+  input: SemanticDetailEnvelopeV1
+): SemanticDetailEnvelopeV1 | null {
+  let wasm: KernelContractRuntime;
+  try {
+    wasm = getRuntimeExports();
+  } catch {
+    return null;
+  }
+  return callJsonAbi(wasm.moneta_semantic_detail_v1_roundtrip.bind(wasm), input) as
+    | SemanticDetailEnvelopeV1
     | null;
 }
 
