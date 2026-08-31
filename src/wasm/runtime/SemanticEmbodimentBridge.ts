@@ -10,6 +10,10 @@ import type {
   ClusterEmbodimentRequestV1,
 } from '../../moneta/representation/ClusterEmbodimentPayload.ts';
 import type {
+  GraphEmbodimentEnvelopeV1,
+  GraphEmbodimentRequestV1,
+} from '../../moneta/representation/GraphEmbodimentPayload.ts';
+import type {
   SemanticDetailRequestV1,
   SemanticDetailEnvelopeV1,
 } from '../../moneta/representation/SemanticDrillDown.ts';
@@ -51,6 +55,13 @@ interface AggregateSemanticRuntime {
     outPtr: number,
     outLen: number,
   ): number;
+  moneta_build_graph_embodiment_v1(
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
   moneta_query_semantic_detail_v1(
     handle: number,
     inputPtr: number,
@@ -64,9 +75,13 @@ type EmbodimentRequestV1 =
   | AggregateEmbodimentRequestV1
   | DistributionEmbodimentRequestV1
   | DensityEmbodimentRequestV1
-  | ClusterEmbodimentRequestV1;
+  | ClusterEmbodimentRequestV1
+  | GraphEmbodimentRequestV1;
 
-type EmbodimentEnvelopeV1 = SemanticEmbodimentEnvelopeV1 | ClusterEmbodimentEnvelopeV1;
+type EmbodimentEnvelopeV1 =
+  | SemanticEmbodimentEnvelopeV1
+  | ClusterEmbodimentEnvelopeV1
+  | GraphEmbodimentEnvelopeV1;
 
 interface RetainedEmbodimentAuthority {
   readonly datasetFingerprint: string;
@@ -253,6 +268,22 @@ export function buildClusterSemanticEmbodimentV1(
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_build_cluster_embodiment_v1 !== 'function') return null;
   return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_cluster_embodiment_v1.bind(runtime));
+}
+
+/**
+ * Invoke the Rust-owned R2E B2 source-relationship-graph builder against an
+ * existing canonical resident dataset handle. Only the strict B1 source-edge
+ * authority and decision provenance cross this boundary; TypeScript performs
+ * no endpoint resolution, topology retention or layout work.
+ */
+export function buildGraphSemanticEmbodimentV1(
+  handle: number,
+  request: GraphEmbodimentRequestV1,
+): GraphEmbodimentEnvelopeV1 | null {
+  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
+  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
+  if (typeof runtime.moneta_build_graph_embodiment_v1 !== 'function') return null;
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_graph_embodiment_v1.bind(runtime));
 }
 
 /**

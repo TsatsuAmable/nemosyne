@@ -1,11 +1,11 @@
 # P1-R2E Relationship Graph — Stream B first structural slice
 
-**Status:** B1 VERIFIED COMPLETE ON #607 HEAD — B2 ACTIVE NEXT AFTER #607 MERGE  
+**Status:** B1 MERGED VIA #607 (`main@84a4b77`) — B2 IMPLEMENTED, PENDING INDEPENDENT ADVERSARIAL REVIEW + EXACT-HEAD GATES + MERGE  
 **Stream:** B — Source-Authoritative Structural Representations  
 **Scientific authority:** `docs/rfcs/0002-source-relationship-graph-authority.md`  
 **B1 closure review:** `review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`  
 **Integration base at start:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged)  
-**B1 promotion review base:** `main@1ea2920` (#606 merged); promotion finalizes only when #607's unchanged exact head passes all required gates and merges
+**B1 promotion review base:** `main@1ea2920` (#606 merged); promotion finalized on #607's unchanged exact head passing all required gates and merging as `main@84a4b77`
 
 ## Mission
 
@@ -29,7 +29,7 @@ Dataset.edges + explicit SOURCE_EDGES policy
 
 ## B1 — scientific / authority contract
 
-**Status:** VERIFIED COMPLETE ON #607 HEAD / PROMOTION PENDING FINAL EXACT-HEAD GATES + MERGE
+**Status:** VERIFIED COMPLETE — MERGED VIA #607 (`main@84a4b77`); ALL EXACT-HEAD GATES GREEN ON THE MERGED HEAD
 
 Required:
 
@@ -47,38 +47,42 @@ Required:
 - [x] mint `bootstrap-fitness-v5` / `fitness-treatment-v5` and Moneta v5 provenance;
 - [x] advance compatibility ontology provenance to `bootstrap-ontology-v2` because candidate limitations changed;
 - [x] executable Moneta-path falsifiers;
-- [ ] #607 exact-head CI / CodeQL / architecture / approval / Q8/Q9 all green on one unchanged final head;
+- [x] #607 exact-head CI / CodeQL / architecture / approval / Q8/Q9 all green on one unchanged final head;
 - [x] post-implementation adversarial review closure with no remaining B1 blocker;
-- [ ] merge #607 after every blocker and gate is closed.
+- [x] merge #607 after every blocker and gate is closed (merged as `main@84a4b77`).
 
 **B1 exit:** one deterministic, bounded, scientifically reviewable admission contract exists and adds no B2 production graph payload yet.
 
 ## B2 — resident Rust/WASM graph payload
 
-**Status:** ACTIVE NEXT AFTER #607 MERGE
+**Status:** IMPLEMENTED ON `stream-b/b2-graph-payload` (BASE `main@84a4b77`) — PENDING INDEPENDENT ADVERSARIAL REVIEW + EXACT-HEAD GATES + MERGE
 
 Required design/execution:
 
-- consume canonical resident source rows/row IDs plus source edges;
-- resolve numeric endpoints as source-row positions and strings only against durable resident row IDs;
-- refuse any unresolved endpoint before returning READY;
-- retain isolated nodes, directionality, parallel edges and self-loops exactly;
-- define deterministic semantic node and edge IDs independent of presentation layout;
-- decide edge-ID identity for exact duplicate parallel edges without collapsing multiplicity;
-- preserve source weight where finite/allowed and make missing/non-finite weight policy explicit;
-- apply node/edge/payload bounds before output growth;
-- emit explicit source/retained/refused counts and resource envelope;
-- keep payload ordering deterministic;
-- prove real-WASM parity and no raw-row graph payload transfer.
+- [x] consume canonical resident source rows/row IDs plus source edges;
+- [x] resolve numeric endpoints as source-row positions and strings only against durable resident row IDs;
+- [x] refuse any unresolved endpoint before returning READY (whole-payload `MISSING_EVIDENCE` refusal; out-of-range numeric endpoints additionally fail closed at the resident dataset-construction boundary);
+- [x] retain isolated nodes, directionality, parallel edges and self-loops exactly;
+- [x] define deterministic semantic node and edge IDs independent of presentation layout (SHA-256 over schema/candidate/identity preimages; canonical node order = durable row IDs ascending);
+- [x] decide edge-ID identity for exact duplicate parallel edges without collapsing multiplicity (occurrence counter in the ID preimage);
+- [x] preserve source weight where finite/allowed and make missing/non-finite weight policy explicit (missing weight stays absent; non-finite weight refuses the payload);
+- [x] apply node/edge/payload bounds before output growth;
+- [x] emit explicit source/retained/refused counts and resource envelope;
+- [x] keep payload ordering deterministic (endpoints, then exact weight bit pattern, then source position);
+- [x] prove real-WASM parity and no raw-row graph payload transfer (`tests/p1r-r2e-b2-graph-payload-wasm.test.ts`, real WASM + real Worker).
 
 B2 additionally owns the residual B1 review obligations:
 
-- enforce all three B1 bounds (node/edge/**payload-bytes**) at the Rust/WASM authority, not only in vocabulary helpers;
-- preserve the strict `validateSourceRelationshipGraphAuthority` semantics when graph authority is wired into a real production execution surface; do not introduce a weaker parallel parser;
-- extend #607's `Dataset -> buildDatasetSignature -> arbitrate` source-binding fixture through the actual `AtlasCore`/analytical Worker/resident Rust execution path so endpoint identity and source topology cannot diverge after arbitration;
-- add a named production-path falsifier proving no correlation, k-NN, visual proximity or layout fallback can create an edge.
+- [x] enforce all three B1 bounds (node/edge/**payload-bytes**) at the Rust/WASM authority, not only in vocabulary helpers;
+- [x] preserve the strict `validateSourceRelationshipGraphAuthority` semantics when graph authority is wired into a real production execution surface; do not introduce a weaker parallel parser (`loadGraphSemanticEmbodiment` validates through the shared strict validator, and the strict Rust mirror with `deny_unknown_fields` fails to parse widened vocabulary at the ABI boundary);
+- [x] extend #607's `Dataset -> buildDatasetSignature -> arbitrate` source-binding fixture through the actual `AtlasCore`/analytical Worker/resident Rust execution path so endpoint identity and source topology cannot diverge after arbitration (the real-Worker test registers a `Dataset` with durable row IDs and mixed numeric/string endpoints and binds the emitted node identities to those rows);
+- [x] add a named production-path falsifier proving no correlation, k-NN, visual proximity or layout fallback can create an edge ("proximity, correlation and k-NN can never invent graph edges").
 
-**B2 adversarial question:** can row order, duplicate edges, string/numeric endpoint mixtures or endpoint churn change semantic identity unexpectedly? Resolve before promotion.
+**Measured envelope interaction (designed property, not a defect):** the 2 MiB payload-byte bound binds before the 16,384-edge bound for identity-rich graphs — 16,384 full semantic edge entries serialize at ≈2.18 MiB and are `RESOURCE_LIMIT`-refused on the byte bound. Both bounds are enforced independently and fail closed; the reachable edge ceiling under the byte bound is therefore lower than the declared edge envelope for realistic payloads. Recorded in the `MAX_RELATIONSHIP_GRAPH_PAYLOAD_BYTES_V1` doc comment and pinned by the byte-bound refusal tests.
+
+**Evidence-workflow scope note:** following the R2D C2 resident-builder precedent, B2 adds no dedicated browser evidence workflow; B2 evidence is real-WASM + real-Worker tests running in the CI lanes, and the B4 evidence matrix owns product/browser evidence for the graph family.
+
+**B2 adversarial question:** can row order, duplicate edges, string/numeric endpoint mixtures or endpoint churn change semantic identity unexpectedly? Resolve before promotion. Answered by the row-order/edge-order permutation-invariance tests (byte-identical payload across reordered registrations), the duplicate-parallel-edge ID distinctness tests and the tamper validator; independent review must still confirm.
 
 ## B3 — production cutover + thin graph adapter
 
