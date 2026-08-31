@@ -152,10 +152,14 @@ describe('P1-R6B rank-effective family membership treatment', () => {
     expect(component(temporal, 'task')).toBe(1);
   });
 
-  it('removes the duplicate family-generated layout variants from bootstrap search', () => {
+  it('removes duplicate family-generated layout variants and records the new treatment in decisions', () => {
     const signature = minimalDatasetSignature(5_000, 3, 0, 0, 'r6b-search-space', 0);
     const decision = MonetaHypothesisEngine.arbitrate(signature, neutralRequirements());
     const ranked = decision.rankedCandidates ?? [];
+
+    expect(decision.fitnessModelVersion).toBe('bootstrap-fitness-v3');
+    expect(decision.provenance.fitnessModelVersion).toBe('bootstrap-fitness-v3');
+    expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v3');
 
     const density = ranked.filter((candidate) => candidate.candidateId === 'DENSITY_FIELD');
     expect(new Set(density.map((candidate) => candidate.family))).toEqual(new Set(['DISTRIBUTION']));
