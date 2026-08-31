@@ -329,10 +329,11 @@ export class SemanticDetailTransition {
       return refusedInspection(observationId, 'no active bounded semantic detail');
     }
 
-    const offset = this.snapshotValue.observationIds.indexOf(observationId);
-    if (offset < 0) {
+    const pageOffset = this.snapshotValue.observationIds.indexOf(observationId);
+    if (pageOffset < 0) {
       return refusedInspection(observationId, 'observation is not in the active bounded detail page');
     }
+    const exactOffset = context.request.offset + pageOffset;
 
     const port = this.authority.executionPort;
     if (!port?.isAsync || port.hasRegisteredDataset?.(context.generation, context.fingerprint) !== true) {
@@ -352,7 +353,7 @@ export class SemanticDetailTransition {
     const request: SemanticDetailRequestV1 = {
       ...context.request,
       limit: 1,
-      offset,
+      offset: exactOffset,
       investigationContext: `${this.authority.sessionId}: inspect exact datum ${observationId} from ${context.parent.semanticId}`,
     };
 
