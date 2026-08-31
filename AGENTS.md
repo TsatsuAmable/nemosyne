@@ -6,11 +6,11 @@ This is the canonical tool-neutral engineering contract for AI-assisted work in 
 
 Read these in order when they are relevant:
 
-1. `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` — product, research, and architecture direction.
-2. `docs/ROADMAP.md` — live implementation status, review findings, and current programme order.
-3. `docs/ARCHITECTURE.md` — current technical reference, subordinate to the governing vision while migration is active.
-4. Executable configuration — `package.json`, `.github/workflows/*.yml`, `vitest*.config.ts`, `rust-toolchain.toml`, and source code are authoritative for commands, versions, thresholds, and runtime behavior.
-5. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` — documentation authority and lifecycle.
+1. `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` - product, research, and architecture direction.
+2. `docs/ROADMAP.md` - live implementation status, current Streams A-D, collision rules, review findings, and programme order.
+3. `docs/ARCHITECTURE.md` - current technical reference, subordinate to the governing vision while migration is active.
+4. Executable configuration - `package.json`, `.github/workflows/*.yml`, `vitest*.config.ts`, `rust-toolchain.toml`, and source code are authoritative for commands, versions, thresholds, and runtime behavior.
+5. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` - documentation authority and lifecycle.
 
 **Executable configuration wins over duplicated prose facts.** Do not copy dependency versions, coverage thresholds, CI job topology, test counts, or other machine-readable values into agent instructions. If prose conflicts with executable configuration, fix or archive the prose.
 
@@ -99,22 +99,29 @@ The required CI graph is defined only by `.github/workflows/ci.yml`. Coverage po
 
 During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. For high-risk work, derive those checks from the pre-implementation adversarial contract. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface and complete the post-implementation adversarial review. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
 
-## Three-stream operating model
+## Current four-stream operating model
 
-- **Stream A:** forward implementation under `docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`, including the mandatory pre/post adversarial cycle for high-risk work.
-- **Stream B:** independent adversarial review and fix-forward. Green CI is necessary evidence, not proof of architectural or scientific completion; Stream B may reopen earlier completion claims when evidence is insufficient.
-- **Stream C:** security authority and live-path assurance under `docs/STREAM_C_SECURITY_ASSURANCE.md`; security-sensitive implementation is high-risk by default and follows the same pre/post adversarial cycle.
+The active implementation topology is defined in `docs/ROADMAP.md`. The previous A/B/C execution wave is complete; historical files keep their original stream labels for provenance and must not be treated as current ownership.
 
-Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus independent review evidence.
+- **Stream A - Progressive Disclosure & Semantic Drill-down:** owns the generic structure/region/group -> bounded observation subset -> datum/provenance contract and production transition semantics. It is the shared semantic integration spine.
+- **Stream B - Source-Authoritative Structural Representations:** owns representation-specific source graph/hierarchy/temporal/geospatial/spectral scientific contracts, Rust/WASM payloads and thin adapters. It must consume Stream A's generic drill-down contract rather than invent a competing one.
+- **Stream C - Visible Investigator Product Convergence:** owns product shell/world-object presentation, epistemic-object usefulness, state legibility and desktop/XR task parity. It consumes analytical truth and may not infer scientific facts from visual presentation.
+- **Stream D - Assurance & Private-Preview Readiness:** owns Quest validation operations plus the unresolved security/privacy/supply-chain/WASM assurance work and later qualification/production-readiness gates. The legacy file `docs/STREAM_C_SECURITY_ASSURANCE.md` is now a Stream D subordinate finding set despite its historical name.
+
+Default concurrency is one open implementation PR per current stream. Stream D may use disjoint QV and security-assurance sub-lanes only when changed-file sets and governance contracts do not collide. Shared integration files named in `docs/ROADMAP.md` are exclusive integration seams: do not create competing versions of the same generic contract across branches.
+
+Independent adversarial review is **cross-cutting process, not a fifth stream**. Each stream must obtain the review/evidence required by its checkpoint before promotion.
+
+Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus the programme-specific evidence and independent review disposition.
 
 ## Documentation discipline
 
 - `docs/PROJECT_DOCS_INDEX.md` defines human-facing authority; `docs/DOCS_MANIFEST.json` is the machine-readable lifecycle map.
-- Historical reports and superseded plans belong under `docs/archive/`; they must never be treated as current authority.
+- Historical reports and superseded plans belong under `docs/archive/`; historical stream names in retained review/evidence documents are provenance, not live ownership.
 - Do not create a new status document when the information belongs in `ROADMAP.md`, the findings ledger, an ADR, or an existing technical reference.
 - Do not duplicate executable facts in prose. Link to the source instead.
 - Any change to a canonical document, agent contract, CI policy, or documentation authority must pass `npm run docs:check`.
-- When touching stale documentation, update it or archive it in the same change rather than preserving contradictory truth.
+- When touching stale documentation, update it or clearly subordinate its status to `docs/ROADMAP.md` rather than preserving contradictory operational truth.
 
 ## Review and handoff discipline
 
