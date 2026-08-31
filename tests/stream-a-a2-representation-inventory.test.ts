@@ -170,7 +170,7 @@ function densityEnvelope(): SemanticEmbodimentEnvelopeV1 {
             { semanticId: 'density-cell:0:0', xIndex: 0, yIndex: 0, xLowerBound: 0, xUpperBound: 1, yLowerBound: 0, yUpperBound: 1, count: 2, xUpperInclusive: false, yUpperInclusive: false },
             { semanticId: 'density-cell:1:0', xIndex: 1, yIndex: 0, xLowerBound: 1, xUpperBound: 2, yLowerBound: 0, yUpperBound: 1, count: 1, xUpperInclusive: true, yUpperInclusive: false },
             { semanticId: 'density-cell:0:1', xIndex: 0, yIndex: 1, xLowerBound: 0, xUpperBound: 1, yLowerBound: 1, yUpperBound: 2, count: 1, xUpperInclusive: false, yUpperInclusive: true },
-            { semanticId: 'density-cell:1:1', xIndex: 1, yIndex: 0, xLowerBound: 1, xUpperBound: 2, yLowerBound: 1, yUpperBound: 2, count: 2, xUpperInclusive: true, yUpperInclusive: true },
+            { semanticId: 'density-cell:1:1', xIndex: 1, yIndex: 1, xLowerBound: 1, xUpperBound: 2, yLowerBound: 1, yUpperBound: 2, count: 2, xUpperInclusive: true, yUpperInclusive: true },
           ],
         },
       },
@@ -271,11 +271,15 @@ function solverResult(entry: InventoryEntry): SolverResult {
 function inputThatForbidsRawRows(candidateId: SemanticRepresentationId): MonetaDataInput {
   const input = { encodings: {} } as MonetaDataInput & {
     semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1;
+    semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
   };
   if (candidateId === 'AGGREGATE_VOLUME') input.semanticEmbodiment = aggregateEnvelope();
   if (candidateId === 'DISTRIBUTION_FIELD') input.semanticEmbodiment = distributionEnvelope();
   if (candidateId === 'DENSITY_FIELD') input.semanticEmbodiment = densityEnvelope();
-  if (candidateId === 'CLUSTER_REGIONS') input.semanticEmbodiment = clusterEnvelope();
+  if (candidateId === 'CLUSTER_REGIONS') {
+    input.semanticEmbodiment = clusterEnvelope();
+    input.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
+  }
   Object.defineProperty(input, 'rows', {
     configurable: true,
     get() { throw new Error(RAW_ROW_SENTINEL); },
@@ -343,7 +347,7 @@ describe('Stream A representation inventory', () => {
     }
   });
 
-  it('keeps remaining semantic overclaims explicit while migrated adapters stay row-free', () => {
+  it('keeps semantic overclaims explicit while candidate authority stays separate from geometry primitives', () => {
     const translator = rendererSource('src/moneta/VRTopologyTranslator.ts');
     const densityAdapter = rendererSource('src/moneta/embodiment/DensitySemanticEmbodiment.ts');
     const clusterAdapter = rendererSource('src/moneta/embodiment/ClusterSemanticEmbodiment.ts');
@@ -351,10 +355,17 @@ describe('Stream A representation inventory', () => {
     const bootstrap = rendererSource('src/moneta/representation/MonetaHypothesisEngine.ts');
 
     expect(translator).not.toContain('const rows = dataset?.rows ?? dataInput.rows ?? [];');
-    expect(translator).toContain('buildDensitySemanticField(');
+    expect(translator).toContain('buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment)');
+    expect(translator).toContain("semanticEmbodimentCandidateId === 'CLUSTER_REGIONS'");
     expect(translator).toContain('buildClusterSemanticRegions(');
+    expect(translator).toContain('scalable.buildClusterVolume(');
+    expect(translator.indexOf('buildClusterSemanticRegions(')).toBeLessThan(
+      translator.indexOf('rows = dataset?.rows')
+    );
+    expect(translator.indexOf('scalable.buildClusterVolume(')).toBeGreaterThan(
+      translator.indexOf('rows = dataset?.rows')
+    );
     expect(translator).not.toContain('scalable.buildDensityField(');
-    expect(translator).not.toContain('.buildClusterVolume(');
     expect(densityAdapter).not.toContain('dataset.rows');
     expect(densityAdapter).not.toContain('computeLayoutPositions');
     expect(densityAdapter).not.toContain('for (const row');
