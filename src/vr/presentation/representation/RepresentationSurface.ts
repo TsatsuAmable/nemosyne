@@ -16,6 +16,7 @@ export interface RepresentationInteractableOptions {
 export interface SemanticSelectionIdentity {
   semanticId: string;
   datasetFingerprint: string | null;
+  decisionId: string | null;
 }
 
 export interface RepresentationSurfaceDependencies {
@@ -62,14 +63,22 @@ function semanticSelectionIdentity(mesh: Mesh | null): SemanticSelectionIdentity
       typeof mesh.userData.datasetFingerprint === 'string'
         ? mesh.userData.datasetFingerprint
         : null,
+    decisionId:
+      typeof mesh.userData.provenance?.decisionId === 'string' &&
+      mesh.userData.provenance.decisionId.length > 0
+        ? mesh.userData.provenance.decisionId
+        : null,
   };
 }
 
 function matchesSemanticSelection(mesh: Mesh, identity: SemanticSelectionIdentity): boolean {
   const candidate = semanticSelectionIdentity(mesh);
-  if (!candidate || candidate.semanticId !== identity.semanticId) return false;
-  if (identity.datasetFingerprint === null) return candidate.datasetFingerprint === null;
-  return candidate.datasetFingerprint === identity.datasetFingerprint;
+  return (
+    candidate !== null &&
+    candidate.semanticId === identity.semanticId &&
+    candidate.datasetFingerprint === identity.datasetFingerprint &&
+    candidate.decisionId === identity.decisionId
+  );
 }
 
 /** Owns the resources that constitute the currently rendered Moneta representation. */
