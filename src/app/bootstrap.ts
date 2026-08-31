@@ -9,6 +9,7 @@ import { allSampleDatasets } from '../data/SampleDatasets.ts';
 import { WorldTopics } from '../utils/EventBus.ts';
 import '../ui/components/index.ts';
 import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
+import { SemanticDetailTransition } from './dataset/SemanticDetailTransition.ts';
 import {
   setupDevTraceRecorder,
   type DevTraceBindings,
@@ -170,6 +171,16 @@ export async function bootstrapApp(): Promise<AppInstance> {
       console.error('[ApplicationIntent] input dispatch failed:', error),
   });
   world.dispatchIntent = dispatchCanonicalIntent;
+
+  // A3 progressive disclosure is composed here rather than in World: the
+  // controller sees only the generic representation selection surface and the
+  // canonical analytical authority. It cannot inspect or materialise source
+  // rows, and its teardown follows the same extension ownership contract.
+  const semanticDetailTransition = new SemanticDetailTransition(
+    world.representationSurface,
+    world.atlas,
+  );
+  world.registerExtensionDisposer(() => semanticDetailTransition.dispose());
 
   applyNormalAnalystShell(world);
 
