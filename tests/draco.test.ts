@@ -274,7 +274,14 @@ describe('VRTopologyTranslator', () => {
       dataset: orgChart,
       maxDepth: 3,
     });
-    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+    // The test owns hierarchy layout behavior, not CLUSTER_REGIONS authority.
+    // Force the hierarchy-native row-backed geometry so a legacy solver tie on
+    // CLUSTER_VOLUME cannot bypass C3's semantic-payload requirement.
+    const presentationResult = {
+      ...result,
+      spec: { ...result.spec, geometry: 'CONICAL_TREE' },
+    };
+    const artifact = VRTopologyTranslator.synthesizeArtifact(presentationResult, {
       topology: TopologyTypes.HIERARCHY,
       dataset: orgChart,
       maxDepth: 3,
