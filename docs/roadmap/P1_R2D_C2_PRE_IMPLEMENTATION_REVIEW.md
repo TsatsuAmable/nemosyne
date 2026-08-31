@@ -41,8 +41,9 @@ TypeScript may later carry the request and parse the bounded envelope, but C2 in
 - If no assigned group has any valid tuple, return `MISSING_EVIDENCE` rather than READY.
 - READY approximation is `BOUNDED`; `representedRowCount = coordinateValidCount`.
 - Partition membership/group counts remain exact despite bounded spatial summarisation.
-- Stable semantic IDs derive from dataset fingerprint, partition-field identity and canonical source label, not iteration index.
-- Output ordering is deterministic and row-order invariant.
+- The envelope's canonical `datasetFingerprint` owns exact artifact/provenance identity and may change under row permutation.
+- Region-local semantic IDs derive from schema version, candidate identity, partition-field identity and canonical source label, not from row-order-sensitive dataset fingerprint or iteration index. Their uniqueness is scoped by the fingerprinted envelope.
+- Output ordering and region-local payload summaries are deterministic and row-order invariant.
 - Crossing the group limit returns `RESOURCE_LIMIT`; no merge, truncate, sample or `other` bucket is allowed.
 - No raw rows, observation-ID arrays or nested source fragments may cross the semantic envelope.
 
@@ -55,7 +56,7 @@ TypeScript may later carry the request and parse the bounded envelope, but C2 in
 5. **Zero-value loss**: `(0,0)` and zero on any axis must remain valid represented coordinates.
 6. **Unavailable group fabrication**: a group with no complete coordinate tuple remains explicit with `spatialSummary: null`; if every group is unavailable, the request refuses.
 7. **Resource overrun**: 257 assigned labels must refuse before a 257-element payload is produced.
-8. **Identity instability**: row permutation and insertion of a lexically earlier unrelated group must not change existing group IDs.
+8. **Identity instability**: row permutation may change the envelope fingerprint but must not change region-local IDs, region ordering or bounded summaries; inserting a lexically earlier unrelated group must not renumber existing IDs.
 9. **Non-finite leakage**: NaN/Infinity never appears in READY JSON.
 10. **Boundary overclaim**: method/approximation/information metadata must describe a bounded descriptive partition summary, not exact observation embodiment, support boundaries, density, confidence regions or inferred clusters.
 11. **Architecture leak**: C2 changes no Worker, renderer or graph-semantic files.
