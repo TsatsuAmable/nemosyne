@@ -68,6 +68,21 @@ describe('P1-R density M2 Rust binned-density builder', () => {
       expect(envelope?.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
       expect(envelope?.candidateId).toBe('DENSITY_FIELD');
       expect(envelope?.representationFamily).toBe('DENSITY');
+      expect(envelope?.analyticalMethod).toMatchObject({
+        name: 'bivariate-binned-density',
+        version: 'binned-density-contract-v1',
+      });
+      expect(envelope?.provenance.algorithmVersion).toBe('bivariate-binned-density-columnar-v1');
+      expect(envelope?.informationContract).toEqual({
+        preserves: ['empirical-bivariate-bin-mass'],
+        loses: [
+          'individual-observation-identity',
+          'exact-metric-values',
+          'population-density-distribution',
+          'empirical-distribution-shape',
+          'outlier-boundary-visibility',
+        ],
+      });
       expect(envelope?.approximation).toMatchObject({ mode: 'BINNED', representedRowCount: 3 });
       expect(envelope?.resource).toMatchObject({ sourceRowCount: 5, elementCount: 4 });
 
