@@ -3,6 +3,7 @@ import type {
   DensityEmbodimentRequestV1,
   DistributionEmbodimentRequestV1,
   SemanticEmbodimentEnvelopeV1,
+  SemanticEmbodimentFamilyV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import type {
   ClusterEmbodimentEnvelopeV1,
@@ -59,6 +60,123 @@ interface AggregateSemanticRuntime {
   ): number;
 }
 
+type EmbodimentRequestV1 =
+  | AggregateEmbodimentRequestV1
+  | DistributionEmbodimentRequestV1
+  | DensityEmbodimentRequestV1
+  | ClusterEmbodimentRequestV1;
+
+type EmbodimentEnvelopeV1 = SemanticEmbodimentEnvelopeV1 | ClusterEmbodimentEnvelopeV1;
+
+interface RetainedEmbodimentAuthority {
+  readonly datasetFingerprint: string;
+  readonly representationFamily: SemanticEmbodimentFamilyV1;
+  readonly decisionId?: string;
+  readonly decisionModelVersion?: string;
+  readonly decisionModelArtifactHash?: string;
+  readonly request: EmbodimentRequestV1;
+}
+
+const retainedEmbodimentAuthority = new Map<string, RetainedEmbodimentAuthority>();
+
+function authorityKey(
+  handle: number,
+  family: SemanticEmbodimentFamilyV1,
+  decisionId?: string,
+): string {
+  return `${handle}\u0000${family}\u0000${decisionId ?? ''}`;
+}
+
+function retainAuthoritativeRequest(
+  handle: number,
+  request: EmbodimentRequestV1,
+  envelope: EmbodimentEnvelopeV1,
+): void {
+  if (envelope.result.status !== 'READY') return;
+
+  const decisionId = request.decisionId;
+  if (decisionId !== undefined && envelope.provenance.decisionId !== decisionId) return;
+  if (
+    request.decisionModelVersion !== undefined &&
+    envelope.provenance.decisionModelVersion !== request.decisionModelVersion
+  ) {
+    return;
+  }
+  if (
+    request.decisionModelArtifactHash !== undefined &&
+    envelope.provenance.decisionModelArtifactHash !== request.decisionModelArtifactHash
+  ) {
+    return;
+  }
+
+  retainedEmbodimentAuthority.set(
+    authorityKey(handle, envelope.representationFamily, decisionId),
+    {
+      datasetFingerprint: envelope.datasetFingerprint,
+      representationFamily: envelope.representationFamily,
+      decisionId,
+      decisionModelVersion: request.decisionModelVersion,
+      decisionModelArtifactHash: request.decisionModelArtifactHash,
+      request: structuredClone(request),
+    },
+  );
+}
+
+function resolveAuthoritativeRequest(
+  handle: number,
+  request: SemanticDetailRequestV1,
+): EmbodimentRequestV1 | null {
+  const { target } = request;
+  const exact = retainedEmbodimentAuthority.get(
+    authorityKey(handle, target.representationFamily, target.decisionId),
+  );
+  const legacy = retainedEmbodimentAuthority.get(
+    authorityKey(handle, target.representationFamily),
+  );
+  const authority = exact ?? legacy;
+  if (!authority) return null;
+  if (authority.datasetFingerprint !== target.datasetFingerprint) return null;
+  if (authority.representationFamily !== target.representationFamily) return null;
+  if (authority.decisionId !== undefined && authority.decisionId !== target.decisionId) return null;
+  return structuredClone(authority.request);
+}
+
+function parseEnvelope<T extends EmbodimentEnvelopeV1>(bytes: Uint8Array): T {
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+
+function invokeEmbodimentBuilder<TRequest extends EmbodimentRequestV1, TEnvelope extends EmbodimentEnvelopeV1>(
+  handle: number,
+  request: TRequest,
+  invoke: (
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ) => number,
+): TEnvelope | null {
+  const input = new TextEncoder().encode(JSON.stringify(request));
+  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
+  try {
+    const required = invoke(handle, inputPtr, inputLen, 0, 0);
+    if (!Number.isSafeInteger(required) || required <= 0) return null;
+
+    const output = allocBuffer(required);
+    try {
+      const written = invoke(handle, inputPtr, inputLen, output.ptr, output.len);
+      if (written !== required) return null;
+      const envelope = parseEnvelope<TEnvelope>(readBytes(output.ptr, written));
+      retainAuthoritativeRequest(handle, request, envelope);
+      return envelope;
+    } finally {
+      deallocBuffer(output.ptr, output.len);
+    }
+  } finally {
+    deallocBytes(inputPtr, inputLen);
+  }
+}
+
 /**
  * Invoke the Rust-owned A4 aggregate builder against an existing canonical
  * dataset handle. Request JSON contains parameters/provenance only; dataset rows
@@ -71,37 +189,7 @@ export function buildAggregateSemanticEmbodimentV1(
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_build_aggregate_embodiment_v1 !== 'function') return null;
-
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_aggregate_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_aggregate_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_aggregate_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -116,37 +204,7 @@ export function buildDistributionSemanticEmbodimentV1(
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_build_distribution_embodiment_v1 !== 'function') return null;
-
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_distribution_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_distribution_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_distribution_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -161,37 +219,7 @@ export function buildDensitySemanticEmbodimentV1(
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_build_density_embodiment_v1 !== 'function') return null;
-
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_density_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_density_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_density_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -206,56 +234,34 @@ export function buildClusterSemanticEmbodimentV1(
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_build_cluster_embodiment_v1 !== 'function') return null;
-
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_cluster_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_cluster_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as ClusterEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_cluster_embodiment_v1.bind(runtime));
 }
 
 /**
  * Invoke the Rust-owned progressive disclosure query resolver against an
  * existing canonical resident dataset handle.
+ *
+ * Detail membership is intentionally bound to the exact request retained when
+ * Rust produced the READY semantic embodiment. The caller-supplied request is
+ * accepted only for API compatibility and is never allowed to reinterpret an
+ * existing semantic object under different fields, bins, or grouping rules.
  */
 export function querySemanticDetailV1(
   handle: number,
   request: SemanticDetailRequestV1,
-  embodimentRequest: unknown,
+  _embodimentRequest: unknown,
   generation: number,
 ): SemanticDetailEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_query_semantic_detail_v1 !== 'function') return null;
 
+  const authoritativeRequest = resolveAuthoritativeRequest(handle, request);
+  if (!authoritativeRequest) return null;
+
   const payload = {
     request,
-    embodimentRequest,
+    embodimentRequest: authoritativeRequest,
     generation,
   };
 
@@ -290,4 +296,3 @@ export function querySemanticDetailV1(
     deallocBytes(inputPtr, inputLen);
   }
 }
-
