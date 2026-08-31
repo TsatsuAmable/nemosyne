@@ -2,9 +2,9 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file answers the operational questions: what is active now, which stream owns it, which PR comes next, what may run in parallel, what evidence is required, and what must wait. Detailed programme documents remain the specification/evidence authority for their own scope.
 
-## Status snapshot - 30 August 2026
+## Status snapshot - 31 August 2026
 
-**Roadmap integration base:** `main@668d178986498cb9963bc06994ec9ca74427a8af` (#568 merged).
+**Roadmap integration base:** `main@3cfbf41032a9760f467dd6a919b8b1fff882d61c` (#577 merged).
 
 The completed three-stream convergence wave established the next representation frontier:
 
@@ -23,18 +23,22 @@ The completed three-stream convergence wave established the next representation 
 - #530, #534 and #536 completed the finite Stream C collaboration-authority wave at implementation/review level;
 - #531, #535, #539-#543 completed the finite Stream B validation/baseline/task-first/contextual-locus wave at implementation/review level.
 
-The previous A/B/C wave is closed to new scope. **Stream M — Moneta Distribution Truth** has also reached its finite exit: #544 established the stream and model routing, #547/#548 landed M1's governed contract and evidence, #549 landed the Rust/WASM builder, #550 landed the production cutover, #551 closed the density/outlier overclaim found in independent contract review, and #552 landed the visible product/scale/perceptual evidence handoff.
+The previous A/B/C wave is closed to new scope. **Stream M - Moneta Distribution Truth** has also reached its finite exit: #544 established the stream and model routing, #547/#548 landed M1's governed contract and evidence, #549 landed the Rust/WASM builder, #550 landed the production cutover, #551 closed the density/outlier overclaim found in independent contract review, and #552 landed the visible product/scale/perceptual evidence handoff.
 
 The post-M **UI convergence wave** has completed its substrate and shell convergence:
 
-- #563 landed B-V1 visual system convergence (token canonicalisation, `MovablePanel` cleanup, palette deprecation, `VRMenu`/`SpatialAssetRegistry` removal, CSS variable injection);
+- #563 landed B-V1 visual system convergence (token canonicalisation, `MovablePanel` cleanup, palette deprecation, `VRMenu` retokenisation/retention pending a replacement for its curated live-source chooser, `SpatialAssetRegistry` removal, CSS variable injection);
 - #564 replaced feature-`World` hosts with ports (`World` no longer the service container);
 - #565 owned the analytical runtime lifecycle in `AnalyticalRuntimeOwner`;
 - #566 isolated dev evidence installation (UV0/RF-062h);
 - #567 retired `World` compatibility scaffolding (RF-062i);
-- #568 landed the modern unified UI system: shared design-system components (`Card`, `Button`, `Toast`, `Modal`, `Tooltip`, `CommandPalette`), `InvestigationShell` replacing `AnalystJourneyControls`, `PanelRolesManager` simplified to `primary | secondary | diagnostic | system` with `ANALYST | DEVELOPER` modes, and `CommandPalette` (⌘K) parity.
+- #568 landed the modern unified UI system: shared design-system components (`Card`, `Button`, `Toast`, `Modal`, `Tooltip`, `CommandPalette`), `InvestigationShell` replacing `AnalystJourneyControls`, `PanelRolesManager` simplified to `primary | secondary | diagnostic | system` with `ANALYST | DEVELOPER` modes, and `CommandPalette` (⌘K) parity;
+- #572 railed P1-R2C Density Truth and recorded the post-UI/density adversarial findings;
+- #573 closed RF-063/RF-067/RF-068 in the unified UI path;
+- #576 closed RF-064/RF-065/RF-066 and versioned the truthful density ranking treatment;
+- #577 completed the remaining density M1R constant-domain contract and real-WASM proof.
 
-No post-UI implementation stream is active. Select and rail the next wave from the recorded product, scientific and resource evidence rather than continuing the representation candidate list automatically.
+**P1-R2C Density Truth is the active finite representation programme.** M1 (#570), M2 (#571), and M1R (#576/#577) are landed. **M3 production cutover is next.** R2C must stop after M4 and independent review rather than continuing automatically into cluster, inferred topology, or another representation family.
 
 The dependency chain remains:
 
@@ -76,6 +80,7 @@ A stream must stop at its exit gate and report. It must not continue into the ne
 Detailed authorities used by this execution wave:
 
 - [`roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`](roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md) - P1-R semantic embodiment convergence;
+- [`roadmap/P1_R2C_DENSITY_TRUTH.md`](roadmap/P1_R2C_DENSITY_TRUTH.md) - active finite density truth checkpoint rail;
 - [`roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`](roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md) - visible product convergence;
 - [`roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`](roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md) - Quest validation operations;
 - [`review-plans/RF062_WORLD_COMPOSITION_ROOT_CONVERGENCE_2026-08-29.md`](review-plans/RF062_WORLD_COMPOSITION_ROOT_CONVERGENCE_2026-08-29.md) - World composition-root convergence;
@@ -90,15 +95,15 @@ Detailed authorities used by this execution wave:
 
 | Stream | Mission | Current finite exit |
 | --- | --- | --- |
-| **A - Analytical Scale & Representation Authority** | A1-A4 merged; A4 aggregate is `VERIFIED COMPLETE` for its bounded scope. | **EXITED** — do not reopen as a generic representation programme. |
-| **B - Product UX & Quest Validation Operations** | B1-B5 merged; Quest attribution, visible baseline, task-first shell and contextual locus are implementation-landed/review-active. | **FINITE CHECKPOINTS MERGED** — residual UV/device evidence remains separately gated. |
-| **C - Security & Collaboration Authority** | C1-C3 landed/reviewed; finite collaboration admission/framing/class-review exit is satisfied, with recorded residuals. | **EXITED** — later RF-039-RF-043 require a separately railed security wave. |
+| **A - Analytical Scale & Representation Authority** | A1-A4 merged; A4 aggregate is `VERIFIED COMPLETE` for its bounded scope. | **EXITED** - do not reopen as a generic representation programme. |
+| **B - Product UX & Quest Validation Operations** | B1-B5 merged; Quest attribution, visible baseline, task-first shell and contextual locus are implementation-landed/review-active. | **FINITE CHECKPOINTS MERGED** - residual UV/device evidence remains separately gated. |
+| **C - Security & Collaboration Authority** | C1-C3 landed/reviewed; finite collaboration admission/framing/class-review exit is satisfied, with recorded residuals. | **EXITED** - later RF-039-RF-043 require a separately railed security wave. |
 
 The old rule prohibiting a fourth stream applied to this now-completed wave. It must not be used to restart A/B/C scope implicitly.
 
 ---
 
-# Completed execution wave: Stream M — Moneta Distribution Truth
+# Completed execution wave: Stream M - Moneta Distribution Truth
 
 ## Mission and finite exit
 
@@ -118,10 +123,10 @@ Stream M stopped after the production `DISTRIBUTION_FIELD` candidate was classif
 
 | Checkpoint                                | Landed evidence                             | Status     |
 | ----------------------------------------- | ------------------------------------------- | ---------- |
-| **M1 — contract/falsifiers**              | #547 implementation; #548 governed evidence | **MERGED** |
-| **M2 — Rust/WASM builder**                | #549                                        | **MERGED** |
-| **M3 — production cutover**               | #550; #551 independent contract correction  | **MERGED** |
-| **M4 — product/scale/perceptual handoff** | #552; exact-head browser run 33278263468    | **MERGED** |
+| **M1 - contract/falsifiers**              | #547 implementation; #548 governed evidence | **MERGED** |
+| **M2 - Rust/WASM builder**                | #549                                        | **MERGED** |
+| **M3 - production cutover**               | #550; #551 independent contract correction  | **MERGED** |
+| **M4 - product/scale/perceptual handoff** | #552; exact-head browser run 33278263468    | **MERGED** |
 
 **Finite exit:** satisfied for the reviewed browser scope. The typed user-facing `Show distribution` action, polished diagnostic composition, generic 100k/500k performance, connected ECDF/axes, progressive disclosure and physical Quest qualification remain explicit residuals rather than hidden completion claims.
 
@@ -142,7 +147,7 @@ The V1 slice must not use the words PDF, probability density, continuous contour
 
 ## Checkpoints
 
-### M1 — distribution contract and falsifiers
+### M1 - distribution contract and falsifiers
 
 - record the pre-implementation adversarial contract and independently calculable fixtures;
 - add the discriminated request/payload types and Rust validator rules with hard bounds;
@@ -153,7 +158,7 @@ The V1 slice must not use the words PDF, probability density, continuous contour
 
 **Suggested PR:** `feat(moneta): define empirical distribution payload`
 
-### M2 — Rust builder and real WASM proof
+### M2 - Rust builder and real WASM proof
 
 - compute the empirical distribution from the canonical resident columnar dataset handle;
 - preserve missing/non-finite counts and legitimate zero values;
@@ -165,7 +170,7 @@ The V1 slice must not use the words PDF, probability density, continuous contour
 
 **Suggested PR:** `feat(moneta): build Rust empirical distribution`
 
-### M3 — production cutover and thin embodiment
+### M3 - production cutover and thin embodiment
 
 - extend the semantic loader/Worker operation without weakening generation/version/fingerprint/decision fencing;
 - make `DISTRIBUTION_FIELD` consume only its payload through a small distribution adapter;
@@ -177,7 +182,7 @@ The V1 slice must not use the words PDF, probability density, continuous contour
 
 **Suggested PR:** `feat(moneta): render empirical distribution payload`
 
-### M4 — product, scale and perceptual handoff
+### M4 - product, scale and perceptual handoff
 
 - add a canonical fixture and browser evidence in which distribution intent visibly produces a distribution rather than points, aggregate bars or density voxels;
 - record source N, payload elements/bytes proxy, rendered primitives and relevant browser timings at representative scales;
@@ -205,10 +210,10 @@ Recommended routing by checkpoint:
 
 | Checkpoint | Implementer | Independent post-review | Rationale |
 | --- | --- | --- | --- |
-| **M1 — contract/falsifiers** | **Frontier / high** | **Frontier / xhigh** | The ontology, missingness, quantile/binning semantics and cross-language validator become the durable scientific contract. |
-| **M2 — Rust/WASM builder** | **Frontier / high** | **Frontier / high** | Numerical correctness, bounds, canonical-handle authority and ABI behavior require strong systems and scientific reasoning. Fast support may enumerate fixtures only. |
-| **M3 — production cutover** | **Frontier / xhigh** | **Frontier / xhigh** | Highest-risk tranche: Worker/runtime identity, stale-result fencing, row-fallback prohibition and visible semantic identity cross several ownership boundaries. |
-| **M4 — product/scale evidence** | **Balanced / high** for evidence plumbing; **Frontier / high** for interpretation or fixes | **Frontier / high** | Much of the harness work is bounded, but interpreting performance/perceptual evidence and promoting claims requires frontier judgment. |
+| **M1 - contract/falsifiers** | **Frontier / high** | **Frontier / xhigh** | The ontology, missingness, quantile/binning semantics and cross-language validator become the durable scientific contract. |
+| **M2 - Rust/WASM builder** | **Frontier / high** | **Frontier / high** | Numerical correctness, bounds, canonical-handle authority and ABI behavior require strong systems and scientific reasoning. Fast support may enumerate fixtures only. |
+| **M3 - production cutover** | **Frontier / xhigh** | **Frontier / xhigh** | Highest-risk tranche: Worker/runtime identity, stale-result fencing, row-fallback prohibition and visible semantic identity cross several ownership boundaries. |
+| **M4 - product/scale evidence** | **Balanced / high** for evidence plumbing; **Frontier / high** for interpretation or fixes | **Frontier / high** | Much of the harness work is bounded, but interpreting performance/perceptual evidence and promoting claims requires frontier judgment. |
 
 Escalate from Balanced/Fast to Frontier immediately when a task reveals an ambiguous scientific definition, a new ABI/public-format decision, inconsistent authority, nondeterminism, a resource-envelope change, or a production-path defect. Do not downgrade reasoning merely to reduce wall-clock time after a tranche becomes high risk.
 
@@ -245,18 +250,19 @@ At most:
 
 ```text
 0 open Stream M implementation PR (finite stream exited)
+1 open P1-R2C density implementation PR (M3 or M4)
 1 open Stream A implementation PR
 1 open Stream B implementation PR
 1 open Stream C implementation PR
 ```
 
-Streams A/B/C currently have no active implementation checkpoint; their entries remain the reusable concurrency ceiling for future explicitly railed waves. Do not open speculative future checkpoint PRs. Finish, review, merge, resync, then advance.
+Streams A/B/C currently have no active implementation checkpoint; their entries remain the reusable concurrency ceiling for future explicitly railed waves. P1-R2C is the active finite representation rail. Do not open speculative future checkpoint PRs. Finish, review, merge, resync, then advance.
 
 ## Canonical roadmap ownership
 
-Implementation PRs in Streams A/B/C/M do **not** edit `docs/ROADMAP.md`.
+Implementation PRs in Streams A/B/C/M and P1-R2C do **not** edit `docs/ROADMAP.md`.
 
-After a complete wave of checkpoints merges, Stream A acts as integration scribe and opens one tiny docs-only roadmap sync PR. This avoids recurring three-way roadmap conflicts and keeps RF/status updates serial.
+After a complete wave of checkpoints merges, an integration scribe opens one tiny docs-only roadmap sync PR. This avoids recurring roadmap conflicts and keeps RF/status updates serial.
 
 Detailed checkpoint evidence may be recorded in the owning programme/review document when required.
 
@@ -869,18 +875,12 @@ Do not start USIM-C before C1/C2 have merged and been independently re-read. RF-
 
 When all checkpoint PRs in a wave are merged:
 
-1. Stream A agent fetches current `main`;
-2. reads the merged A/B/C evidence;
+1. integration scribe fetches current `main`;
+2. reads the merged evidence;
 3. adversarially checks that status claims match evidence;
 4. opens one tiny docs-only PR updating this file;
-5. records new RF findings without automatically expanding current stream scope;
+5. records new RF findings without automatically expanding current scope;
 6. does not change scientific/device/security completion merely because CI is green.
-
-Suggested PR title:
-
-```text
-docs(roadmap): sync three-stream wave <N>
-```
 
 This integration PR contains no runtime/product code.
 
@@ -890,17 +890,17 @@ This integration PR contains no runtime/product code.
 
 | Programme / RF | Current interpretation | Current stream/checkpoint |
 | --- | --- | --- |
-| RF-015 / RF-029 / RF-035 / RF-051 | A1 measured the current browser/Worker/WASM envelope; generic 10M claims and complete memory/transfer accounting remain blocked. | Consumed by M4; preserve A1 baseline |
-| RF-030 / RF-031 | Kernel-inline refusal exists; approximation/generic-operation residuals remain, and Stream M preserved explicit resource refusal. | Preserved through **M2-M4** |
-| RF-001 / RF-002 / P1-R semantic embodiment convergence | Aggregate and empirical distribution are now distinct Rust-owned dataset-level slices; #551 removed the density and formal outlier-boundary overclaim. | Stream M exited; select the next slice from evidence |
-| RF-036 topology/spatial evidence authority | Still open; it must not be silently declared solved by empirical distribution work. | Preserve; not Stream M scope |
+| RF-015 / RF-029 / RF-035 / RF-051 | A1 measured the current browser/Worker/WASM envelope; generic 10M claims and complete memory/transfer accounting remain blocked. | Consumed by later representation evidence; preserve A1 baseline |
+| RF-030 / RF-031 | Kernel-inline refusal exists; approximation/generic-operation residuals remain, and completed distribution work preserved explicit resource refusal. | Preserve through R2C M3/M4 |
+| RF-001 / RF-002 / P1-R semantic embodiment convergence | Aggregate and empirical distribution are Rust-owned dataset-level slices. Density M1/M2/M1R are now truthful, bounded, strict and row-free at the Rust/WASM boundary, but `DENSITY_FIELD` is not yet production-cut over. | **P1-R2C M3 NEXT** |
+| RF-036 topology/spatial evidence authority | Still open; it must not be silently declared solved by empirical distribution or density work. | Preserve; not R2C scope |
 | RF-044 / RF-045 / RF-046 / RF-047 / RF-048 | Implementations landed; remain review-monitored foundations for graph lineage, evidence truth, digest/replay and identity. | Preserve; not current frontier |
 | RF-059 | Row-identity scale fix landed/review active; preserve regression. | Preserve under A1 evidence |
 | RF-060 | Authoritative dataset fingerprint retention work landed; preserve measured identity path. | Preserve under A1/A3 |
 | RF-061 | Version-coalesced derived analysis settlement verified on current-main evidence (#519). | Stable dependency |
 | RF-062 | A/B/C tranches landed: composition-root boundary, semantic intents, dataset/representation seam. | D-I require a new explicit rail after hot-file settling |
 | P1-QV | B1-B2 implementation landed; broader/final device evidence remains open. | Preserve; next validation work separately railed |
-| P1-UV | B3-B5 finite first wave implementation landed/review active. | Separate next UI wave remains queued; no active M parallel lane |
+| P1-UV | B3-B5 finite first wave implementation landed/review active; #568 unified the shell and #573 closed the immediate pointer/dev-role/palette regressions. | Separate next UI wave remains queued; no active R2C parallel lane |
 | RF-049 | Code-level Direct Touch repair landed; simulator/device verification remains. | Preserve in B; final physical evidence later |
 | RF-050 | UI substrate evidence still requires browser/simulator/physical separation. | Next B/product evidence wave; not finalised by B5 |
 | P1-USIM | USIM-0 + first USIM-A lifecycle scenario landed/review active. | Preserve; broader USIM-A/USIM-1 selected after B exit |
@@ -1025,19 +1025,27 @@ Green engineering CI must never be described as scientific verification, securit
 
 ---
 
-# After Stream M
+# Active post-M programme: P1-R2C Density Truth
 
-Stream M was the evidence-selected P1-R slice after A1-A4/B1-B5/C1-C3. M1-M4 have reached the finite exit. The next wave remains intentionally unselected until its contract is derived from the resulting product/scientific/resource evidence.
+The evidence-selected post-M representation slice is now explicit rather than unselected. Its detailed execution authority is [`roadmap/P1_R2C_DENSITY_TRUTH.md`](roadmap/P1_R2C_DENSITY_TRUTH.md).
 
-Candidates that remain explicitly queued:
+Landed checkpoints:
 
-- the next truthful P1-R vertical slice selected from density, cluster or a structural family;
-- RF-036 canonical topology/spatial evidence authority if A2 shows it blocks truthful representation work;
+- M1 contract and initial real-WASM falsifiers: #570;
+- M2 resident-columnar Rust builder: #571;
+- M1R lattice/ontology/ranking/strict-method repair: #576;
+- M1R constant-domain closeout: #577.
+
+**Next:** M3 production cutover. `DENSITY_FIELD` must reach the resident Worker/WASM builder and render only from the returned bounded semantic payload. Pending/refused/stale/invalid output must not fall back to row-derived points, voxels, or legacy density geometry.
+
+After M3, M4 must collect bounded product/scale/memory/perceptual evidence, including the current O(N) transient pair-vector cost. R2C then **stops for independent review** before any Cluster Regions, inferred-topology, or other representation programme begins.
+
+Other programmes that remain explicitly queued include:
+
+- RF-036 canonical topology/spatial evidence authority where it blocks truthful representation work;
 - remaining P1-UV UV3-UV7 plus selected USIM-A/USIM-1 evidence;
 - RF-062D/E/F architecture convergence after current UI/representation hot files settle;
 - next Stream C wave: RF-039/RF-040/RF-041/RF-042/RF-043;
 - governed physical Quest qualification after the converged treatment exists;
 - P1-W only after its product-entry gate;
 - minimal private preview only after product, security and release gates converge.
-
-The post-M wave must again be explicitly railed before parallel implementation begins.
