@@ -1,9 +1,11 @@
 # P1-R2E Relationship Graph — Stream B first structural slice
 
-**Status:** B1 IMPLEMENTATION LANDED ON BRANCH / REVIEW ACTIVE  
+**Status:** B1 VERIFIED COMPLETE — B2 ACTIVE NEXT  
 **Stream:** B — Source-Authoritative Structural Representations  
 **Scientific authority:** `docs/rfcs/0002-source-relationship-graph-authority.md`  
-**Integration base at start:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged)
+**B1 closure review:** `review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`  
+**Integration base at start:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged)  
+**B1 promotion base:** `main@1ea2920` (#606 merged)
 
 ## Mission
 
@@ -27,7 +29,7 @@ Dataset.edges + explicit SOURCE_EDGES policy
 
 ## B1 — scientific / authority contract
 
-**Status:** IMPLEMENTATION LANDED ON BRANCH / REVIEW ACTIVE
+**Status:** VERIFIED COMPLETE — promoted at `main@1ea2920`; independent adversarial review closed with no blockers (`review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`)
 
 Required:
 
@@ -37,7 +39,7 @@ Required:
 - [x] `REFUSE` missing-endpoint policy;
 - [x] preserve parallel edges and self-loops;
 - [x] narrow V1 analytical edge attributes to source weight;
-- [x] hard 4,096-node / 16,384-edge / 2 MiB envelope;
+- [x] hard 4,096-node / 16,384-edge / 2 MiB envelope (node/edge bounds enforced at arbitration; the 2 MiB payload bound is declared vocabulary until B2 enforces it at the Rust/WASM authority);
 - [x] hard-disqualify graph without explicit authority;
 - [x] hard-disqualify explicit authority when source edge count is zero;
 - [x] remove `cluster-separation` preservation overclaim;
@@ -45,15 +47,15 @@ Required:
 - [x] mint `bootstrap-fitness-v5` / `fitness-treatment-v5` and Moneta v5 provenance;
 - [x] advance compatibility ontology provenance to `bootstrap-ontology-v2` because candidate limitations changed;
 - [x] executable Moneta-path falsifiers;
-- [ ] exact-head CI / CodeQL / architecture / approval / Q8/Q9 as applicable;
-- [ ] post-implementation adversarial review closure;
-- [ ] promotion after every blocker is closed.
+- [x] exact-head CI / CodeQL / architecture / approval / Q8/Q9 as applicable (green on PR #598 and `main@1ea2920`);
+- [x] post-implementation adversarial review closure (PROMOTE, no blockers; four DEFER findings recorded and assigned below);
+- [x] promotion after every blocker is closed.
 
 **B1 exit:** one deterministic, bounded, scientifically reviewable contract exists and adds no B2 production graph payload yet.
 
 ## B2 — resident Rust/WASM graph payload
 
-**Status:** BLOCKED ON B1 PROMOTION
+**Status:** ACTIVE NEXT
 
 Required design/execution:
 
@@ -69,6 +71,12 @@ Required design/execution:
 - keep payload ordering deterministic;
 - prove real-WASM parity and no raw-row graph payload transfer.
 
+B2 additionally owns the B1 review DEFER findings:
+
+- enforce all three B1 bounds (node/edge/**payload-bytes**) at the Rust/WASM authority, not only in vocabulary helpers;
+- route any production graph-authority requirements surface through the shared validator (or make the engine call `validateSourceRelationshipGraphAuthority`) so unknown authority fields fail closed on the live path;
+- include a full-path falsifier fixture (real `Dataset` with `edges` -> evidence -> `AtlasCore.arbitrateRepresentation*`) so source edge-count binding is executable, not inspection-only.
+
 **B2 adversarial question:** can row order, duplicate edges, string/numeric endpoint mixtures or endpoint churn change semantic identity unexpectedly? Resolve before promotion.
 
 ## B3 — production cutover + thin graph adapter
@@ -83,6 +91,8 @@ Required design/execution:
 - bind node/edge interactions to stable semantic IDs;
 - fail closed for pending/refused/invalid/stale payloads;
 - consume Stream A's generic semantic detail/selection contract when available rather than inventing graph-specific drill-down APIs.
+
+B3 additionally owns the B1 review DEFER-3 finding: the pre-existing silent edge-drop paths (`src/moneta/layouts/ForceDirected3D.ts`, `src/moneta/embodiment/TopologyLayoutEmbodiment.ts`, `src/data/Dataset.ts` `remapEdgesAfterPrefixEviction`) contradict the declared `missingEndpointPolicy: 'REFUSE'` and must either fail closed or be provably unreachable for governed graph payloads; B3/B4 falsifiers must cover them.
 
 ## B4 — product, scale, perceptual evidence + independent STOP
 
