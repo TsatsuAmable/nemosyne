@@ -19,6 +19,8 @@ export interface SemanticSelectionIdentity {
   decisionId: string | null;
 }
 
+export type RepresentationSelectionListener = (mesh: Mesh | null) => void;
+
 export interface RepresentationSurfaceDependencies {
   scene: Scene;
   cameraGroup: Group;
@@ -88,6 +90,7 @@ export class RepresentationSurface {
   selectedMesh: Mesh | null = null;
 
   private disposed = false;
+  private readonly selectionListeners = new Set<RepresentationSelectionListener>();
   private readonly createNode: NonNullable<RepresentationSurfaceFactories['createNode']>;
   private readonly createDiagnostic: NonNullable<
     RepresentationSurfaceFactories['createDiagnostic']
@@ -146,8 +149,14 @@ export class RepresentationSurface {
     return nextNode;
   }
 
+  subscribeSelection(listener: RepresentationSelectionListener): () => void {
+    this.selectionListeners.add(listener);
+    return () => this.selectionListeners.delete(listener);
+  }
+
   setSelectedMesh(mesh: Mesh | null): void {
     this.selectedMesh = mesh;
+    this.publishSelection(mesh);
   }
 
   getSelectedSemanticIdentity(): SemanticSelectionIdentity | null {
@@ -170,6 +179,11 @@ export class RepresentationSurface {
     if (this.disposed) return;
     this.disposed = true;
     this.disposeCurrent();
+    this.selectionListeners.clear();
+  }
+
+  private publishSelection(mesh: Mesh | null): void {
+    for (const listener of this.selectionListeners) listener(mesh);
   }
 
   private disposeCurrent(): void {
@@ -177,6 +191,7 @@ export class RepresentationSurface {
     const diagnostic = this.diagnostic;
     this.dependencies.clearStructureHandles();
 
+    if (this.selectedMesh) this.publishSelection(null);
     if (node?.artifact) {
       for (const mesh of node.artifact.nodeMeshes) this.dependencies.removeInteractable(mesh);
     }
@@ -221,6 +236,7 @@ export class RepresentationSurface {
             const selected = object as Mesh;
             node.artifact?.interactions?.onSelect?.(selected);
             this.selectedMesh = selected;
+            this.publishSelection(selected);
             this.dependencies.onSelectNode(selected);
           },
         });
