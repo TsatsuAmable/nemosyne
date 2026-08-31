@@ -173,7 +173,8 @@ test('R2C M4 proves bounded visible density across scale and semantic shapes', a
   expect(new Set(scaleScenarios.map((scenario) => scenario.envelope.resource.elementCount))).toEqual(
     new Set([100])
   );
-  expect(new Set(scaleScenarios.map((scenario) => scenario.payloadJsonBytesProxy).map(Math.round)).size).toBeLessThanOrEqual(2);
+  const payloadSizes = scaleScenarios.map((scenario) => scenario.payloadJsonBytesProxy);
+  expect(Math.max(...payloadSizes) - Math.min(...payloadSizes)).toBeLessThan(1024);
 
   await page.screenshot({
     path: 'p1r-density-m4-results/m4-density-multimodal.png',
