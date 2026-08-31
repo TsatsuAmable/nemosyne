@@ -4,6 +4,7 @@ import type { RepresentationDecision } from '../../moneta/representation/Represe
 import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
+  type DensityEmbodimentRequestV1,
   type DistributionEmbodimentRequestV1,
   type SemanticEmbodimentEnvelopeV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
@@ -19,6 +20,9 @@ export interface AggregateEncodingSelection {
   readonly color?: string;
   readonly size?: string;
 }
+
+const DENSITY_PRODUCT_BINS_X_V1 = 10;
+const DENSITY_PRODUCT_BINS_Y_V1 = 10;
 
 let requestSequence = 0;
 
@@ -177,6 +181,88 @@ export function loadDistributionSemanticEmbodiment(
       envelope.provenance.decisionId !== decision.id ||
       (envelope.result.status === 'READY' &&
         envelope.result.payload.kind !== 'EMPIRICAL_DISTRIBUTION')
+    ) {
+      return null;
+    }
+    return envelope;
+  })().catch(() => null);
+}
+
+/**
+ * Start the R2C M3 production bivariate binned-density request. Both measures
+ * come from explicit analytical requirements. Missing, duplicate, non-numeric,
+ * or otherwise invalid fields are sent unchanged so the Rust authority can
+ * refuse them rather than TypeScript substituting a convenient column.
+ */
+export function loadDensitySemanticEmbodiment(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision,
+  measureFieldX: string,
+  measureFieldY: string
+): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
+  if (decision.chosenCandidateId !== 'DENSITY_FIELD') return undefined;
+
+  const port = authority.executionPort;
+  const fingerprint = authority.datasetFingerprint;
+  const version = authority.datasetVersion;
+  const generation = authority.generation;
+  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
+
+  const request: DensityEmbodimentRequestV1 = {
+    schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+    candidateId: 'DENSITY_FIELD',
+    measureFieldX,
+    measureFieldY,
+    binsX: DENSITY_PRODUCT_BINS_X_V1,
+    binsY: DENSITY_PRODUCT_BINS_Y_V1,
+    decisionId: decision.id,
+    decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
+    decisionModelArtifactHash:
+      decision.fitnessModelArtifactHash ??
+      decision.provenance.fitnessModelArtifactHash ??
+      undefined,
+  };
+
+  return (async () => {
+    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
+      if (!port.registerDataset) return null;
+      await port.registerDataset({
+        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
+        dataset: { fingerprint, version },
+        generation,
+        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
+      });
+    }
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+
+    const result = await port.execute<SemanticEmbodimentEnvelopeV1>({
+      requestId: `semantic-density-${generation}-${version}-${++requestSequence}`,
+      operation: 'semanticEmbodiment',
+      dataset: { fingerprint, version },
+      generation,
+      params: request as unknown as Record<string, unknown>,
+    });
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+    if (
+      result.generation !== generation ||
+      result.datasetVersion !== version ||
+      result.datasetFingerprint !== fingerprint
+    ) {
+      return null;
+    }
+
+    const envelope = result.value;
+    if (
+      !envelope ||
+      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
+      envelope.datasetFingerprint !== fingerprint ||
+      envelope.candidateId !== 'DENSITY_FIELD' ||
+      envelope.representationFamily !== 'DENSITY' ||
+      envelope.provenance.decisionId !== decision.id ||
+      (envelope.result.status === 'READY' && envelope.result.payload.kind !== 'BINNED_DENSITY')
     ) {
       return null;
     }
