@@ -58,6 +58,8 @@ export class VRTopologyTranslator {
     const { spec, facts } = monetaResult;
     const semanticInput = dataInput as SemanticMonetaDataInput;
     const clusterSemanticInput = dataInput as ClusterSemanticMonetaDataInput;
+    const usesClusterSemanticEmbodiment =
+      clusterSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
     const group = new THREE.Group();
@@ -72,10 +74,11 @@ export class VRTopologyTranslator {
     );
 
     // Governed dataset-level semantic candidates consume only bounded
-    // Rust-owned payloads. CLUSTER_VOLUME is reserved for the CLUSTER_REGIONS
-    // semantic candidate: it is intercepted before source-row resolution even
-    // when the payload is pending or unavailable. There is deliberately no
-    // presentation-side grouping/sphere compatibility fallback.
+    // Rust-owned payloads. CLUSTER_VOLUME remains a geometry primitive; only an
+    // explicit CLUSTER_REGIONS authority marker intercepts it before source-row
+    // resolution. Pending/refused/unavailable governed cluster states therefore
+    // fail closed without turning every legacy CLUSTER_VOLUME caller into a
+    // scientific cluster claim.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
@@ -87,7 +90,7 @@ export class VRTopologyTranslator {
     } else if (spec.geometry === 'DENSITY_FIELD') {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
-    } else if (spec.geometry === 'CLUSTER_VOLUME') {
+    } else if (spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) {
       buildClusterSemanticRegions(group, nodeMeshes, clusterSemanticInput.semanticEmbodiment);
       edges = [];
     } else {
@@ -104,6 +107,8 @@ export class VRTopologyTranslator {
           edges,
           options
         );
+      } else if (spec.geometry === 'CLUSTER_VOLUME') {
+        scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
       } else {
         switch (spec.layout) {
           case 'GRID_3D':
@@ -184,7 +189,7 @@ export class VRTopologyTranslator {
       spec.geometry !== 'AGGREGATE_BARS' &&
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
       spec.geometry !== 'DENSITY_FIELD' &&
-      spec.geometry !== 'CLUSTER_VOLUME' &&
+      !(spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory
