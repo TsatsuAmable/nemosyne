@@ -234,6 +234,12 @@ export async function bootstrapApp(): Promise<AppInstance> {
     installResourceEnvelopeDiagnosticHook(world);
   }
 
+  if (import.meta.env.VITE_NEMOSYNE_A5_PRODUCT_EVIDENCE === '1') {
+    const { installA5ProductEvidenceHook } = await import('./a5ProductEvidenceDiagnostics.ts');
+    const disposeA5Evidence = installA5ProductEvidenceHook(world);
+    world.registerExtensionDisposer(disposeA5Evidence);
+  }
+
   if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
     const { installBrowserEnvelopeDiagnosticHook } = await import('./browserEnvelopeDiagnostics.ts');
     installBrowserEnvelopeDiagnosticHook(world);
