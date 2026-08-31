@@ -5,4 +5,5 @@ pub mod distribution_embodiment;
 pub mod embodiment;
 pub mod evidence;
 pub mod solver;
+pub mod structural_embodiment;
 pub mod types;
