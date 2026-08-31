@@ -9,10 +9,15 @@ on:
       - 'src/app/resourceEnvelopeDiagnostics.ts'
       - 'src/app/dataset/LoadDatasetUseCase.ts'
       - 'src/app/bootstrap.ts'
+      - 'src/atlas/ports/analytical.worker.ts'
       - 'src/moneta/MonetaTopologyNode.ts'
       - 'src/moneta/VRTopologyTranslator.ts'
       - 'src/moneta/embodiment/DensitySemanticEmbodiment.ts'
       - 'src/moneta/embodiment/SemanticEmbodimentStatus.ts'
+      - 'src/wasm/runtime/SemanticEmbodimentBridge.ts'
+      - 'wasm/src/data/columnar.rs'
+      - 'wasm/src/moneta/density_embodiment.rs'
+      - 'wasm/src/moneta/embodiment.rs'
       - 'tests/smoke/p1r-density-m4-evidence.spec.ts'
   workflow_dispatch:
 
