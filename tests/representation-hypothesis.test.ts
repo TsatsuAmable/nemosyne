@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MonetaHypothesisEngine,
   createDefaultRequirements,
+  createSourceRelationshipGraphAuthority,
   type MonetaFacts,
 } from '../src/moneta/index.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
@@ -54,14 +55,15 @@ describe('Phase 3: MonetaHypothesisEngine', () => {
     expect(decision.embodiment.primaryLayout).toBe('TIME_RIBBON');
   });
 
-  it('selects GRAPH family when dataset has graph topology', () => {
+  it('selects GRAPH family when source graph authority is explicit', () => {
     const graphFacts: MonetaFacts = {
       ...baseTabularFacts,
       topology: 'GRAPH',
       nodeCount: 40,
       edgeCount: 90,
     };
-    const req = createDefaultRequirements('trace-lineage');
+    const req = createDefaultRequirements('relationship-discovery');
+    req.graphAuthority = createSourceRelationshipGraphAuthority('DIRECTED');
     const decision = MonetaHypothesisEngine.reason(graphFacts, null, req);
 
     expect(decision.representationFamily).toBe('GRAPH');
