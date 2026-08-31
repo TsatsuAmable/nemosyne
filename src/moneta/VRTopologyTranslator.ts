@@ -58,8 +58,7 @@ export class VRTopologyTranslator {
     const { spec, facts } = monetaResult;
     const semanticInput = dataInput as SemanticMonetaDataInput;
     const clusterSemanticInput = dataInput as ClusterSemanticMonetaDataInput;
-    const governedClusterRegions =
-      spec.geometry === 'CLUSTER_VOLUME' &&
+    const usesClusterSemanticEmbodiment =
       clusterSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
@@ -90,7 +89,7 @@ export class VRTopologyTranslator {
     } else if (spec.geometry === 'DENSITY_FIELD') {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
-    } else if (governedClusterRegions) {
+    } else if (spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) {
       buildClusterSemanticRegions(group, nodeMeshes, clusterSemanticInput.semanticEmbodiment);
       edges = [];
     } else {
@@ -189,7 +188,7 @@ export class VRTopologyTranslator {
       spec.geometry !== 'AGGREGATE_BARS' &&
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
       spec.geometry !== 'DENSITY_FIELD' &&
-      !governedClusterRegions &&
+      !(spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory
