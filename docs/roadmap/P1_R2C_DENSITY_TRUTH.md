@@ -1,25 +1,22 @@
 # P1-R2C Density Truth
 
-**Status:** M1 + M2 + M1R LANDED / M3 NEXT  
+**Status:** VERIFIED COMPLETE for the bounded desktop-browser scope / STOP GATE SATISFIED  
 **Parent programme:** `P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md` R2C  
-**Integration base:** `main@3cfbf41032a9760f467dd6a919b8b1fff882d61c` (#577 merged)  
-**Purpose:** complete one truthful, bounded, Rust-owned bivariate binned-density representation through the real product path, then stop for independent review before cluster or inferred-topology expansion.
+**Reviewed implementation head:** `1bed1f917303078e7aa9ed3ed1208910dfb63f5b` (#582)  
+**Integration base:** `main@fff946b0964397149be27d08f0c72245bbfb28f9` (#582 merged)  
+**Purpose:** provide one truthful, bounded, Rust-owned bivariate binned-density representation through the real product path, then stop before any automatic cluster or inferred-topology expansion.
 
-## Why this document exists
+## Finite exit
 
-R2C already existed in the parent P1-R roadmap, but only as a generic density-builder item. #570 selected the concrete V1 object and #571 immediately landed the resident-handle Rust builder. #576 then repaired the lattice, ontology/ranking and strict-method-schema gaps found by independent review, while #577 made constant-domain behavior explicit and fail-closed. The next finite checkpoint is therefore M3 production cutover rather than further contract expansion.
+R2C is complete for its reviewed browser scope. `DENSITY_FIELD` is a production `DATASET_LEVEL_VALID` candidate backed by a resident Rust/WASM semantic payload. Three.js consumes the bounded payload rather than source rows, and pending/refused/invalid/stale/unavailable output does not fabricate a point, grid-row, legacy voxel, or chart substitute.
 
-This document refines the existing R2C tranche; it does not create a second representation programme. It inherits the parent invariant:
-
-> Three.js must not receive or traverse raw dataset rows to construct a non-observation representation. Rust/WASM derives the semantic object; TypeScript orchestrates and embodies a bounded payload.
+This completion claim is deliberately narrow. It does **not** claim physical Quest qualification, generic 100k/500k performance, a continuous-density estimator, KDE/PDF semantics, cluster inference, polished investigator UX, or completed progressive observation drill-down.
 
 ## Mathematical boundary
 
 V1 is a **bivariate binned empirical field**. It is not a KDE, PDF, continuous-density estimator, contour model, clusterer, or manifold estimator.
 
-M1R now binds the candidate to the information actually carried: empirical bivariate bin mass. `DENSITY_FIELD` no longer earns continuous/population-density semantics for a finite equal-width count lattice, and the rank-effective correction is explicitly versioned as `bootstrap-fitness-v2` / `fitness-treatment-v2`.
-
-The reviewed V1 method binds:
+The reviewed method binds:
 
 - two distinct explicit numeric fields;
 - deterministic equal-width bins on X and Y;
@@ -32,109 +29,117 @@ The reviewed V1 method binds:
 - exact method/version/provenance identity;
 - no raw rows or hidden row-shaped metadata in the semantic envelope.
 
-## Landed checkpoint: M1 — contract and initial falsifiers (#570)
+`DENSITY_FIELD` preserves empirical bivariate bin mass. It does not claim continuous or population-density semantics. The rank-effective correction remains versioned as `bootstrap-fitness-v2` / `fitness-treatment-v2`.
+
+## Completed checkpoints
+
+| Checkpoint | Evidence | Status |
+| --- | --- | --- |
+| **M1 — contract and initial falsifiers** | #570 | **MERGED** |
+| **M2 — resident-handle Rust builder** | #571 | **MERGED** |
+| **M1R — lattice/ontology/method repair** | #576, #577 | **MERGED** |
+| **M3 — production cutover / row-free embodiment** | #579 | **MERGED** |
+| **M4 — product/scale/perceptual evidence** | #580 | **MERGED** |
+| **M4R — draw-call stop finding** | #581 | **MERGED** |
+| **M2R — transient pair-buffer/evidence-rail stop finding** | #582 | **MERGED** |
+
+### M1 / M1R truth contract
 
 #570 established the `DENSITY` family, `BINNED_DENSITY` payload kind, bivariate request shape, 20×20/400 bounds and real-WASM round-trip tests.
 
-Independent review found three contract gaps that M2 inherited but did not create:
+Independent review then found three contract defects. #576/#577 closed them before production cutover:
 
-1. grid validation checked cell count but did not prove unique/complete coordinate-pair coverage;
-2. the candidate advertised `continuous-density` / `population-density-distribution`, and the live fitness model awarded ranking credit for those stronger semantics;
-3. density analytical parameters were read from a permissive generic JSON object rather than a strict unknown-field-rejecting method schema.
+- every `(xIndex, yIndex)` in the declared lattice must occur exactly once;
+- binned empirical mass is no longer ranked or described as continuous population density;
+- analytical method parameters are strict, typed and unknown-field rejecting;
+- method-contract version and implementation algorithm identity are distinct and exact;
+- constant-domain behavior is governed and fail-closed.
 
-Those gaps are now closed by M1R rather than carried into production.
+### M2 / M2R Rust authority and memory bound
 
-## Landed checkpoint: M2 — Rust resident-handle builder (#571)
+#571 moved the binned-density calculation onto the resident Rust columnar dataset capability. The JS boundary carries handle plus reviewed parameters rather than source rows.
 
-#571 computes the bivariate grid from the resident columnar dataset handle in Rust, crosses the JS boundary with handle + parameters rather than rows, derives deterministic domains, applies equal-width/inclusive-final assignment, and emits at most 400 cells.
+Post-M4 review found that the first implementation still materialized all canonical valid `(x, y)` pairs into an O(N) transient Rust vector. #582 removed that source-sized copy. The builder now makes two resident-column passes: the first derives canonical valid count and domains; the second increments the bounded lattice directly. Additional density-output allocation is therefore bounded by the governed `<= 400` cells rather than source N.
 
-The bounded review did not find a second TypeScript analytical authority or row transfer in this builder. After #576/#577, M2 passes through the corrected fail-closed M1R validator and is ready for the M3 production integration checkpoint.
+#582 also expanded the exact-head M4 workflow trigger set to the Rust density builder/contract, resident columnar storage, Worker dispatch and WASM bridge so analytical-authority changes cannot silently bypass product-path evidence.
 
-Residual implementation note: the current builder materializes all valid `(x,y)` pairs in a transient Rust vector before computing domains/grid. This is acceptable for the presently declared 500k-row candidate envelope if measured, but M4 should record peak memory and M2R should remove the materialization if it becomes a resource cliff; a two-pass column traversal can compute domains then bins without an O(N) pair copy.
+### M3 production cutover
 
-## Landed checkpoint: M1R — contract repair and falsifier hardening (#576, #577)
+#579 completed the real production chain:
 
-**Completed before M3.**
+```text
+explicit bivariate requirements
+  -> Moneta DENSITY_FIELD decision
+  -> SemanticEmbodimentLoader
+  -> analytical Worker
+  -> resident Rust/WASM density builder
+  -> BINNED_DENSITY envelope
+  -> DensitySemanticEmbodiment
+  -> bounded Three.js artifact
+```
 
-- [x] reject duplicate `(xIndex, yIndex)` cells and prove every coordinate in the declared `binsX × binsY` lattice occurs exactly once;
-- [x] replace `continuous-density` / `population-density-distribution` ranking claims with the truthful `binned-empirical-mass` / `empirical-bivariate-bin-mass` contract;
-- [x] make density analytical-method parameters a strict typed schema with unknown-field rejection;
-- [x] bind `analyticalMethod.version` and provenance algorithm identity to the reviewed V1 method;
-- [x] add real-WASM mutations for duplicate/missing coordinates, unknown/nested method parameters, method/version drift and former continuous/PDF-style claims;
-- [x] explicitly govern and test constant-domain semantics: retain the full lattice and assign observations to the final bin on each degenerate axis;
-- [x] keep `DENSITY_FIELD` unresolved/non-production in the A2 migration inventory until M3.
+The production cutover proves:
 
-#576 closed RF-064/RF-065/RF-066 and versioned the rank-effective semantic correction. #577 closed the remaining constant-domain prerequisite by adding `constantDomain = assign-final-bin-per-degenerate-axis` to the strict method contract and proving X-constant, Y-constant, both-constant, count-conservation and policy-drift behavior through Rust and real WASM.
+- generation, dataset-version, fingerprint and decision fencing remain fail-closed;
+- the density adapter consumes only the governed payload;
+- both `dataInput.rows` and `dataset.rows` may be unavailable/throw while density still renders;
+- no chart, point, grid-row or legacy voxel fallback appears for pending/refused/invalid/stale/unavailable density output;
+- stable Rust semantic cell IDs and payload/decision provenance survive onto selectable objects;
+- `DENSITY_FIELD` passed the A2 raw-row sentinel and was promoted to `DATASET_LEVEL_VALID`.
 
-**Exit:** satisfied. The M1 contract is fail-closed and scientifically no stronger than the implemented binned object, while M2 passes through the corrected validator. M3 is now unblocked.
+### M4 product and scale evidence
 
-## M3 — production cutover and row-free embodiment
+#580 exercised the production World/use-case/Worker/Rust/renderer path in Chromium at 1k, 8k and 32k source rows plus deterministic multimodal, sparse, uniform and constant-domain fixtures. It proved semantic output remained 100 cells for the selected 10×10 production lattice and preserved payload/decision/artifact identity.
 
-**Invariant:** an authoritative `DENSITY_FIELD` decision reaches the resident Worker/WASM builder and the renderer consumes only the returned binned payload. Pending/refused/invalid/stale output produces no point, grid-row or legacy density substitute.
+M4 surfaced two real STOP findings rather than laundering a green result:
 
-- [ ] extend `SemanticEmbodimentLoader` / Worker dispatch without weakening generation, dataset-version, fingerprint or decision fencing;
-- [ ] give density its own thin payload adapter in the production `VRTopologyTranslator` path;
-- [ ] remove the current `buildDensityField(... rows ...)` analytical path from production density embodiment;
-- [ ] prohibit chart/point/legacy voxel fallback when output is pending, refused, invalid or unavailable;
-- [ ] preserve semantic cell IDs and payload provenance on selectable rendered objects;
-- [ ] prove both `dataInput.rows` and `dataset.rows` may throw while the real density representation still renders;
-- [ ] promote only `DENSITY_FIELD` to `DATASET_LEVEL_VALID` once the real path passes.
+1. **draw-call pressure:** 100 separately rendered cells produced 148 whole-scene draw calls, above the default 120-call representation envelope;
+2. **source-sized transient memory:** the Rust builder still carried an O(N) `(x, y)` pair vector whose allocator peak was not measured.
 
-**Exit:** intent/requirements → Moneta decision → Worker/WASM → Rust payload → bounded Three.js artifact executes through the production entry point without raw-row reconstruction.
+#581 replaced the 100 visible cell meshes with one instanced density render batch while preserving one non-rendering semantic interaction proxy per Rust cell. The exact-head M4 rerun reduced measured whole-scene draw calls to 49 while retaining semantic IDs and cell-level hover/selection behavior.
 
-## M4 — product, scale, memory and perceptual evidence
+#582 removed the transient pair vector altogether and reran the exact-head production evidence. The retained report now states `densityBuilderSourceSizedPairBuffer: absent-two-pass-column-scan` rather than carrying the obsolete pre-fix allocator caveat.
 
-- [ ] add a canonical bivariate fixture with independently predictable dense/sparse regions;
-- [ ] exercise the production `World` / use-case / Worker / Rust / renderer path in Chromium;
-- [ ] retain source N, exact payload/provenance, payload byte proxy, element count, rendered semantic mesh count, relevant timings and WASM-memory observations;
-- [ ] compare 1k/8k/32k variants and prove semantic element count remains bounded by the lattice rather than source N;
-- [ ] measure whether the M2 transient pair vector creates a material memory cliff at the supported scale envelope;
-- [ ] bind screenshot/perceptual evidence to the exact payload/artifact identity;
-- [ ] test sparse, uniform, multimodal and constant-domain cases so success cannot be inferred from one flattering fixture;
-- [ ] expose explicit pending/refused/unavailable states without fabricating an alternative visualization;
-- [ ] make no physical-Quest or universal 100k/500k performance claim from desktop Chromium evidence.
+## Post-implementation adversarial disposition
 
-**Exit:** the visible result is distinct, truthful, bounded, inspectable and mechanically tied to the Rust semantic object.
+The exact #582 head passed the bounded post-review. The review re-traced the analytical authority path, row-fallback prohibition, source-N output bound, constant-domain semantics, stable IDs, provenance, evidence wording and workflow trigger coverage.
 
-## Stop gate after M4
+The following remain explicit boundaries rather than hidden completion claims:
 
-R2C **must stop** after M4 and independent post-review. Passing density does not authorize automatic migration of the remaining candidate list.
+- desktop Chromium evidence is not physical Quest qualification;
+- Worker WASM linear-memory observations are not universal allocator-peak measurements;
+- browser screenshots/perceptual samples are diagnostic identity/evidence handoff, not polished investigator-UX acceptance;
+- density is still a finite binned empirical object, not a continuous estimator;
+- R2C does not authorize cluster or topology inference.
 
-The next representation choice must be explicitly railed from evidence:
+## Stop gate outcome and next representation frontier
 
-1. **R2D Cluster Regions** if cluster-comparison is the next product need. Decide what counts as authoritative cluster evidence first: supplied partition labels, a separately governed clustering method, or distinct candidates. Geometry must not infer scientific clusters from arbitrary presentation positions.
-2. **R2E Inferred Topology** only if investigators need relationships derived from ordinary tabular data. k-NN, similarity, correlation or threshold graphs are analytical models, not rendering glue. They require explicit method/metric/scaling/threshold-or-k/provenance in Rust/Moneta. Source-provided edge lists remain a separate authoritative graph case.
-3. **R6 family/layout clarification** should reframe `FAMILY_TO_LAYOUTS` as layout compatibility rather than semantic embodiment authority, so a family-to-`GRID_3D` entry cannot be mistaken for the representation mathematics.
+R2C has stopped as required. Passing density does not authorize automatic migration of the remaining candidate list.
 
-## Collision and ownership rules
+The next serial step is **R6 family/layout clarification**, because current `RepresentationFamily` mappings describe layout compatibility, not semantic embodiment mathematics. Shared layouts such as `GRID_3D` must not be read as evidence that distribution or aggregate candidates are point representations. R6 should make the many-to-many compatibility relation explicit while leaving candidate/payload authority with the semantic representation contract.
 
-M3 is collision-sensitive around:
+After R6, the next analytical representation candidate should be selected explicitly:
 
-- `wasm/src/moneta/**`;
-- `src/moneta/representation/SemanticEmbodimentPayload.ts`;
-- `src/moneta/representation/RepresentationCandidate.ts`;
-- `src/moneta/representation/FitnessModel.ts` / requirement vocabulary when representation semantics affect ranking;
-- `src/wasm/runtime/SemanticEmbodimentBridge.ts`;
-- the analytical Worker semantic-embodiment operation;
-- `src/app/dataset/SemanticEmbodimentLoader.ts` / `LoadDatasetUseCase.ts`;
-- `src/moneta/VRTopologyTranslator.ts` and the narrow density adapter.
+1. **R2D Cluster Regions** if cluster comparison is the next product need. First decide what counts as authoritative cluster evidence: supplied partition labels, a separately governed clustering method, or distinct candidates. Geometry must not infer scientific clusters from arbitrary presentation positions.
+2. **R2E Inferred Topology** only if investigators need relationships derived from ordinary tabular data. k-NN, similarity, correlation or threshold graphs are analytical models, not rendering glue; method, metric, scaling, threshold/k and provenance must be governed in Rust/Moneta.
+3. Source-provided edge lists remain a separate authoritative graph case and must not be conflated with inferred topology.
 
-Only one open implementation PR may alter the density contract/production integration at a time. No stacked M3/M4 branches: merge, resync to `main`, then cut the next checkpoint.
+## Required regression questions
 
-## Required adversarial questions
+Future changes touching density must continue to answer:
 
-1. Did any N-dependent/data-derived computation leak into TypeScript or Three.js?
-2. Can output still be constructed if every source-row getter throws?
+1. Did any N-dependent/data-derived density computation leak into TypeScript or Three.js?
+2. Can output still be constructed if source-row getters throw?
 3. Does the candidate claim exactly the mathematics present in the payload?
 4. Can malformed identity, stale generation, method drift, coordinate duplication or resource drift fail closed?
-5. Is output complexity bounded independently of source N, and is transient memory measured?
-6. Does refusal remain visible rather than becoming a plausible substitute geometry?
-7. Did the checkpoint create a new god class/payload or hidden second authority?
+5. Is output complexity bounded independently of source N?
+6. Does refusal remain visible rather than becoming plausible substitute geometry?
+7. Did the change create a new god class/payload or hidden second authority?
 8. Are scale/perceptual claims no broader than the evidence collected?
 
-## Suggested model routing
+## Model routing
 
-- **M3:** Frontier/xhigh for lifecycle, Worker fencing, authority and production-cutover review.
-- **M4:** Balanced/high for bounded evidence plumbing; Frontier/high for interpretation, claim promotion and fixes.
+- **R6 family/layout clarification:** Balanced/high is sufficient for the mechanical ontology clarification; Frontier/high for adversarial review because family membership is rank-effective.
+- **R2D/R2E scientific contracts:** Frontier/high or xhigh for analytical definitions, Rust/WASM authority and production-cutover review.
 
 Model choice is not evidence. Exact-head tests, production-path falsifiers and independent review remain the promotion gates.
