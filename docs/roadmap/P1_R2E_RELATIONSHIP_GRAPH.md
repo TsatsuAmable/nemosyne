@@ -1,11 +1,11 @@
 # P1-R2E Relationship Graph — Stream B first structural slice
 
-**Status:** B1 VERIFIED COMPLETE — B2 ACTIVE NEXT  
+**Status:** B1 VERIFIED COMPLETE ON #607 HEAD — B2 ACTIVE NEXT AFTER #607 MERGE  
 **Stream:** B — Source-Authoritative Structural Representations  
 **Scientific authority:** `docs/rfcs/0002-source-relationship-graph-authority.md`  
 **B1 closure review:** `review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`  
 **Integration base at start:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged)  
-**B1 promotion base:** `main@1ea2920` (#606 merged)
+**B1 promotion review base:** `main@1ea2920` (#606 merged); promotion finalizes only when #607's unchanged exact head passes all required gates and merges
 
 ## Mission
 
@@ -29,7 +29,7 @@ Dataset.edges + explicit SOURCE_EDGES policy
 
 ## B1 — scientific / authority contract
 
-**Status:** VERIFIED COMPLETE — promoted at `main@1ea2920`; independent adversarial review closed with no blockers (`review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`)
+**Status:** VERIFIED COMPLETE ON #607 HEAD / PROMOTION PENDING FINAL EXACT-HEAD GATES + MERGE
 
 Required:
 
@@ -47,15 +47,15 @@ Required:
 - [x] mint `bootstrap-fitness-v5` / `fitness-treatment-v5` and Moneta v5 provenance;
 - [x] advance compatibility ontology provenance to `bootstrap-ontology-v2` because candidate limitations changed;
 - [x] executable Moneta-path falsifiers;
-- [x] exact-head CI / CodeQL / architecture / approval / Q8/Q9 as applicable (green on PR #598 and `main@1ea2920`);
-- [x] post-implementation adversarial review closure (PROMOTE, no blockers; four DEFER findings recorded and assigned below);
-- [x] promotion after every blocker is closed.
+- [ ] #607 exact-head CI / CodeQL / architecture / approval / Q8/Q9 all green on one unchanged final head;
+- [x] post-implementation adversarial review closure with no remaining B1 blocker;
+- [ ] merge #607 after every blocker and gate is closed.
 
-**B1 exit:** one deterministic, bounded, scientifically reviewable contract exists and adds no B2 production graph payload yet.
+**B1 exit:** one deterministic, bounded, scientifically reviewable admission contract exists and adds no B2 production graph payload yet.
 
 ## B2 — resident Rust/WASM graph payload
 
-**Status:** ACTIVE NEXT
+**Status:** ACTIVE NEXT AFTER #607 MERGE
 
 Required design/execution:
 
@@ -71,17 +71,18 @@ Required design/execution:
 - keep payload ordering deterministic;
 - prove real-WASM parity and no raw-row graph payload transfer.
 
-B2 additionally owns the B1 review DEFER findings:
+B2 additionally owns the residual B1 review obligations:
 
 - enforce all three B1 bounds (node/edge/**payload-bytes**) at the Rust/WASM authority, not only in vocabulary helpers;
-- route any production graph-authority requirements surface through the shared validator (or make the engine call `validateSourceRelationshipGraphAuthority`) so unknown authority fields fail closed on the live path;
-- include a full-path falsifier fixture (real `Dataset` with `edges` -> evidence -> `AtlasCore.arbitrateRepresentation*`) so source edge-count binding is executable, not inspection-only.
+- preserve the strict `validateSourceRelationshipGraphAuthority` semantics when graph authority is wired into a real production execution surface; do not introduce a weaker parallel parser;
+- extend #607's `Dataset -> buildDatasetSignature -> arbitrate` source-binding fixture through the actual `AtlasCore`/analytical Worker/resident Rust execution path so endpoint identity and source topology cannot diverge after arbitration;
+- add a named production-path falsifier proving no correlation, k-NN, visual proximity or layout fallback can create an edge.
 
 **B2 adversarial question:** can row order, duplicate edges, string/numeric endpoint mixtures or endpoint churn change semantic identity unexpectedly? Resolve before promotion.
 
 ## B3 — production cutover + thin graph adapter
 
-**Status:** BLOCKED ON B2; generic drill-down integration may also wait for Stream A
+**Status:** BLOCKED ON B2
 
 - transport governed graph payload through existing dataset-generation, fingerprint and decision fences;
 - intercept `RELATIONSHIP_GRAPH` before any row/proximity-derived topology path;
@@ -90,9 +91,9 @@ B2 additionally owns the B1 review DEFER findings:
 - prove changing layout seed/algorithm/coordinates cannot alter edge identity or adjacency;
 - bind node/edge interactions to stable semantic IDs;
 - fail closed for pending/refused/invalid/stale payloads;
-- consume Stream A's generic semantic detail/selection contract when available rather than inventing graph-specific drill-down APIs.
+- consume Stream A's generic semantic detail/selection contract rather than inventing graph-specific drill-down APIs.
 
-B3 additionally owns the B1 review DEFER-3 finding: the pre-existing silent edge-drop paths (`src/moneta/layouts/ForceDirected3D.ts`, `src/moneta/embodiment/TopologyLayoutEmbodiment.ts`, `src/data/Dataset.ts` `remapEdgesAfterPrefixEviction`) contradict the declared `missingEndpointPolicy: 'REFUSE'` and must either fail closed or be provably unreachable for governed graph payloads; B3/B4 falsifiers must cover them.
+B3 additionally owns B1-RF-03: the pre-existing silent edge-drop paths (`src/moneta/layouts/ForceDirected3D.ts`, `src/moneta/embodiment/TopologyLayoutEmbodiment.ts`, `src/data/Dataset.ts` `remapEdgesAfterPrefixEviction`) contradict the declared `missingEndpointPolicy: 'REFUSE'` and must either fail closed or be provably unreachable for governed graph payloads; B3/B4 falsifiers must cover them.
 
 ## B4 — product, scale, perceptual evidence + independent STOP
 
