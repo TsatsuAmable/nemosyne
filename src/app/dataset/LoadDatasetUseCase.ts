@@ -18,8 +18,10 @@ import { WorldTopics } from '../../utils/EventBus.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
 import {
   loadAggregateSemanticEmbodiment,
+  loadClusterSemanticEmbodiment,
   loadDensitySemanticEmbodiment,
   loadDistributionSemanticEmbodiment,
+  loadRelationshipGraphSemanticEmbodiment,
 } from './SemanticEmbodimentLoader.ts';
 
 export type DatasetLoadAuthority = Pick<
@@ -46,10 +48,7 @@ type SemanticMonetaDataInput = MonetaDataInput & {
 export interface LoadDatasetUseCaseOptions {
   preserveAnalyticalState?: boolean;
   requirements?: RepresentationRequirements;
-  /**
-   * Session restore embodies the already-authoritative persisted decision
-   * without committing a fresh Moneta arbitration result.
-   */
+  /** Session restore embodies the already-authoritative persisted decision. */
   authoritativeRepresentation?: { decision: RepresentationDecision | null };
 }
 
@@ -86,40 +85,76 @@ function numericOverviewDimensions(
   return dimensions;
 }
 
+function disclosureContract() {
+  return {
+    enabled: true,
+    levels: [
+      { level: 0, distanceThreshold: 8, reveals: ['dataset-structure'] },
+      { level: 1, distanceThreshold: 4, reveals: ['semantic-region', 'semantic-group'] },
+      { level: 2, distanceThreshold: 1.5, reveals: ['observations-on-request'] },
+    ],
+  } as const;
+}
+
 /**
- * A fresh dataset opens at dataset structure, not at one-mark-per-observation
- * inspection. Exact observations remain an explicit drill-down/inspection task.
- * The dimensions are explicit requirements so semantic builders never choose a
- * convenient measure column behind the investigator's back.
+ * Fresh datasets start from the strongest source-authoritative dataset object
+ * available without inventing analytical structure. Explicit source graphs get
+ * graph intent. Other datasets begin with distribution/density overview over
+ * explicit numeric measures. Exact observations remain a drill-down task.
  */
 function createDatasetFirstRequirements(
   dataset: Dataset,
+  topology: TopologyType,
   encodings: Record<string, string | undefined>
 ): RepresentationRequirements {
+  if (topology === 'GRAPH' && (dataset.edges?.length ?? 0) > 0) {
+    const graphRequirements = createDefaultRequirements('relationship-discovery');
+    return {
+      ...graphRequirements,
+      preservationGoals: [
+        { information: 'relational-edge-connectivity', priority: 'CRITICAL' },
+        { information: 'individual-observation-identity', priority: 'DESIRED' },
+      ],
+      progressiveDisclosure: disclosureContract(),
+    };
+  }
+
   const requirements = createDefaultRequirements(
     'overview',
     numericOverviewDimensions(dataset, encodings)
   );
   return {
     ...requirements,
-    progressiveDisclosure: {
-      enabled: true,
-      levels: [
-        { level: 0, distanceThreshold: 8, reveals: ['dataset-structure'] },
-        { level: 1, distanceThreshold: 4, reveals: ['semantic-region', 'semantic-group'] },
-        { level: 2, distanceThreshold: 1.5, reveals: ['observations-on-request'] },
-      ],
-    },
+    progressiveDisclosure: disclosureContract(),
   };
+}
+
+function explicitClusterField(
+  dataset: Dataset,
+  requirements: RepresentationRequirements
+): string {
+  return (
+    requirements.primaryDimensions?.find(
+      (field) => dataset.getColumn(field)?.type === 'CATEGORICAL'
+    ) ?? ''
+  );
+}
+
+function explicitClusterMeasures(
+  dataset: Dataset,
+  requirements: RepresentationRequirements
+): string[] {
+  return (
+    requirements.primaryDimensions?.filter(
+      (field) => dataset.getColumn(field)?.type === 'NUMERIC'
+    ).slice(0, 3) ?? []
+  );
 }
 
 /**
  * Owns the logical dataset → Moneta decision transition.
- *
  * Atlas remains the dataset/evidence/statistical authority. This use case only
- * sequences authoritative operations and returns a presentation-neutral result;
- * it does not construct Three.js resources, panels, dashboards, or analytical
- * fallbacks.
+ * sequences authoritative operations and returns a presentation-neutral result.
  */
 export class LoadDatasetUseCase {
   constructor(private readonly atlas: DatasetLoadAuthority) {}
@@ -133,10 +168,6 @@ export class LoadDatasetUseCase {
     }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
     if (!preserveAnalyticalState) {
-      // Preserve the existing production semantics exactly: Atlas first loads
-      // a cloned baseline, then receives a second clone as the mutable current
-      // dataset. `setOriginalDataset` is the authoritative load/ledger/version
-      // transition; `setCurrentDataset` only establishes the working copy.
       const originalDataset = entry.dataset.clone();
       this.atlas.setOriginalDataset(originalDataset);
       this.atlas.setCurrentDataset(originalDataset.clone());
@@ -156,6 +187,7 @@ export class LoadDatasetUseCase {
         ? (requirements ?? createDefaultRequirements('individual-inspection'))
         : createDatasetFirstRequirements(
             embodiedDataset,
+            topology,
             encodings as Record<string, string | undefined>
           );
 
@@ -173,21 +205,13 @@ export class LoadDatasetUseCase {
       representationDecision = authoritativeRepresentation.decision;
       if (representationDecision) {
         const signature = this.atlas.computeDatasetSignature(dataInput);
-        outcome = diagnoseInvestigatorOutcome(
-          signature,
-          activeRequirements,
-          representationDecision
-        );
+        outcome = diagnoseInvestigatorOutcome(signature, activeRequirements, representationDecision);
       }
     } else if (this.atlas.isReady()) {
       try {
         representationDecision = this.atlas.arbitrateRepresentation(activeRequirements, dataInput);
         const signature = this.atlas.computeDatasetSignature(dataInput);
-        outcome = diagnoseInvestigatorOutcome(
-          signature,
-          activeRequirements,
-          representationDecision
-        );
+        outcome = diagnoseInvestigatorOutcome(signature, activeRequirements, representationDecision);
       } catch (error) {
         if (!(error instanceof NoFeasibleRepresentationError)) throw error;
         const signature = this.atlas.computeDatasetSignature(dataInput);
@@ -217,12 +241,23 @@ export class LoadDatasetUseCase {
         activeRequirements.primaryDimensions?.[0] ?? '',
         activeRequirements.primaryDimensions?.[1] ?? ''
       );
+    } else if (representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
+      dataInput.semanticEmbodimentPromise = loadClusterSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        explicitClusterField(embodiedDataset, activeRequirements),
+        explicitClusterMeasures(embodiedDataset, activeRequirements)
+      );
+    } else if (representationDecision?.chosenCandidateId === 'RELATIONSHIP_GRAPH') {
+      dataInput.semanticEmbodimentPromise = loadRelationshipGraphSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision
+      );
     }
 
     if (!preserveAnalyticalState) {
-      // Cross-cutting UI consumers observe the authoritative logical dataset
-      // transition through the existing event bus rather than polling or
-      // maintaining a second dataset identity.
       this.atlas.eventBus?.emit(WorldTopics.DATASET_LOADED, {
         key: entry.key ?? null,
         name: entry.name ?? null,
