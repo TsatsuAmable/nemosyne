@@ -5,6 +5,12 @@ import type {
   ClusterEmbodimentEnvelopeV1,
   ClusterEmbodimentRequestV1,
 } from '../../moneta/representation/ClusterEmbodimentPayload.ts';
+import type {
+  GraphEmbodimentEnvelopeV1,
+  GraphEmbodimentRequestV1,
+} from '../../moneta/representation/GraphEmbodimentPayload.ts';
+import type { SourceRelationshipGraphAuthority } from '../../moneta/representation/RelationshipGraphAuthority.ts';
+import { validateSourceRelationshipGraphAuthority } from '../../moneta/representation/RelationshipGraphAuthority.ts';
 import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
@@ -348,6 +354,103 @@ export function loadClusterSemanticEmbodiment(
       envelope.provenance.decisionId !== decision.id ||
       (envelope.result.status === 'READY' &&
         envelope.result.payload.kind !== 'CLUSTER_REGIONS')
+    ) {
+      return null;
+    }
+    return envelope;
+  })().catch(() => null);
+}
+
+/**
+ * Start the R2E B2 resident source-relationship-graph request. The graph
+ * authority is the explicit B1 `SOURCE_EDGES` contract and is re-validated
+ * through the shared strict validator on this production surface; no weaker
+ * parallel parser may decide graph admissibility. TypeScript does not resolve
+ * endpoints, retain topology, mint semantic identity or compute layout; the
+ * resident Rust/WASM authority owns all of that and refuses fail-closed.
+ */
+export function loadGraphSemanticEmbodiment(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision,
+  graphAuthority: SourceRelationshipGraphAuthority
+): Promise<GraphEmbodimentEnvelopeV1 | null> | undefined {
+  if (decision.chosenCandidateId !== 'RELATIONSHIP_GRAPH') return undefined;
+
+  const port = authority.executionPort;
+  const fingerprint = authority.datasetFingerprint;
+  const version = authority.datasetVersion;
+  const generation = authority.generation;
+  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
+
+  return (async () => {
+    // Strict B1 validation on the live production surface: an unknown or
+    // widened authority field fails closed here, not only in the schema layer.
+    const validatedAuthority = validateSourceRelationshipGraphAuthority(graphAuthority);
+
+    // The declared `nonFiniteWeightPolicy: refuse-payload` must hold end to
+    // end, but JSON serialization demotes NaN/Infinity edge weights to null
+    // (absent) before Rust can see them. Refuse such datasets here so the
+    // demotion can never silently relax a source-declared weight.
+    if (
+      dataset.edges?.some(
+        (edge) => typeof edge.weight === 'number' && !Number.isFinite(edge.weight)
+      )
+    ) {
+      return null;
+    }
+
+    const request: GraphEmbodimentRequestV1 = {
+      schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+      candidateId: 'RELATIONSHIP_GRAPH',
+      graphAuthority: validatedAuthority,
+      decisionId: decision.id,
+      decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
+      decisionModelArtifactHash:
+        decision.fitnessModelArtifactHash ??
+        decision.provenance.fitnessModelArtifactHash ??
+        undefined,
+    };
+
+    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
+      if (!port.registerDataset) return null;
+      await port.registerDataset({
+        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
+        dataset: { fingerprint, version },
+        generation,
+        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
+      });
+    }
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+
+    const result = await port.execute<GraphEmbodimentEnvelopeV1>({
+      requestId: `semantic-graph-${generation}-${version}-${++requestSequence}`,
+      operation: 'semanticEmbodiment',
+      dataset: { fingerprint, version },
+      generation,
+      params: request as unknown as Record<string, unknown>,
+    });
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+    if (
+      result.generation !== generation ||
+      result.datasetVersion !== version ||
+      result.datasetFingerprint !== fingerprint
+    ) {
+      return null;
+    }
+
+    const envelope = result.value;
+    if (
+      !envelope ||
+      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
+      envelope.datasetFingerprint !== fingerprint ||
+      envelope.candidateId !== 'RELATIONSHIP_GRAPH' ||
+      envelope.representationFamily !== 'GRAPH' ||
+      envelope.provenance.decisionId !== decision.id ||
+      (envelope.result.status === 'READY' &&
+        envelope.result.payload.kind !== 'RELATIONSHIP_GRAPH')
     ) {
       return null;
     }
