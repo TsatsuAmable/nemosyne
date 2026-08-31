@@ -70,7 +70,7 @@ export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
   treatmentId: FITNESS_TREATMENT_ID,
   weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   rationale:
-    'V4 preserves the frozen bootstrap weights and R6B canonical-family rules while requiring explicit source-partition authority for CLUSTER_REGIONS and narrowing its information contract to partition distinction plus group magnitude. Observation identity, exact values, distribution shape, density semantics, and formal outlier boundaries are no longer credited to the bounded cluster summary.',
+    'Study-treatment V4 preserves the frozen bootstrap weights and R6B canonical-family rules while requiring explicit source-partition authority for CLUSTER_REGIONS and narrowing its information contract to partition distinction plus group magnitude. Observation identity, exact values, distribution shape, density semantics, and formal outlier boundaries are no longer credited to the bounded cluster summary.',
 };
 
 export interface FitnessComponent {
