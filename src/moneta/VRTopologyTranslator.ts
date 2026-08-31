@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Dataset } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
+import { buildDensitySemanticField } from './embodiment/DensitySemanticEmbodiment.ts';
 import { ScalableTopologyEmbodiment } from './embodiment/ScalableTopologyEmbodiment.ts';
 import { TimeRibbonArtifactUpdater } from './embodiment/TimeRibbonArtifactUpdater.ts';
 import { TopologyInteractionOwner } from './embodiment/TopologyInteractionOwner.ts';
@@ -63,7 +64,7 @@ export class VRTopologyTranslator {
 
     // Dataset-level semantic embodiments consume only bounded Rust-owned
     // payloads. Resolve raw rows/edges lazily for the still-row-backed families
-    // so aggregate/distribution paths cannot accidentally traverse source rows.
+    // so aggregate/distribution/density paths cannot traverse source rows.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
@@ -71,6 +72,9 @@ export class VRTopologyTranslator {
       edges = [];
     } else if (spec.geometry === 'DISTRIBUTION_FIELD') {
       scalable.buildDistributionField(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      edges = [];
+    } else if (spec.geometry === 'DENSITY_FIELD') {
+      buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
@@ -88,8 +92,6 @@ export class VRTopologyTranslator {
         );
       } else if (spec.geometry === 'CLUSTER_VOLUME') {
         scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
-      } else if (spec.geometry === 'DENSITY_FIELD') {
-        scalable.buildDensityField(group, nodeMeshes, rows, dataset, encodings, spec, edges);
       } else {
         switch (spec.layout) {
           case 'GRID_3D':
@@ -169,6 +171,7 @@ export class VRTopologyTranslator {
     if (
       spec.geometry !== 'AGGREGATE_BARS' &&
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
+      spec.geometry !== 'DENSITY_FIELD' &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory
