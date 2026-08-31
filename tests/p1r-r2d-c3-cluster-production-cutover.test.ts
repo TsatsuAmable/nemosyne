@@ -244,6 +244,7 @@ function guardedInput(semantic?: ClusterEmbodimentEnvelopeV1 | null): MonetaData
   const input = {
     dataset: guardedDataset(),
     semanticEmbodiment: semantic,
+    semanticEmbodimentCandidateId: 'CLUSTER_REGIONS',
   } as unknown as MonetaDataInput;
   Object.defineProperty(input, 'rows', {
     get() {
@@ -281,8 +282,10 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
     );
     const semanticInput = result.dataInput as MonetaDataInput & {
       semanticEmbodimentPromise?: Promise<ClusterEmbodimentEnvelopeV1 | null>;
+      semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
     };
 
+    expect(semanticInput.semanticEmbodimentCandidateId).toBe('CLUSTER_REGIONS');
     expect(await semanticInput.semanticEmbodimentPromise).toEqual(expected);
     expect(registerDataset).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(1);
@@ -365,7 +368,7 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
     }
   });
 
-  it('keeps pending, refused, invalid and unavailable states row-free with no chart fallback', async () => {
+  it('keeps pending, refused, invalid and unavailable governed states row-free with no chart fallback', async () => {
     const chartPlaneFactory = vi.fn();
     const pending = VRTopologyTranslator.synthesizeArtifact(
       solverResult(),
@@ -394,7 +397,10 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
 
     const invalid = VRTopologyTranslator.synthesizeArtifact(
       solverResult(),
-      guardedInput({ ...envelope('c'.repeat(64)), representationFamily: 'DENSITY' } as unknown as ClusterEmbodimentEnvelopeV1),
+      guardedInput({
+        ...envelope('c'.repeat(64)),
+        representationFamily: 'DENSITY',
+      } as unknown as ClusterEmbodimentEnvelopeV1),
       { chartPlaneFactory }
     );
     expect(invalid.nodeMeshes).toHaveLength(0);
@@ -432,7 +438,17 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
     if (node.group) disposeObject(node.group);
   });
 
-  it('mechanically removes the legacy row-derived cluster authority from production dispatch', () => {
+  it('does not reinterpret the generic CLUSTER_VOLUME primitive as scientific cluster authority', () => {
+    const ungoverned = guardedInput(envelope('e'.repeat(64))) as MonetaDataInput & {
+      semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
+    };
+    delete ungoverned.semanticEmbodimentCandidateId;
+    expect(() => VRTopologyTranslator.synthesizeArtifact(solverResult(), ungoverned)).toThrow(
+      RAW_ROW_SENTINEL
+    );
+  });
+
+  it('mechanically fences the semantic branch before rows while retaining legacy geometry after rows', () => {
     const worker = readFileSync('src/atlas/ports/analytical.worker.ts', 'utf8');
     const loader = readFileSync('src/app/dataset/LoadDatasetUseCase.ts', 'utf8');
     const translator = readFileSync('src/moneta/VRTopologyTranslator.ts', 'utf8');
@@ -440,11 +456,16 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
 
     expect(worker).toContain("req.params.candidateId === 'CLUSTER_REGIONS'");
     expect(worker).toContain('buildClusterSemanticEmbodimentV1(');
-    expect(loader).toContain("activeRequirements.clusterAuthority.field");
-    expect(translator).toContain("spec.geometry === 'CLUSTER_VOLUME'");
+    expect(loader).toContain("semanticEmbodimentCandidateId = 'CLUSTER_REGIONS'");
+    expect(loader).toContain('activeRequirements.clusterAuthority.field');
+    expect(translator).toContain("semanticEmbodimentCandidateId === 'CLUSTER_REGIONS'");
+    expect(translator).toContain("spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment");
     expect(translator).toContain('buildClusterSemanticRegions(');
-    expect(translator).not.toContain('.buildClusterVolume(');
-    expect(translator.indexOf("spec.geometry === 'CLUSTER_VOLUME'")).toBeLessThan(
+    expect(translator).toContain('scalable.buildClusterVolume(');
+    expect(translator.indexOf('buildClusterSemanticRegions(')).toBeLessThan(
+      translator.indexOf('rows = dataset?.rows')
+    );
+    expect(translator.indexOf('scalable.buildClusterVolume(')).toBeGreaterThan(
       translator.indexOf('rows = dataset?.rows')
     );
     expect(adapter).not.toContain('.rows');
