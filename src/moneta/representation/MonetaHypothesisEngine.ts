@@ -61,7 +61,10 @@ import {
 import { assessRepresentationDecision } from './DecisionPolicy.ts';
 import { analyzeWinnerSensitivity } from './SensitivityAnalysis.ts';
 import type { HardConstraintCode } from './HardConstraintCode.ts';
-import { SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS } from './RelationshipGraphAuthority.ts';
+import {
+  SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS,
+  validateSourceRelationshipGraphAuthority,
+} from './RelationshipGraphAuthority.ts';
 
 /**
  * Backward-compatible weight envelope. New code should prefer
@@ -124,8 +127,12 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
   }
 }
 
+/** Rank-effective engine provenance. Bump (with fitness/ontology provenance) whenever
+ * admissibility or information semantics change ranking. */
+export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.0-v5-bootstrap';
+
 export class MonetaHypothesisEngine {
-  readonly version = '2.1.0-v5-bootstrap';
+  readonly version = MONETA_HYPOTHESIS_ENGINE_VERSION;
   readonly fitnessModel: BootstrapFitnessModel;
   private readonly fitnessModelArtifactHash: string | null;
 
@@ -387,7 +394,7 @@ export class MonetaHypothesisEngine {
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
-      version: '2.1.0-v5-bootstrap',
+      version: MONETA_HYPOTHESIS_ENGINE_VERSION,
       datasetFingerprint: signature.provenance.datasetFingerprint,
       requirementsHash,
       fitnessModelVersion: this.fitnessModel.version,
@@ -707,13 +714,17 @@ export class MonetaHypothesisEngine {
 
     if (candidate.id === 'RELATIONSHIP_GRAPH') {
       const authority = reqs.graphAuthority;
-      const authorityValid =
-        authority?.kind === 'SOURCE_EDGES' &&
-        (authority.directionality === 'DIRECTED' || authority.directionality === 'UNDIRECTED') &&
-        authority.nodeIdentity === 'DATASET_ROW' &&
-        authority.missingEndpointPolicy === 'REFUSE' &&
-        authority.parallelEdgePolicy === 'PRESERVE' &&
-        authority.selfLoopPolicy === 'PRESERVE';
+      let authorityValid = false;
+      if (authority) {
+        try {
+          // Shared validator: unknown authority fields must fail closed here too,
+          // not only in the schema/helper layer.
+          validateSourceRelationshipGraphAuthority(authority);
+          authorityValid = true;
+        } catch {
+          authorityValid = false;
+        }
+      }
 
       if (!authorityValid || signature.cardinality.edgeCount <= 0) {
         return {
@@ -882,7 +893,7 @@ export class MonetaHypothesisEngine {
       provenance: {
         generatedAt: 0,
         engine: 'MonetaHypothesisEngine',
-        version: '2.1.0-v5-bootstrap',
+        version: MONETA_HYPOTHESIS_ENGINE_VERSION,
         datasetFingerprint,
         requirementsHash,
         fitnessModelVersion: this.fitnessModel.version,

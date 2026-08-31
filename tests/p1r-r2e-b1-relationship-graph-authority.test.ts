@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Dataset } from '../src/data/Dataset.ts';
 import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
 import {
   BOOTSTRAP_FITNESS_MODEL_VERSION,
@@ -6,6 +7,7 @@ import {
 } from '../src/moneta/representation/FitnessModel.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../src/moneta/representation/RepresentationCandidate.ts';
+import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
 import {
   createDefaultRequirements,
   validateRepresentationRequirements,
@@ -218,5 +220,67 @@ describe('P1-R2E B1 source-authoritative relationship graph contract', () => {
       ...createSourceRelationshipGraphAuthority('DIRECTED'),
       inferMissingEdges: true,
     })).toThrow(/unknown authority field inferMissingEdges/i);
+  });
+
+  it('disqualifies authority objects with unknown fields on the live Moneta path, not only in the schema', () => {
+    const requirements = sourceGraphRequirements();
+    requirements.graphAuthority = {
+      ...createSourceRelationshipGraphAuthority('DIRECTED'),
+      inferMissingEdges: true,
+    } as RepresentationRequirements['graphAuthority'];
+
+    const decision = MonetaHypothesisEngine.arbitrate(graphSignature(), requirements);
+    const candidates = graphCandidates(decision);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(
+      candidates.every((candidate) => candidate.disqualificationCode === 'graph-authority-required')
+    ).toBe(true);
+    expect(decision.chosenCandidateId).not.toBe('RELATIONSHIP_GRAPH');
+  });
+
+  it('binds the engine edge-count input to real source edges through the full signature path', () => {
+    const columns = [
+      { name: 'id', type: 'TEXT' as const },
+      { name: 'value', type: 'NUMERIC' as const },
+    ];
+    const rows = Array.from({ length: 120 }, (_, i) => ({ id: `row-${i}`, value: i }));
+    const edges = Array.from({ length: 60 }, (_, i) => ({
+      source: i % 120,
+      target: (i + 1) % 120,
+      weight: 1,
+    }));
+
+    const withEdges = buildDatasetSignature(
+      new Dataset('r2e-b1-full-path', columns, rows, edges),
+      null,
+      'r2e-b1-full-path-fingerprint'
+    );
+    expect(withEdges.cardinality.edgeCount).toBe(60);
+    expect(withEdges.topologicalStructure.topology).toBe('GRAPH');
+
+    const admitted = MonetaHypothesisEngine.arbitrate(withEdges, sourceGraphRequirements());
+    const admittedCandidates = graphCandidates(admitted);
+    expect(admittedCandidates.length).toBeGreaterThan(0);
+    expect(admittedCandidates.some((candidate) => !candidate.disqualified)).toBe(true);
+    expect(
+      admittedCandidates.every(
+        (candidate) => candidate.disqualificationCode !== 'graph-authority-required'
+      )
+    ).toBe(true);
+
+    const withoutEdges = buildDatasetSignature(
+      new Dataset('r2e-b1-full-path', columns, rows, []),
+      null,
+      'r2e-b1-full-path-fingerprint'
+    );
+    expect(withoutEdges.cardinality.edgeCount).toBe(0);
+
+    const refused = MonetaHypothesisEngine.arbitrate(withoutEdges, sourceGraphRequirements());
+    expect(
+      graphCandidates(refused).every(
+        (candidate) => candidate.disqualificationCode === 'graph-authority-required'
+      )
+    ).toBe(true);
   });
 });
