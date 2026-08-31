@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
+import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
+import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
 
 const WORKFLOW = '.github/workflows/stream-a-a5-product-evidence.yml';
 
@@ -45,5 +48,14 @@ describe('Stream A A5 finite product-evidence contract', () => {
     expect(inspector).not.toContain('dataset.toJSON');
     expect(inspector).not.toContain('registerDataset');
     expect(inspector).not.toContain('.rows');
+  });
+
+  it('keeps POINT_SET legitimate for explicit feasible individual-inspection intent', () => {
+    const signature = minimalDatasetSignature(100, 3, 1, 0, 'a5-point-intent', 0);
+    const requirements = createDefaultRequirements('individual-inspection', 'SMALL');
+    const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+
+    expect(decision.chosenCandidateId).toBe('POINT_SET');
+    expect(decision.chosenFamily).toBe('POINT');
   });
 });
