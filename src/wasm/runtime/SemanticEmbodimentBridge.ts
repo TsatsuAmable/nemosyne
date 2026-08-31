@@ -122,6 +122,18 @@ function retainAuthoritativeRequest(
   );
 }
 
+function authorityMatchesTarget(
+  authority: RetainedEmbodimentAuthority | undefined,
+  request: SemanticDetailRequestV1,
+): authority is RetainedEmbodimentAuthority {
+  if (!authority) return false;
+  const { target } = request;
+  if (authority.datasetFingerprint !== target.datasetFingerprint) return false;
+  if (authority.representationFamily !== target.representationFamily) return false;
+  if (authority.decisionId !== undefined && authority.decisionId !== target.decisionId) return false;
+  return true;
+}
+
 function resolveAuthoritativeRequest(
   handle: number,
   request: SemanticDetailRequestV1,
@@ -130,14 +142,20 @@ function resolveAuthoritativeRequest(
   const exact = retainedEmbodimentAuthority.get(
     authorityKey(handle, target.representationFamily, target.decisionId),
   );
+
+  // P1-R2C density truth is decision-bound. A density detail request may never
+  // inherit an older/legacy artifact that was built without the target decision.
+  if (target.representationFamily === 'DENSITY') {
+    if (!authorityMatchesTarget(exact, request)) return null;
+    if (exact.decisionId !== target.decisionId) return null;
+    return structuredClone(exact.request);
+  }
+
   const legacy = retainedEmbodimentAuthority.get(
     authorityKey(handle, target.representationFamily),
   );
   const authority = exact ?? legacy;
-  if (!authority) return null;
-  if (authority.datasetFingerprint !== target.datasetFingerprint) return null;
-  if (authority.representationFamily !== target.representationFamily) return null;
-  if (authority.decisionId !== undefined && authority.decisionId !== target.decisionId) return null;
+  if (!authorityMatchesTarget(authority, request)) return null;
   return structuredClone(authority.request);
 }
 
