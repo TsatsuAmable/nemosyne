@@ -7,11 +7,16 @@ import {
   type RepresentationInteractableOptions,
 } from '../src/vr/presentation/representation/RepresentationSurface.ts';
 
-function fakeNode(meshName: string, representationKind?: string): MonetaTopologyNode {
+function fakeNode(
+  meshName: string,
+  representationKind?: string,
+  provenance?: Record<string, unknown>
+): MonetaTopologyNode {
   const group = new THREE.Group();
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
   mesh.name = meshName;
   if (representationKind) mesh.userData.representationKind = representationKind;
+  if (provenance) mesh.userData.provenance = provenance;
   group.add(mesh);
   return {
     artifact: {
@@ -186,6 +191,40 @@ describe('RF-062C RepresentationSurface', () => {
     expect(addInteractable).not.toHaveBeenCalledWith(
       node.artifact!.nodeMeshes[0],
       expect.objectContaining({ semantic: { kind: 'observation' } })
+    );
+    surface.dispose();
+  });
+
+  it('binds provenance-bearing cluster regions as governed semantic regions', () => {
+    const node = fakeNode('cluster-region:A', 'CLUSTER_REGIONS', {
+      algorithmVersion: 'source-partition-cluster-columnar-v1',
+    });
+    const addInteractable = vi.fn();
+    const surface = makeSurface(node, addInteractable);
+
+    surface.replace({ topology: 'TABULAR' }, null);
+
+    expect(addInteractable).toHaveBeenCalledWith(
+      node.artifact!.nodeMeshes[0],
+      expect.objectContaining({ semantic: { kind: 'cluster-region' } })
+    );
+    surface.dispose();
+  });
+
+  it('does not advertise presentation-only cluster spheres as governed cluster regions', () => {
+    const node = fakeNode('legacy-cluster-sphere', 'CLUSTER_REGIONS');
+    const addInteractable = vi.fn();
+    const surface = makeSurface(node, addInteractable);
+
+    surface.replace({ topology: 'TABULAR' }, null);
+
+    expect(addInteractable).toHaveBeenCalledWith(
+      node.artifact!.nodeMeshes[0],
+      expect.objectContaining({ semantic: { kind: 'presentation-cluster' } })
+    );
+    expect(addInteractable).not.toHaveBeenCalledWith(
+      node.artifact!.nodeMeshes[0],
+      expect.objectContaining({ semantic: { kind: 'cluster-region' } })
     );
     surface.dispose();
   });
