@@ -125,11 +125,13 @@ describe('Stream A A4 semantic datum inspector', () => {
   });
 
   it('suppresses a late exact-datum result after the semantic detail context changes', async () => {
-    let resolveInspection: ((value: SemanticDatumInspectionResultV1) => void) | null = null;
+    const deferred: {
+      resolve?: (value: SemanticDatumInspectionResultV1) => void;
+    } = {};
     const state = fakeTransition(snapshot('READY', ['obs-1']));
     state.inspectObservation.mockImplementation(
-      () => new Promise((resolve) => {
-        resolveInspection = resolve;
+      () => new Promise<SemanticDatumInspectionResultV1>((resolve) => {
+        deferred.resolve = resolve;
       }),
     );
     const root = document.createElement('div');
@@ -139,7 +141,8 @@ describe('Stream A A4 semantic datum inspector', () => {
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await vi.waitFor(() => expect(state.inspectObservation).toHaveBeenCalledTimes(1));
     state.publish(snapshot('REFUSED'));
-    resolveInspection?.(readyInspection('obs-1'));
+    expect(deferred.resolve).toBeTypeOf('function');
+    deferred.resolve!(readyInspection('obs-1'));
     await Promise.resolve();
 
     expect(inspector.element.hidden).toBe(true);
