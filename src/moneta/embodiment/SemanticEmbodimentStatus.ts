@@ -6,7 +6,8 @@ export type SemanticEmbodimentPresentationStatus =
 export type SemanticEmbodimentPresentationCandidateId =
   | 'AGGREGATE_VOLUME'
   | 'DISTRIBUTION_FIELD'
-  | 'DENSITY_FIELD';
+  | 'DENSITY_FIELD'
+  | 'CLUSTER_REGIONS';
 
 export const SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME = 'semantic-embodiment-status';
 
@@ -50,6 +51,13 @@ const CANDIDATE_COPY: Record<
     refused: 'The analytical kernel refused this aggregate request.',
     invalid: 'The returned payload did not match the governed aggregate contract.',
     unavailable: 'No current analytical aggregate result is available.',
+  },
+  CLUSTER_REGIONS: {
+    label: 'CLUSTER REGIONS',
+    pending: 'Building the declared source-partition summary in the analytical kernel.',
+    refused: 'The analytical kernel refused this source-partition cluster request.',
+    invalid: 'The returned payload did not match the governed cluster-region contract.',
+    unavailable: 'No current analytical source-partition cluster result is available.',
   },
 };
 
