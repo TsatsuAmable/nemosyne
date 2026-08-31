@@ -1,8 +1,9 @@
-import type { World } from '../vr/World.ts';
 import {
   runAggregateEvidenceScenario,
   type AggregateEvidenceScenarioResult,
 } from './aggregateEvidenceDiagnostics.ts';
+
+type AggregateEvidenceWorld = Parameters<typeof runAggregateEvidenceScenario>[0];
 
 export interface A5ProductEvidenceHook {
   readonly schemaVersion: 1;
@@ -18,8 +19,8 @@ declare global {
   }
 }
 
-/** Evidence-only hook. It delegates to the production World/Worker/Rust path. */
-export function installA5ProductEvidenceHook(world: World): () => void {
+/** Evidence-only hook. It delegates to the supplied production Worker/Rust capability. */
+export function installA5ProductEvidenceHook(world: AggregateEvidenceWorld): () => void {
   const hook: A5ProductEvidenceHook = {
     schemaVersion: 1,
     runAggregateScenario: (input) => runAggregateEvidenceScenario(world, input),
