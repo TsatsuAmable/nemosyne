@@ -43,10 +43,11 @@ Required:
 - [x] remove `cluster-separation` preservation overclaim;
 - [x] separate source topology semantics from force-directed presentation wording;
 - [x] mint `bootstrap-fitness-v5` / `fitness-treatment-v5` and Moneta v5 provenance;
+- [x] advance compatibility ontology provenance to `bootstrap-ontology-v2` because candidate limitations changed;
 - [x] executable Moneta-path falsifiers;
 - [ ] exact-head CI / CodeQL / architecture / approval / Q8/Q9 as applicable;
-- [ ] post-implementation adversarial review;
-- [ ] promotion from draft after every blocker is closed.
+- [ ] post-implementation adversarial review closure;
+- [ ] promotion after every blocker is closed.
 
 **B1 exit:** one deterministic, bounded, scientifically reviewable contract exists and adds no B2 production graph payload yet.
 
