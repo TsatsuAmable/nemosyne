@@ -27,19 +27,25 @@ export interface BootstrapFitnessWeights {
   perceptualFitness: number;
 }
 
-export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v1';
+/**
+ * V2 changes the density ontology/ranking contract: a bounded bivariate bin-mass
+ * field and a genuine continuous population-density representation are distinct
+ * capabilities that may both satisfy a generic density task without sharing an
+ * information-preservation claim.
+ */
+export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v2';
 
 /**
- * Frozen study-treatment identity for the default ranking weights (RF-024).
+ * Frozen study-treatment identity for the default ranking treatment (RF-024/RF-065).
  *
  * The default bootstrap weights are engineering priors, not empirical
- * probabilities. Because they define the controlled treatment used by every
- * default Moneta decision, changing them is a study-treatment change: it MUST
- * mint a new `treatmentId` (e.g. `fitness-treatment-v2`) and pass study/
- * treatment review before promotion. The treatment id is recorded in decision
- * provenance so a later analyst can tell which treatment produced a decision.
+ * probabilities. Any rank-effective change to weights, requirement coverage, or
+ * information semantics is a study-treatment change and MUST mint a new
+ * `treatmentId` plus pass study/treatment review before promotion. The treatment
+ * id is recorded in decision provenance so a later analyst can tell which
+ * treatment produced a decision.
  */
-export const FITNESS_TREATMENT_ID = 'fitness-treatment-v1';
+export const FITNESS_TREATMENT_ID = 'fitness-treatment-v2';
 
 export interface FitnessTreatmentManifest {
   readonly treatmentId: string;
@@ -61,7 +67,7 @@ export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
   treatmentId: FITNESS_TREATMENT_ID,
   weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   rationale:
-    'Frozen V3 bootstrap engineering priors. Any change to these defaults is a study-treatment change and requires a new treatment id plus study-treatment review before promotion.',
+    'V2 preserves the frozen bootstrap weights while separating bounded empirical bin mass from continuous population-density semantics. Any later rank-effective change requires a new treatment id plus study-treatment review before promotion.',
 };
 
 export interface FitnessComponent {
@@ -81,7 +87,7 @@ export interface FitnessEvaluation {
 const REQUIREMENT_CAPABILITIES: Record<StructureRequirementType, StructureCapability[]> = {
   distribution: ['univariate-distribution'],
   'cluster-separation': ['cluster-partition', 'continuous-density'],
-  density: ['continuous-density'],
+  density: ['binned-empirical-mass', 'continuous-density'],
   'temporal-order': ['temporal-sequence'],
   periodicity: ['periodic-spectrum'],
   manifold: ['multivariate-correlation', 'continuous-density'],
@@ -157,7 +163,7 @@ export class BootstrapFitnessModel {
       this.component(
         'densityHandling',
         this.scoreDensityHandling(signature, requirements, candidate),
-        'Ability to expose density where the data or task makes density relevant'
+        'Ability to expose density-relevant structure without conflating empirical bin mass with continuous population density'
       ),
       this.component(
         'configuredPrior',
@@ -334,11 +340,28 @@ export class BootstrapFitnessModel {
 
     if (!densityRelevant) return 1;
 
-    const supportsDensity = candidate.supports.includes('continuous-density');
-    const preservesDensity = candidate.preserves.includes('population-density-distribution');
-    if (supportsDensity && preservesDensity) return 1;
-    if (supportsDensity || preservesDensity) return 0.75;
-    if (candidate.loses.includes('population-density-distribution')) return 0;
+    const supportsContinuousDensity = candidate.supports.includes('continuous-density');
+    const preservesPopulationDensity = candidate.preserves.includes('population-density-distribution');
+    if (supportsContinuousDensity && preservesPopulationDensity) return 1;
+
+    const supportsBinnedMass = candidate.supports.includes('binned-empirical-mass');
+    const preservesBinnedMass = candidate.preserves.includes('empirical-bivariate-bin-mass');
+    if (supportsBinnedMass && preservesBinnedMass) return 1;
+
+    if (
+      supportsContinuousDensity ||
+      preservesPopulationDensity ||
+      supportsBinnedMass ||
+      preservesBinnedMass
+    ) {
+      return 0.75;
+    }
+    if (
+      candidate.loses.includes('population-density-distribution') ||
+      candidate.loses.includes('empirical-bivariate-bin-mass')
+    ) {
+      return 0;
+    }
     return 0.25;
   }
 }
