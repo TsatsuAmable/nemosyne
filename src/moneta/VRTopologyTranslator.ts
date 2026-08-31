@@ -1,12 +1,16 @@
 import * as THREE from 'three';
 import type { Dataset } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
+import { buildClusterSemanticRegions } from './embodiment/ClusterSemanticEmbodiment.ts';
 import { buildDensitySemanticField } from './embodiment/DensitySemanticEmbodiment.ts';
 import { ScalableTopologyEmbodiment } from './embodiment/ScalableTopologyEmbodiment.ts';
 import { TimeRibbonArtifactUpdater } from './embodiment/TimeRibbonArtifactUpdater.ts';
 import { TopologyInteractionOwner } from './embodiment/TopologyInteractionOwner.ts';
 import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.ts';
-import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
+import type {
+  ClusterEmbodimentEnvelopeV1,
+  ProductionSemanticEmbodimentEnvelopeV1,
+} from './representation/ClusterEmbodimentPayload.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -19,7 +23,7 @@ import type {
 } from './types.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
-  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
 };
 
 export class VRTopologyTranslator {
@@ -64,7 +68,9 @@ export class VRTopologyTranslator {
 
     // Dataset-level semantic embodiments consume only bounded Rust-owned
     // payloads. Resolve raw rows/edges lazily for the still-row-backed families
-    // so aggregate/distribution/density paths cannot traverse source rows.
+    // so migrated paths cannot traverse source rows. CLUSTER_VOLUME is now a
+    // fail-closed semantic geometry: no legacy row-derived cluster sphere path
+    // remains in production dispatch.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
@@ -75,6 +81,13 @@ export class VRTopologyTranslator {
       edges = [];
     } else if (spec.geometry === 'DENSITY_FIELD') {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      edges = [];
+    } else if (spec.geometry === 'CLUSTER_VOLUME') {
+      buildClusterSemanticRegions(
+        group,
+        nodeMeshes,
+        semanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null | undefined
+      );
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
@@ -90,8 +103,6 @@ export class VRTopologyTranslator {
           edges,
           options
         );
-      } else if (spec.geometry === 'CLUSTER_VOLUME') {
-        scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
       } else {
         switch (spec.layout) {
           case 'GRID_3D':
@@ -172,6 +183,7 @@ export class VRTopologyTranslator {
       spec.geometry !== 'AGGREGATE_BARS' &&
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
       spec.geometry !== 'DENSITY_FIELD' &&
+      spec.geometry !== 'CLUSTER_VOLUME' &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory
