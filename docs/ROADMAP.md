@@ -4,7 +4,7 @@
 
 ## Status snapshot - 31 August 2026
 
-**Current integration base for this planning update:** `main@1ea2920` (#606 merged). Stream A is fully closed; Stream B B1 is promoted and B2 is the active forward checkpoint.
+**Current integration base for this planning update:** `main@1ea2920` (#606 merged). Stream A is fully closed; Stream B B1 promotion is being finalized in #607 and B2 is the active next checkpoint after that merge.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, and the current Progressive Disclosure Stream A have reached their finite implementation exits. In particular:
 
@@ -13,7 +13,7 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - A3 semantic selection lineage, bounded observation reveal, and explicit return-to-structure are `VERIFIED COMPLETE` for the generic production path.
 - A4 exact datum/provenance inspection is `VERIFIED COMPLETE` after #605, using a second bounded authority query rather than a whole-dataset UI cache.
 - A5 cross-family product evidence and the independent STOP review establish the finite P1-R5 closure for Aggregate, Distribution, Density and source-partition Cluster, with #606 merged and all exact-head gates green.
-- Stream B B1 source relationship-graph authority contract is `VERIFIED COMPLETE` after #598, independent adversarial review closure (`review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`) and promotion at `main@1ea2920`. `RELATIONSHIP_GRAPH` remains disqualified in production until B2/B3 land; four DEFER findings are recorded as B2/B3 obligations in `roadmap/P1_R2E_RELATIONSHIP_GRAPH.md`.
+- Stream B B1 source relationship-graph authority contract landed via #598 and has passed independent adversarial review. #607 closes the promotion/fix-forward tranche; B1 becomes final only after #607's unchanged exact head passes required gates and merges. `RELATIONSHIP_GRAPH` remains unavailable as a governed production representation until B2/B3 land; the residual B2/B3 obligations are recorded in `roadmap/P1_R2E_RELATIONSHIP_GRAPH.md`.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -43,7 +43,7 @@ Only one forward implementation PR should be active at a time unless the user ex
 | Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
-| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B2 resident Rust/WASM graph payload | **ACTIVE** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
+| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B1 promotion #607; B2 next | **ACTIVE** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects | **QUEUED AFTER B** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
 | **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | **QUEUED AFTER C** | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
 
@@ -154,7 +154,7 @@ B must not create a competing graph-specific member-query API. C may present `Re
 
 # Stream B - Source-Authoritative Structural Representations
 
-**Status:** ACTIVE — SEQUENTIAL FORWARD PROGRAMME; B1 COMPLETE, B2 IN FLIGHT  
+**Status:** ACTIVE — B1 PROMOTION #607; B2 NEXT AFTER MERGE  
 **Primary programme:** P1-R2E in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
 **First selected family:** source-provided `RELATIONSHIP_GRAPH`.
 
@@ -166,7 +166,7 @@ The first slice is Relationship Graph because source-provided edges create the c
 
 ## B1 - Relationship Graph scientific/authority contract
 
-**Status:** VERIFIED COMPLETE — #598 landed, independent adversarial review closed (`review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`), promoted at `main@1ea2920`.
+**Status:** VERIFIED COMPLETE ON #607 HEAD / PROMOTION PENDING FINAL EXACT-HEAD GATES + MERGE
 
 - define accepted source edge authority and provenance;
 - define node identity, edge identity, directionality, multiplicity/self-loop policy, missing endpoint behavior and edge attributes included in V1;
