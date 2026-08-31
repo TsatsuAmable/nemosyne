@@ -158,7 +158,11 @@ export class RepresentationSurface {
               ? 'distribution-element'
               : mesh.userData.representationKind === 'DENSITY_FIELD'
                 ? 'density-cell'
-                : 'observation';
+                : mesh.userData.representationKind === 'CLUSTER_REGIONS'
+                  ? mesh.userData.provenance
+                    ? 'cluster-region'
+                    : 'presentation-cluster'
+                  : 'observation';
         this.dependencies.addInteractable(mesh, {
           semantic: { kind: semanticKind },
           onEnter: (object) => node.artifact?.interactions?.onHover?.(object as Mesh),

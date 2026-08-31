@@ -1,6 +1,10 @@
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalyticalExecutionPort } from '../../atlas/ports/AnalyticalExecutionPort.ts';
 import type { RepresentationDecision } from '../../moneta/representation/RepresentationDecision.ts';
+import type {
+  ClusterEmbodimentEnvelopeV1,
+  ClusterEmbodimentRequestV1,
+} from '../../moneta/representation/ClusterEmbodimentPayload.ts';
 import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
@@ -263,6 +267,87 @@ export function loadDensitySemanticEmbodiment(
       envelope.representationFamily !== 'DENSITY' ||
       envelope.provenance.decisionId !== decision.id ||
       (envelope.result.status === 'READY' && envelope.result.payload.kind !== 'BINNED_DENSITY')
+    ) {
+      return null;
+    }
+    return envelope;
+  })().catch(() => null);
+}
+
+/**
+ * Start the C3 source-partition cluster request. The partition field and 2/3
+ * coordinate fields come directly from the explicit RepresentationRequirements
+ * contract. TypeScript does not validate types, substitute fields, group rows or
+ * compute spatial summaries; Rust refuses malformed declarations.
+ */
+export function loadClusterSemanticEmbodiment(
+  authority: SemanticEmbodimentAuthority,
+  dataset: Dataset,
+  decision: RepresentationDecision,
+  partitionField: string,
+  coordinateFields: string[]
+): Promise<ClusterEmbodimentEnvelopeV1 | null> | undefined {
+  if (decision.chosenCandidateId !== 'CLUSTER_REGIONS') return undefined;
+
+  const port = authority.executionPort;
+  const fingerprint = authority.datasetFingerprint;
+  const version = authority.datasetVersion;
+  const generation = authority.generation;
+  if (!port?.isAsync || !fingerprint) return Promise.resolve(null);
+
+  const request: ClusterEmbodimentRequestV1 = {
+    schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+    candidateId: 'CLUSTER_REGIONS',
+    partitionField,
+    coordinateFields: [...coordinateFields],
+    decisionId: decision.id,
+    decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
+    decisionModelArtifactHash:
+      decision.fitnessModelArtifactHash ??
+      decision.provenance.fitnessModelArtifactHash ??
+      undefined,
+  };
+
+  return (async () => {
+    if (!port.hasRegisteredDataset?.(generation, fingerprint)) {
+      if (!port.registerDataset) return null;
+      await port.registerDataset({
+        registrationId: `semantic-register-${generation}-${version}-${++requestSequence}`,
+        dataset: { fingerprint, version },
+        generation,
+        payload: { type: 'json', data: dataset.toJSON(), name: dataset.name },
+      });
+    }
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+
+    const result = await port.execute<ClusterEmbodimentEnvelopeV1>({
+      requestId: `semantic-cluster-${generation}-${version}-${++requestSequence}`,
+      operation: 'semanticEmbodiment',
+      dataset: { fingerprint, version },
+      generation,
+      params: request as unknown as Record<string, unknown>,
+    });
+
+    if (!isCurrent(authority, generation, version, fingerprint)) return null;
+    if (
+      result.generation !== generation ||
+      result.datasetVersion !== version ||
+      result.datasetFingerprint !== fingerprint
+    ) {
+      return null;
+    }
+
+    const envelope = result.value;
+    if (
+      !envelope ||
+      envelope.schemaVersion !== SEMANTIC_EMBODIMENT_SCHEMA_VERSION ||
+      envelope.datasetFingerprint !== fingerprint ||
+      envelope.candidateId !== 'CLUSTER_REGIONS' ||
+      envelope.representationFamily !== 'CLUSTER' ||
+      envelope.provenance.decisionId !== decision.id ||
+      (envelope.result.status === 'READY' &&
+        envelope.result.payload.kind !== 'CLUSTER_REGIONS')
     ) {
       return null;
     }

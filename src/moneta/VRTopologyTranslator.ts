@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import type { Dataset } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
+import { buildClusterSemanticRegions } from './embodiment/ClusterSemanticEmbodiment.ts';
 import { buildDensitySemanticField } from './embodiment/DensitySemanticEmbodiment.ts';
 import { ScalableTopologyEmbodiment } from './embodiment/ScalableTopologyEmbodiment.ts';
 import { TimeRibbonArtifactUpdater } from './embodiment/TimeRibbonArtifactUpdater.ts';
 import { TopologyInteractionOwner } from './embodiment/TopologyInteractionOwner.ts';
 import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.ts';
+import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import type {
   Artifact,
@@ -20,6 +22,12 @@ import type {
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
+};
+
+type ClusterSemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
+  semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentPromise?: Promise<ClusterEmbodimentEnvelopeV1 | null>;
 };
 
 export class VRTopologyTranslator {
@@ -49,6 +57,9 @@ export class VRTopologyTranslator {
     this._colorblindMode = options?.colorblindMode ?? 'none';
     const { spec, facts } = monetaResult;
     const semanticInput = dataInput as SemanticMonetaDataInput;
+    const clusterSemanticInput = dataInput as ClusterSemanticMonetaDataInput;
+    const usesClusterSemanticEmbodiment =
+      clusterSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
     const group = new THREE.Group();
@@ -62,9 +73,11 @@ export class VRTopologyTranslator {
       this._pointCloudFactory
     );
 
-    // Dataset-level semantic embodiments consume only bounded Rust-owned
-    // payloads. Resolve raw rows/edges lazily for the still-row-backed families
-    // so aggregate/distribution/density paths cannot traverse source rows.
+    // Governed dataset-level semantic candidates consume only bounded
+    // Rust-owned payloads. CLUSTER_VOLUME remains a presentation primitive;
+    // only an explicit CLUSTER_REGIONS authority marker intercepts it before
+    // source-row resolution. That governed path has deliberately no row-backed
+    // grouping/sphere fallback when evidence is pending, refused or unavailable.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
@@ -75,6 +88,9 @@ export class VRTopologyTranslator {
       edges = [];
     } else if (spec.geometry === 'DENSITY_FIELD') {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      edges = [];
+    } else if (spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) {
+      buildClusterSemanticRegions(group, nodeMeshes, clusterSemanticInput.semanticEmbodiment);
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
@@ -172,6 +188,7 @@ export class VRTopologyTranslator {
       spec.geometry !== 'AGGREGATE_BARS' &&
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
       spec.geometry !== 'DENSITY_FIELD' &&
+      !(spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory

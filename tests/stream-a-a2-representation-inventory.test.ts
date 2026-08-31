@@ -1,11 +1,15 @@
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
-import { Dataset } from '../src/data/Dataset.ts';
+import { describe, expect, it } from 'vitest';
+import { buildClusterSemanticRegions } from '../src/moneta/embodiment/ClusterSemanticEmbodiment.ts';
 import { buildDensitySemanticField } from '../src/moneta/embodiment/DensitySemanticEmbodiment.ts';
 import { ScalableTopologyEmbodiment } from '../src/moneta/embodiment/ScalableTopologyEmbodiment.ts';
 import { TopologyLayoutEmbodiment } from '../src/moneta/embodiment/TopologyLayoutEmbodiment.ts';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
+import type {
+  ClusterEmbodimentEnvelopeV1,
+  ProductionSemanticEmbodimentEnvelopeV1,
+} from '../src/moneta/representation/ClusterEmbodimentPayload.ts';
 import {
   MONETA_REPRESENTATION_CANDIDATES,
   type SemanticRepresentationId,
@@ -39,7 +43,7 @@ const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
   POINT_SET: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GRID_3D', geometry: 'CUBE_MATRIX' },
   DENSITY_FIELD: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
   DISTRIBUTION_FIELD: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'DISTRIBUTION_FIELD' },
-  CLUSTER_REGIONS: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME' },
+  CLUSTER_REGIONS: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME' },
   AGGREGATE_VOLUME: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'AGGREGATE_BARS' },
   TEMPORAL_TRAJECTORY: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'TIME_RIBBON', geometry: 'BEAM' },
   HIERARCHICAL_SPACE: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'RADIAL_ORBITAL', geometry: 'CONICAL_TREE' },
@@ -174,6 +178,76 @@ function densityEnvelope(): SemanticEmbodimentEnvelopeV1 {
   };
 }
 
+function clusterEnvelope(): ClusterEmbodimentEnvelopeV1 {
+  return {
+    schemaVersion: 1,
+    datasetFingerprint: 'c'.repeat(64),
+    candidateId: 'CLUSTER_REGIONS',
+    representationFamily: 'CLUSTER',
+    analyticalMethod: {
+      name: 'source-partition-cluster-summary',
+      version: 'source-partition-cluster-summary-v1',
+      parameters: {
+        partitionField: 'group',
+        coordinateFields: ['x', 'y'],
+        membershipAuthority: 'source-partition',
+        coordinateValidity: 'complete-case-finite',
+        spatialSummary: 'arithmetic-centroid-axis-aligned-bounds',
+        maxGroups: 256,
+      },
+    },
+    approximation: { mode: 'BOUNDED', representedRowCount: 6 },
+    informationContract: {
+      preserves: ['cluster-separation', 'aggregate-group-magnitude'],
+      loses: [
+        'individual-observation-identity',
+        'exact-metric-values',
+        'population-density-distribution',
+        'empirical-bivariate-bin-mass',
+        'empirical-distribution-shape',
+        'outlier-boundary-visibility',
+      ],
+    },
+    resource: { sourceRowCount: 6, elementCount: 3, maxElementCount: 256 },
+    provenance: {
+      kernelVersion: 'test',
+      algorithmVersion: 'source-partition-cluster-columnar-v1',
+      decisionId: 'decision-a2-cluster',
+      decisionModelVersion: 'bootstrap-fitness-v4',
+    },
+    result: {
+      status: 'READY',
+      payload: {
+        kind: 'CLUSTER_REGIONS',
+        data: {
+          partitionField: 'group',
+          coordinateFields: ['x', 'y'],
+          counts: {
+            sourceCount: 6,
+            assignedCount: 6,
+            unassignedCount: 0,
+            coordinateValidCount: 6,
+            coordinateExcludedCount: 0,
+          },
+          regions: [0, 1, 2].map((index) => ({
+            semanticId: `cluster-region:${index}`,
+            sourcePartitionValue: `g${index}`,
+            assignedCount: 2,
+            coordinateValidCount: 2,
+            coordinateExcludedCount: 0,
+            spatialSummary: {
+              axes: [
+                { field: 'x', centroid: index, min: index - 0.25, max: index + 0.25 },
+                { field: 'y', centroid: index, min: index - 0.25, max: index + 0.25 },
+              ],
+            },
+          })),
+        },
+      },
+    },
+  };
+}
+
 function minimalFacts(): MonetaFacts {
   return {
     topology: 'TABULAR', rowCount: 0, nodeCount: 0, edgeCount: 0, depth: 0,
@@ -195,10 +269,17 @@ function solverResult(entry: InventoryEntry): SolverResult {
 }
 
 function inputThatForbidsRawRows(candidateId: SemanticRepresentationId): MonetaDataInput {
-  const input: MonetaDataInput & { semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 } = { encodings: {} };
+  const input = { encodings: {} } as MonetaDataInput & {
+    semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1;
+    semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
+  };
   if (candidateId === 'AGGREGATE_VOLUME') input.semanticEmbodiment = aggregateEnvelope();
   if (candidateId === 'DISTRIBUTION_FIELD') input.semanticEmbodiment = distributionEnvelope();
   if (candidateId === 'DENSITY_FIELD') input.semanticEmbodiment = densityEnvelope();
+  if (candidateId === 'CLUSTER_REGIONS') {
+    input.semanticEmbodiment = clusterEnvelope();
+    input.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
+  }
   Object.defineProperty(input, 'rows', {
     configurable: true,
     get() { throw new Error(RAW_ROW_SENTINEL); },
@@ -210,41 +291,25 @@ function rendererSource(path: string): string {
   return readFileSync(path, 'utf8');
 }
 
-function semanticRenderCount(geometry: 'AGGREGATE_BARS' | 'DENSITY_FIELD' | 'DISTRIBUTION_FIELD'): number {
+function semanticRenderCount(
+  geometry: 'AGGREGATE_BARS' | 'DENSITY_FIELD' | 'DISTRIBUTION_FIELD' | 'CLUSTER_VOLUME'
+): number {
   const layouts = new TopologyLayoutEmbodiment('none');
   const scalable = new ScalableTopologyEmbodiment(layouts, 'none', null);
   const group = new THREE.Group();
   const nodeMeshes: THREE.Mesh[] = [];
   try {
-    if (geometry === 'AGGREGATE_BARS') scalable.buildAggregateBars(group, nodeMeshes, aggregateEnvelope());
-    else if (geometry === 'DISTRIBUTION_FIELD') scalable.buildDistributionField(group, nodeMeshes, distributionEnvelope());
-    else buildDensitySemanticField(group, nodeMeshes, densityEnvelope());
+    if (geometry === 'AGGREGATE_BARS') {
+      scalable.buildAggregateBars(group, nodeMeshes, aggregateEnvelope());
+    } else if (geometry === 'DISTRIBUTION_FIELD') {
+      scalable.buildDistributionField(group, nodeMeshes, distributionEnvelope());
+    } else if (geometry === 'DENSITY_FIELD') {
+      buildDensitySemanticField(group, nodeMeshes, densityEnvelope());
+    } else {
+      buildClusterSemanticRegions(group, nodeMeshes, clusterEnvelope());
+    }
     return nodeMeshes.length;
   } finally {
-    disposeObject(group);
-  }
-}
-
-function clusterRenderCount(rowCount = 24): number {
-  const rows = Array.from({ length: rowCount }, (_, index) => ({ group: `g${index % 3}`, x: index % 6, y: Math.floor(index / 6), value: index + 1 }));
-  const dataset = new Dataset('a2-cluster', [
-    { name: 'group', type: 'CATEGORICAL' },
-    { name: 'x', type: 'NUMERIC' },
-    { name: 'y', type: 'NUMERIC' },
-    { name: 'value', type: 'NUMERIC' },
-  ], rows);
-  const layouts = new TopologyLayoutEmbodiment('none');
-  const layoutSpy = vi.spyOn(layouts, 'computeLayoutPositions').mockReturnValue(
-    rows.map((row, index) => ({ row, index, position: new THREE.Vector3(index % 6, Math.floor(index / 6), index % 2) }))
-  );
-  const scalable = new ScalableTopologyEmbodiment(layouts, 'none', null);
-  const group = new THREE.Group();
-  const nodeMeshes: THREE.Mesh[] = [];
-  try {
-    scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, { color: 'group', size: 'value' }, { layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME', behavior: 'STATIC', interaction: 'INSPECT_CELL' });
-    return nodeMeshes.length;
-  } finally {
-    layoutSpy.mockRestore();
     disposeObject(group);
   }
 }
@@ -265,7 +330,10 @@ describe('Stream A representation inventory', () => {
       const entry = INVENTORY[candidateId];
       let error: unknown = null;
       try {
-        const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult(entry), inputThatForbidsRawRows(candidateId));
+        const artifact = VRTopologyTranslator.synthesizeArtifact(
+          solverResult(entry),
+          inputThatForbidsRawRows(candidateId)
+        );
         disposeObject(artifact.group);
       } catch (caught) {
         error = caught;
@@ -279,21 +347,35 @@ describe('Stream A representation inventory', () => {
     }
   });
 
-  it('keeps remaining semantic overclaims explicit while migrated adapters stay row-free', () => {
+  it('keeps semantic overclaims explicit while candidate authority stays separate from geometry primitives', () => {
     const translator = rendererSource('src/moneta/VRTopologyTranslator.ts');
     const densityAdapter = rendererSource('src/moneta/embodiment/DensitySemanticEmbodiment.ts');
+    const clusterAdapter = rendererSource('src/moneta/embodiment/ClusterSemanticEmbodiment.ts');
     const learned = rendererSource('src/moneta/representation/LearnedMonetaRuntime.ts');
     const bootstrap = rendererSource('src/moneta/representation/MonetaHypothesisEngine.ts');
 
     expect(translator).not.toContain('const rows = dataset?.rows ?? dataInput.rows ?? [];');
     expect(translator).toContain('buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment)');
+    expect(translator).toContain("semanticEmbodimentCandidateId === 'CLUSTER_REGIONS'");
+    expect(translator).toContain('buildClusterSemanticRegions(');
+    expect(translator).toContain('scalable.buildClusterVolume(');
+    expect(translator.indexOf('buildClusterSemanticRegions(')).toBeLessThan(
+      translator.indexOf('rows = dataset?.rows')
+    );
+    expect(translator.indexOf('scalable.buildClusterVolume(')).toBeGreaterThan(
+      translator.indexOf('rows = dataset?.rows')
+    );
     expect(translator).not.toContain('scalable.buildDensityField(');
     expect(densityAdapter).not.toContain('dataset.rows');
     expect(densityAdapter).not.toContain('computeLayoutPositions');
     expect(densityAdapter).not.toContain('for (const row');
+    expect(clusterAdapter).not.toContain('dataset.rows');
+    expect(clusterAdapter).not.toContain('computeLayoutPositions');
+    expect(clusterAdapter).not.toContain('SphereGeometry');
 
     expect(INVENTORY.DENSITY_FIELD.classification).toBe('DATASET_LEVEL_VALID');
     expect(INVENTORY.DISTRIBUTION_FIELD.classification).toBe('DATASET_LEVEL_VALID');
+    expect(INVENTORY.CLUSTER_REGIONS.classification).toBe('DATASET_LEVEL_VALID');
     expect(INVENTORY.MANIFOLD_EMBEDDING.classification).toBe('SEMANTICALLY_OVERCLAIMED');
     expect(INVENTORY.MULTISCALE_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
 
@@ -305,6 +387,6 @@ describe('Stream A representation inventory', () => {
     expect(semanticRenderCount('AGGREGATE_BARS')).toBe(aggregateEnvelope().resource.elementCount);
     expect(semanticRenderCount('DISTRIBUTION_FIELD')).toBe(distributionEnvelope().resource.elementCount);
     expect(semanticRenderCount('DENSITY_FIELD')).toBe(densityEnvelope().resource.elementCount);
-    expect(clusterRenderCount()).toBe(3);
+    expect(semanticRenderCount('CLUSTER_VOLUME')).toBe(clusterEnvelope().resource.elementCount);
   });
 });

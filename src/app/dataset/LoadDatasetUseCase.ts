@@ -3,7 +3,7 @@ import type { Dataset } from '../../data/Dataset.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { TopologyType } from '../../data/types.ts';
 import type { MonetaDataInput } from '../../moneta/types.ts';
-import type { SemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import type { ProductionSemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/ClusterEmbodimentPayload.ts';
 import {
   diagnoseInvestigatorOutcome,
   type InvestigatorActionableOutcome,
@@ -18,6 +18,7 @@ import { WorldTopics } from '../../utils/EventBus.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
 import {
   loadAggregateSemanticEmbodiment,
+  loadClusterSemanticEmbodiment,
   loadDensitySemanticEmbodiment,
   loadDistributionSemanticEmbodiment,
 } from './SemanticEmbodimentLoader.ts';
@@ -39,8 +40,9 @@ export type DatasetLoadAuthority = Pick<
   Partial<Pick<AtlasCore, 'eventBus'>>;
 
 type SemanticMonetaDataInput = MonetaDataInput & {
-  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
-  semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
 };
 
 export interface LoadDatasetUseCaseOptions {
@@ -164,6 +166,17 @@ export class LoadDatasetUseCase {
         representationDecision,
         activeRequirements.primaryDimensions?.[0] ?? '',
         activeRequirements.primaryDimensions?.[1] ?? ''
+      );
+    } else if (representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
+      dataInput.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
+      dataInput.semanticEmbodimentPromise = loadClusterSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        activeRequirements.clusterAuthority?.kind === 'SOURCE_PARTITION'
+          ? activeRequirements.clusterAuthority.field
+          : '',
+        activeRequirements.primaryDimensions ?? []
       );
     }
 

@@ -3,6 +3,7 @@ import type {
   ApproximationV1,
   InformationContractV1,
   ResourceEnvelopeV1,
+  SemanticEmbodimentEnvelopeV1,
   SemanticPayloadProvenanceV1,
   SemanticRefusalV1,
 } from './SemanticEmbodimentPayload.ts';
@@ -12,9 +13,9 @@ export const MAX_CLUSTER_REGIONS_V1 = 256 as const;
 export const MAX_CLUSTER_PARTITION_LABEL_BYTES_V1 = 65_536 as const;
 
 /**
- * C2 transport contract for the Rust-owned source-partition builder.
- * This file is intentionally separate from the production semantic-payload
- * union until C3 performs the governed Worker/renderer cutover.
+ * R2D source-partition request contract. The production path transports only
+ * explicit authority/coordinate field names and decision provenance. Rust owns
+ * all validation and analytical reduction against the resident dataset handle.
  */
 export interface ClusterEmbodimentRequestV1 {
   schemaVersion: 1;
@@ -80,3 +81,12 @@ export interface ClusterEmbodimentEnvelopeV1 {
   provenance: SemanticPayloadProvenanceV1;
   result: ClusterEmbodimentResultV1;
 }
+
+/**
+ * C3 production transport union. Existing aggregate/distribution/density
+ * envelopes remain unchanged; CLUSTER_REGIONS joins them without weakening the
+ * narrower Rust/WASM cluster contract above.
+ */
+export type ProductionSemanticEmbodimentEnvelopeV1 =
+  | SemanticEmbodimentEnvelopeV1
+  | ClusterEmbodimentEnvelopeV1;

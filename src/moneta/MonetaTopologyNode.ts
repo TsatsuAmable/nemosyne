@@ -13,7 +13,7 @@ import type {
 } from './types.ts';
 import type { RepresentationDecision } from './representation/RepresentationDecision.ts';
 import type { RepresentationGraph } from './representation/RepresentationGraph.ts';
-import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
+import type { ProductionSemanticEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
 import { representationGraphToRuntimeSpec } from './representation/RepresentationGraphRuntimeAdapter.ts';
 import {
   setSemanticEmbodimentPresentationStatus,
@@ -21,8 +21,9 @@ import {
 } from './embodiment/SemanticEmbodimentStatus.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
-  semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
-  semanticEmbodimentPromise?: Promise<SemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
 };
 
 function usesSemanticEmbodiment(
@@ -31,7 +32,8 @@ function usesSemanticEmbodiment(
   return (
     candidateId === 'AGGREGATE_VOLUME' ||
     candidateId === 'DISTRIBUTION_FIELD' ||
-    candidateId === 'DENSITY_FIELD'
+    candidateId === 'DENSITY_FIELD' ||
+    candidateId === 'CLUSTER_REGIONS'
   );
 }
 
@@ -89,6 +91,15 @@ export class MonetaTopologyNode {
     this._semanticEmbodimentToken += 1;
   }
 
+  private _syncSemanticEmbodimentCandidate(): void {
+    const input = this.dataInput as SemanticMonetaDataInput;
+    if (this.representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
+      input.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
+    } else {
+      delete input.semanticEmbodimentCandidateId;
+    }
+  }
+
   private _subscribeSemanticEmbodiment(): void {
     const input = this.dataInput as SemanticMonetaDataInput;
     const promise = input.semanticEmbodimentPromise;
@@ -138,6 +149,8 @@ export class MonetaTopologyNode {
   }
 
   reSolveAndSynthesize(): void {
+    this._syncSemanticEmbodimentCandidate();
+
     if (this.representationGraph) {
       const facts = this.engine.factProvider?.facts(this.dataInput);
       if (!facts) {
