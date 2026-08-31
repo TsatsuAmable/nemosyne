@@ -47,7 +47,19 @@ describe('Tier 4 — Scenario 5: Complete End-to-End Analyst Journey across Thre
     expect(solverResult.spec).toBeDefined();
     expect(solverResult.spec.layout).toBeDefined();
 
-    const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, { dataset });
+    // This scenario exercises the end-to-end application journey, not the
+    // governed CLUSTER_REGIONS semantic path. C3 reserves CLUSTER_VOLUME for a
+    // bounded Rust/WASM payload, so use an explicit row-backed presentation here
+    // instead of depending on whichever legacy geometry happens to win solving.
+    const presentationResult = {
+      ...solverResult,
+      spec: {
+        ...solverResult.spec,
+        layout: 'GRID_3D' as const,
+        geometry: 'CUBE_MATRIX' as const,
+      },
+    };
+    const artifact = VRTopologyTranslator.synthesizeArtifact(presentationResult, { dataset });
     expect(artifact.nodeMeshes.length).toBe(40);
     expect(artifact.group).toBeInstanceOf(THREE.Group);
 
