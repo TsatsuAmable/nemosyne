@@ -8,6 +8,8 @@ import type {
 } from './SemanticEmbodimentPayload.ts';
 
 export const MAX_CLUSTER_REGIONS_V1 = 256 as const;
+/** Maximum UTF-8 bytes across distinct source labels retained in a READY payload. */
+export const MAX_CLUSTER_PARTITION_LABEL_BYTES_V1 = 65_536 as const;
 
 /**
  * C2 transport contract for the Rust-owned source-partition builder.
