@@ -123,31 +123,86 @@ fn stable_lerp(lower: f64, upper: f64, fraction: f64) -> f64 {
     }
 }
 
-fn valid_pairs(
+fn column_matches_row_count(column: &PrimitiveColumn, row_count: usize) -> bool {
+    column.values.len() == row_count && column.validity.len() == row_count
+}
+
+fn canonical_pair_at(
     col_x: &PrimitiveColumn,
     col_y: &PrimitiveColumn,
-) -> Result<(Vec<(f64, f64)>, usize, usize), ()> {
-    let len = col_x.values.len().min(col_y.values.len());
-    let mut pairs = Vec::new();
-    pairs.try_reserve_exact(len).map_err(|_| ())?;
-    let mut excluded = 0usize;
-    for index in 0..len {
-        let vx = col_x.values[index];
-        let vy = col_y.values[index];
-        let valid_x = col_x.validity[index] != 0 && vx.is_finite();
-        let valid_y = col_y.validity[index] != 0 && vy.is_finite();
-        if valid_x && valid_y {
-            pairs.push((vx, vy));
+    index: usize,
+) -> Option<(f64, f64)> {
+    let vx = *col_x.values.get(index)?;
+    let vy = *col_y.values.get(index)?;
+    let valid_x = *col_x.validity.get(index)? != 0 && vx.is_finite();
+    let valid_y = *col_y.validity.get(index)? != 0 && vy.is_finite();
+    (valid_x && valid_y).then_some((vx, vy))
+}
+
+/// First pass over the resident numeric columns. This deliberately computes the
+/// domain and valid-pair count without materializing an O(N) `(x, y)` buffer.
+fn scan_density_domain(
+    col_x: &PrimitiveColumn,
+    col_y: &PrimitiveColumn,
+    row_count: usize,
+) -> Option<(DensityDomainV1, DensityDomainV1, usize)> {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    let mut valid_count = 0usize;
+
+    for index in 0..row_count {
+        let Some((vx, vy)) = canonical_pair_at(col_x, col_y, index) else {
+            continue;
+        };
+        min_x = min_x.min(vx);
+        max_x = max_x.max(vx);
+        min_y = min_y.min(vy);
+        max_y = max_y.max(vy);
+        valid_count += 1;
+    }
+
+    (valid_count > 0).then_some((
+        DensityDomainV1 {
+            min: min_x,
+            max: max_x,
+        },
+        DensityDomainV1 {
+            min: min_y,
+            max: max_y,
+        },
+        valid_count,
+    ))
+}
+
+fn bin_index(value: f64, domain: &DensityDomainV1, bins: usize) -> usize {
+    if domain.min == domain.max {
+        return bins - 1;
+    }
+
+    let mut lo = 0usize;
+    let mut hi = bins;
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        let upper = if mid + 1 == bins {
+            domain.max
         } else {
-            excluded += 1;
+            stable_lerp(domain.min, domain.max, (mid + 1) as f64 / bins as f64)
+        };
+        if value >= upper {
+            lo = mid + 1;
+        } else {
+            hi = mid;
         }
     }
-    let total_excluded = col_x.values.len().saturating_sub(pairs.len());
-    Ok((pairs, len, total_excluded))
+    lo.min(bins - 1)
 }
 
 fn build_grid(
-    pairs: &[(f64, f64)],
+    col_x: &PrimitiveColumn,
+    col_y: &PrimitiveColumn,
+    row_count: usize,
     domain_x: DensityDomainV1,
     domain_y: DensityDomainV1,
     bins_x: u32,
@@ -184,60 +239,16 @@ fn build_grid(
         })
         .collect();
 
-    // V1 retains the full declared lattice. On each degenerate axis, every valid
-    // observation is assigned to that axis's final bin.
-    for (vx, vy) in pairs {
-        let x_idx = if domain_x.min == domain_x.max {
-            bx - 1
-        } else {
-            let mut idx = 0usize;
-            for b in 0..bx - 1 {
-                let upper = stable_lerp(domain_x.min, domain_x.max, (b + 1) as f64 / bx as f64);
-                if *vx < upper {
-                    idx = b;
-                    break;
-                }
-                if b + 1 == bx - 1 {
-                    idx = bx - 1;
-                }
-            }
-            let mut lo = 0usize;
-            let mut hi = bx;
-            while lo < hi {
-                let mid = (lo + hi) / 2;
-                let upper = if mid + 1 == bx {
-                    domain_x.max
-                } else {
-                    stable_lerp(domain_x.min, domain_x.max, (mid + 1) as f64 / bx as f64)
-                };
-                if *vx >= upper {
-                    lo = mid + 1;
-                } else {
-                    hi = mid;
-                }
-            }
-            lo.min(bx - 1)
+    // Second pass over the resident columns. V1 retains the full declared
+    // lattice. On each degenerate axis, every valid observation is assigned to
+    // that axis's final bin. The only data-dependent allocation is the bounded
+    // grid itself (<= MAX_DENSITY_CELLS_V1).
+    for index in 0..row_count {
+        let Some((vx, vy)) = canonical_pair_at(col_x, col_y, index) else {
+            continue;
         };
-        let y_idx = if domain_y.min == domain_y.max {
-            by - 1
-        } else {
-            let mut lo = 0usize;
-            let mut hi = by;
-            while lo < hi {
-                let mid = (lo + hi) / 2;
-                let upper = if mid + 1 == by {
-                    domain_y.max
-                } else {
-                    stable_lerp(domain_y.min, domain_y.max, (mid + 1) as f64 / by as f64)
-                };
-                if *vy >= upper {
-                    lo = mid + 1;
-                } else {
-                    hi = mid;
-                }
-            }
-            lo.min(by - 1)
-        };
+        let x_idx = bin_index(vx, &domain_x, bx);
+        let y_idx = bin_index(vy, &domain_y, by);
         let cell_index = y_idx * bx + x_idx;
         grid[cell_index].count += 1;
     }
@@ -306,20 +317,21 @@ fn density_from_columnar(
             "numeric density measure Y has no resident columnar data",
         );
     };
+    if !column_matches_row_count(col_x, source_row_count)
+        || !column_matches_row_count(col_y, source_row_count)
+    {
+        return refusal(
+            fingerprint,
+            source_row_count,
+            request,
+            SemanticRefusalCodeV1::MissingEvidence,
+            "resident density columns do not match the dataset row count",
+        );
+    }
 
-    let (pairs, _len, _) = match valid_pairs(col_x, col_y) {
-        Ok(v) => v,
-        Err(()) => {
-            return refusal(
-                fingerprint,
-                source_row_count,
-                request,
-                SemanticRefusalCodeV1::ResourceLimit,
-                "insufficient transient memory for density pairs",
-            )
-        }
-    };
-    if pairs.is_empty() {
+    let Some((domain_x, domain_y, valid_count)) =
+        scan_density_domain(col_x, col_y, source_row_count)
+    else {
         return refusal(
             fingerprint,
             source_row_count,
@@ -327,17 +339,17 @@ fn density_from_columnar(
             SemanticRefusalCodeV1::MissingEvidence,
             "binned density requires at least one canonical valid numeric pair",
         );
-    }
+    };
 
-    let min_x = pairs.iter().map(|(x, _)| *x).fold(f64::INFINITY, f64::min);
-    let max_x = pairs.iter().map(|(x, _)| *x).fold(f64::NEG_INFINITY, f64::max);
-    let min_y = pairs.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
-    let max_y = pairs.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
-
-    let domain_x = DensityDomainV1 { min: min_x, max: max_x };
-    let domain_y = DensityDomainV1 { min: min_y, max: max_y };
-    let grid = build_grid(&pairs, domain_x.clone(), domain_y.clone(), request.bins_x, request.bins_y);
-    let valid_count = pairs.len();
+    let grid = build_grid(
+        col_x,
+        col_y,
+        source_row_count,
+        domain_x.clone(),
+        domain_y.clone(),
+        request.bins_x,
+        request.bins_y,
+    );
     let element_count = grid.len() as u32;
 
     base_envelope(
@@ -503,6 +515,27 @@ mod tests {
             .find(|cell| cell.x_index == x && cell.y_index == y)
             .map(|cell| cell.count)
             .expect("density cell")
+    }
+
+    #[test]
+    fn two_pass_column_scan_preserves_domain_counts_and_final_bin_rules() {
+        let col_x = PrimitiveColumn {
+            values: vec![0.0, 1.0, 3.0, 0.0, 0.5],
+            validity: vec![1, 1, 1, 0, 1],
+        };
+        let col_y = PrimitiveColumn {
+            values: vec![0.0, 1.0, 1.5, 1.0, 0.0],
+            validity: vec![1, 1, 1, 1, 0],
+        };
+        let (domain_x, domain_y, valid_count) =
+            scan_density_domain(&col_x, &col_y, 5).expect("density scan");
+        assert_eq!(valid_count, 3);
+        assert_eq!(domain_x, DensityDomainV1 { min: 0.0, max: 3.0 });
+        assert_eq!(domain_y, DensityDomainV1 { min: 0.0, max: 1.5 });
+
+        let grid = build_grid(&col_x, &col_y, 5, domain_x, domain_y, 2, 2);
+        assert_eq!(grid.len(), 4);
+        assert_eq!(grid.iter().map(|cell| cell.count).sum::<u64>(), 3);
     }
 
     #[test]
