@@ -128,7 +128,6 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
         expect(envelope!.result.compactViews![0]).toEqual({ id: 'obs-3', group: 'B', value: 30.0, value2: 30.0 });
       }
 
-      // test pagination offset
       const offsetRequest = {
         ...detailRequest,
         limit: 10,
@@ -144,7 +143,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
       }
     });
 
-    it('rejects query with mismatched fingerprint', () => {
+    it('fails closed before membership evaluation when the dataset fingerprint mismatches', () => {
       const clusterRequest = {
         schemaVersion: 1,
         candidateId: 'CLUSTER_REGIONS' as any,
@@ -164,11 +163,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
         investigationContext: 'Test bad fingerprint',
       };
       const envelope = querySemanticDetailV1(handle, detailRequest, clusterRequest, 1);
-      expect(envelope).not.toBeNull();
-      expect(envelope!.result.status).toBe('REFUSED');
-      if (envelope!.result.status === 'REFUSED') {
-        expect(envelope!.result.refusal.code).toBe('CHANGED_DATASET');
-      }
+      expect(envelope).toBeNull();
     });
 
     it('successfully queries AGGREGATE observation details', () => {
@@ -191,7 +186,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
           datasetFingerprint: fingerprint,
           decisionId: 'decision-123',
           representationFamily: 'AGGREGATE' as any,
-          semanticObjectId: 'aggregate-group:00001', // Group B (index 1)
+          semanticObjectId: 'aggregate-group:00001',
         },
         limit: 10,
         offset: 0,
@@ -227,7 +222,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
           datasetFingerprint: fingerprint,
           decisionId: 'decision-123',
           representationFamily: 'DISTRIBUTION' as any,
-          semanticObjectId: 'distribution-bin:002', // Bin 2 ([26, 34)) -> matches 30 (obs-3)
+          semanticObjectId: 'distribution-bin:002',
         },
         limit: 10,
         offset: 0,
@@ -251,6 +246,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
         measureFieldY: 'value2',
         binsX: 5,
         binsY: 5,
+        decisionId: 'decision-123',
       };
       const densityEmbodiment = buildDensitySemanticEmbodimentV1(handle, densityRequest);
       expect(densityEmbodiment).not.toBeNull();
@@ -262,7 +258,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
           datasetFingerprint: fingerprint,
           decisionId: 'decision-123',
           representationFamily: 'DENSITY' as any,
-          semanticObjectId: 'density-cell:2-2', // matches 30 (obs-3)
+          semanticObjectId: 'density-cell:2-2',
         },
         limit: 10,
         offset: 0,
