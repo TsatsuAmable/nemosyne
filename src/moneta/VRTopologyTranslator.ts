@@ -11,6 +11,7 @@ import type {
   ClusterEmbodimentEnvelopeV1,
   ProductionSemanticEmbodimentEnvelopeV1,
 } from './representation/ClusterEmbodimentPayload.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -74,13 +75,25 @@ export class VRTopologyTranslator {
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
-      scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      scalable.buildAggregateBars(
+        group,
+        nodeMeshes,
+        semanticInput.semanticEmbodiment as SemanticEmbodimentEnvelopeV1 | null | undefined
+      );
       edges = [];
     } else if (spec.geometry === 'DISTRIBUTION_FIELD') {
-      scalable.buildDistributionField(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      scalable.buildDistributionField(
+        group,
+        nodeMeshes,
+        semanticInput.semanticEmbodiment as SemanticEmbodimentEnvelopeV1 | null | undefined
+      );
       edges = [];
     } else if (spec.geometry === 'DENSITY_FIELD') {
-      buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
+      buildDensitySemanticField(
+        group,
+        nodeMeshes,
+        semanticInput.semanticEmbodiment as SemanticEmbodimentEnvelopeV1 | null | undefined
+      );
       edges = [];
     } else if (spec.geometry === 'CLUSTER_VOLUME') {
       buildClusterSemanticRegions(
