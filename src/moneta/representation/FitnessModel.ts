@@ -71,7 +71,7 @@ export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
   treatmentId: FITNESS_TREATMENT_ID,
   weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   rationale:
-    'V3 preserves the frozen bootstrap weights while removing duplicate candidate-family aliases and requiring family-specific structure evidence to match the candidate capability that makes that family meaningful. Cross-task coverage remains capability-driven.',
+    'V3 preserves the frozen bootstrap weights while removing duplicate candidate-family aliases and requiring family-specific structure evidence to match the candidate capability that makes that family meaningful. Cross-task coverage remains capability-driven. This rank-effective correction is an explicit study-treatment change and requires treatment review before promotion.',
 };
 
 export interface FitnessComponent {
