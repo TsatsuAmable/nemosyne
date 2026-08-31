@@ -61,8 +61,6 @@ export interface LoadedRemoteDatasetArtifact {
 
 export interface NemosyneDataCatalogClientOptions {
   revision?: string;
-  repository?: string;
-  rawOrigin?: string;
   maxArtifactBytes?: number;
   fetchImpl?: typeof fetch;
   digestImpl?: (bytes: Uint8Array) => Promise<string>;
@@ -102,11 +100,11 @@ function assertArtifact(value: unknown): asserts value is RemoteDatasetArtifact 
   if (artifact.compression !== 'none') throw new Error('Unsupported corpus artifact compression');
 }
 
-function validateCatalog(value: unknown, expectedRepository: string): RemoteDatasetCatalog {
+function validateCatalog(value: unknown): RemoteDatasetCatalog {
   if (!value || typeof value !== 'object') throw new Error('Invalid nemosyne-data catalog');
   const catalog = value as Record<string, unknown>;
   if (catalog.schemaVersion !== '1.0') throw new Error('Unsupported nemosyne-data catalog schema');
-  if (catalog.repository !== expectedRepository) throw new Error('Unexpected nemosyne-data repository identity');
+  if (catalog.repository !== NEMOSYNE_DATA_REPOSITORY) throw new Error('Unexpected nemosyne-data repository identity');
   if (typeof catalog.corpusVersion !== 'string' || catalog.corpusVersion.length === 0) throw new Error('Invalid nemosyne-data corpus version');
   if (!catalog.tierRows || typeof catalog.tierRows !== 'object') throw new Error('Invalid nemosyne-data tier map');
   if (!Array.isArray(catalog.datasets)) throw new Error('Invalid nemosyne-data dataset list');
@@ -129,8 +127,6 @@ function validateCatalog(value: unknown, expectedRepository: string): RemoteData
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) throw new Error('WebCrypto SHA-256 unavailable');
-  // Copy into an owned ArrayBuffer so DOM BufferSource typing cannot admit a
-  // SharedArrayBuffer-backed view at this trust boundary.
   const owned = Uint8Array.from(bytes);
   const buffer = await subtle.digest('SHA-256', owned.buffer);
   return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -138,8 +134,8 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 
 export class NemosyneDataCatalogClient {
   readonly revision: string;
-  readonly repository: string;
-  readonly rawOrigin: string;
+  readonly repository = NEMOSYNE_DATA_REPOSITORY;
+  readonly rawOrigin = NEMOSYNE_DATA_RAW_ORIGIN;
   readonly maxArtifactBytes: number;
   private readonly fetchImpl: typeof fetch;
   private readonly digestImpl: (bytes: Uint8Array) => Promise<string>;
@@ -148,9 +144,6 @@ export class NemosyneDataCatalogClient {
   constructor(options: NemosyneDataCatalogClientOptions = {}) {
     this.revision = options.revision ?? NEMOSYNE_DATA_PINNED_REVISION;
     if (!COMMIT_RE.test(this.revision)) throw new Error('nemosyne-data revision must be an immutable 40-character commit SHA');
-    this.repository = options.repository ?? NEMOSYNE_DATA_REPOSITORY;
-    this.rawOrigin = (options.rawOrigin ?? NEMOSYNE_DATA_RAW_ORIGIN).replace(/\/$/, '');
-    if (new URL(this.rawOrigin).protocol !== 'https:') throw new Error('nemosyne-data origin must use HTTPS');
     this.maxArtifactBytes = options.maxArtifactBytes ?? DEFAULT_MAX_ARTIFACT_BYTES;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.digestImpl = options.digestImpl ?? sha256Hex;
@@ -172,7 +165,7 @@ export class NemosyneDataCatalogClient {
     } catch {
       throw new Error('nemosyne-data catalog is not valid JSON');
     }
-    this.catalogValue = validateCatalog(parsed, this.repository);
+    this.catalogValue = validateCatalog(parsed);
     return this.catalogValue;
   }
 
@@ -197,7 +190,7 @@ export class NemosyneDataCatalogClient {
       artifact,
       bytes,
       provenance: {
-        repository: this.repository,
+        repository: NEMOSYNE_DATA_REPOSITORY,
         revision: this.revision,
         corpusVersion: catalog.corpusVersion,
         datasetId: dataset.id,
@@ -213,8 +206,8 @@ export class NemosyneDataCatalogClient {
 
   private urlForPath(path: string): string {
     assertSafePath(path);
-    const url = new URL(`${this.rawOrigin}/${this.repository}/${this.revision}/${path}`);
-    if (url.origin !== new URL(this.rawOrigin).origin) throw new Error('Corpus URL escaped allowlisted origin');
+    const url = new URL(`${NEMOSYNE_DATA_RAW_ORIGIN}/${NEMOSYNE_DATA_REPOSITORY}/${this.revision}/${path}`);
+    if (url.origin !== NEMOSYNE_DATA_RAW_ORIGIN) throw new Error('Corpus URL escaped allowlisted origin');
     return url.toString();
   }
 
