@@ -22,6 +22,7 @@ export type SemanticRepresentationId =
 export type StructureCapability =
   | 'discrete-observations'
   | 'continuous-density'
+  | 'binned-empirical-mass'
   | 'univariate-distribution'
   | 'multivariate-correlation'
   | 'cluster-partition'
@@ -37,6 +38,7 @@ export type InformationType =
   | 'individual-observation-identity'
   | 'exact-metric-values'
   | 'population-density-distribution'
+  | 'empirical-bivariate-bin-mass'
   | 'empirical-distribution-shape'
   | 'outlier-boundary-visibility'
   | 'cluster-separation'
@@ -111,12 +113,13 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
   DENSITY_FIELD: {
     id: 'DENSITY_FIELD',
     name: 'Binned Density Field',
-    description: 'Bounded bivariate binned density grid for two explicit numeric measures',
-    supports: ['continuous-density', 'discrete-observations'],
-    preserves: ['population-density-distribution'],
+    description: 'Bounded bivariate equal-width count grid preserving empirical mass per bin for two explicit numeric measures',
+    supports: ['binned-empirical-mass', 'discrete-observations'],
+    preserves: ['empirical-bivariate-bin-mass'],
     loses: [
       'individual-observation-identity',
       'exact-metric-values',
+      'population-density-distribution',
       'empirical-distribution-shape',
       'outlier-boundary-visibility',
     ],
