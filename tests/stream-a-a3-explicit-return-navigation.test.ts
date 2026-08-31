@@ -24,6 +24,7 @@ function fakeTransition(initial: SemanticDetailTransitionSnapshot) {
       parent: null,
       returnedCount: 0,
       totalMemberCount: 0,
+      observationIds: [],
       refusalReason: null,
     };
     for (const listener of listeners) listener(snapshot);
@@ -55,6 +56,7 @@ function idleSnapshot(): SemanticDetailTransitionSnapshot {
     parent: null,
     returnedCount: 0,
     totalMemberCount: 0,
+    observationIds: [],
     refusalReason: null,
   };
 }
@@ -72,6 +74,7 @@ describe('Stream A A3 explicit return navigation', () => {
       parent: PARENT,
       returnedCount: 0,
       totalMemberCount: 0,
+      observationIds: [],
       refusalReason: null,
     });
     expect(control.element.hidden).toBe(false);
@@ -81,6 +84,7 @@ describe('Stream A A3 explicit return navigation', () => {
       parent: PARENT,
       returnedCount: 2,
       totalMemberCount: 2,
+      observationIds: ['obs-1', 'obs-2'],
       refusalReason: null,
     });
     expect(control.element.hidden).toBe(false);
@@ -90,6 +94,7 @@ describe('Stream A A3 explicit return navigation', () => {
       parent: PARENT,
       returnedCount: 0,
       totalMemberCount: 0,
+      observationIds: [],
       refusalReason: 'stale',
     });
     expect(control.element.hidden).toBe(true);
@@ -103,6 +108,7 @@ describe('Stream A A3 explicit return navigation', () => {
       parent: PARENT,
       returnedCount: 2,
       totalMemberCount: 2,
+      observationIds: ['obs-1', 'obs-2'],
       refusalReason: null,
     });
     const root = document.createElement('div');
@@ -122,6 +128,7 @@ describe('Stream A A3 explicit return navigation', () => {
       parent: PARENT,
       returnedCount: 1,
       totalMemberCount: 1,
+      observationIds: ['obs-1'],
       refusalReason: null,
     });
     const root = document.createElement('div');
