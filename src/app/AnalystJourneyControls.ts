@@ -30,7 +30,9 @@ export const TASK_FIRST_PRIMARY_ACTION_IDS = [
 ] as const;
 
 function downloadPackage(bytes: Uint8Array, filename: string): void {
-  const blob = new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/zip' });
+  const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
+    type: 'application/vnd.nemosyne+zip',
+  });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -271,7 +273,7 @@ export function mountAnalystJourneyControls(
   const packageInput = document.createElement('input');
   packageInput.id = 'analyst-package-input';
   packageInput.type = 'file';
-  packageInput.accept = '.nemosyne,application/zip';
+  packageInput.accept = '.nemosyne,application/vnd.nemosyne+zip,application/zip';
   packageInput.style.cssText = 'max-width:100%;color:#cfeaf5;';
   advancedStack.append(packageInput);
 

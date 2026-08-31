@@ -67,7 +67,9 @@ const SECONDARY_INTENT_ACTIONS: ActionDefinition[] = [
 ];
 
 function downloadPackage(bytes: Uint8Array, filename: string): void {
-  const blob = new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/zip' });
+  const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
+    type: 'application/vnd.nemosyne+zip',
+  });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -456,7 +458,7 @@ export function mountInvestigationShell(actions: InvestigationActions): Investig
     <div style="display: grid; gap: var(--nms-spacing-x16);">
       <label>
         <span style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary); display: block; margin-bottom: var(--nms-spacing-x4);">Investigation package</span>
-        <input type="file" id="package-input" accept=".nemosyne,application/zip" style="width: 100%; box-sizing: border-box; padding: var(--nms-spacing-x8); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); color: var(--nms-color-text-primary); font-family: inherit;">
+        <input type="file" id="package-input" accept=".nemosyne,application/vnd.nemosyne+zip,application/zip" style="width: 100%; box-sizing: border-box; padding: var(--nms-spacing-x8); background: var(--nms-color-surface-raised); border: 1px solid var(--nms-color-surface-border); border-radius: var(--nms-panel-border-radius); color: var(--nms-color-text-primary); font-family: inherit;">
       </label>
       <nms-button id="replay-btn" variant="primary" disabled>Replay investigation</nms-button>
       <p id="replay-status" aria-live="polite" style="font-size: var(--nms-font-size-meta); color: var(--nms-color-text-secondary); margin: 0;"></p>
