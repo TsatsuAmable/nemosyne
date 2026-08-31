@@ -5,7 +5,8 @@ export type SemanticEmbodimentPresentationStatus =
 
 export type SemanticEmbodimentPresentationCandidateId =
   | 'AGGREGATE_VOLUME'
-  | 'DISTRIBUTION_FIELD';
+  | 'DISTRIBUTION_FIELD'
+  | 'DENSITY_FIELD';
 
 export const SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME = 'semantic-embodiment-status';
 
@@ -35,6 +36,13 @@ const CANDIDATE_COPY: Record<
     refused: 'The analytical kernel refused this distribution request.',
     invalid: 'The returned payload did not match the governed distribution contract.',
     unavailable: 'No current analytical distribution result is available.',
+  },
+  DENSITY_FIELD: {
+    label: 'DENSITY',
+    pending: 'Building the bivariate binned density field in the analytical kernel.',
+    refused: 'The analytical kernel refused this density request.',
+    invalid: 'The returned payload did not match the governed binned-density contract.',
+    unavailable: 'No current analytical density result is available.',
   },
   AGGREGATE_VOLUME: {
     label: 'AGGREGATE',
