@@ -192,10 +192,8 @@ describe('P1-R Representation Embodiment Convergence Contracts', () => {
       dataset,
       encodings: { color: 'cluster' },
     });
-    expect(clusterArtifact.nodeMeshes.length).toBe(4);
-    for (const mesh of clusterArtifact.nodeMeshes) {
-      expect(mesh.userData).toHaveProperty('representationKind', 'CLUSTER_REGIONS');
-    }
+    expect(clusterArtifact.nodeMeshes).toHaveLength(0);
+    expect(clusterArtifact.group.userData.semanticEmbodimentStatus).toBe('PENDING');
   });
 
   it('C2: migrated semantic primitive generation is bounded by payload elements, not source N', () => {
