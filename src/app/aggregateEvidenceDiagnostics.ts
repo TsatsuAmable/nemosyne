@@ -176,11 +176,14 @@ export async function runAggregateEvidenceScenario(
   if (!node || !decision || !envelope || envelope.result.status !== 'READY') {
     throw new Error('A5 aggregate scenario did not reach a READY production semantic embodiment.');
   }
+  const decisionId = decision.id;
   if (
+    typeof decisionId !== 'string' ||
+    decisionId.length === 0 ||
     decision.chosenCandidateId !== 'AGGREGATE_VOLUME' ||
     envelope.candidateId !== 'AGGREGATE_VOLUME' ||
     envelope.representationFamily !== 'AGGREGATE' ||
-    envelope.provenance.decisionId !== decision.id ||
+    envelope.provenance.decisionId !== decisionId ||
     envelope.result.payload.kind !== 'AGGREGATE_VOLUME'
   ) {
     throw new Error('A5 aggregate decision/payload identity mismatch.');
@@ -200,7 +203,7 @@ export async function runAggregateEvidenceScenario(
     candidateId: 'AGGREGATE_VOLUME',
     representationFamily: 'AGGREGATE',
     datasetFingerprint: envelope.datasetFingerprint,
-    decisionId: decision.id,
+    decisionId,
     envelope,
     artifact: {
       nodeMeshCount: meshes.length,
