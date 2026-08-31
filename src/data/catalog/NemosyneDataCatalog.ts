@@ -129,7 +129,10 @@ function validateCatalog(value: unknown, expectedRepository: string): RemoteData
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) throw new Error('WebCrypto SHA-256 unavailable');
-  const buffer = await subtle.digest('SHA-256', bytes);
+  // Copy into an owned ArrayBuffer so DOM BufferSource typing cannot admit a
+  // SharedArrayBuffer-backed view at this trust boundary.
+  const owned = Uint8Array.from(bytes);
+  const buffer = await subtle.digest('SHA-256', owned.buffer);
   return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
