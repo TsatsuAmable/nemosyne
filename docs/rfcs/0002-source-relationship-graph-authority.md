@@ -91,6 +91,10 @@ Accepted. This gives Nemosyne a truthful non-point structural object with a clea
 
 Existing R6B, Density Truth and R2D cluster tests are carried through V5 to prove the new graph treatment does not erase those reviewed semantics. B1 verifies the control-plane authority/admissibility contract only: endpoint resolution against the resident dataset, payload byte enforcement and production topology fidelity remain mandatory B2-B4 evidence rather than being inferred from this contract layer.
 
+## B1 adversarial closure boundary
+
+The post-implementation review must not promote any of the following from planned semantics to implemented runtime evidence: durable string-endpoint resolution, exact source-edge payload preservation, the 2 MiB output ceiling, layout-invariant production adjacency, or row-free renderer behavior. Those are deliberately B2-B4 falsifiers. B1 is complete only when it proves that Moneta cannot scientifically admit the graph candidate without the explicit V1 authority declaration and bounded graph-shaped source evidence.
+
 ## Non-goals / future work
 
 B1 does not implement the graph payload, endpoint resolution against resident data, stable graph semantic IDs, Worker/WASM transport, layout/render cutover, product evidence, Stream A member drill-down, graph centrality/community detection, k-NN/correlation graphs, or inferred relationships.
