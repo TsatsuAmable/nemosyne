@@ -8,6 +8,7 @@
 
 import * as v from 'valibot';
 import type { InformationType } from './RepresentationCandidate.ts';
+import type { SourceRelationshipGraphAuthority } from './RelationshipGraphAuthority.ts';
 
 export type AnalyticalTask =
   | 'overview'
@@ -127,6 +128,12 @@ export interface RepresentationRequirements {
    */
   clusterAuthority?: ClusterAuthorityRequirement;
   /**
+   * Stream B / R2E B1 source-edge authority for RELATIONSHIP_GRAPH.
+   * Presence of graph-like topology, an edge count, force-layout positions,
+   * proximity or correlation is not a substitute for this declaration.
+   */
+  graphAuthority?: SourceRelationshipGraphAuthority;
+  /**
    * Maximum fraction of marks that may be excluded from the view frustum /
    * depth range before a candidate is disqualified. Renamed from
    * `maxOcclusionTolerance` (RF-024): the hard gate bounds frustum exclusion,
@@ -223,6 +230,15 @@ const ClusterAuthorityRequirementSchema = v.strictObject({
   field: NonEmptyString,
 });
 
+const GraphAuthorityRequirementSchema = v.strictObject({
+  kind: v.literal('SOURCE_EDGES'),
+  directionality: v.picklist(['DIRECTED', 'UNDIRECTED']),
+  nodeIdentity: v.literal('DATASET_ROW'),
+  missingEndpointPolicy: v.literal('REFUSE'),
+  parallelEdgePolicy: v.literal('PRESERVE'),
+  selfLoopPolicy: v.literal('PRESERVE'),
+});
+
 export const RepresentationRequirementsSchema = v.strictObject({
   task: AnalyticalTaskSchema,
   primaryDimensions: v.optional(v.array(v.string())),
@@ -262,6 +278,7 @@ export const RepresentationRequirementsSchema = v.strictObject({
     })
   ),
   clusterAuthority: v.optional(ClusterAuthorityRequirementSchema),
+  graphAuthority: v.optional(GraphAuthorityRequirementSchema),
   maxFrustumExclusionTolerance: UnitInterval,
   interactionBudget: v.picklist(['LOW', 'MEDIUM', 'HIGH']),
 });
