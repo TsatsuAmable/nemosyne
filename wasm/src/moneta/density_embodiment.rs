@@ -16,14 +16,16 @@ use super::embodiment::{
     SemanticRepresentationIdV1, MAX_DENSITY_CELLS_V1, SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
 };
 
+const DENSITY_METHOD_VERSION: &str = "binned-density-contract-v1";
 const DENSITY_ALGORITHM_VERSION: &str = "bivariate-binned-density-columnar-v1";
 
 fn information_contract() -> InformationContractV1 {
     InformationContractV1 {
-        preserves: vec![InformationTypeV1::PopulationDensityDistribution],
+        preserves: vec![InformationTypeV1::EmpiricalBivariateBinMass],
         loses: vec![
             InformationTypeV1::IndividualObservationIdentity,
             InformationTypeV1::ExactMetricValues,
+            InformationTypeV1::PopulationDensityDistribution,
             InformationTypeV1::EmpiricalDistributionShape,
             InformationTypeV1::OutlierBoundaryVisibility,
         ],
@@ -53,7 +55,7 @@ fn base_envelope(
         representation_family: SemanticEmbodimentFamilyV1::Density,
         analytical_method: AnalyticalMethodV1 {
             name: "bivariate-binned-density".to_string(),
-            version: DENSITY_ALGORITHM_VERSION.to_string(),
+            version: DENSITY_METHOD_VERSION.to_string(),
             parameters: analytical_parameters(),
         },
         approximation: ApproximationV1 {
@@ -63,7 +65,7 @@ fn base_envelope(
             } else {
                 0
             },
-            description: Some("Bivariate equal-width binned density grid".to_string()),
+            description: Some("Bivariate equal-width empirical bin-mass grid".to_string()),
         },
         information_contract: information_contract(),
         resource: ResourceEnvelopeV1 {
@@ -515,6 +517,16 @@ mod tests {
         .expect("density envelope");
         assert_eq!(envelope.approximation.represented_row_count, 3);
         assert_eq!(envelope.resource.source_row_count, 5);
+        assert_eq!(envelope.analytical_method.version, DENSITY_METHOD_VERSION);
+        assert_eq!(envelope.provenance.algorithm_version, DENSITY_ALGORITHM_VERSION);
+        assert_eq!(
+            envelope.information_contract.preserves,
+            vec![InformationTypeV1::EmpiricalBivariateBinMass]
+        );
+        assert!(envelope
+            .information_contract
+            .loses
+            .contains(&InformationTypeV1::PopulationDensityDistribution));
         let payload = payload(envelope);
         assert_eq!(payload.counts.valid_count, 3);
         assert_eq!(payload.counts.excluded_count, 2);
