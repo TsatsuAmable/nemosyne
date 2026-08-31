@@ -23,6 +23,7 @@ import {
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
 };
 
 function usesSemanticEmbodiment(
@@ -90,6 +91,15 @@ export class MonetaTopologyNode {
     this._semanticEmbodimentToken += 1;
   }
 
+  private _syncSemanticEmbodimentCandidate(): void {
+    const input = this.dataInput as SemanticMonetaDataInput;
+    if (this.representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
+      input.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
+    } else {
+      delete input.semanticEmbodimentCandidateId;
+    }
+  }
+
   private _subscribeSemanticEmbodiment(): void {
     const input = this.dataInput as SemanticMonetaDataInput;
     const promise = input.semanticEmbodimentPromise;
@@ -139,6 +149,8 @@ export class MonetaTopologyNode {
   }
 
   reSolveAndSynthesize(): void {
+    this._syncSemanticEmbodimentCandidate();
+
     if (this.representationGraph) {
       const facts = this.engine.factProvider?.facts(this.dataInput);
       if (!facts) {
