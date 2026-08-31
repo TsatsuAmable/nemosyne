@@ -7,6 +7,7 @@ import {
 import { SEMANTIC_DETAIL_SCHEMA_VERSION } from '../src/moneta/representation/SemanticDrillDown.ts';
 
 const DECISION_ID = 'density-authority-fence-decision';
+const DECISION_ARTIFACT_HASH = 'a'.repeat(64);
 
 describe('P1-R2C density semantic-detail authority fence', () => {
   let handle: number;
@@ -47,7 +48,7 @@ describe('P1-R2C density semantic-detail authority fence', () => {
       binsY: 4,
       decisionId: DECISION_ID,
       decisionModelVersion: 'fitness-treatment-v4',
-      decisionModelArtifactHash: 'artifact-density-fence-v1',
+      decisionModelArtifactHash: DECISION_ARTIFACT_HASH,
     };
 
     const embodiment = buildDensitySemanticEmbodimentV1(handle, authoritativeRequest);
