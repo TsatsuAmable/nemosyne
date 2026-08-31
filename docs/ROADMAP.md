@@ -1,72 +1,60 @@
 # Nemosyne Roadmap & Implementation Status
 
-> **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which stream owns it, what may run in parallel, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
+> **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
 ## Status snapshot - 31 August 2026
 
-**Current integration base for this planning update:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged).
+**Current integration base for this planning update:** `main@8d433e42e5307ada0aeda1ce3565afab36bf851c` (#605 merged). Stream A A5 closure is under exact-head validation in #606.
 
-The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, and source-partition Cluster Regions R2D have reached their finite exits. In particular:
+The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, and the current Progressive Disclosure Stream A have reached their finite implementation exits. In particular:
 
 - A1 semantic drill-down contract/falsifiers is `VERIFIED COMPLETE` after establishing SemanticDrillDown.ts and drill_down.rs WASM validation boundary.
+- A2 resident bounded semantic membership/query capability is `VERIFIED COMPLETE` through the canonical Worker/Rust authority.
+- A3 semantic selection lineage, bounded observation reveal, and explicit return-to-structure are `VERIFIED COMPLETE` for the generic production path.
+- A4 exact datum/provenance inspection is `VERIFIED COMPLETE` after #605, using a second bounded authority query rather than a whole-dataset UI cache.
+- A5 cross-family product evidence and the independent STOP review establish the finite P1-R5 closure for Aggregate, Distribution, Density and source-partition Cluster, subject to #606 final exact-head promotion gates.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
 - Cluster Regions source-partition V1 is `VERIFIED COMPLETE` after C1-C5, including the #595 evidence-trigger fix-forward and fresh-main STOP review.
 - Fresh dataset loads are overview-first rather than silently biasing Moneta toward individual observation identity.
 - Aggregate, distribution, density and governed cluster structures are first-class semantic interaction targets rather than being registered as raw observations.
+- Explicit individual-inspection intent can still select `POINT_SET`; progressive disclosure removes point universality, not legitimate observation-level representation.
 - P1-UV baseline evidence, task-first shell/contextual-locus substrate, unified UI primitives and visual-system convergence foundations are landed, but the full visible product treatment is not yet complete.
 
-The next wave is deliberately organized into four independent execution streams. The old A/B/C stream labels in historical review plans remain evidence of that completed wave; they are **not** current ownership labels.
+## Sequential execution model
 
-## Current execution wave: Streams A-D
+The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream with adversarial review/fix-forward integrated into each tranche.
 
-An agent may now be told simply:
+Current order:
 
 ```text
-Complete Stream A.
-Complete Stream B.
-Complete Stream C.
-Complete Stream D.
+Stream A STOP
+  -> Stream B first selected structural family
+    -> Stream C visible investigator product convergence
+      -> Stream D assurance / physical qualification / preview readiness
+        -> P1-W production wiring
+          -> minimal private preview
 ```
 
-Each stream has a finite mission, explicit ownership, ordered checkpoints, collision rules, evidence gates and a hard stop. At most one implementation PR per current stream may be open at once unless this roadmap explicitly permits an internal sub-lane.
+Only one forward implementation PR should be active at a time unless the user explicitly changes this execution policy. Before each tranche, fetch fresh `main`; after implementation, perform the bounded adversarial review, run the relevant exact-head evidence, fix forward, merge, then fetch fresh `main` again.
 
-| Stream | Mission | First checkpoint | Can run beside | Finite exit |
+| Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
-| **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A2 resident membership/query capability | B, C, D | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
-| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B1 source relationship-graph authority contract | A, C, D | First selected structural family is verified complete; then STOP and explicitly select the next family. |
-| **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects | A, B, D | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
-| **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | A, B, C | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
+| **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP after final #606 gates** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
+| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B1 source relationship-graph authority contract | **ACTIVE NEXT** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
+| **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects | **QUEUED AFTER B** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
+| **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | **QUEUED AFTER C** | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
 
-### Dependency shape
-
-```text
-                         +--> Stream A: progressive disclosure --------+
-                         |                                             |
-verified dataset-level --+--> Stream B: structural representations ----+--> converged investigator product
-representations           |                                             |
-                         +--> Stream C: visible product convergence ----+
-                         |
-                         +--> Stream D: assurance / preview readiness --------+
-                                                                        |
-                                      C complete + D readiness ----------+
-                                                                        v
-                                                             P1-U9 physical qualification
-                                                                        v
-                                                               P1-W production wiring
-                                                                        v
-                                                               minimal private preview
-```
-
-A is the shared semantic integration spine. B may build representation-specific analytical objects in parallel, but must consume A's generic drill-down/selection contract at integration time rather than inventing a second one. C consumes A/B semantic state and may not manufacture analytical facts. D may validate and harden every stream but may not promote physical or preview claims before the owning product prerequisites are satisfied.
+A is the shared semantic integration spine and is now frozen at its finite P1-R5 boundary. B must consume A's generic drill-down/selection contract rather than inventing a second one. C consumes A/B semantic state and may not manufacture analytical facts. D validates and hardens the converged product but may not promote physical or preview claims before the owning product prerequisites are satisfied.
 
 ---
 
 # Stream A - Progressive Disclosure & Semantic Drill-down
 
-**Status:** ACTIVE NEXT / PRODUCT CRITICAL PATH  
+**Status:** VERIFIED COMPLETE / STOP — final #606 exact-head promotion pending  
 **Primary programme:** P1-R5 in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
+**Closure review:** `review/P1_R5_A5_STOP_REVIEW_2026-08-31.md`  
 **Mission:** make observations an explicit detail capability rather than the universal geometry substrate.
 
 Canonical detail hierarchy:
@@ -113,6 +101,8 @@ Required decisions/evidence:
 
 ## A3 - representation transition and selection lineage
 
+**Status:** VERIFIED COMPLETE  
+
 - reveal observation-level marks only for the selected/focused bounded subset or an explicit observation-level task;
 - preserve the selected semantic structure while entering detail;
 - keep semantic IDs separate from transient mesh/instance indexes;
@@ -123,6 +113,8 @@ Required decisions/evidence:
 
 ## A4 - exact datum/provenance inspection
 
+**Status:** VERIFIED COMPLETE  
+
 - connect selected observations to exact datum/provenance retrieval;
 - make missing/unavailable provenance explicit;
 - preserve replay/investigation identity;
@@ -130,20 +122,24 @@ Required decisions/evidence:
 
 ## A5 - product evidence and independent STOP
 
-Canonical product evidence must include at least Aggregate/Distribution/Density/Cluster paths and prove:
+**Status:** VERIFIED COMPLETE / STOP — final #606 exact-head promotion pending  
+
+Canonical product evidence includes Aggregate/Distribution/Density/Cluster paths and proves:
 
 - overview begins at dataset structure;
-- selecting a structure can reveal a bounded observation subset;
+- selecting a structure can reveal a bounded observation subset through the shared generic drill-down path;
 - source N does not determine the amount of row data transferred for an unopened structure;
 - returning to overview restores the semantic representation and selection context;
 - explicit observation-level intent can still choose `POINT_SET` legitimately;
 - refusal/pending/stale membership cannot silently fall back to all-points rendering.
 
+The exact A5 production-browser run uses one pinned bundle for all four verified families. The closure review deliberately distinguishes family overview evidence from the generic A3/A4 drill-down tests rather than claiming a separate end-to-end gesture run for every family.
+
 **Finite exit:** P1-R5 is `VERIFIED COMPLETE` only for the verified families and bounded query semantics. Do not automatically expand into arbitrary cross-filtering or new scientific analyses.
 
-### Stream A ownership and collisions
+### Stream A closure boundary
 
-A temporarily owns the **generic** drill-down/selection integration contract around:
+The generic drill-down/selection integration contract around these surfaces is now a **frozen shared contract**, not an active implementation stream:
 
 - `src/app/dataset/LoadDatasetUseCase.ts` where generic investigation requirements/detail state enter;
 - generic semantic target/detail request types;
@@ -151,13 +147,13 @@ A temporarily owns the **generic** drill-down/selection integration contract aro
 - `MonetaTopologyNode` generic semantic selection lifecycle;
 - generic `RepresentationSurface` selection/detail transitions.
 
-B must not create a competing graph-specific member-query API. C may present `Reveal observations` or equivalent controls only by dispatching A's governed intent. D may test these paths but does not own them.
+B must not create a competing graph-specific member-query API. C may present `Reveal observations` or equivalent controls only by dispatching A's governed intent. D may test or harden these paths but does not own their analytical meaning.
 
 ---
 
 # Stream B - Source-Authoritative Structural Representations
 
-**Status:** PLANNED / MAY START IMMEDIATELY BESIDE A  
+**Status:** ACTIVE NEXT — SEQUENTIAL FORWARD PROGRAMME  
 **Primary programme:** P1-R2E in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
 **First selected family:** source-provided `RELATIONSHIP_GRAPH`.
 
@@ -195,7 +191,7 @@ The first slice is Relationship Graph because source-provided edges create the c
 - bind selection to stable semantic node/edge IDs;
 - fail closed on pending/refused/stale/invalid payloads.
 
-A's generic selection/drill-down contract is consumed here if it has landed. If A has not yet frozen that contract, B3 pauses at the integration seam while B1/B2 continue independently.
+A's generic selection/drill-down contract is now frozen and must be consumed here. B3 may extend only the family-specific authority/payload/adaptation needed to satisfy that shared contract; it may not fork the generic semantic-detail API.
 
 ## B4 - product/scale/perceptual evidence and STOP
 
@@ -205,7 +201,7 @@ A's generic selection/drill-down contract is consumed here if it has landed. If 
 - prove no invented edges appear when source authority is absent;
 - conduct independent review.
 
-**Finite exit:** source-authoritative Relationship Graph V1 reaches `VERIFIED COMPLETE` for its evidence scope, then B STOPS. Selecting hierarchy, temporal, geospatial or spectral as the next B slice requires an explicit fresh-main choice.
+**Finite exit:** source-authoritative Relationship Graph V1 reaches `VERIFIED COMPLETE` for its evidence scope, then B STOPS. Selecting hierarchy, temporal, geospatial or spectral as the next structural slice requires an explicit fresh-main choice.
 
 ### Later B candidates, ordered preference
 
@@ -217,13 +213,13 @@ A's generic selection/drill-down contract is consumed here if it has landed. If 
 
 ### Stream B collision rule
 
-B owns representation-specific Rust modules, discriminated payloads, family-specific WASM proof and thin adapters. Shared generic files are integration windows, not permanent B ownership. Only one PR at a time may modify any shared semantic transport/translator contract.
+B owns representation-specific Rust modules, discriminated payloads, family-specific WASM proof and thin adapters. Shared generic files are integration windows, not permanent B ownership. Because execution is sequential, shared-contract changes must still be kept narrow and must preserve Stream A's verified invariants.
 
 ---
 
 # Stream C - Visible Investigator Product Convergence
 
-**Status:** IMPLEMENTATION PARTIAL / NEXT VISIBLE-PRODUCT WAVE  
+**Status:** QUEUED AFTER B / IMPLEMENTATION PARTIAL FOUNDATION LANDED  
 **Primary programme:** `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`  
 **Baseline authority:** `roadmap/P1_UV0_BASELINE_INVENTORY.md`.
 
@@ -305,17 +301,17 @@ C owns product shell/world-object/presentation state and affordances. It consume
 
 # Stream D - Assurance & Private-Preview Readiness
 
-**Status:** PLANNED / HIGHLY PARALLEL  
+**Status:** QUEUED AFTER C  
 **Primary programmes:** `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`, `STREAM_C_SECURITY_ASSURANCE.md` (legacy execution name), issue #314 hardening backlog, and later P1-U9/P1-W gates.
 
 The file `STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current wave, all unresolved security/privacy/live-path findings in that document are owned by **Stream D**.
 
-D may operate in two internal sub-lanes because their file surfaces are normally disjoint:
+D retains two conceptual sub-lanes because their file surfaces and evidence contracts are distinct, but they are **not executed in parallel under the current operating model**:
 
 - **D-QV:** Quest validation operations and evidence attribution.
 - **D-SA:** security/privacy/supply-chain/WASM assurance.
 
-They still share one Stream D promotion owner and may not create conflicting changes to common CI/governance files.
+The forward implementation stream selects and completes one bounded D tranche at a time, with the same adversarial review/fix-forward and exact-head promotion discipline.
 
 ## D1 - validation manifest and launcher
 
@@ -340,7 +336,7 @@ Implement QV2-QV4:
 
 ## D3 - live-path security quick wins
 
-Prioritize isolated, production-path findings that do not collide with A/B/C:
+Prioritize isolated, production-path findings that do not collide with the earlier completed programmes:
 
 - RF-039 upload policy consolidation at the real `FileLoader -> Atlas -> Rust -> Dataset` path;
 - RF-041 remove unnecessary `unpkg` trust/import-map/CSP widening if production proof confirms it is unused;
@@ -367,7 +363,7 @@ Implement QV5/QV6 after C's current treatment is stable enough to test:
 - bounded comfort/task outcome records;
 - dev-only validation dashboard excluded from production artifacts.
 
-This work may be implemented before C completes, but it **must not qualify the old treatment**. Final P1-U9 evidence starts only after C's visible product convergence gate.
+Final P1-U9 evidence starts only after C's visible product convergence gate.
 
 ## D6 - physical qualification and P1-W/private-preview handoff
 
@@ -383,23 +379,23 @@ After C reaches its product convergence exit and other named prerequisites are s
 
 ---
 
-# Parallel execution and integration rules
+# Sequential execution and integration rules
 
 ## Ownership matrix
 
 | Surface | A | B | C | D |
 | --- | --- | --- | --- | --- |
-| Generic semantic drill-down / selection lineage | **OWNS** | consumes | consumes | tests |
-| Representation-specific Rust/payload math | consumes | **OWNS** | no | assurance only |
-| Generic semantic Worker/loader/translator seam | **integration owner while A contract active** | short integration window | no scientific changes | tests/security only |
-| Product shell/world objects/presentation hierarchy | consumes | no | **OWNS** | validation only |
-| Quest validation scripts/manifests/evidence sink | no | no | consumer | **OWNS** |
-| Upload/auth/privacy/CSP/fuzz/live-path assurance | no | no | consumer | **OWNS** |
+| Generic semantic drill-down / selection lineage | **frozen authority** | consumes | consumes | tests |
+| Representation-specific Rust/payload math | consumes | **OWNS while active** | no | assurance only |
+| Generic semantic Worker/loader/translator seam | **frozen contract** | narrow integration window | no scientific changes | tests/security only |
+| Product shell/world objects/presentation hierarchy | consumes | no | **OWNS when active** | validation only |
+| Quest validation scripts/manifests/evidence sink | no | no | consumer | **OWNS when active** |
+| Upload/auth/privacy/CSP/fuzz/live-path assurance | no | no | consumer | **OWNS when active** |
 | `docs/ROADMAP.md` status | checkpoint updates | checkpoint updates | checkpoint updates | checkpoint updates |
 
 ## Collision-sensitive files
 
-The following are shared integration contracts. Only one open PR may change a given file/contract unless the PRs are explicitly stacked by design:
+The following are shared integration contracts and should change only in the active sequential tranche when that change is necessary:
 
 - `src/app/dataset/LoadDatasetUseCase.ts`;
 - `src/app/dataset/SemanticEmbodimentLoader.ts`;
@@ -410,14 +406,14 @@ The following are shared integration contracts. Only one open PR may change a gi
 - shared analytical Worker/WASM bridge dispatch;
 - common CI/promotion workflow files.
 
-Representation-specific Rust modules, payload files, thin adapters, UI components and validation/security modules should be preferred so parallel work remains physically separated.
+Representation-specific Rust modules, payload files, thin adapters, UI components and validation/security modules should be preferred so each tranche remains bounded and reviewable.
 
-## Integration windows
+## Integration order
 
-1. **A1 contract freeze** is the first shared seam. B1/B2 and independent C/D work may proceed while A1 is being finalized.
-2. **B3 production cutover** waits if it needs A's still-changing generic semantic-target/detail contract. Do not fork it.
-3. **C drill-down presentation** waits for A's intent/API rather than implementing its own membership lookup.
-4. **D P1-U9 qualification** waits for C product convergence; D-QV tooling itself does not wait.
+1. **A is frozen complete** at the generic progressive-disclosure contract and its four verified families.
+2. **B** consumes A's semantic-target/detail contract while adding one governed structural family at a time.
+3. **C** consumes the completed A/B semantic contracts to converge the investigator experience; it does not implement membership lookup or analytical facts.
+4. **D** follows C for final physical qualification and private-preview assurance; its internal assurance work is still executed as bounded sequential tranches.
 5. **P1-W** waits for C plus the required D assurance/device prerequisites.
 
 ## Sync discipline
@@ -426,33 +422,30 @@ Every checkpoint PR must:
 
 1. fetch live `main` before branch creation;
 2. state the exact base SHA;
-3. confirm the previous checkpoint in its own stream is merged or abandoned;
+3. confirm the previous checkpoint is merged or abandoned;
 4. avoid stacked long-lived checkpoint branches;
 5. sync/reconcile any new `main` before final promotion when strict status checks require it;
 6. carry pre/post adversarial review for high-risk changes;
 7. merge only on exact-head evidence appropriate to the risk surface;
 8. fetch fresh `main` before beginning the next checkpoint.
 
-Cross-stream agents should sync frequently because the integration seams are intentionally small but high-leverage.
+The single forward implementation stream should sync frequently with remote `main`, especially before touching the small but high-leverage shared contracts.
 
-## One open PR per stream
+## One forward implementation PR
 
 Default maximum:
 
 ```text
-1 open Stream A implementation PR
-1 open Stream B implementation PR
-1 open Stream C implementation PR
-1 open Stream D implementation PR
+1 open forward implementation PR
 ```
 
-D-QV and D-SA may each prepare work in parallel only when their changed-file sets are disjoint; they must not both open conflicting governance/workflow modifications. Documentation-only closure/fix-forward PRs may coexist when they do not claim implementation ownership.
+Do not parallelize A/B/C/D implementation. Documentation-only closure/fix-forward commits should normally remain on the owning active PR rather than creating overlapping work. A different execution model requires an explicit user decision.
 
 ---
 
 # Cross-cutting quality model
 
-Independent adversarial review is **not** a fifth feature stream. It is mandatory process across A-D.
+Independent adversarial review is not a separate feature stream. It is mandatory process inside the single forward implementation stream.
 
 For high-risk work, use:
 
@@ -489,10 +482,10 @@ Do **not** start these merely because capacity exists:
 - P2 RepresentationGraph/compositional representation search;
 - generative geometry as a substitute for governed semantic payloads;
 - broad automatic learned-representation expansion;
-- the full major dependency-modernization programme in issue #300 while A/B/C integration seams are moving;
-- Node/toolchain/Three.js/Rust major migrations that would create cross-stream churn without a specific blocker.
+- the full major dependency-modernization programme in issue #300 while the current structural/product/assurance programmes are moving;
+- Node/toolchain/Three.js/Rust major migrations that would create cross-programme churn without a specific blocker.
 
-Safe isolated patch/minor dependency maintenance and narrowly justified CI-action updates may proceed when they do not collide with active streams and retain exact-head evidence.
+Safe isolated patch/minor dependency maintenance and narrowly justified CI-action updates may proceed only when selected as the current bounded forward tranche and when they retain exact-head evidence.
 
 ---
 
@@ -504,6 +497,7 @@ These remain authoritative for their scoped contracts/evidence even when their s
 - `roadmap/P1_R2C_DENSITY_TRUTH.md` - completed density truth rail;
 - `roadmap/P1_R2D_CLUSTER_REGIONS.md` - completed source-partition Cluster Regions V1 rail;
 - `review/P1_R2D_C5_STOP_REVIEW_2026-08-31.md` - R2D independent closure evidence;
+- `review/P1_R5_A5_STOP_REVIEW_2026-08-31.md` - P1-R5 progressive-disclosure closure evidence;
 - `rfcs/0001-source-partition-cluster-authority.md` - durable R2D scientific decision;
 - `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md` - visible product convergence specification;
 - `roadmap/P1_UV0_BASELINE_INVENTORY.md` - executable visible baseline/inventory;
@@ -513,7 +507,7 @@ These remain authoritative for their scoped contracts/evidence even when their s
 - issue #314 - post-Moneta hardening backlog;
 - issue #300 - major dependency modernization, deferred as a broad sprint during this wave.
 
-Historical review plans keep their original stream names for provenance. Do not reinterpret those labels as current ownership.
+Historical review plans keep their original stream names for provenance. Do not reinterpret those labels as current concurrent ownership.
 
 ---
 
@@ -534,4 +528,4 @@ preserved source data
   -> minimal private preview
 ```
 
-The four streams are an execution topology for reaching that chain faster without creating duplicate authority. They are not permission to weaken scientific, UX, security or evidence gates.
+A/B/C/D are now ordered programme boundaries for reaching that chain without duplicate authority. They are not permission to weaken scientific, UX, security or evidence gates, and they are not to be implemented in parallel under the current operating model.
