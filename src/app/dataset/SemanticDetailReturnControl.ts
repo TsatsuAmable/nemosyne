@@ -56,24 +56,11 @@ export function mountSemanticDetailReturnControl(
       return;
     }
     transition.clear();
-    refresh();
   };
 
   button.addEventListener('click', returnToStructure);
   root.appendChild(button);
-  refresh();
-
-  // Semantic-detail state changes are driven by selection and asynchronous
-  // Worker completion rather than DOM events. A bounded animation-frame poll
-  // keeps this presentation-only affordance synchronized without introducing a
-  // second application-state owner or touching World.
-  let frame = 0;
-  const tick = (): void => {
-    if (disposed) return;
-    refresh();
-    frame = window.requestAnimationFrame(tick);
-  };
-  frame = window.requestAnimationFrame(tick);
+  const unsubscribe = transition.subscribe(refresh);
 
   return {
     element: button,
@@ -81,7 +68,7 @@ export function mountSemanticDetailReturnControl(
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      window.cancelAnimationFrame(frame);
+      unsubscribe();
       button.removeEventListener('click', returnToStructure);
       button.remove();
     },
