@@ -63,11 +63,10 @@ export function mountSemanticDatumInspector(
     max-height: calc(100vh - 112px);
     overflow: auto;
     padding: var(--nms-spacing-x16);
-    border: 1px solid var(--nms-color-surface-border);
+    border: var(--nms-panel-border-width) solid var(--nms-color-surface-border);
     border-radius: var(--nms-panel-border-radius);
     background: var(--nms-color-surface-base);
     color: var(--nms-color-text-primary);
-    box-shadow: var(--nms-shadow-panel);
     pointer-events: auto;
   `;
 
@@ -90,7 +89,7 @@ export function mountSemanticDatumInspector(
     min-height:36px;
     padding:var(--nms-spacing-x8);
     border:1px solid var(--nms-color-surface-border);
-    border-radius:var(--nms-control-border-radius);
+    border-radius:var(--nms-panel-border-radius);
     background:var(--nms-color-surface-raised);
     color:var(--nms-color-text-primary);
     font:inherit;
@@ -113,7 +112,7 @@ export function mountSemanticDatumInspector(
 
   const fields = document.createElement('div');
   fields.id = 'semantic-datum-fields';
-  fields.style.cssText = 'display:grid;gap:var(--nms-spacing-x6);';
+  fields.style.cssText = 'display:grid;gap:var(--nms-spacing-x8);';
 
   const provenanceHeading = document.createElement('h3');
   provenanceHeading.textContent = 'Lineage';
@@ -121,7 +120,7 @@ export function mountSemanticDatumInspector(
 
   const provenance = document.createElement('div');
   provenance.id = 'semantic-datum-lineage';
-  provenance.style.cssText = 'display:grid;gap:var(--nms-spacing-x6);';
+  provenance.style.cssText = 'display:grid;gap:var(--nms-spacing-x8);';
 
   panel.append(
     title,
@@ -145,6 +144,7 @@ export function mountSemanticDatumInspector(
     fields.replaceChildren();
     provenance.replaceChildren();
     status.textContent = '';
+    status.style.color = 'var(--nms-color-text-secondary)';
   };
 
   const renderInspection = (result: SemanticDatumInspectionResultV1): void => {
