@@ -8,6 +8,8 @@ import {
 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../src/moneta/representation/RepresentationCandidate.ts';
 
+const DENSITY_CONSTANT_DOMAIN_POLICY = 'assign-final-bin-per-degenerate-axis';
+
 function densityFixture(): SemanticEmbodimentEnvelopeV1 {
   return {
     schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
@@ -21,6 +23,7 @@ function densityFixture(): SemanticEmbodimentEnvelopeV1 {
         binning: 'equal-width',
         interval: 'left-closed-right-open-final-closed',
         excludedPolicy: 'canonical-invalid-exclude-and-count',
+        constantDomain: DENSITY_CONSTANT_DOMAIN_POLICY,
       },
     },
     approximation: {
@@ -136,6 +139,9 @@ describe('P1-R density M1R binned density contract', () => {
     expect(first.candidateId).toBe('DENSITY_FIELD');
     expect(first.representationFamily).toBe('DENSITY');
     expect(first.analyticalMethod.version).toBe('binned-density-contract-v1');
+    expect(first.analyticalMethod.parameters).toMatchObject({
+      constantDomain: DENSITY_CONSTANT_DOMAIN_POLICY,
+    });
     expect(first.approximation).toMatchObject({ mode: 'BINNED', representedRowCount: 4 });
     expect(first.informationContract).toEqual({
       preserves: ['empirical-bivariate-bin-mass'],
@@ -230,13 +236,26 @@ describe('P1-R density M1R binned density contract', () => {
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(distributionClaim)).toBeNull();
   });
 
-  it('denies unknown or nested-smuggled method parameters and version drift', () => {
+  it('denies unknown, missing, drifted, or nested-smuggled method parameters and version drift', () => {
     const unknownParameter = densityFixture();
     unknownParameter.analyticalMethod.parameters = {
       ...(unknownParameter.analyticalMethod.parameters as Record<string, unknown>),
       metadata: 'not-part-of-v1',
     };
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(unknownParameter)).toBeNull();
+
+    const missingConstantDomain = densityFixture();
+    const missingParameters = {
+      ...(missingConstantDomain.analyticalMethod.parameters as Record<string, unknown>),
+    };
+    delete missingParameters.constantDomain;
+    missingConstantDomain.analyticalMethod.parameters = missingParameters;
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(missingConstantDomain)).toBeNull();
+
+    const driftedConstantDomain = densityFixture();
+    (driftedConstantDomain.analyticalMethod.parameters as Record<string, unknown>).constantDomain =
+      'collapse-degenerate-axis';
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(driftedConstantDomain)).toBeNull();
 
     const nestedSmuggling = densityFixture();
     nestedSmuggling.analyticalMethod.parameters = {
@@ -252,6 +271,29 @@ describe('P1-R density M1R binned density contract', () => {
     const caseDrift = densityFixture();
     caseDrift.analyticalMethod.name = 'BIVARIATE-BINNED-DENSITY';
     expect(bridge.roundTripSemanticEmbodimentPayloadV1(caseDrift)).toBeNull();
+  });
+
+  it('enforces final-bin mass placement on a constant axis', () => {
+    const valid = densityFixture();
+    const payload = densityPayload(valid);
+    payload.domainX = { min: 5, max: 5 };
+    for (const cell of payload.grid) {
+      cell.xLowerBound = 5;
+      cell.xUpperBound = 5;
+      cell.count = cell.xIndex === 1 ? 2 : 0;
+    }
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(valid)).not.toBeNull();
+
+    const invalid = densityFixture();
+    const invalidPayload = densityPayload(invalid);
+    invalidPayload.domainX = { min: 5, max: 5 };
+    for (const cell of invalidPayload.grid) {
+      cell.xLowerBound = 5;
+      cell.xUpperBound = 5;
+      cell.count = 0;
+    }
+    invalidPayload.grid.find((cell) => cell.xIndex === 0 && cell.yIndex === 0)!.count = 4;
+    expect(bridge.roundTripSemanticEmbodimentPayloadV1(invalid)).toBeNull();
   });
 
   it('rejects non-finite values and raw-row smuggling', () => {
