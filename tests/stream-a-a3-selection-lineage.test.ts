@@ -4,13 +4,19 @@ import type { MonetaTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
 import type { MonetaDiagnosticHUD } from '../src/vr/ui/MonetaDiagnosticHUD.ts';
 import { RepresentationSurface } from '../src/vr/presentation/representation/RepresentationSurface.ts';
 
-function fakeNode(name: string, semanticId: string, datasetFingerprint: string): MonetaTopologyNode {
+function fakeNode(
+  name: string,
+  semanticId: string,
+  datasetFingerprint: string,
+  decisionId = 'decision-A'
+): MonetaTopologyNode {
   const group = new THREE.Group();
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
   mesh.name = name;
   mesh.userData.semanticId = semanticId;
   mesh.userData.datasetFingerprint = datasetFingerprint;
   mesh.userData.representationKind = 'DENSITY_FIELD';
+  mesh.userData.provenance = { decisionId };
   group.add(mesh);
   return {
     artifact: { group, nodeMeshes: [mesh], edgeMeshes: [], behaviors: [], interactions: {} },
@@ -66,12 +72,29 @@ describe('Stream A A3 semantic selection lineage', () => {
     expect(surface.getSelectedSemanticIdentity()).toEqual({
       semanticId: 'density-cell:1:1',
       datasetFingerprint: 'dataset-A',
+      decisionId: 'decision-A',
     });
   });
 
   it('fails closed instead of carrying a same-named semantic target into another dataset', () => {
     const first = fakeNode('density-proxy', 'density-cell:1:1', 'dataset-A');
     const second = fakeNode('density-proxy', 'density-cell:1:1', 'dataset-B');
+    const createNode = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const surface = new RepresentationSurface(dependencies(), {
+      createNode,
+      createDiagnostic: () => diagnostic(),
+    });
+
+    surface.replace({ topology: 'TABULAR' }, null);
+    surface.setSelectedMesh(first.artifact!.nodeMeshes[0]);
+    surface.replace({ topology: 'TABULAR' }, null);
+
+    expect(surface.selectedMesh).toBeNull();
+  });
+
+  it('fails closed when the same density semantic cell is regenerated under another decision', () => {
+    const first = fakeNode('density-proxy-old', 'density-cell:1:1', 'dataset-A', 'decision-A');
+    const second = fakeNode('density-proxy-new', 'density-cell:1:1', 'dataset-A', 'decision-B');
     const createNode = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
     const surface = new RepresentationSurface(dependencies(), {
       createNode,
@@ -98,12 +121,14 @@ describe('Stream A A3 semantic selection lineage', () => {
       surface.findMeshBySemanticIdentity({
         semanticId: 'density-cell:2:3',
         datasetFingerprint: 'dataset-A',
+        decisionId: 'decision-A',
       })
     ).toBe(node.artifact!.nodeMeshes[0]);
     expect(
       surface.findMeshBySemanticIdentity({
         semanticId: 'density-cell:2:3',
-        datasetFingerprint: 'dataset-B',
+        datasetFingerprint: 'dataset-A',
+        decisionId: 'decision-B',
       })
     ).toBeNull();
   });
