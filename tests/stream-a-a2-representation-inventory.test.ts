@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { Dataset } from '../src/data/Dataset.ts';
-import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
+import { buildDensitySemanticField } from '../src/moneta/embodiment/DensitySemanticEmbodiment.ts';
 import { ScalableTopologyEmbodiment } from '../src/moneta/embodiment/ScalableTopologyEmbodiment.ts';
 import { TopologyLayoutEmbodiment } from '../src/moneta/embodiment/TopologyLayoutEmbodiment.ts';
+import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import {
   MONETA_REPRESENTATION_CANDIDATES,
   type SemanticRepresentationId,
@@ -36,7 +37,7 @@ interface InventoryEntry {
 
 const INVENTORY: Record<SemanticRepresentationId, InventoryEntry> = {
   POINT_SET: { classification: 'OBSERVATION_LEVEL', productionReachable: true, layout: 'GRID_3D', geometry: 'CUBE_MATRIX' },
-  DENSITY_FIELD: { classification: 'SEMANTICALLY_OVERCLAIMED', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
+  DENSITY_FIELD: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'DENSITY_FIELD' },
   DISTRIBUTION_FIELD: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'DISTRIBUTION_FIELD' },
   CLUSTER_REGIONS: { classification: 'DATASET_LEVEL_ROW_DERIVED', productionReachable: true, layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME' },
   AGGREGATE_VOLUME: { classification: 'DATASET_LEVEL_VALID', productionReachable: true, layout: 'GRID_3D', geometry: 'AGGREGATE_BARS' },
@@ -89,22 +90,14 @@ function distributionEnvelope(): SemanticEmbodimentEnvelopeV1 {
     datasetFingerprint: 'b'.repeat(64),
     candidateId: 'DISTRIBUTION_FIELD',
     representationFamily: 'DISTRIBUTION',
-    analyticalMethod: {
-      name: 'univariate-empirical-distribution',
-      version: 'empirical-distribution-columnar-v1',
-      parameters: {},
-    },
+    analyticalMethod: { name: 'univariate-empirical-distribution', version: 'empirical-distribution-columnar-v1', parameters: {} },
     approximation: { mode: 'BINNED', representedRowCount: 6 },
     informationContract: {
-      preserves: ['population-density-distribution', 'outlier-boundary-visibility'],
-      loses: ['individual-observation-identity', 'exact-metric-values'],
+      preserves: ['empirical-distribution-shape'],
+      loses: ['individual-observation-identity', 'exact-metric-values', 'population-density-distribution', 'outlier-boundary-visibility'],
     },
     resource: { sourceRowCount: 6, elementCount: 9, maxElementCount: 544 },
-    provenance: {
-      kernelVersion: 'test',
-      algorithmVersion: 'empirical-distribution-columnar-v1',
-      decisionId: 'decision-a2-distribution',
-    },
+    provenance: { kernelVersion: 'test', algorithmVersion: 'empirical-distribution-columnar-v1', decisionId: 'decision-a2-distribution' },
     result: {
       status: 'READY',
       payload: {
@@ -127,6 +120,53 @@ function distributionEnvelope(): SemanticEmbodimentEnvelopeV1 {
             { semanticId: 'distribution-quantile:000', probability: 0, value: 0 },
             { semanticId: 'distribution-quantile:001', probability: 0.5, value: 3 },
             { semanticId: 'distribution-quantile:002', probability: 1, value: 6 },
+          ],
+        },
+      },
+    },
+  };
+}
+
+function densityEnvelope(): SemanticEmbodimentEnvelopeV1 {
+  return {
+    schemaVersion: 1,
+    datasetFingerprint: 'd'.repeat(64),
+    candidateId: 'DENSITY_FIELD',
+    representationFamily: 'DENSITY',
+    analyticalMethod: {
+      name: 'bivariate-binned-density',
+      version: 'binned-density-contract-v1',
+      parameters: {
+        binning: 'equal-width',
+        interval: 'left-closed-right-open-final-closed',
+        excludedPolicy: 'canonical-invalid-exclude-and-count',
+        constantDomain: 'assign-final-bin-per-degenerate-axis',
+      },
+    },
+    approximation: { mode: 'BINNED', representedRowCount: 6 },
+    informationContract: {
+      preserves: ['empirical-bivariate-bin-mass'],
+      loses: ['individual-observation-identity', 'exact-metric-values', 'population-density-distribution', 'empirical-distribution-shape', 'outlier-boundary-visibility'],
+    },
+    resource: { sourceRowCount: 6, elementCount: 4, maxElementCount: 400 },
+    provenance: { kernelVersion: 'test', algorithmVersion: 'bivariate-binned-density-columnar-v1', decisionId: 'decision-a2-density' },
+    result: {
+      status: 'READY',
+      payload: {
+        kind: 'BINNED_DENSITY',
+        data: {
+          measureFieldX: 'x',
+          measureFieldY: 'y',
+          domainX: { min: 0, max: 2 },
+          domainY: { min: 0, max: 2 },
+          counts: { sourceCount: 6, validCount: 6, excludedCount: 0 },
+          binsX: 2,
+          binsY: 2,
+          grid: [
+            { semanticId: 'density-cell:0:0', xIndex: 0, yIndex: 0, xLowerBound: 0, xUpperBound: 1, yLowerBound: 0, yUpperBound: 1, count: 2, xUpperInclusive: false, yUpperInclusive: false },
+            { semanticId: 'density-cell:1:0', xIndex: 1, yIndex: 0, xLowerBound: 1, xUpperBound: 2, yLowerBound: 0, yUpperBound: 1, count: 1, xUpperInclusive: true, yUpperInclusive: false },
+            { semanticId: 'density-cell:0:1', xIndex: 0, yIndex: 1, xLowerBound: 0, xUpperBound: 1, yLowerBound: 1, yUpperBound: 2, count: 1, xUpperInclusive: false, yUpperInclusive: true },
+            { semanticId: 'density-cell:1:1', xIndex: 1, yIndex: 1, xLowerBound: 1, xUpperBound: 2, yLowerBound: 1, yUpperBound: 2, count: 2, xUpperInclusive: true, yUpperInclusive: true },
           ],
         },
       },
@@ -158,6 +198,7 @@ function inputThatForbidsRawRows(candidateId: SemanticRepresentationId): MonetaD
   const input: MonetaDataInput & { semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 } = { encodings: {} };
   if (candidateId === 'AGGREGATE_VOLUME') input.semanticEmbodiment = aggregateEnvelope();
   if (candidateId === 'DISTRIBUTION_FIELD') input.semanticEmbodiment = distributionEnvelope();
+  if (candidateId === 'DENSITY_FIELD') input.semanticEmbodiment = densityEnvelope();
   Object.defineProperty(input, 'rows', {
     configurable: true,
     get() { throw new Error(RAW_ROW_SENTINEL); },
@@ -169,23 +210,29 @@ function rendererSource(path: string): string {
   return readFileSync(path, 'utf8');
 }
 
-function scalableRenderCount(
-  geometry: 'AGGREGATE_BARS' | 'CLUSTER_VOLUME' | 'DENSITY_FIELD' | 'DISTRIBUTION_FIELD',
-  rowCount = 24
-): number {
-  const rows = Array.from({ length: rowCount }, (_, index) => ({
-    group: `g${index % 3}`, x: index % 6, y: Math.floor(index / 6), value: index + 1,
-  }));
-  const dataset = new Dataset(
-    `a2-${geometry}`,
-    [
-      { name: 'group', type: 'CATEGORICAL' },
-      { name: 'x', type: 'NUMERIC' },
-      { name: 'y', type: 'NUMERIC' },
-      { name: 'value', type: 'NUMERIC' },
-    ],
-    rows
-  );
+function semanticRenderCount(geometry: 'AGGREGATE_BARS' | 'DENSITY_FIELD' | 'DISTRIBUTION_FIELD'): number {
+  const layouts = new TopologyLayoutEmbodiment('none');
+  const scalable = new ScalableTopologyEmbodiment(layouts, 'none', null);
+  const group = new THREE.Group();
+  const nodeMeshes: THREE.Mesh[] = [];
+  try {
+    if (geometry === 'AGGREGATE_BARS') scalable.buildAggregateBars(group, nodeMeshes, aggregateEnvelope());
+    else if (geometry === 'DISTRIBUTION_FIELD') scalable.buildDistributionField(group, nodeMeshes, distributionEnvelope());
+    else buildDensitySemanticField(group, nodeMeshes, densityEnvelope());
+    return nodeMeshes.length;
+  } finally {
+    disposeObject(group);
+  }
+}
+
+function clusterRenderCount(rowCount = 24): number {
+  const rows = Array.from({ length: rowCount }, (_, index) => ({ group: `g${index % 3}`, x: index % 6, y: Math.floor(index / 6), value: index + 1 }));
+  const dataset = new Dataset('a2-cluster', [
+    { name: 'group', type: 'CATEGORICAL' },
+    { name: 'x', type: 'NUMERIC' },
+    { name: 'y', type: 'NUMERIC' },
+    { name: 'value', type: 'NUMERIC' },
+  ], rows);
   const layouts = new TopologyLayoutEmbodiment('none');
   const layoutSpy = vi.spyOn(layouts, 'computeLayoutPositions').mockReturnValue(
     rows.map((row, index) => ({ row, index, position: new THREE.Vector3(index % 6, Math.floor(index / 6), index % 2) }))
@@ -193,19 +240,8 @@ function scalableRenderCount(
   const scalable = new ScalableTopologyEmbodiment(layouts, 'none', null);
   const group = new THREE.Group();
   const nodeMeshes: THREE.Mesh[] = [];
-  const spec = { layout: 'GRID_3D' as const, geometry, behavior: 'STATIC' as const, interaction: 'INSPECT_CELL' as const };
-  const encodings = { color: 'group', size: 'value' };
-
   try {
-    if (geometry === 'AGGREGATE_BARS') {
-      scalable.buildAggregateBars(group, nodeMeshes, aggregateEnvelope());
-    } else if (geometry === 'DISTRIBUTION_FIELD') {
-      scalable.buildDistributionField(group, nodeMeshes, distributionEnvelope());
-    } else if (geometry === 'CLUSTER_VOLUME') {
-      scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec);
-    } else {
-      scalable.buildDensityField(group, nodeMeshes, rows, dataset, encodings, spec);
-    }
+    scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, { color: 'group', size: 'value' }, { layout: 'GRID_3D', geometry: 'CLUSTER_VOLUME', behavior: 'STATIC', interaction: 'INSPECT_CELL' });
     return nodeMeshes.length;
   } finally {
     layoutSpy.mockRestore();
@@ -214,7 +250,7 @@ function scalableRenderCount(
 }
 
 describe('Stream A representation inventory', () => {
-  it('covers every semantic candidate and makes aggregate production reachable', () => {
+  it('covers every semantic candidate and keeps production reachability explicit', () => {
     const candidateIds = Object.keys(MONETA_REPRESENTATION_CANDIDATES).sort();
     expect(Object.keys(INVENTORY).sort()).toEqual(candidateIds);
     const reachable = new Set(Object.values(FAMILY_TO_CANDIDATE_IDS).flat());
@@ -243,44 +279,32 @@ describe('Stream A representation inventory', () => {
     }
   });
 
-  it('keeps remaining semantic overclaims explicit while aggregate no longer computes in TypeScript', () => {
+  it('keeps remaining semantic overclaims explicit while migrated adapters stay row-free', () => {
     const translator = rendererSource('src/moneta/VRTopologyTranslator.ts');
-    const scalable = rendererSource('src/moneta/embodiment/ScalableTopologyEmbodiment.ts');
-    const aggregateSource = scalable.slice(scalable.indexOf('buildAggregateBars'));
+    const densityAdapter = rendererSource('src/moneta/embodiment/DensitySemanticEmbodiment.ts');
     const learned = rendererSource('src/moneta/representation/LearnedMonetaRuntime.ts');
     const bootstrap = rendererSource('src/moneta/representation/MonetaHypothesisEngine.ts');
 
     expect(translator).not.toContain('const rows = dataset?.rows ?? dataInput.rows ?? [];');
-    expect(aggregateSource).not.toContain('for (const row of rows)');
-    expect(aggregateSource).not.toContain('new Map<unknown, Record<string, unknown>[]>');
-    expect(aggregateSource).toContain("semanticEmbodimentStatus = 'READY'");
-    expect(scalable).toContain('const BINS = 6;');
-    expect(scalable).toContain("representationKind: 'DENSITY_FIELD'");
-    expect(scalable).toContain("representationKind: 'CLUSTER_REGIONS'");
+    expect(translator).toContain('buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment)');
+    expect(translator).not.toContain('scalable.buildDensityField(');
+    expect(densityAdapter).not.toContain('dataset.rows');
+    expect(densityAdapter).not.toContain('computeLayoutPositions');
+    expect(densityAdapter).not.toContain('for (const row');
 
-    expect(INVENTORY.DENSITY_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
+    expect(INVENTORY.DENSITY_FIELD.classification).toBe('DATASET_LEVEL_VALID');
     expect(INVENTORY.DISTRIBUTION_FIELD.classification).toBe('DATASET_LEVEL_VALID');
     expect(INVENTORY.MANIFOLD_EMBEDDING.classification).toBe('SEMANTICALLY_OVERCLAIMED');
     expect(INVENTORY.MULTISCALE_FIELD.classification).toBe('SEMANTICALLY_OVERCLAIMED');
 
-    expect(learned).toContain('function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentationId)');
-    expect(learned).toContain("candidateId === 'AGGREGATE_VOLUME'");
     expect(learned).toContain("candidateId === 'DENSITY_FIELD'");
-    expect(learned).toContain("candidateId === 'DISTRIBUTION_FIELD'");
-    expect(learned).toContain('geometryForLayout(winner.layout, winner.candidateId)');
     expect(bootstrap).toContain("candidateId === 'DENSITY_FIELD'");
-    expect(bootstrap).toContain("candidateId === 'DISTRIBUTION_FIELD'");
-    expect(bootstrap).toContain('geometryForLayout(winner.layout, winner.candidateId)');
-    expect(bootstrap).toContain('geometryForLayout(candidate.layout, candidate.candidateId)');
   });
 
-  it('records bounded primitive behavior without replacing Rust analytical authority in the test', () => {
-    const rowCount = 24;
-    expect(scalableRenderCount('AGGREGATE_BARS', rowCount)).toBe(3);
-    expect(scalableRenderCount('DISTRIBUTION_FIELD', rowCount)).toBe(9);
-    expect(scalableRenderCount('CLUSTER_VOLUME', rowCount)).toBe(3);
-    const densityVoxels = scalableRenderCount('DENSITY_FIELD', rowCount);
-    expect(densityVoxels).toBeGreaterThan(0);
-    expect(densityVoxels).toBeLessThanOrEqual(216);
+  it('bounds migrated semantic primitive counts by payload elements rather than source N', () => {
+    expect(semanticRenderCount('AGGREGATE_BARS')).toBe(aggregateEnvelope().resource.elementCount);
+    expect(semanticRenderCount('DISTRIBUTION_FIELD')).toBe(distributionEnvelope().resource.elementCount);
+    expect(semanticRenderCount('DENSITY_FIELD')).toBe(densityEnvelope().resource.elementCount);
+    expect(clusterRenderCount()).toBe(3);
   });
 });
