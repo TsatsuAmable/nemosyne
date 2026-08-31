@@ -110,19 +110,54 @@ export function isLayoutCompatibleWithFamily(
 }
 
 /**
- * Candidate IDs considered under each reasoning family. This membership is
- * rank-effective; it must not be confused with payload-kind or renderer
- * dispatch. A candidate may participate in more than one reasoning family.
+ * Canonical reasoning-family assignment for each semantic candidate.
+ *
+ * Cross-task fitness comes from candidate capabilities (`supports`, `preserves`,
+ * and `loses`), not by emitting the same candidate under several family labels.
+ * A single family assignment prevents unrelated family evidence or a configured
+ * family prior from changing the utility of an otherwise identical candidate.
+ *
+ * This is a rank-effective contract. Changes require a new fitness treatment.
+ */
+export const CANDIDATE_TO_REASONING_FAMILY: Record<
+  SemanticRepresentationId,
+  RepresentationFamily
+> = {
+  POINT_SET: 'POINT',
+  DENSITY_FIELD: 'DISTRIBUTION',
+  DISTRIBUTION_FIELD: 'DISTRIBUTION',
+  CLUSTER_REGIONS: 'CLUSTER',
+  AGGREGATE_VOLUME: 'AGGREGATE',
+  TEMPORAL_TRAJECTORY: 'TEMPORAL',
+  HIERARCHICAL_SPACE: 'HIERARCHICAL',
+  RELATIONSHIP_GRAPH: 'GRAPH',
+  MATRIX_FIELD: 'POINT',
+  MANIFOLD_EMBEDDING: 'TOPOLOGY',
+  SPATIAL_REGION: 'FIELD',
+  MULTISCALE_FIELD: 'FREQUENCY',
+};
+
+/**
+ * Candidate IDs considered under each reasoning family. Every candidate occurs
+ * exactly once. This membership is rank-effective; it must not be confused with
+ * payload-kind or renderer dispatch.
  */
 export const FAMILY_TO_CANDIDATE_IDS: Record<RepresentationFamily, SemanticRepresentationId[]> = {
   POINT: ['POINT_SET', 'MATRIX_FIELD'],
   DISTRIBUTION: ['DISTRIBUTION_FIELD', 'DENSITY_FIELD'],
-  CLUSTER: ['CLUSTER_REGIONS', 'DENSITY_FIELD'],
+  CLUSTER: ['CLUSTER_REGIONS'],
   AGGREGATE: ['AGGREGATE_VOLUME'],
   GRAPH: ['RELATIONSHIP_GRAPH'],
   FIELD: ['SPATIAL_REGION'],
-  TOPOLOGY: ['MANIFOLD_EMBEDDING', 'RELATIONSHIP_GRAPH'],
+  TOPOLOGY: ['MANIFOLD_EMBEDDING'],
   TEMPORAL: ['TEMPORAL_TRAJECTORY'],
   HIERARCHICAL: ['HIERARCHICAL_SPACE'],
-  FREQUENCY: ['MULTISCALE_FIELD', 'TEMPORAL_TRAJECTORY'],
+  FREQUENCY: ['MULTISCALE_FIELD'],
 };
+
+export function isCandidateAssignedToReasoningFamily(
+  candidateId: SemanticRepresentationId,
+  family: RepresentationFamily
+): boolean {
+  return CANDIDATE_TO_REASONING_FAMILY[candidateId] === family;
+}
