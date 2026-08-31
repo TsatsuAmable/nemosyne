@@ -1,0 +1,149 @@
+name: Stream A A5 cross-family product evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/stream-a-a5-product-evidence.yml'
+      - 'src/app/a5ProductEvidenceDiagnostics.ts'
+      - 'src/app/aggregateEvidenceDiagnostics.ts'
+      - 'src/app/dataset/SemanticDetailTransition.ts'
+      - 'src/app/dataset/SemanticDetailReturnControl.ts'
+      - 'src/app/dataset/SemanticDatumInspector.ts'
+      - 'src/app/dataset/SemanticEmbodimentLoader.ts'
+      - 'src/app/bootstrap.ts'
+      - 'src/app/resourceEnvelopeDiagnostics.ts'
+      - 'src/app/distributionEvidenceDiagnostics.ts'
+      - 'src/app/densityEvidenceDiagnostics.ts'
+      - 'src/app/clusterEvidenceDiagnostics.ts'
+      - 'src/atlas/ports/analytical.worker.ts'
+      - 'src/moneta/MonetaTopologyNode.ts'
+      - 'src/moneta/VRTopologyTranslator.ts'
+      - 'src/moneta/representation/RepresentationCandidate.ts'
+      - 'src/moneta/representation/RepresentationDecision.ts'
+      - 'src/moneta/representation/RepresentationRequirements.ts'
+      - 'src/moneta/representation/SemanticDrillDown.ts'
+      - 'src/moneta/representation/SemanticEmbodimentPayload.ts'
+      - 'src/vr/presentation/representation/RepresentationSurface.ts'
+      - 'src/vr/presentation/representation/SemanticDetailObservationOverlay.ts'
+      - 'src/wasm/runtime/SemanticEmbodimentBridge.ts'
+      - 'wasm/src/moneta/drill_down.rs'
+      - 'wasm/src/moneta/embodiment.rs'
+      - 'tests/semantic-drill-down.test.ts'
+      - 'tests/stream-a-a3-bounded-observation-transition.test.ts'
+      - 'tests/stream-a-a4-exact-datum-inspection.test.ts'
+      - 'tests/stream-a-a4-semantic-datum-inspector.test.ts'
+      - 'tests/stream-a-a5-product-evidence-contract.test.ts'
+      - 'tests/stream-a-a5-evidence-trigger-coverage.test.ts'
+      - 'tests/smoke/stream-a-a5-aggregate-evidence.spec.ts'
+      - 'tests/smoke/stream-m-m4-distribution-evidence.spec.ts'
+      - 'tests/smoke/p1r-density-m4-evidence.spec.ts'
+      - 'tests/smoke/p1r-cluster-c4-evidence.spec.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stream-a-a5-product-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: Aggregate + Distribution + Density + Cluster product evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEMOSYNE_A5_PRODUCT_EVIDENCE: '1'
+      NEMOSYNE_M4_BROWSER_PROBE: '1'
+      NEMOSYNE_M4_ROW_COUNTS: '8000'
+      NEMOSYNE_DENSITY_M4_BROWSER_PROBE: '1'
+      NEMOSYNE_DENSITY_M4_ROW_COUNTS: '8000'
+      NEMOSYNE_CLUSTER_C4_BROWSER_PROBE: '1'
+      NEMOSYNE_CLUSTER_C4_ROW_COUNTS: '8000'
+    steps:
+      - name: Checkout exact evidence head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          if [[ "$checkout_sha" != "$NEMOSYNE_SOURCE_HEAD_SHA" ]]; then
+            echo "Expected checkout $NEMOSYNE_SOURCE_HEAD_SHA but found $checkout_sha" >&2
+            exit 1
+          fi
+          echo "NEMOSYNE_CHECKOUT_HEAD_SHA=$checkout_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_WORKFLOW_EVENT_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build exact-head instrumented production bundle
+        run: |
+          mkdir -p stream-a-a5-results
+          /usr/bin/time -v -o stream-a-a5-results/build-time.txt \
+            env \
+              VITE_NEMOSYNE_DIAGNOSTICS=1 \
+              VITE_NEMOSYNE_Q3B_RESOURCE_PROBE=1 \
+              VITE_NEMOSYNE_A5_PRODUCT_EVIDENCE=1 \
+              npm run build
+
+      - name: Pin production artifact identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_sha="$({ find dist -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; } | sha256sum | awk '{print $1}')"
+          wasm_sha="$(sha256sum dist/wasm/pkg/nemosyne_wasm_bg.wasm | awk '{print $1}')"
+          echo "NEMOSYNE_A5_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_A5_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_M4_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_M4_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_DENSITY_M4_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_DENSITY_M4_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_CLUSTER_C4_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_CLUSTER_C4_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
+          printf 'source_head_sha=%s\ncheckout_head_sha=%s\nworkflow_event_sha=%s\nbundle_sha256=%s\nwasm_sha256=%s\n' \
+            "$NEMOSYNE_SOURCE_HEAD_SHA" \
+            "$NEMOSYNE_CHECKOUT_HEAD_SHA" \
+            "$NEMOSYNE_WORKFLOW_EVENT_SHA" \
+            "$bundle_sha" \
+            "$wasm_sha" \
+            | tee stream-a-a5-results/artifact-identities.txt
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run cross-family production evidence
+        run: |
+          /usr/bin/time -v -o stream-a-a5-results/probe-time.txt \
+            env NEMOSYNE_SMOKE_PREBUILT=1 \
+            npx playwright test \
+              tests/smoke/stream-a-a5-aggregate-evidence.spec.ts \
+              tests/smoke/stream-m-m4-distribution-evidence.spec.ts \
+              tests/smoke/p1r-density-m4-evidence.spec.ts \
+              tests/smoke/p1r-cluster-c4-evidence.spec.ts \
+              --workers=1 --retries=0
+
+      - name: Upload A5 structured and visual evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stream-a-a5-product-evidence
+          path: |
+            stream-a-a5-results
+            stream-m-m4-results
+            p1r-density-m4-results
+            p1r-cluster-c4-results
+          if-no-files-found: warn
+          retention-days: 7
