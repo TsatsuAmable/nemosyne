@@ -7,7 +7,10 @@ import type {
   RepresentationRequirements,
   StructureRequirementType,
 } from './RepresentationRequirements.ts';
-import type { RepresentationFamily } from './RepresentationFamily.ts';
+import {
+  isCandidateAssignedToReasoningFamily,
+  type RepresentationFamily,
+} from './RepresentationFamily.ts';
 import type { PerceptualFitnessEvidence } from '../evidence/PerceptualFitnessEvidence.ts';
 
 /**
@@ -28,24 +31,25 @@ export interface BootstrapFitnessWeights {
 }
 
 /**
- * V2 changes the density ontology/ranking contract: a bounded bivariate bin-mass
- * field and a genuine continuous population-density representation are distinct
- * capabilities that may both satisfy a generic density task without sharing an
- * information-preservation claim.
+ * V3 changes the rank-effective reasoning-family contract. Each semantic
+ * candidate now has one canonical reasoning family; cross-task support comes
+ * from explicit candidate capabilities rather than duplicate family aliases.
+ * Family-specific structure evidence is also gated by the capability that gives
+ * that family scientific meaning. The frozen numeric weights are unchanged.
  */
-export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v2';
+export const BOOTSTRAP_FITNESS_MODEL_VERSION = 'bootstrap-fitness-v3';
 
 /**
- * Frozen study-treatment identity for the default ranking treatment (RF-024/RF-065).
+ * Frozen study-treatment identity for the default ranking treatment.
  *
  * The default bootstrap weights are engineering priors, not empirical
- * probabilities. Any rank-effective change to weights, requirement coverage, or
- * information semantics is a study-treatment change and MUST mint a new
- * `treatmentId` plus pass study/treatment review before promotion. The treatment
- * id is recorded in decision provenance so a later analyst can tell which
- * treatment produced a decision.
+ * probabilities. Any rank-effective change to weights, requirement coverage,
+ * family membership, or information semantics is a study-treatment change and
+ * MUST mint a new `treatmentId` plus pass study/treatment review before
+ * promotion. The treatment id is recorded in decision provenance so a later
+ * analyst can tell which treatment produced a decision.
  */
-export const FITNESS_TREATMENT_ID = 'fitness-treatment-v2';
+export const FITNESS_TREATMENT_ID = 'fitness-treatment-v3';
 
 export interface FitnessTreatmentManifest {
   readonly treatmentId: string;
@@ -67,7 +71,7 @@ export const DEFAULT_FITNESS_TREATMENT_MANIFEST: FitnessTreatmentManifest = {
   treatmentId: FITNESS_TREATMENT_ID,
   weights: DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   rationale:
-    'V2 preserves the frozen bootstrap weights while separating bounded empirical bin mass from continuous population-density semantics. Any later rank-effective change requires a new treatment id plus study-treatment review before promotion.',
+    'V3 preserves the frozen bootstrap weights while removing duplicate candidate-family aliases and requiring family-specific structure evidence to match the candidate capability that makes that family meaningful. Cross-task coverage remains capability-driven. This rank-effective correction is an explicit study-treatment change and requires treatment review before promotion.',
 };
 
 export interface FitnessComponent {
@@ -137,13 +141,19 @@ export class BootstrapFitnessModel {
     family: RepresentationFamily,
     perceptualEvidence?: PerceptualFitnessEvidence
   ): FitnessEvaluation {
+    if (!isCandidateAssignedToReasoningFamily(candidate.id, family)) {
+      throw new RangeError(
+        `Candidate ${candidate.id} is not assigned to reasoning family ${family}`
+      );
+    }
+
     const perceptual = this.scorePerceptual(candidate, perceptualEvidence);
 
     const components: FitnessComponent[] = [
       this.component(
         'structure',
         this.scoreStructure(signature, requirements, candidate, family),
-        'Alignment with dataset-derived structure and representation family'
+        'Alignment with authoritative dataset structure, candidate capability and canonical reasoning family'
       ),
       this.component(
         'task',
@@ -168,7 +178,7 @@ export class BootstrapFitnessModel {
       this.component(
         'configuredPrior',
         signature.preferredFamilies?.includes(family) ? 1 : 0.5,
-        'Configured preference prior; not an empirical probability'
+        'Configured canonical-family preference prior; not an empirical probability'
       ),
       this.component(
         'perceptualFitness',
@@ -250,15 +260,42 @@ export class BootstrapFitnessModel {
       signature.cardinality.depth > 1;
     let score = 0.4;
 
-    if (family === 'GRAPH' && (top === 'GRAPH' || signature.cardinality.edgeCount > 0)) score = 1;
-    else if (family === 'HIERARCHICAL' && (top === 'HIERARCHY' || knownHierarchyDepth)) score = 1;
-    else if (family === 'TEMPORAL' && (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries === true)) score = 1;
-    else if (family === 'FREQUENCY' && signature.spectralStructure?.hasPeriodicity === true) score = 1;
-    else if (family === 'FIELD' && (top === 'VECTOR_FIELD' || top === 'GEO')) score = 1;
-    else if (family === 'CLUSTER' && hasAuthoritativeClusterEvidence && signature.clusterStructure.hasClusters === true) score = 0.95;
+    if (
+      family === 'GRAPH' &&
+      candidate.supports.includes('relational-topology') &&
+      (top === 'GRAPH' || signature.cardinality.edgeCount > 0)
+    ) score = 1;
+    else if (
+      family === 'HIERARCHICAL' &&
+      candidate.supports.includes('tree-hierarchy') &&
+      (top === 'HIERARCHY' || knownHierarchyDepth)
+    ) score = 1;
+    else if (
+      family === 'TEMPORAL' &&
+      candidate.supports.includes('temporal-sequence') &&
+      (top === 'TIME_SERIES' || signature.temporalStructure.isTimeSeries === true)
+    ) score = 1;
+    else if (
+      family === 'FREQUENCY' &&
+      candidate.supports.includes('periodic-spectrum') &&
+      signature.spectralStructure?.hasPeriodicity === true
+    ) score = 1;
+    else if (
+      family === 'FIELD' &&
+      candidate.supports.includes('spatial-coordinates') &&
+      (top === 'VECTOR_FIELD' || top === 'GEO')
+    ) score = 1;
+    else if (
+      family === 'CLUSTER' &&
+      candidate.supports.includes('cluster-partition') &&
+      hasAuthoritativeClusterEvidence &&
+      signature.clusterStructure.hasClusters === true
+    ) score = 0.95;
     else if (
       family === 'DISTRIBUTION' &&
-      (signature.distribution.hasOutliers === true || hasAuthoritativeHighVariance && signature.distribution.highVariance === true)
+      candidate.supports.includes('univariate-distribution') &&
+      (signature.distribution.hasOutliers === true ||
+        (hasAuthoritativeHighVariance && signature.distribution.highVariance === true))
     ) score = 0.9;
 
     const requiredCoverage = requirements.requiredStructures.length === 0

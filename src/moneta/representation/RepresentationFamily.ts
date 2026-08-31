@@ -110,19 +110,58 @@ export function isLayoutCompatibleWithFamily(
 }
 
 /**
- * Candidate IDs considered under each reasoning family. This membership is
- * rank-effective; it must not be confused with payload-kind or renderer
- * dispatch. A candidate may participate in more than one reasoning family.
+ * Canonical reasoning-family assignment for each semantic candidate.
+ *
+ * Cross-task fitness comes from candidate capabilities (`supports`, `preserves`,
+ * and `loses`), not by emitting the same candidate under several family labels.
+ * A single family assignment prevents unrelated family evidence or a configured
+ * family prior from changing the utility of an otherwise identical candidate.
+ *
+ * Ordering is intentional: the derived family index preserves the previous
+ * within-family search order for candidates that remain admissible.
+ *
+ * This is a rank-effective contract. Changes require a new fitness treatment.
  */
-export const FAMILY_TO_CANDIDATE_IDS: Record<RepresentationFamily, SemanticRepresentationId[]> = {
-  POINT: ['POINT_SET', 'MATRIX_FIELD'],
-  DISTRIBUTION: ['DISTRIBUTION_FIELD', 'DENSITY_FIELD'],
-  CLUSTER: ['CLUSTER_REGIONS', 'DENSITY_FIELD'],
-  AGGREGATE: ['AGGREGATE_VOLUME'],
-  GRAPH: ['RELATIONSHIP_GRAPH'],
-  FIELD: ['SPATIAL_REGION'],
-  TOPOLOGY: ['MANIFOLD_EMBEDDING', 'RELATIONSHIP_GRAPH'],
-  TEMPORAL: ['TEMPORAL_TRAJECTORY'],
-  HIERARCHICAL: ['HIERARCHICAL_SPACE'],
-  FREQUENCY: ['MULTISCALE_FIELD', 'TEMPORAL_TRAJECTORY'],
+export const CANDIDATE_TO_REASONING_FAMILY: Record<
+  SemanticRepresentationId,
+  RepresentationFamily
+> = {
+  POINT_SET: 'POINT',
+  MATRIX_FIELD: 'POINT',
+  DISTRIBUTION_FIELD: 'DISTRIBUTION',
+  DENSITY_FIELD: 'DISTRIBUTION',
+  CLUSTER_REGIONS: 'CLUSTER',
+  AGGREGATE_VOLUME: 'AGGREGATE',
+  RELATIONSHIP_GRAPH: 'GRAPH',
+  SPATIAL_REGION: 'FIELD',
+  MANIFOLD_EMBEDDING: 'TOPOLOGY',
+  TEMPORAL_TRAJECTORY: 'TEMPORAL',
+  HIERARCHICAL_SPACE: 'HIERARCHICAL',
+  MULTISCALE_FIELD: 'FREQUENCY',
 };
+
+const CANDIDATE_REASONING_ENTRIES = Object.entries(CANDIDATE_TO_REASONING_FAMILY) as [
+  SemanticRepresentationId,
+  RepresentationFamily,
+][];
+
+/**
+ * Derived reverse index used by bootstrap candidate generation. It is not an
+ * independent authority: editing CANDIDATE_TO_REASONING_FAMILY is the only way
+ * to change reasoning-family membership.
+ */
+export const FAMILY_TO_CANDIDATE_IDS = Object.fromEntries(
+  ALL_REPRESENTATION_FAMILIES.map((family) => [
+    family,
+    CANDIDATE_REASONING_ENTRIES
+      .filter(([, assignedFamily]) => assignedFamily === family)
+      .map(([candidateId]) => candidateId),
+  ])
+) as Record<RepresentationFamily, SemanticRepresentationId[]>;
+
+export function isCandidateAssignedToReasoningFamily(
+  candidateId: SemanticRepresentationId,
+  family: RepresentationFamily
+): boolean {
+  return CANDIDATE_TO_REASONING_FAMILY[candidateId] === family;
+}

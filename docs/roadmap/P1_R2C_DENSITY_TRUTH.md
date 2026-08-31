@@ -29,7 +29,7 @@ The reviewed method binds:
 - exact method/version/provenance identity;
 - no raw rows or hidden row-shaped metadata in the semantic envelope.
 
-`DENSITY_FIELD` preserves empirical bivariate bin mass. It does not claim continuous or population-density semantics. The rank-effective correction remains versioned as `bootstrap-fitness-v2` / `fitness-treatment-v2`.
+`DENSITY_FIELD` preserves empirical bivariate bin mass. It does not claim continuous or population-density semantics. RF-065 introduced that rank-effective semantic correction as `bootstrap-fitness-v2` / `fitness-treatment-v2`. R6B subsequently advances the current bootstrap treatment to v3 to correct candidate-family admissibility and family-evidence scoring; it does not change the reviewed density payload mathematics.
 
 ## Completed checkpoints
 
@@ -116,9 +116,9 @@ The following remain explicit boundaries rather than hidden completion claims:
 
 R2C has stopped as required. Passing density does not authorize automatic migration of the remaining candidate list.
 
-The next serial step is **R6 family/layout clarification**, because current `RepresentationFamily` mappings describe layout compatibility, not semantic embodiment mathematics. Shared layouts such as `GRID_3D` must not be read as evidence that distribution or aggregate candidates are point representations. R6 should make the many-to-many compatibility relation explicit while leaving candidate/payload authority with the semantic representation contract.
+**R6 family/layout clarification is the serial follow-on.** R6A (#583) made layout compatibility explicitly many-to-many and separated it from semantic embodiment authority. R6B is the remaining rank-effective checkpoint: each semantic candidate must have one canonical reasoning family, while cross-task usefulness comes from explicit candidate capabilities rather than duplicate family aliases.
 
-After R6, the next analytical representation candidate should be selected explicitly:
+After R6B passes exact-head review, the next analytical representation candidate should be selected explicitly:
 
 1. **R2D Cluster Regions** if cluster comparison is the next product need. First decide what counts as authoritative cluster evidence: supplied partition labels, a separately governed clustering method, or distinct candidates. Geometry must not infer scientific clusters from arbitrary presentation positions.
 2. **R2E Inferred Topology** only if investigators need relationships derived from ordinary tabular data. k-NN, similarity, correlation or threshold graphs are analytical models, not rendering glue; method, metric, scaling, threshold/k and provenance must be governed in Rust/Moneta.
@@ -139,7 +139,7 @@ Future changes touching density must continue to answer:
 
 ## Model routing
 
-- **R6 family/layout clarification:** Balanced/high is sufficient for the mechanical ontology clarification; Frontier/high for adversarial review because family membership is rank-effective.
+- **R6 family/layout clarification:** Balanced/high is sufficient for R6A's mechanical ontology clarification; Frontier/high or xhigh for R6B because family membership is rank-effective.
 - **R2D/R2E scientific contracts:** Frontier/high or xhigh for analytical definitions, Rust/WASM authority and production-cutover review.
 
 Model choice is not evidence. Exact-head tests, production-path falsifiers and independent review remain the promotion gates.
