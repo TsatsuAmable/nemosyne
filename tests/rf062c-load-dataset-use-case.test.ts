@@ -45,7 +45,7 @@ function fakeAuthority(initial: Dataset) {
 }
 
 describe('RF-062C LoadDatasetUseCase', () => {
-  it('routes a fresh load through Atlas baseline/current ownership before building presentation input', () => {
+  it('routes a fresh load through Atlas ownership and starts from dataset structure', () => {
     const source = dataset('source');
     const { authority, setOriginalDataset, setCurrentDataset } = fakeAuthority(source);
     const useCase = new LoadDatasetUseCase(authority);
@@ -69,7 +69,21 @@ describe('RF-062C LoadDatasetUseCase', () => {
     expect(result.embodiedDataset).toBe(working);
     expect(result.dataInput.dataset).toBe(working);
     expect(result.dataInput.encodings).toEqual({ color: 'value' });
-    expect(result.requirements.task).toBe('individual-inspection');
+    expect(result.requirements.task).toBe('overview');
+    expect(result.requirements.primaryDimensions).toEqual(['id', 'value']);
+    expect(result.requirements.progressiveDisclosure).toEqual({
+      enabled: true,
+      levels: [
+        { level: 0, distanceThreshold: 8, reveals: ['dataset-structure'] },
+        { level: 1, distanceThreshold: 4, reveals: ['semantic-region', 'semantic-group'] },
+        { level: 2, distanceThreshold: 1.5, reveals: ['observations-on-request'] },
+      ],
+    });
+    expect(
+      result.requirements.preservationGoals.some(
+        (goal) => goal.information === 'individual-observation-identity' && goal.priority === 'CRITICAL'
+      )
+    ).toBe(false);
     expect(result.representationDecision).toBeNull();
     expect(result.outcome).toBeNull();
   });
