@@ -143,7 +143,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
       }
     });
 
-    it('rejects query with mismatched fingerprint', () => {
+    it('fails closed before membership evaluation when the dataset fingerprint mismatches', () => {
       const clusterRequest = {
         schemaVersion: 1,
         candidateId: 'CLUSTER_REGIONS' as any,
@@ -163,11 +163,7 @@ describe('Stream A A1 semantic drill-down V1 contract', () => {
         investigationContext: 'Test bad fingerprint',
       };
       const envelope = querySemanticDetailV1(handle, detailRequest, clusterRequest, 1);
-      expect(envelope).not.toBeNull();
-      expect(envelope!.result.status).toBe('REFUSED');
-      if (envelope!.result.status === 'REFUSED') {
-        expect(envelope!.result.refusal.code).toBe('CHANGED_DATASET');
-      }
+      expect(envelope).toBeNull();
     });
 
     it('successfully queries AGGREGATE observation details', () => {
