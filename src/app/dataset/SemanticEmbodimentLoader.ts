@@ -388,6 +388,18 @@ export function loadGraphSemanticEmbodiment(
     // widened authority field fails closed here, not only in the schema layer.
     const validatedAuthority = validateSourceRelationshipGraphAuthority(graphAuthority);
 
+    // The declared `nonFiniteWeightPolicy: refuse-payload` must hold end to
+    // end, but JSON serialization demotes NaN/Infinity edge weights to null
+    // (absent) before Rust can see them. Refuse such datasets here so the
+    // demotion can never silently relax a source-declared weight.
+    if (
+      dataset.edges?.some(
+        (edge) => typeof edge.weight === 'number' && !Number.isFinite(edge.weight)
+      )
+    ) {
+      return null;
+    }
+
     const request: GraphEmbodimentRequestV1 = {
       schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
       candidateId: 'RELATIONSHIP_GRAPH',

@@ -275,6 +275,11 @@ fn information_contract() -> InformationContractV1 {
 }
 
 fn analytical_parameters(request: &GraphEmbodimentRequestV1) -> serde_json::Value {
+    // `nonFiniteWeightPolicy: "refuse-payload"` is enforced at this kernel
+    // boundary. The JSON transport layer must not let a non-finite source
+    // weight reach this module demoted to "absent" (`JSON.stringify` maps
+    // NaN/Infinity to null); the production loader refuses such datasets
+    // before registration so the declared policy holds end to end.
     serde_json::json!({
         "authorityKind": "SOURCE_EDGES",
         "nodeIdentity": "DATASET_ROW",
@@ -400,6 +405,11 @@ fn weight_sort_parts(weight: Option<f64>) -> (u8, u64) {
     }
 }
 
+// Self-consistency validator for a freshly built READY envelope: it re-derives
+// node and edge identity, ordering, bounds and count reconciliation from the
+// payload alone. It is an internal invariant check, not a trust boundary — it
+// cannot detect a payload whose row IDs and every derived ID were recomputed
+// consistently by a tamperer, because it never sees the source dataset.
 fn validate_ready_envelope(
     envelope: &GraphEmbodimentEnvelopeV1,
     request: &GraphEmbodimentRequestV1,
@@ -559,9 +569,12 @@ fn graph_from_dataset(
         );
     }
 
-    // Node identity is the durable row ID, which JSON registration guarantees
-    // for every resident dataset. Re-check here so direct kernel callers cannot
-    // smuggle in positional identity.
+    // Node identity is the durable row ID. JSON registration mints synthetic
+    // `fingerprint:index` IDs only when the source-declared row IDs are absent
+    // or invalid (duplicates/empties), so the resident dataset always carries
+    // exactly one unique ID per row — but those IDs may not be the ones the
+    // source declared. Re-check uniqueness here so direct kernel callers
+    // cannot smuggle in positional identity.
     if dataset.row_ids.len() != source_row_count
         || dataset.row_ids.iter().any(|id| id.is_empty())
         || dataset.row_ids.iter().collect::<HashSet<_>>().len() != source_row_count
@@ -576,6 +589,11 @@ fn graph_from_dataset(
         );
     }
 
+    // A graph with zero source edges is refused rather than emitted as an
+    // all-isolated-node graph: B1 disqualifies explicit authority when the
+    // source edge count is zero, and V1 topology exists only when the source
+    // declares it. Isolated nodes are retained exactly when at least one
+    // source edge exists.
     let Some(source_edges) = dataset.edges.as_ref().filter(|edges| !edges.is_empty()) else {
         return refusal(
             fingerprint,
@@ -668,7 +686,7 @@ fn graph_from_dataset(
                     request,
                     SemanticRefusalCodeV1::MissingEvidence,
                     format!("graph edge {position} source endpoint refused: {error}"),
-                    Some(position as u64 + 1),
+                    Some(source_edges.len() as u64),
                 );
             }
         };
@@ -681,7 +699,7 @@ fn graph_from_dataset(
                     request,
                     SemanticRefusalCodeV1::MissingEvidence,
                     format!("graph edge {position} target endpoint refused: {error}"),
-                    Some(position as u64 + 1),
+                    Some(source_edges.len() as u64),
                 );
             }
         };
@@ -695,7 +713,7 @@ fn graph_from_dataset(
                     format!(
                         "graph edge {position} has a non-finite weight; V1 refuses the whole payload"
                     ),
-                    Some(position as u64 + 1),
+                    Some(source_edges.len() as u64),
                 );
             }
             other => other,
@@ -1124,7 +1142,11 @@ mod tests {
         assert_eq!(refusal.code, SemanticRefusalCodeV1::MissingEvidence);
         assert!(refusal.message.contains("numeric endpoint 99"));
 
-        let string = vec![Edge::new(0, 1), Edge::new_id("b", "nope")];
+        let string = vec![
+            Edge::new(0, 1),
+            Edge::new(0, 1),
+            Edge::new_id("b", "nope"),
+        ];
         let envelope = build_graph_embodiment_v1(
             graph_dataset("graph-string-miss", 2, string, Some(vec!["a".into(), "b".into()])),
             &request(GraphDirectionalityV1::Directed),
@@ -1133,8 +1155,10 @@ mod tests {
         let refusal = refused_code(envelope);
         assert_eq!(refusal.code, SemanticRefusalCodeV1::MissingEvidence);
         assert!(refusal.message.contains("durable row ID"));
-        // REFUSE policy rejects the whole payload: no partial edge list.
-        assert_eq!(refusal.estimated_elements, Some(2));
+        // REFUSE policy rejects the whole payload: no partial edge list. The
+        // estimate reports the source edge count (3), not the failing edge's
+        // position (2), so the failing edge is named in the message instead.
+        assert_eq!(refusal.estimated_elements, Some(3));
     }
 
     #[test]
@@ -1391,5 +1415,34 @@ mod tests {
             refused_code(envelope).code,
             SemanticRefusalCodeV1::InvalidParameters
         );
+    }
+
+    #[test]
+    fn refuses_columnar_only_handles_without_fabricating_an_empty_graph() {
+        use crate::data::columnar::ColumnarDataset;
+        use crate::data::columnar::PrimitiveColumn;
+
+        let columnar = ColumnarDataset::from_parts(
+            2,
+            std::collections::HashMap::from([(
+                0,
+                PrimitiveColumn {
+                    values: vec![0.0, 1.0],
+                    validity: vec![1, 1],
+                },
+            )]),
+            std::collections::HashMap::new(),
+        )
+        .unwrap();
+        let handle = crate::data::register_columnar_dataset(
+            "graph-columnar-only".to_string(),
+            vec![Column::new("value", ColumnType::Numeric)],
+            columnar,
+        );
+        let envelope = build_graph_embodiment_v1(handle, &request(GraphDirectionalityV1::Directed))
+            .unwrap();
+        let refusal = refused_code(envelope);
+        assert_eq!(refusal.code, SemanticRefusalCodeV1::MissingEvidence);
+        assert!(refusal.message.contains("columnar-only resident datasets"));
     }
 }

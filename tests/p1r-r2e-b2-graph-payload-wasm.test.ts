@@ -100,7 +100,7 @@ describe('P1-R2E B2 resident Rust/WASM source-relationship-graph payload', () =>
     return workerScope.onmessage;
   }
 
-  it('keeps topology authority on the resident row-major Rust path with a strict TS transport', () => {
+  it('pins the resident-authority source structure and strict TS transport wiring', () => {
     const rust = readFileSync('wasm/src/moneta/graph_embodiment.rs', 'utf8');
     const bridgeSource = readFileSync('src/wasm/runtime/SemanticEmbodimentBridge.ts', 'utf8');
     const worker = readFileSync('src/atlas/ports/analytical.worker.ts', 'utf8');
@@ -247,15 +247,18 @@ describe('P1-R2E B2 resident Rust/WASM source-relationship-graph payload', () =>
   it('refuses unresolved endpoints, missing edges and envelope overruns fail-closed', () => {
     const unresolved = graphDataset('b2-graph-unresolved', ['a', 'b'], [
       { source: 0, target: 1 },
+      { source: 0, target: 1 },
       { source: 'a', target: 'missing-row' },
     ]);
     try {
       const envelope = buildGraphSemanticEmbodimentV1(unresolved, request());
       expect(envelope?.result.status).toBe('REFUSED');
       if (envelope?.result.status === 'REFUSED') {
+        // estimate reports the source edge count (3), not the failing edge's
+        // position (2); the failing edge is named in the message instead
         expect(envelope.result.refusal).toMatchObject({
           code: 'MISSING_EVIDENCE',
-          estimatedElements: 2,
+          estimatedElements: 3,
         });
         expect(envelope.result.refusal.message).toContain('durable row ID');
       }
@@ -709,5 +712,24 @@ describe('P1-R2E B2 resident Rust/WASM source-relationship-graph payload', () =>
         createSourceRelationshipGraphAuthority('DIRECTED')
       )
     ).toBeNull();
+
+    // a non-finite source edge weight never reaches the transport: JSON
+    // serialization would demote it to absent, so the loader refuses first
+    execute.mockClear();
+    const nonFinite = new Dataset(
+      'b2-graph-loader-non-finite',
+      [{ name: 'x', type: 'NUMERIC' }],
+      [{ x: 0 }, { x: 1 }],
+      [{ source: 0, target: 1, weight: Number.NaN }]
+    );
+    expect(
+      await loadGraphSemanticEmbodiment(
+        authority,
+        nonFinite,
+        decision,
+        createSourceRelationshipGraphAuthority('DIRECTED')
+      )
+    ).toBeNull();
+    expect(execute).not.toHaveBeenCalled();
   });
 });

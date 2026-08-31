@@ -1,9 +1,10 @@
 # P1-R2E Relationship Graph — Stream B first structural slice
 
-**Status:** B1 MERGED VIA #607 (`main@84a4b77`) — B2 IMPLEMENTED, PENDING INDEPENDENT ADVERSARIAL REVIEW + EXACT-HEAD GATES + MERGE  
+**Status:** B1 MERGED VIA #607 (`main@84a4b77`) — B2 IMPLEMENTED + INDEPENDENTLY REVIEWED, PENDING EXACT-HEAD GATES + MERGE  
 **Stream:** B — Source-Authoritative Structural Representations  
 **Scientific authority:** `docs/rfcs/0002-source-relationship-graph-authority.md`  
 **B1 closure review:** `review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`  
+**B2 closure review:** `review/P1_R2E_B2_POST_REVIEW_2026-08-31.md`  
 **Integration base at start:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged)  
 **B1 promotion review base:** `main@1ea2920` (#606 merged); promotion finalized on #607's unchanged exact head passing all required gates and merging as `main@84a4b77`
 
@@ -55,7 +56,7 @@ Required:
 
 ## B2 — resident Rust/WASM graph payload
 
-**Status:** IMPLEMENTED ON `stream-b/b2-graph-payload` (BASE `main@84a4b77`) — PENDING INDEPENDENT ADVERSARIAL REVIEW + EXACT-HEAD GATES + MERGE
+**Status:** IMPLEMENTED ON `stream-b/b2-graph-payload` (BASE `main@84a4b77`) — INDEPENDENT ADVERSARIAL REVIEW CLOSED (no BLOCKER/MAJOR; four MINOR findings fixed forward on this branch, see `review/P1_R2E_B2_POST_REVIEW_2026-08-31.md`) — PENDING EXACT-HEAD GATES + MERGE
 
 Required design/execution:
 
@@ -75,7 +76,7 @@ B2 additionally owns the residual B1 review obligations:
 
 - [x] enforce all three B1 bounds (node/edge/**payload-bytes**) at the Rust/WASM authority, not only in vocabulary helpers;
 - [x] preserve the strict `validateSourceRelationshipGraphAuthority` semantics when graph authority is wired into a real production execution surface; do not introduce a weaker parallel parser (`loadGraphSemanticEmbodiment` validates through the shared strict validator, and the strict Rust mirror with `deny_unknown_fields` fails to parse widened vocabulary at the ABI boundary);
-- [x] extend #607's `Dataset -> buildDatasetSignature -> arbitrate` source-binding fixture through the actual `AtlasCore`/analytical Worker/resident Rust execution path so endpoint identity and source topology cannot diverge after arbitration (the real-Worker test registers a `Dataset` with durable row IDs and mixed numeric/string endpoints and binds the emitted node identities to those rows);
+- [x] (partial — completed half) extend #607's source-binding evidence through the actual analytical Worker/resident Rust execution path: the real-Worker test registers a `Dataset` with durable row IDs and mixed numeric/string endpoints and binds the emitted node identities to those rows, so endpoint identity cannot diverge from the registered source after transport. The remaining `Dataset -> buildDatasetSignature -> arbitrate -> AtlasCore` half is deferred to B3 (see below), where the production cutover makes that path live;
 - [x] add a named production-path falsifier proving no correlation, k-NN, visual proximity or layout fallback can create an edge ("proximity, correlation and k-NN can never invent graph edges").
 
 **Measured envelope interaction (designed property, not a defect):** the 2 MiB payload-byte bound binds before the 16,384-edge bound for identity-rich graphs — 16,384 full semantic edge entries serialize at ≈2.18 MiB and are `RESOURCE_LIMIT`-refused on the byte bound. Both bounds are enforced independently and fail closed; the reachable edge ceiling under the byte bound is therefore lower than the declared edge envelope for realistic payloads. Recorded in the `MAX_RELATIONSHIP_GRAPH_PAYLOAD_BYTES_V1` doc comment and pinned by the byte-bound refusal tests.
@@ -95,7 +96,8 @@ B2 additionally owns the residual B1 review obligations:
 - prove changing layout seed/algorithm/coordinates cannot alter edge identity or adjacency;
 - bind node/edge interactions to stable semantic IDs;
 - fail closed for pending/refused/invalid/stale payloads;
-- consume Stream A's generic semantic detail/selection contract rather than inventing graph-specific drill-down APIs.
+- consume Stream A's generic semantic detail/selection contract rather than inventing graph-specific drill-down APIs;
+- close the B2-deferred arbitration-binding extension: once the cutover wires `LoadDatasetUseCase`/`AtlasCore`, extend the source-binding fixture through `Dataset -> buildDatasetSignature -> arbitrate` so endpoint identity and source topology provably cannot diverge after arbitration.
 
 B3 additionally owns B1-RF-03: the pre-existing silent edge-drop paths (`src/moneta/layouts/ForceDirected3D.ts`, `src/moneta/embodiment/TopologyLayoutEmbodiment.ts`, `src/data/Dataset.ts` `remapEdgesAfterPrefixEviction`) contradict the declared `missingEndpointPolicy: 'REFUSE'` and must either fail closed or be provably unreachable for governed graph payloads; B3/B4 falsifiers must cover them.
 
