@@ -48,6 +48,10 @@ export interface SemanticDetailTransitionSnapshot {
   readonly refusalReason: string | null;
 }
 
+export type SemanticDetailTransitionListener = (
+  snapshot: SemanticDetailTransitionSnapshot,
+) => void;
+
 type SemanticNodeInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
 };
@@ -107,8 +111,6 @@ function detailEmbodimentRequest(
     envelope.candidateId === 'DISTRIBUTION_FIELD' &&
     envelope.result.payload.kind === 'EMPIRICAL_DISTRIBUTION'
   ) {
-    // V1 membership is deliberately defined only for histogram bins. ECDF
-    // knots and quantile marks are analytical summaries, not member containers.
     if (!semanticObjectId.startsWith('distribution-bin:')) return null;
     const distribution = envelope.result.payload.data;
     if (distribution.histogram.length === 0 || distribution.ecdf.length === 0) return null;
@@ -206,6 +208,7 @@ function validateReadyEnvelope(
 export class SemanticDetailTransition {
   private readonly overlay = new SemanticDetailObservationOverlay();
   private readonly unsubscribe: () => void;
+  private readonly snapshotListeners = new Set<SemanticDetailTransitionListener>();
   private requestToken = 0;
   private activeParent: SemanticSelectionIdentity | null = null;
   private snapshotValue: SemanticDetailTransitionSnapshot = {
@@ -227,34 +230,46 @@ export class SemanticDetailTransition {
     return this.snapshotValue;
   }
 
+  subscribe(listener: SemanticDetailTransitionListener): () => void {
+    this.snapshotListeners.add(listener);
+    listener(this.snapshotValue);
+    return () => this.snapshotListeners.delete(listener);
+  }
+
   clear(): void {
     this.requestToken += 1;
     this.overlay.clear();
     this.activeParent = null;
-    this.snapshotValue = {
+    this.updateSnapshot({
       status: 'IDLE',
       parent: null,
       returnedCount: 0,
       totalMemberCount: 0,
       refusalReason: null,
-    };
+    });
   }
 
   dispose(): void {
     this.unsubscribe();
     this.clear();
+    this.snapshotListeners.clear();
+  }
+
+  private updateSnapshot(snapshot: SemanticDetailTransitionSnapshot): void {
+    this.snapshotValue = snapshot;
+    for (const listener of this.snapshotListeners) listener(snapshot);
   }
 
   private refuse(parent: SemanticSelectionIdentity | null, reason: string): void {
     this.overlay.clear();
     this.activeParent = null;
-    this.snapshotValue = {
+    this.updateSnapshot({
       status: 'REFUSED',
       parent,
       returnedCount: 0,
       totalMemberCount: 0,
       refusalReason: reason,
-    };
+    });
   }
 
   private handleSelection(mesh: Mesh | null): void {
@@ -264,8 +279,6 @@ export class SemanticDetailTransition {
       return;
     }
 
-    // Re-selecting the parent structure is the explicit first reverse step:
-    // bounded observations -> containing semantic structure.
     if (sameIdentity(identity, this.activeParent) && this.snapshotValue.status === 'READY') {
       this.clear();
       return;
@@ -321,13 +334,13 @@ export class SemanticDetailTransition {
     const token = ++this.requestToken;
     this.overlay.clear();
     this.activeParent = identity;
-    this.snapshotValue = {
+    this.updateSnapshot({
       status: 'PENDING',
       parent: identity,
       returnedCount: 0,
       totalMemberCount: 0,
       refusalReason: null,
-    };
+    });
 
     void port
       .execute<SemanticDetailEnvelopeV1>({
@@ -379,13 +392,13 @@ export class SemanticDetailTransition {
         }
 
         this.overlay.show(nodeNow.group, mesh, result.value);
-        this.snapshotValue = {
+        this.updateSnapshot({
           status: 'READY',
           parent: identity,
           returnedCount: result.value.result.returnedCount,
           totalMemberCount: result.value.result.totalMemberCount,
           refusalReason: null,
-        };
+        });
       })
       .catch(() => {
         if (token === this.requestToken) {
