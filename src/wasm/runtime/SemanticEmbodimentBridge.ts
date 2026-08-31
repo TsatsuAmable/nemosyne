@@ -1,7 +1,9 @@
 import type {
   AggregateEmbodimentRequestV1,
+  ClusterEmbodimentRequestV1,
   DensityEmbodimentRequestV1,
   DistributionEmbodimentRequestV1,
+  RelationshipGraphEmbodimentRequestV1,
   SemanticEmbodimentEnvelopeV1,
 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 import {
@@ -13,7 +15,7 @@ import {
 } from './MemoryAbi.ts';
 import { getRawRuntimeExports } from './RuntimeState.ts';
 
-interface AggregateSemanticRuntime {
+interface SemanticRuntime {
   moneta_build_aggregate_embodiment_v1(
     handle: number,
     inputPtr: number,
@@ -35,6 +37,50 @@ interface AggregateSemanticRuntime {
     outPtr: number,
     outLen: number,
   ): number;
+  moneta_build_cluster_embodiment_v1(
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
+  moneta_build_relationship_graph_embodiment_v1(
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number,
+  ): number;
+}
+
+function invokeSemanticBuilder(
+  handle: number,
+  request: unknown,
+  select: (runtime: SemanticRuntime) => SemanticRuntime[keyof SemanticRuntime] | undefined
+): SemanticEmbodimentEnvelopeV1 | null {
+  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
+  const runtime = getRawRuntimeExports() as unknown as SemanticRuntime;
+  const fn = select(runtime);
+  if (typeof fn !== 'function') return null;
+
+  const input = new TextEncoder().encode(JSON.stringify(request));
+  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
+  try {
+    const required = fn(handle, inputPtr, inputLen, 0, 0);
+    if (!Number.isSafeInteger(required) || required <= 0) return null;
+
+    const output = allocBuffer(required);
+    try {
+      const written = fn(handle, inputPtr, inputLen, output.ptr, output.len);
+      if (written !== required) return null;
+      const bytes = readBytes(output.ptr, written);
+      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
+    } finally {
+      deallocBuffer(output.ptr, output.len);
+    }
+  } finally {
+    deallocBytes(inputPtr, inputLen);
+  }
 }
 
 /**
@@ -46,40 +92,9 @@ export function buildAggregateSemanticEmbodimentV1(
   handle: number,
   request: AggregateEmbodimentRequestV1,
 ): SemanticEmbodimentEnvelopeV1 | null {
-  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
-  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_aggregate_embodiment_v1 !== 'function') return null;
-
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_aggregate_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_aggregate_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+  return invokeSemanticBuilder(handle, request, (runtime) =>
+    runtime.moneta_build_aggregate_embodiment_v1?.bind(runtime)
+  );
 }
 
 /**
@@ -91,40 +106,9 @@ export function buildDistributionSemanticEmbodimentV1(
   handle: number,
   request: DistributionEmbodimentRequestV1,
 ): SemanticEmbodimentEnvelopeV1 | null {
-  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
-  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_distribution_embodiment_v1 !== 'function') return null;
-
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_distribution_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_distribution_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+  return invokeSemanticBuilder(handle, request, (runtime) =>
+    runtime.moneta_build_distribution_embodiment_v1?.bind(runtime)
+  );
 }
 
 /**
@@ -136,38 +120,34 @@ export function buildDensitySemanticEmbodimentV1(
   handle: number,
   request: DensityEmbodimentRequestV1,
 ): SemanticEmbodimentEnvelopeV1 | null {
-  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
-  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_density_embodiment_v1 !== 'function') return null;
+  return invokeSemanticBuilder(handle, request, (runtime) =>
+    runtime.moneta_build_density_embodiment_v1?.bind(runtime)
+  );
+}
 
-  const input = new TextEncoder().encode(JSON.stringify(request));
-  const { ptr: inputPtr, len: inputLen } = allocBytes(input);
-  try {
-    const required = runtime.moneta_build_density_embodiment_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
-    );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
+/**
+ * Invoke the R2D source-partition builder. Membership comes only from the
+ * explicit categorical cluster field; the bridge carries no rows and performs
+ * no grouping or clustering.
+ */
+export function buildClusterSemanticEmbodimentV1(
+  handle: number,
+  request: ClusterEmbodimentRequestV1,
+): SemanticEmbodimentEnvelopeV1 | null {
+  return invokeSemanticBuilder(handle, request, (runtime) =>
+    runtime.moneta_build_cluster_embodiment_v1?.bind(runtime)
+  );
+}
 
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_build_density_embodiment_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticEmbodimentEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
-  } finally {
-    deallocBytes(inputPtr, inputLen);
-  }
+/**
+ * Invoke the R2E source-edge-list builder. No inferred relationship model is
+ * available through this bridge; absent source edges remain unavailable.
+ */
+export function buildRelationshipGraphSemanticEmbodimentV1(
+  handle: number,
+  request: RelationshipGraphEmbodimentRequestV1,
+): SemanticEmbodimentEnvelopeV1 | null {
+  return invokeSemanticBuilder(handle, request, (runtime) =>
+    runtime.moneta_build_relationship_graph_embodiment_v1?.bind(runtime)
+  );
 }
