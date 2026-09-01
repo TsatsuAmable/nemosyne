@@ -66,7 +66,6 @@ export interface RepresentationReviewHost {
   atlas: AtlasCore;
   getOutcome(): InvestigatorActionableOutcome | null;
   getFencedPreviewDecision(): RepresentationDecision | null;
-  getFencedPreviewAction(): RemedialAction | null;
   previewRemediation(action: RemedialAction): boolean;
   commitRemediation(action: RemedialAction): void;
   cancelRemediationPreview(): void;
@@ -108,9 +107,15 @@ function reconstructRequirements(
  * Revert is append-only: it reconstructs the requirements immediately before
  * the latest remediation, verifies persisted hashes, then applies those prior
  * requirements as a new remediation event through the same World-owned path.
+ *
+ * The service retains only the identity of a remediation that it successfully
+ * asked the World-owned preview path to create. Preview validity still comes
+ * exclusively from getFencedPreviewDecision(), so a stale or externally
+ * replaced preview cannot be committed through this application seam.
  */
 export class RepresentationReviewService {
   private readonly host: RepresentationReviewHost;
+  private previewedAction: RemedialAction | null = null;
 
   constructor(host: RepresentationReviewHost) {
     this.host = host;
@@ -120,7 +125,8 @@ export class RepresentationReviewService {
     const outcome = this.host.getOutcome();
     const current = this.host.atlas.activeRepresentationDecision;
     const preview = this.host.getFencedPreviewDecision();
-    const previewAction = preview ? this.host.getFencedPreviewAction() : null;
+    if (!preview) this.previewedAction = null;
+    const previewAction = preview ? this.previewedAction : null;
     const events = this.host.atlas.remediationEvents();
     const last = events.at(-1) ?? null;
 
@@ -189,19 +195,23 @@ export class RepresentationReviewService {
   }
 
   commit(remediationId?: string): RepresentationReviewSnapshot {
-    const previewAction = this.host.getFencedPreviewAction();
-    const action = previewAction && (!remediationId || previewAction.id === remediationId)
-      ? previewAction
-      : remediationId
-        ? this.findCurrentAction(remediationId)
-        : null;
-    if (!action) throw new Error('No current representation preview is available to accept.');
+    const preview = this.host.getFencedPreviewDecision();
+    if (!preview) {
+      this.previewedAction = null;
+      throw new Error('No current representation preview is available to accept.');
+    }
+    const action = this.previewedAction;
+    if (!action || (remediationId && action.id !== remediationId)) {
+      throw new Error('No current representation preview is available to accept.');
+    }
     this.host.commitRemediation(action);
+    this.previewedAction = null;
     return this.snapshot();
   }
 
   rejectPreview(): RepresentationReviewSnapshot {
     this.host.cancelRemediationPreview();
+    this.previewedAction = null;
     return this.snapshot();
   }
 
@@ -244,6 +254,7 @@ export class RepresentationReviewService {
     if (!this.host.previewRemediation(action)) {
       throw new Error(`Representation preview unavailable for ${action.id}.`);
     }
+    this.previewedAction = action;
     return this.snapshot();
   }
 

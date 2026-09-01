@@ -29,17 +29,10 @@ function decision(candidateId: string, utilityScore: number): RepresentationDeci
     rejectedAlternatives: [],
     embodiment: {
       primaryLayout: 'GRID_3D',
-      primaryGeometry: 'SPHERE',
+      primaryGeometry: 'ICOSA_NODE',
       primaryBehavior: 'STATIC',
-      primaryInteraction: 'DIRECT',
-      spatialStrategy: {
-        id: `strategy-${candidateId}`,
-        worldType: 'DATA_PALACE',
-        macroLayout: { layout: 'GRID_3D', parameters: {} },
-        datumEncoding: { geometry: 'SPHERE', size: 'CONSTANT', color: 'CONSTANT' },
-        behavior: { behavior: 'STATIC', parameters: {} },
-        interaction: { interaction: 'DIRECT', parameters: {} },
-      },
+      primaryInteraction: 'INSPECT_CELL',
+      spatialStrategy: {} as RepresentationDecision['embodiment']['spatialStrategy'],
     },
     provenance: {
       generatedAt: 1,
@@ -146,6 +139,7 @@ describe('P1-UV C4 representation review', () => {
     expect(previewRemediation).toHaveBeenCalledOnce();
     expect(previewRemediation).toHaveBeenCalledWith(action);
     expect(after.preview?.candidateId).toBe('points-dense');
+    expect(after.previewActionId).toBe(action.id);
   });
 
   it('accepts or rejects only the current remediation action', () => {

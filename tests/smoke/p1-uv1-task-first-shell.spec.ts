@@ -17,7 +17,8 @@ test.describe('P1-UV1 task-first production shell', () => {
     await expect(page.locator('#nemosyne-loader')).toBeHidden();
     await expect(page.locator('#overlay')).toBeHidden();
     await expect(page.locator('#telemetry')).toBeHidden();
-    await expect(shell.locator('aside details')).not.toHaveAttribute('open', '');
+    const moreTools = shell.locator('aside details').filter({ hasText: 'More tools' });
+    await expect(moreTools).not.toHaveAttribute('open', '');
   });
 
   test('dataset cycling is an explicit task and investigation context remains live', async ({ page }) => {
