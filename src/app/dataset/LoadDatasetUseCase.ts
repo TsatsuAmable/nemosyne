@@ -44,6 +44,12 @@ type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
   semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
+  /**
+   * Atlas/Rust-owned dataset identity captured at the governed graph request
+   * boundary. Presentation uses this authoritative identity for its stale
+   * fence; it must not replace it with a separately recomputed TS hash.
+   */
+  semanticEmbodimentDatasetFingerprint?: string;
 };
 
 export interface LoadDatasetUseCaseOptions {
@@ -189,13 +195,22 @@ export class LoadDatasetUseCase {
       // MonetaTopologyNode still sets the marker for a RELATIONSHIP_GRAPH
       // decision — so the ungoverned case fails closed to a PENDING status
       // plane rather than falling back to raw heuristic topology.
-      dataInput.semanticEmbodimentCandidateId = 'RELATIONSHIP_GRAPH';
-      dataInput.semanticEmbodimentPromise = loadGraphSemanticEmbodiment(
-        this.atlas,
-        embodiedDataset,
-        representationDecision,
-        activeRequirements.graphAuthority
-      );
+      const authoritativeFingerprint = this.atlas.datasetFingerprint;
+      if (!authoritativeFingerprint) {
+        // A graph request without Atlas/Rust identity cannot be presented as
+        // governed truth. Leave the marker in place and let the missing
+        // embodiment render fail-closed rather than minting TS identity here.
+        dataInput.semanticEmbodimentCandidateId = 'RELATIONSHIP_GRAPH';
+      } else {
+        dataInput.semanticEmbodimentCandidateId = 'RELATIONSHIP_GRAPH';
+        dataInput.semanticEmbodimentDatasetFingerprint = authoritativeFingerprint;
+        dataInput.semanticEmbodimentPromise = loadGraphSemanticEmbodiment(
+          this.atlas,
+          embodiedDataset,
+          representationDecision,
+          activeRequirements.graphAuthority
+        );
+      }
     }
 
     if (!preserveAnalyticalState) {
