@@ -26,6 +26,9 @@ export type GraphEvidenceShape =
   | 'missing-endpoint'
   | 'mutation-stale';
 
+type ReadyGraphEvidenceShape = Exclude<GraphEvidenceShape, 'missing-endpoint'>;
+type EdgeInput = { source: string | number; target: string | number; weight?: number };
+
 interface GraphEvidenceWorld {
   atlas: Pick<AtlasCore, 'executionPort'>;
   engine: {
@@ -47,38 +50,33 @@ interface SemanticGraphInput {
   semanticEmbodimentPromise?: Promise<GraphEmbodimentEnvelopeV1 | null>;
 }
 
-interface GraphArtifactEvidence {
-  artifactId: string;
-  semanticNodeCount: number;
-  semanticEdgeCount: number;
-  interactionProxyCount: number;
-  renderedBatchCount: number;
-  candidateLocalDrawCalls: number;
-  nodeSurfacePresent: boolean;
-  edgeSurfacePresent: boolean;
-  nodeSemanticIds: string[];
-  edgeSemanticIds: string[];
-  presentationSemantics: string;
-  supportBoundaryClaim: boolean;
-}
-
 export interface GraphEvidenceScenarioResult {
   schemaVersion: 1;
   sourceRowCount: number;
-  shape: GraphEvidenceShape;
+  shape: ReadyGraphEvidenceShape;
   directionality: 'DIRECTED' | 'UNDIRECTED';
   candidateId: 'RELATIONSHIP_GRAPH';
   datasetFingerprint: string;
   decisionId: string;
   initialStatus: string;
   finalStatus: string;
-  statusSurface: {
-    pendingWasVisible: boolean;
-    readySurfaceRemoved: boolean;
-  };
+  statusSurface: { pendingWasVisible: boolean; readySurfaceRemoved: boolean };
   envelope: GraphEmbodimentEnvelopeV1;
   payloadJsonBytesProxy: number;
-  artifact: GraphArtifactEvidence;
+  artifact: {
+    artifactId: string;
+    semanticNodeCount: number;
+    semanticEdgeCount: number;
+    interactionProxyCount: number;
+    renderedBatchCount: number;
+    candidateLocalDrawCalls: number;
+    nodeSurfacePresent: boolean;
+    edgeSurfacePresent: boolean;
+    nodeSemanticIds: string[];
+    edgeSemanticIds: string[];
+    presentationSemantics: string;
+    supportBoundaryClaim: false;
+  };
   topology: {
     nodeIds: string[];
     edges: Array<{
@@ -95,7 +93,7 @@ export interface GraphEvidenceScenarioResult {
     seedA: number;
     seedB: number;
     positionsDiffer: boolean;
-    topologyInvariant: boolean;
+    topologyInvariant: true;
   };
   staleFence: {
     exercised: boolean;
@@ -103,11 +101,7 @@ export interface GraphEvidenceScenarioResult {
     statusAfterMutation: string | null;
     graphSurfaceAfterMutation: boolean | null;
   };
-  timingMs: {
-    requestToReady: number;
-    readyToRenderedFrames: number;
-    total: number;
-  };
+  timingMs: { requestToReady: number; readyToRenderedFrames: number; total: number };
   workerDiagnostics: readonly AnalyticalWorkerDiagnostic[];
   workerExecution: {
     kernelMs: number | null;
@@ -160,7 +154,7 @@ export interface GraphEvidenceDiagnosticHook {
   readonly schemaVersion: 1;
   runScenario(input: {
     rowCount: number;
-    shape: Exclude<GraphEvidenceShape, 'missing-endpoint'>;
+    shape: ReadyGraphEvidenceShape;
   }): Promise<GraphEvidenceScenarioResult>;
   runMissingEndpointScenario(input: { rowCount: number }): Promise<GraphRefusalScenarioResult>;
   runNoSourceAuthorityScenario(input: { rowCount: number }): Promise<GraphNoAuthorityScenarioResult>;
@@ -172,8 +166,6 @@ declare global {
   }
 }
 
-type EdgeInput = { source: string | number; target: string | number; weight?: number };
-
 function roundMs(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
@@ -181,10 +173,7 @@ function roundMs(value: number): number {
 function waitFrames(count = 2): Promise<void> {
   return new Promise((resolve) => {
     const next = (remaining: number): void => {
-      if (remaining <= 0) {
-        resolve();
-        return;
-      }
+      if (remaining <= 0) return resolve();
       requestAnimationFrame(() => next(remaining - 1));
     };
     next(count);
@@ -202,28 +191,21 @@ function deterministicUnit(index: number, salt: number): number {
   return ((value ^ (value >>> 16)) >>> 0) / 0x1_0000_0000;
 }
 
-function graphEdges(rowCount: number, shape: GraphEvidenceShape): EdgeInput[] {
-  const usable = Math.max(2, rowCount - Math.max(1, Math.floor(rowCount / 16)));
+function sourceEdges(rowCount: number, shape: GraphEvidenceShape): EdgeInput[] {
+  const isolated = Math.max(1, Math.floor(rowCount / 16));
+  const usable = Math.max(2, rowCount - isolated);
+  const edgeCount = shape === 'near-bound' ? Math.min(10_000, usable * 3) : Math.min(512, usable * 2);
   const edges: EdgeInput[] = [];
-  const requested = shape === 'near-bound' ? Math.min(10_000, usable * 3) : Math.min(usable * 2, 512);
-  for (let index = 0; index < requested; index += 1) {
+  for (let index = 0; index < edgeCount; index += 1) {
     const source = index % usable;
     const target = (index * 7 + 3) % usable;
+    const weight = index % 5 === 0 ? 0.5 + (index % 11) : undefined;
     if (shape === 'mixed-endpoints' && index % 2 === 1) {
-      edges.push({
-        source: `graph-b4-row-${source}`,
-        target: `graph-b4-row-${target}`,
-        weight: index % 5 === 0 ? 0.5 + (index % 11) : undefined,
-      });
+      edges.push({ source: `graph-b4-row-${source}`, target: `graph-b4-row-${target}`, weight });
     } else {
-      edges.push({
-        source,
-        target,
-        weight: index % 5 === 0 ? 0.5 + (index % 11) : undefined,
-      });
+      edges.push({ source, target, weight });
     }
   }
-  // Pin exact multiplicity and self-loop behavior into every ordinary READY fixture.
   edges.push({ source: 0, target: 1, weight: 2 });
   edges.push({ source: 0, target: 1, weight: 2 });
   edges.push({ source: 2, target: 2 });
@@ -234,21 +216,17 @@ function graphEdges(rowCount: number, shape: GraphEvidenceShape): EdgeInput[] {
 }
 
 function makeGraphDataset(rowCount: number, shape: GraphEvidenceShape): Dataset {
-  const rows = new Array<Record<string, unknown>>(rowCount);
-  const rowIds = new Array<string>(rowCount);
-  for (let index = 0; index < rowCount; index += 1) {
-    // Coordinates intentionally look graph-like. They are decoys: the governed
-    // topology must come only from Dataset.edges and SOURCE_EDGES authority.
+  const rows = Array.from({ length: rowCount }, (_, index) => {
     const angle = (index / Math.max(1, rowCount)) * Math.PI * 2;
-    rows[index] = {
+    return {
       x: Math.cos(angle) * 10 + (deterministicUnit(index, 11) - 0.5) * 0.1,
       y: Math.sin(angle) * 10 + (deterministicUnit(index, 17) - 0.5) * 0.1,
       correlationBait: index,
       correlationBaitCopy: index,
       decoyGroup: `g${index % 7}`,
     };
-    rowIds[index] = `graph-b4-row-${index}`;
-  }
+  });
+  const rowIds = Array.from({ length: rowCount }, (_, index) => `graph-b4-row-${index}`);
   return new Dataset(
     `p1r-graph-b4-${shape}-${rowCount}`,
     [
@@ -259,23 +237,18 @@ function makeGraphDataset(rowCount: number, shape: GraphEvidenceShape): Dataset 
       { name: 'decoyGroup', type: 'CATEGORICAL' },
     ],
     rows,
-    graphEdges(rowCount, shape),
+    sourceEdges(rowCount, shape),
     rowIds
   );
 }
 
-function makeNoSourceGraphDataset(rowCount: number): Dataset {
-  const rows = new Array<Record<string, unknown>>(rowCount);
-  const rowIds = new Array<string>(rowCount);
-  for (let index = 0; index < rowCount; index += 1) {
-    rows[index] = {
-      x: index * 0.001,
-      y: index * 0.001,
-      correlationBait: index,
-      correlationBaitCopy: index,
-    };
-    rowIds[index] = `graph-b4-no-source-row-${index}`;
-  }
+function makeNoSourceDataset(rowCount: number): Dataset {
+  const rows = Array.from({ length: rowCount }, (_, index) => ({
+    x: index * 0.001,
+    y: index * 0.001,
+    correlationBait: index,
+    correlationBaitCopy: index,
+  }));
   return new Dataset(
     `p1r-graph-b4-no-source-${rowCount}`,
     [
@@ -286,22 +259,41 @@ function makeNoSourceGraphDataset(rowCount: number): Dataset {
     ],
     rows,
     [],
-    rowIds
+    Array.from({ length: rowCount }, (_, index) => `graph-b4-no-source-row-${index}`)
   );
 }
 
-function graphRequirements(directionality: 'DIRECTED' | 'UNDIRECTED'): RepresentationRequirements {
-  const requirements = createDefaultRequirements('relationship-discovery', ['x', 'y']);
-  requirements.graphAuthority = createSourceRelationshipGraphAuthority(directionality);
-  requirements.requiredStructures = [{ type: 'connectivity', importance: 1 }];
-  requirements.preservationGoals = [
+function requirements(directionality: 'DIRECTED' | 'UNDIRECTED'): RepresentationRequirements {
+  const result = createDefaultRequirements('relationship-discovery', ['x', 'y']);
+  result.graphAuthority = createSourceRelationshipGraphAuthority(directionality);
+  result.requiredStructures = [{ type: 'connectivity', importance: 1 }];
+  result.preservationGoals = [
     { information: 'relational-edge-connectivity', priority: 'CRITICAL' },
     { information: 'individual-observation-identity', priority: 'CRITICAL' },
   ];
-  requirements.acceptableLoss.allowIdentityLoss = false;
-  requirements.acceptableLoss.allowExactMetricLoss = true;
-  requirements.acceptableLoss.allowClusterLoss = true;
-  return requirements;
+  result.acceptableLoss.allowIdentityLoss = false;
+  result.acceptableLoss.allowExactMetricLoss = true;
+  result.acceptableLoss.allowClusterLoss = true;
+  return result;
+}
+
+function entry(dataset: Dataset, key: string): DatasetLoadEntry {
+  return {
+    key,
+    name: dataset.name,
+    label: key,
+    topology: 'TABULAR',
+    dataset,
+    encodings: { color: 'decoyGroup', size: 'correlationBait' },
+  };
+}
+
+async function settleInitialLoad(world: GraphEvidenceWorld, loadEntry: DatasetLoadEntry): Promise<void> {
+  world.loadDataset(loadEntry);
+  const promise = (world.dracoNode?.dataInput as SemanticGraphInput | undefined)
+    ?.semanticEmbodimentPromise;
+  if (promise) await promise;
+  await Promise.resolve();
 }
 
 function sceneSnapshot(world: GraphEvidenceWorld): GraphEvidenceScenarioResult['scene'] {
@@ -322,14 +314,12 @@ function sceneSnapshot(world: GraphEvidenceWorld): GraphEvidenceScenarioResult['
 function workerExecutionObservation(
   diagnostics: readonly AnalyticalWorkerDiagnostic[]
 ): GraphEvidenceScenarioResult['workerExecution'] {
-  const sample = [...diagnostics]
-    .reverse()
-    .find(
-      (entry) =>
-        entry.phase === 'execution' &&
-        entry.operation === 'semanticEmbodiment' &&
-        entry.operationName === 'RELATIONSHIP_GRAPH'
-    );
+  const sample = [...diagnostics].reverse().find(
+    (entry) =>
+      entry.phase === 'execution' &&
+      entry.operation === 'semanticEmbodiment' &&
+      entry.operationName === 'RELATIONSHIP_GRAPH'
+  );
   return {
     kernelMs: sample?.timingMs.kernel ?? null,
     wasmBytesBefore: sample?.wasmBytes.before ?? null,
@@ -340,10 +330,7 @@ function workerExecutionObservation(
 
 function positionsDiffer(left: Float32Array | null, right: Float32Array | null): boolean {
   if (!left || !right || left.length !== right.length) return false;
-  for (let index = 0; index < left.length; index += 1) {
-    if (Math.abs(left[index] - right[index]) > 1e-6) return true;
-  }
-  return false;
+  return left.some((value, index) => Math.abs(value - right[index]) > 1e-6);
 }
 
 function topologySummary(envelope: GraphEmbodimentEnvelopeV1): GraphEvidenceScenarioResult['topology'] {
@@ -376,14 +363,9 @@ function topologySummary(envelope: GraphEmbodimentEnvelopeV1): GraphEvidenceScen
   };
 }
 
-/**
- * B4 evidence-only driver. Scientific graph topology is never computed here:
- * the driver only supplies deterministic source fixtures and records the real
- * production decision/Worker/Rust/adapter outputs plus presentation metrics.
- */
 export async function runGraphEvidenceScenario(
   world: GraphEvidenceWorld,
-  input: { rowCount: number; shape: Exclude<GraphEvidenceShape, 'missing-endpoint'> }
+  input: { rowCount: number; shape: ReadyGraphEvidenceShape }
 ): Promise<GraphEvidenceScenarioResult> {
   if (!Number.isSafeInteger(input.rowCount) || input.rowCount < 16 || input.rowCount > 4096) {
     throw new Error('Graph B4 rowCount must be a safe integer in 16..4096.');
@@ -392,30 +374,16 @@ export async function runGraphEvidenceScenario(
   if (!port?.isAsync || !port.drainDiagnostics) {
     throw new Error('Graph B4 requires the real asynchronous analytical Worker port.');
   }
-
   const directionality = input.shape === 'undirected' ? 'UNDIRECTED' : 'DIRECTED';
   const dataset = makeGraphDataset(input.rowCount, input.shape);
-  const entry: DatasetLoadEntry = {
-    key: `p1r-graph-b4-${input.shape}-${input.rowCount}`,
-    name: dataset.name,
-    label: `Relationship graph ${input.shape} - ${input.rowCount} rows`,
-    topology: 'TABULAR',
-    dataset,
-    encodings: { color: 'decoyGroup', size: 'correlationBait' },
-  };
+  const loadEntry = entry(dataset, `p1r-graph-b4-${input.shape}-${input.rowCount}`);
 
   port.drainDiagnostics();
-  world.loadDataset(entry);
-  const initialPromise = (world.dracoNode?.dataInput as SemanticGraphInput | undefined)
-    ?.semanticEmbodimentPromise;
-  if (initialPromise) await initialPromise;
-  await Promise.resolve();
+  await settleInitialLoad(world, loadEntry);
   port.drainDiagnostics();
-
-  world._activeRequirements = graphRequirements(directionality);
-  const totalStartedAt = performance.now();
-  const requestStartedAt = performance.now();
-  world._doLoadDataset(entry, {
+  world._activeRequirements = requirements(directionality);
+  const startedAt = performance.now();
+  world._doLoadDataset(loadEntry, {
     preserveAnalyticalState: true,
     preserveAuxiliaryPresentation: true,
   });
@@ -426,20 +394,23 @@ export async function runGraphEvidenceScenario(
       `Graph B4 expected RELATIONSHIP_GRAPH, received ${node?.representationDecision?.chosenCandidateId ?? 'none'}.`
     );
   }
+  const decisionId = node.representationDecision.id;
+  if (!decisionId) throw new Error('Graph B4 representation decision has no stable identity.');
+
   const initialStatus = String(node.group?.userData.semanticEmbodimentStatus ?? 'MISSING');
   const pendingWasVisible = Boolean(
     node.group?.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME)?.visible
   );
   const semanticInput = node.dataInput as SemanticGraphInput;
-  if (semanticInput.semanticEmbodimentCandidateId !== 'RELATIONSHIP_GRAPH') {
-    throw new Error('Graph B4 node did not carry explicit RELATIONSHIP_GRAPH semantic authority.');
-  }
-  if (!semanticInput.semanticEmbodimentPromise) {
-    throw new Error('Graph B4 semantic embodiment promise is missing.');
+  if (
+    semanticInput.semanticEmbodimentCandidateId !== 'RELATIONSHIP_GRAPH' ||
+    !semanticInput.semanticEmbodimentPromise
+  ) {
+    throw new Error('Graph B4 node did not retain the governed graph request.');
   }
   const envelope = await semanticInput.semanticEmbodimentPromise;
   if (!envelope || envelope.result.status !== 'READY') {
-    throw new Error(`Graph B4 did not become READY (status=${envelope?.result.status ?? 'null'}).`);
+    throw new Error(`Graph B4 did not become READY (${envelope?.result.status ?? 'null'}).`);
   }
   await Promise.resolve();
   const readyAt = performance.now();
@@ -448,45 +419,36 @@ export async function runGraphEvidenceScenario(
 
   const group = node.group;
   const artifact = node.artifact;
-  if (!group || !artifact) throw new Error('Graph B4 ready artifact is missing.');
-  if (semanticInput.semanticEmbodiment !== envelope) {
-    throw new Error('Graph B4 node did not adopt the exact resolved semantic envelope.');
+  if (!group || !artifact || semanticInput.semanticEmbodiment !== envelope) {
+    throw new Error('Graph B4 did not adopt the exact resolved graph artifact.');
   }
-  const metadata = group.userData.semanticEmbodiment as
-    | {
-        artifactId?: unknown;
-        datasetFingerprint?: unknown;
-        candidateId?: unknown;
-        payloadKind?: unknown;
-        provenance?: { decisionId?: unknown };
-        presentationSemantics?: unknown;
-        supportBoundaryClaim?: unknown;
-      }
-    | undefined;
-  const renderSurface = group.userData.graphRenderSurface as
-    | {
-        semanticNodeCount?: unknown;
-        semanticEdgeCount?: unknown;
-        interactionProxyCount?: unknown;
-        renderedBatchCount?: unknown;
-        candidateLocalDrawCalls?: unknown;
-      }
-    | undefined;
-  const decisionId = node.representationDecision.id;
+  const metadata = group.userData.semanticEmbodiment as {
+    artifactId?: unknown;
+    datasetFingerprint?: unknown;
+    candidateId?: unknown;
+    payloadKind?: unknown;
+    provenance?: { decisionId?: unknown };
+    presentationSemantics?: unknown;
+    supportBoundaryClaim?: unknown;
+  } | undefined;
+  const renderSurface = group.userData.graphRenderSurface as {
+    semanticNodeCount?: unknown;
+    semanticEdgeCount?: unknown;
+    interactionProxyCount?: unknown;
+    renderedBatchCount?: unknown;
+    candidateLocalDrawCalls?: unknown;
+  } | undefined;
   const artifactId = String(metadata?.artifactId ?? '');
   if (
-    !decisionId ||
     !artifactId ||
     metadata?.datasetFingerprint !== envelope.datasetFingerprint ||
     metadata?.candidateId !== 'RELATIONSHIP_GRAPH' ||
     metadata?.payloadKind !== 'RELATIONSHIP_GRAPH' ||
     metadata?.provenance?.decisionId !== decisionId ||
-    envelope.provenance.decisionId !== decisionId
+    envelope.provenance.decisionId !== decisionId ||
+    envelope.result.payload.kind !== 'RELATIONSHIP_GRAPH'
   ) {
-    throw new Error('Graph B4 payload, decision and artifact identity did not agree.');
-  }
-  if (envelope.result.payload.kind !== 'RELATIONSHIP_GRAPH') {
-    throw new Error('Graph B4 received the wrong READY payload kind.');
+    throw new Error('Graph B4 payload, decision and artifact identity diverged.');
   }
   const payload = envelope.result.payload.data;
   if (
@@ -494,67 +456,11 @@ export async function runGraphEvidenceScenario(
     renderSurface?.semanticEdgeCount !== payload.edges.length ||
     renderSurface?.interactionProxyCount !== payload.nodes.length + payload.edges.length ||
     renderSurface?.renderedBatchCount !== 2 ||
-    renderSurface?.candidateLocalDrawCalls !== 2
-  ) {
-    throw new Error('Graph B4 render-surface accounting does not match the semantic payload.');
-  }
-  if (
+    renderSurface?.candidateLocalDrawCalls !== 2 ||
     metadata?.presentationSemantics !== 'force-directed-positioning-over-payload-topology' ||
     metadata?.supportBoundaryClaim !== false
   ) {
-    throw new Error('Graph B4 presentation metadata overclaims graph/community semantics.');
-  }
-
-  const topology = topologySummary(envelope);
-  const indexedEdges = payload.edges.map((edge) => ({
-    source: edge.sourceNodeIndex,
-    target: edge.targetNodeIndex,
-    weight: edge.weight ?? 1,
-  }));
-  const seedA = 1;
-  const seedB = 7;
-  const layoutA = computeForceDirectedEdges3d(
-    payload.nodes.length,
-    indexedEdges,
-    120,
-    120,
-    0.02,
-    0.08,
-    4,
-    1.2,
-    seedA
-  );
-  const layoutB = computeForceDirectedEdges3d(
-    payload.nodes.length,
-    indexedEdges,
-    120,
-    120,
-    0.02,
-    0.08,
-    4,
-    1.2,
-    seedB
-  );
-
-  group.updateMatrixWorld(true);
-  const markPositions = artifact.nodeMeshes.map((mesh) => mesh.getWorldPosition(new THREE.Vector3()));
-  const perceptualEvidence = new PerceptualFitnessSampler().sample(
-    {
-      candidate: MONETA_REPRESENTATION_CANDIDATES.RELATIONSHIP_GRAPH,
-      datasetFingerprint: envelope.datasetFingerprint,
-      markPositions,
-      deviceClass: 'desktop',
-    },
-    {
-      position: new THREE.Vector3(0, 1.4, 0),
-      gazeDirection: new THREE.Vector3(0, 0, -1),
-    }
-  );
-  if (
-    perceptualEvidence.candidateId !== envelope.candidateId ||
-    perceptualEvidence.datasetFingerprint !== envelope.datasetFingerprint
-  ) {
-    throw new Error('Graph B4 perceptual evidence is not bound to the rendered graph identity.');
+    throw new Error('Graph B4 presentation accounting or semantic boundary is invalid.');
   }
 
   const nodeSemanticIds = artifact.nodeMeshes
@@ -563,12 +469,39 @@ export async function runGraphEvidenceScenario(
   const edgeSemanticIds = artifact.nodeMeshes
     .filter((mesh) => mesh.userData.semanticRole === 'edge')
     .map((mesh) => String(mesh.userData.semanticId ?? ''));
+  const topology = topologySummary(envelope);
   if (
-    nodeSemanticIds.length !== payload.nodes.length ||
-    edgeSemanticIds.length !== payload.edges.length ||
-    new Set([...nodeSemanticIds, ...edgeSemanticIds]).size !== nodeSemanticIds.length + edgeSemanticIds.length
+    nodeSemanticIds.join('\0') !== topology.nodeIds.join('\0') ||
+    edgeSemanticIds.join('\0') !== topology.edges.map((edge) => edge.semanticId).join('\0')
   ) {
-    throw new Error('Graph B4 interaction proxies did not preserve unique semantic graph identity.');
+    throw new Error('Graph B4 rendered interaction identity differs from the Rust payload.');
+  }
+
+  const indexedEdges = payload.edges.map((edge) => ({
+    source: edge.sourceNodeIndex,
+    target: edge.targetNodeIndex,
+    weight: edge.weight ?? 1,
+  }));
+  const seedA = 1;
+  const seedB = 7;
+  const layoutA = computeForceDirectedEdges3d(payload.nodes.length, indexedEdges, 120, 120, 0.02, 0.08, 4, 1.2, seedA);
+  const layoutB = computeForceDirectedEdges3d(payload.nodes.length, indexedEdges, 120, 120, 0.02, 0.08, 4, 1.2, seedB);
+
+  group.updateMatrixWorld(true);
+  const evidence = new PerceptualFitnessSampler().sample(
+    {
+      candidate: MONETA_REPRESENTATION_CANDIDATES.RELATIONSHIP_GRAPH,
+      datasetFingerprint: envelope.datasetFingerprint,
+      markPositions: artifact.nodeMeshes.map((mesh) => mesh.getWorldPosition(new THREE.Vector3())),
+      deviceClass: 'desktop',
+    },
+    { position: new THREE.Vector3(0, 1.4, 0), gazeDirection: new THREE.Vector3(0, 0, -1) }
+  );
+  if (
+    evidence.candidateId !== envelope.candidateId ||
+    evidence.datasetFingerprint !== envelope.datasetFingerprint
+  ) {
+    throw new Error('Graph B4 perceptual evidence is not bound to the graph artifact.');
   }
 
   const workerDiagnostics = port.drainDiagnostics();
@@ -580,14 +513,16 @@ export async function runGraphEvidenceScenario(
   };
   if (input.shape === 'mutation-stale') {
     const appendCount = Math.max(4, Math.floor(input.rowCount / 8));
-    const newRows = Array.from({ length: appendCount }, (_, index) => ({
-      x: 100 + index,
-      y: 100 + index,
-      correlationBait: 100_000 + index,
-      correlationBaitCopy: 100_000 + index,
-      decoyGroup: 'mutated',
-    }));
-    node.appendRows(newRows, { mode: 'append', limit: input.rowCount });
+    node.appendRows(
+      Array.from({ length: appendCount }, (_, index) => ({
+        x: 100 + index,
+        y: 100 + index,
+        correlationBait: 100_000 + index,
+        correlationBaitCopy: 100_000 + index,
+        decoyGroup: 'mutated',
+      })),
+      { mode: 'append', limit: input.rowCount }
+    );
     await Promise.resolve();
     await waitFrames(2);
     staleFence.evictedEdgeCount = dataset.evictedEdgeCount ?? 0;
@@ -607,7 +542,7 @@ export async function runGraphEvidenceScenario(
     datasetFingerprint: envelope.datasetFingerprint,
     decisionId,
     initialStatus,
-    finalStatus: String(group.userData.semanticEmbodimentStatus ?? 'MISSING'),
+    finalStatus: String(node.group?.userData.semanticEmbodimentStatus ?? 'MISSING'),
     statusSurface: {
       pendingWasVisible,
       readySurfaceRemoved: !group.getObjectByName(SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME),
@@ -637,9 +572,9 @@ export async function runGraphEvidenceScenario(
     },
     staleFence,
     timingMs: {
-      requestToReady: roundMs(readyAt - requestStartedAt),
+      requestToReady: roundMs(readyAt - startedAt),
       readyToRenderedFrames: roundMs(renderedAt - readyAt),
-      total: roundMs(renderedAt - totalStartedAt),
+      total: roundMs(renderedAt - startedAt),
     },
     workerDiagnostics,
     workerExecution: workerExecutionObservation(workerDiagnostics),
@@ -651,7 +586,7 @@ export async function runGraphEvidenceScenario(
       payloadKind: 'RELATIONSHIP_GRAPH',
       decisionId,
       communityClaim: false,
-      evidence: perceptualEvidence,
+      evidence,
     },
   };
 }
@@ -664,31 +599,22 @@ export async function runGraphMissingEndpointScenario(
     throw new Error('Graph B4 refusal rowCount must be a safe integer in 16..4096.');
   }
   const dataset = makeGraphDataset(input.rowCount, 'missing-endpoint');
-  const entry: DatasetLoadEntry = {
-    key: `p1r-graph-b4-missing-endpoint-${input.rowCount}`,
-    name: dataset.name,
-    label: 'Relationship graph missing endpoint refusal',
-    topology: 'TABULAR',
-    dataset,
-    encodings: { color: 'decoyGroup', size: 'correlationBait' },
-  };
-  world.loadDataset(entry);
-  const initialPromise = (world.dracoNode?.dataInput as SemanticGraphInput | undefined)
-    ?.semanticEmbodimentPromise;
-  if (initialPromise) await initialPromise;
-  await Promise.resolve();
-  world._activeRequirements = graphRequirements('DIRECTED');
-  world._doLoadDataset(entry, {
+  const loadEntry = entry(dataset, `p1r-graph-b4-missing-endpoint-${input.rowCount}`);
+  await settleInitialLoad(world, loadEntry);
+  world._activeRequirements = requirements('DIRECTED');
+  world._doLoadDataset(loadEntry, {
     preserveAnalyticalState: true,
     preserveAuxiliaryPresentation: true,
   });
   const node = world.dracoNode;
   if (!node || node.representationDecision?.chosenCandidateId !== 'RELATIONSHIP_GRAPH') {
-    throw new Error('Graph B4 missing-endpoint fixture did not reach RELATIONSHIP_GRAPH authority.');
+    throw new Error('Graph B4 missing-endpoint fixture did not reach graph authority.');
   }
-  const inputState = node.dataInput as SemanticGraphInput;
-  if (!inputState.semanticEmbodimentPromise) throw new Error('Graph B4 refusal promise is missing.');
-  const envelope = await inputState.semanticEmbodimentPromise;
+  const decisionId = node.representationDecision.id;
+  if (!decisionId) throw new Error('Graph B4 refusal decision has no stable identity.');
+  const state = node.dataInput as SemanticGraphInput;
+  if (!state.semanticEmbodimentPromise) throw new Error('Graph B4 refusal promise is missing.');
+  const envelope = await state.semanticEmbodimentPromise;
   await Promise.resolve();
   await waitFrames(2);
   if (!envelope || envelope.result.status !== 'REFUSED') {
@@ -699,7 +625,7 @@ export async function runGraphMissingEndpointScenario(
     sourceRowCount: input.rowCount,
     candidateId: 'RELATIONSHIP_GRAPH',
     datasetFingerprint: envelope.datasetFingerprint,
-    decisionId: node.representationDecision.id,
+    decisionId,
     status: String(node.group?.userData.semanticEmbodimentStatus ?? 'MISSING'),
     envelope,
     graphSurfacePresent: Boolean(
@@ -718,32 +644,23 @@ export async function runGraphNoSourceAuthorityScenario(
   if (!Number.isSafeInteger(input.rowCount) || input.rowCount < 16 || input.rowCount > 4096) {
     throw new Error('Graph B4 no-source rowCount must be a safe integer in 16..4096.');
   }
-  const dataset = makeNoSourceGraphDataset(input.rowCount);
-  const entry: DatasetLoadEntry = {
-    key: `p1r-graph-b4-no-source-${input.rowCount}`,
-    name: dataset.name,
-    label: 'Graph-like rows with no source topology',
-    topology: 'TABULAR',
-    dataset,
-    encodings: { color: 'correlationBaitCopy', size: 'correlationBait' },
-  };
-  world.loadDataset(entry);
-  await Promise.resolve();
-  world._activeRequirements = graphRequirements('DIRECTED');
-  world._doLoadDataset(entry, {
+  const dataset = makeNoSourceDataset(input.rowCount);
+  const loadEntry = entry(dataset, `p1r-graph-b4-no-source-${input.rowCount}`);
+  await settleInitialLoad(world, loadEntry);
+  world._activeRequirements = requirements('DIRECTED');
+  world._doLoadDataset(loadEntry, {
     preserveAnalyticalState: true,
     preserveAuxiliaryPresentation: true,
   });
   const node = world.dracoNode;
   const chosenCandidateId = String(node?.representationDecision?.chosenCandidateId ?? 'none');
-  if (chosenCandidateId === 'RELATIONSHIP_GRAPH') {
-    throw new Error('Graph B4 invented graph admission without a source edge.');
-  }
   const graphSurfacePresent = Boolean(
     node?.group?.getObjectByName(GRAPH_NODE_SURFACE_NAME) ||
       node?.group?.getObjectByName(GRAPH_EDGE_SURFACE_NAME)
   );
-  if (graphSurfacePresent) throw new Error('Graph B4 rendered governed topology without source edges.');
+  if (chosenCandidateId === 'RELATIONSHIP_GRAPH' || graphSurfacePresent) {
+    throw new Error('Graph B4 invented governed topology without source edges.');
+  }
   return {
     schemaVersion: 1,
     sourceRowCount: input.rowCount,
