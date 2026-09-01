@@ -15,7 +15,7 @@ interface StatusStripPanelOptions extends MovablePanelOptions {
  * that is acted upon through the existing contextual and precision surfaces.
  */
 export class StatusStripPanel extends MovablePanel {
-  private readonly _statusStrip: StatusStripController;
+  private _statusStrip?: StatusStripController;
   private _lastText: string = '';
   private _dirty = true;
 
@@ -48,7 +48,7 @@ export class StatusStripPanel extends MovablePanel {
   }
 
   update(): void {
-    const text = this._statusStrip.formatInvestigationLines().join('\n');
+    const text = this._statusStrip?.formatInvestigationLines().join('\n') ?? 'Initializing...';
     if (text !== this._lastText) {
       this._lastText = text;
       this._dirty = true;
@@ -61,7 +61,7 @@ export class StatusStripPanel extends MovablePanel {
 
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
     const pad = SPACING_TOKENS.grid.x16;
-    const lines = this._statusStrip.formatInvestigationLines();
+    const lines = this._statusStrip?.formatInvestigationLines() ?? ['Initializing...'];
     const lineHeight = 31;
     const firstY = 28;
 
