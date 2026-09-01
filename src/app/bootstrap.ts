@@ -236,10 +236,9 @@ export async function bootstrapApp(): Promise<AppInstance> {
   });
   world.registerExtensionDisposer(() => functionalWorldObjects.dispose());
 
-  // P1-UV C2 projects existing authority into the one persistent status strip.
-  // The analyst anchor is already body/workspace tracked by WorldSceneComposer,
-  // so this removes direct head-lock without adding another product surface.
-  world.analystAnchor.add(world.uiManager.statusStripPanel.mesh);
+  // P1-UV C2 projects existing authority into the existing persistent Status
+  // Strip. WorldUIManager owns its governed torso-locked reference frame and
+  // PANEL_LAYOUT slot; the composition root only wires authoritative state.
   const investigationState = new InvestigationStatePresenter({
     engine: world.engine,
     eventBus: world.eventBus,
