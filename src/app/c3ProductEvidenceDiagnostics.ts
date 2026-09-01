@@ -27,30 +27,24 @@ export interface C3ProductEvidenceHook {
   selectFirstDataObject(): C3ProductEvidenceSnapshot & { selectedId: string };
 }
 
-interface C3EvidenceMesh {
+export interface C3EvidenceMesh {
   name?: string;
   userData?: { row?: Record<string, unknown> };
 }
 
-interface C3ProductEvidenceWorldPort {
-  dracoNode?: {
-    artifact?: {
-      nodeMeshes?: C3EvidenceMesh[];
-    };
-  } | null;
-  _showDataCard(mesh: C3EvidenceMesh): void;
-  uiManager: {
-    contextualTaskSurface: {
-      visible: boolean;
-      activeData: Record<string, unknown> | null;
-      taskAvailability(
-        intent: InvestigatorTaskIntent,
-        data?: Record<string, unknown> | null,
-      ): { available: boolean; reason?: string };
-    };
+export interface C3ProductEvidencePort {
+  getNodeMeshes(): readonly C3EvidenceMesh[];
+  selectDataObject(mesh: C3EvidenceMesh): void;
+  contextualSurface: {
+    visible: boolean;
+    activeData: Record<string, unknown> | null;
+    taskAvailability(
+      intent: InvestigatorTaskIntent,
+      data?: Record<string, unknown> | null,
+    ): { available: boolean; reason?: string };
   };
-  inspector: { visible: boolean };
-  atlas: { observations: readonly unknown[] };
+  getInspectorVisible(): boolean;
+  getObservationCount(): number;
 }
 
 declare global {
@@ -65,8 +59,8 @@ function payloadId(data: Record<string, unknown> | null): string | null {
   return identity == null ? null : String(identity);
 }
 
-function snapshot(world: C3ProductEvidenceWorldPort): C3ProductEvidenceSnapshot {
-  const surface = world.uiManager.contextualTaskSurface;
+function snapshot(port: C3ProductEvidencePort): C3ProductEvidenceSnapshot {
+  const surface = port.contextualSurface;
   const data = surface.activeData;
   const tasks = INVESTIGATOR_TASKS.map((task): C3TaskButtonSnapshot => {
     const element = document.getElementById(`desktop-task-${task.id}`);
@@ -86,33 +80,33 @@ function snapshot(world: C3ProductEvidenceWorldPort): C3ProductEvidenceSnapshot 
     selectionContext: document.getElementById('desktop-selection-context')?.textContent ?? null,
     selectedPayloadId: payloadId(data),
     contextualSurfaceVisible: surface.visible,
-    inspectorVisible: world.inspector.visible,
-    observationCount: world.atlas.observations.length,
+    inspectorVisible: port.getInspectorVisible(),
+    observationCount: port.getObservationCount(),
     tasks,
   };
 }
 
 /** Diagnostics-gated real-product selection hook for C3 browser parity evidence. */
 export function installC3ProductEvidenceHook(
-  world: C3ProductEvidenceWorldPort,
+  port: C3ProductEvidencePort,
   rail: DesktopSelectionTaskRailHandle,
 ): () => void {
   const hook: C3ProductEvidenceHook = {
     schemaVersion: 1,
-    snapshot: () => snapshot(world),
+    snapshot: () => snapshot(port),
     selectFirstDataObject: () => {
-      const mesh = world.dracoNode?.artifact?.nodeMeshes?.find((candidate) => candidate.userData?.row);
+      const mesh = port.getNodeMeshes().find((candidate) => candidate.userData?.row);
       const row = mesh?.userData?.row;
       if (!mesh || !row) {
         throw new Error('C3 evidence requires a rendered data object with authoritative row payload.');
       }
-      world._showDataCard(mesh);
+      port.selectDataObject(mesh);
       rail.refresh();
       const selectedId = payloadId(row);
       if (!selectedId) {
         throw new Error('C3 evidence requires a stable selected payload identity.');
       }
-      return { ...snapshot(world), selectedId };
+      return { ...snapshot(port), selectedId };
     },
   };
 
