@@ -258,6 +258,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
     getArchiveCount: () => world.uiManager.vaultPanel.archives.length,
     getGraphSnapshot: () => ({
       activeNodeId: world.atlas.aggregate.graph.activeNodeId,
+      currentDatasetFingerprint: world.atlas.datasetFingerprint,
       nodes: world.atlas.aggregate.graph.nodes,
       edges: world.atlas.aggregate.graph.edges,
       observationCount: world.atlas.observations.length,
