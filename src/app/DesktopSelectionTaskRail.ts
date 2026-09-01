@@ -121,7 +121,11 @@ export function mountDesktopSelectionTaskRail(
   for (const task of INVESTIGATOR_TASKS) {
     const button = document.createElement('nms-button');
     button.id = `desktop-task-${task.id}`;
-    button.textContent = task.label;
+    // nms-button mirrors light-DOM text into its shadow control. Using the
+    // component's label attribute avoids exposing the same visible label twice
+    // through the composed accessibility/text tree.
+    button.setAttribute('label', task.label);
+    button.setAttribute('aria-label', task.label);
     button.setAttribute('variant', task.id === 'inspect' ? 'primary' : 'secondary');
     button.setAttribute('size', 'sm');
     button.setAttribute('title', task.description);
