@@ -150,27 +150,45 @@ describe('P1-UV C2 investigation-state legibility', () => {
   it('does not present a stale graph insertion cursor as current origin after undo/seek', () => {
     const h = makeHarness();
     const nodes: InvestigationNode[] = [
-      { id: 'v1', kind: 'dataset_version', parentId: null, datasetVersion: 1, datasetFingerprint: 'fp-v1', label: 'v1', timestamp: 1 },
-      { id: 'op2', kind: 'operation', parentId: 'v1', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'sort', timestamp: 2 },
-      { id: 'v2', kind: 'dataset_version', parentId: 'op2', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'v2', timestamp: 3 },
+      // Historical load roots omitted kind and InvestigationGraph normalized
+      // them to operation. Their parentless canonical :vN identity remains the
+      // backward-compatible dataset-state marker used by C2.
+      { id: 'session:v1', kind: 'operation', parentId: null, datasetVersion: 1, datasetFingerprint: 'fp-v1', label: 'Initial Dataset', timestamp: 1 },
+      { id: 'op2', kind: 'operation', parentId: 'session:v1', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'sort', timestamp: 2 },
+      { id: 'session:v2', kind: 'dataset_version', parentId: 'op2', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'v2', timestamp: 3 },
     ];
-    h.setGraph({ activeNodeId: 'v2', nodes, edges: [] });
+    h.setGraph({ activeNodeId: 'session:v2', nodes, edges: [] });
     h.setCurrentDatasetFingerprint('fp-v1');
 
     const restored = h.presenter.syncNow();
-    expect(restored?.origin.activeNodeId).toBe('v1');
+    expect(restored?.origin.activeNodeId).toBe('session:v1');
     expect(restored?.origin.parentNodeId).toBeNull();
 
-    // Multiple graph states with the same fingerprint are ambiguous. C2 must
-    // fail closed instead of guessing which branch is current.
+    // Multiple eligible graph states with the same fingerprint are ambiguous.
+    // C2 must fail closed instead of guessing which branch is current.
     h.setGraph({
-      activeNodeId: 'v2',
+      activeNodeId: 'session:v2',
       nodes: [
         ...nodes,
-        { id: 'v1-copy', kind: 'dataset_version', parentId: 'other', datasetVersion: 3, datasetFingerprint: 'fp-v1', label: 'v1 copy', timestamp: 4 },
+        { id: 'branch:v3', kind: 'dataset_version', parentId: 'other', datasetVersion: 3, datasetFingerprint: 'fp-v1', label: 'v1 copy', timestamp: 4 },
       ],
       edges: [],
     });
+    expect(h.presenter.syncNow()?.origin.activeNodeId).toBeNull();
+  });
+
+  it('does not reinterpret an arbitrary parentless operation as a dataset state', () => {
+    const h = makeHarness();
+    h.setCurrentDatasetFingerprint('fp-v1');
+    h.setGraph({
+      activeNodeId: 'later',
+      nodes: [
+        { id: 'root-operation', kind: 'operation', parentId: null, datasetVersion: 1, datasetFingerprint: 'fp-v1', label: 'operation', timestamp: 1 },
+        { id: 'later', kind: 'dataset_version', parentId: 'root-operation', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'later', timestamp: 2 },
+      ],
+      edges: [],
+    });
+
     expect(h.presenter.syncNow()?.origin.activeNodeId).toBeNull();
   });
 
