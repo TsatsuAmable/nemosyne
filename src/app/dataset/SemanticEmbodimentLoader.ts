@@ -400,6 +400,14 @@ export function loadGraphSemanticEmbodiment(
       return null;
     }
 
+    // B1-RF-03 fail-closed boundary: a dataset whose rolling eviction silently
+    // dropped positional source edges has lost source topology. Building a
+    // governed graph from the surviving edges would present a lossy graph as
+    // truthful, so refuse the whole payload instead.
+    if ((dataset.evictedEdgeCount ?? 0) > 0) {
+      return null;
+    }
+
     const request: GraphEmbodimentRequestV1 = {
       schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
       candidateId: 'RELATIONSHIP_GRAPH',

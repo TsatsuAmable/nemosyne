@@ -223,6 +223,9 @@ pub fn query_semantic_detail_v1(
             SemanticEmbodimentFamilyV1::Density => {
                 evaluate_density_membership(dataset, columnar, &query.request, &query.embodiment_request)
             }
+            SemanticEmbodimentFamilyV1::Graph => {
+                evaluate_graph_membership(dataset, &query.request, &query.embodiment_request)
+            }
             _ => Err(SemanticDetailRefusalV1 {
                 code: SemanticDetailErrorCodeV1::UnsupportedMembership,
                 message: format!(
@@ -740,6 +743,111 @@ fn evaluate_density_membership(
     Ok(matched)
 }
 
+/// B3 graph membership. The resident B2 builder is re-run for the exact
+/// retained authority, so drill-down membership can never diverge from the
+/// embodied topology: a node target resolves to the one source row whose
+/// durable row ID mints that node, an edge target to its two endpoint rows
+/// (one for a self-loop), and anything the payload does not justify refuses
+/// fail-closed.
+fn evaluate_graph_membership(
+    dataset: &Dataset,
+    request: &SemanticDetailRequestV1,
+    embodiment_request_json: &serde_json::Value,
+) -> Result<Vec<usize>, SemanticDetailRefusalV1> {
+    let embodiment_request: crate::moneta::graph_embodiment::GraphEmbodimentRequestV1 =
+        serde_json::from_value(embodiment_request_json.clone()).map_err(|err| {
+            SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!("Failed to parse GraphEmbodimentRequestV1: {}", err),
+            }
+        })?;
+
+    let semantic_object_id = &request.target.semantic_object_id;
+    if !(semantic_object_id.starts_with("graph-node:") || semantic_object_id.starts_with("graph-edge:")) {
+        return Err(SemanticDetailRefusalV1 {
+            code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+            message: format!(
+                "semanticObjectId {} must start with graph-node: or graph-edge:",
+                semantic_object_id
+            ),
+        });
+    }
+
+    let envelope = crate::moneta::graph_embodiment::graph_from_dataset(
+        dataset.fingerprint(),
+        dataset,
+        &embodiment_request,
+    );
+    let payload = match envelope.result {
+        crate::moneta::graph_embodiment::GraphEmbodimentResultV1::Ready { payload } => payload,
+        crate::moneta::graph_embodiment::GraphEmbodimentResultV1::Refused { refusal } => {
+            return Err(SemanticDetailRefusalV1 {
+                code: SemanticDetailErrorCodeV1::UnsupportedMembership,
+                message: format!(
+                    "graph membership refused by the resident authority: {}",
+                    refusal.message
+                ),
+            });
+        }
+    };
+    let data = match payload {
+        crate::moneta::graph_embodiment::GraphRepresentationPayloadV1::RelationshipGraph(data) => data,
+    };
+
+    let row_position_of = |row_id: &str| dataset.row_ids.iter().position(|id| id == row_id);
+    let missing_row = |row_id: &str| SemanticDetailRefusalV1 {
+        code: SemanticDetailErrorCodeV1::DeletedTarget,
+        message: format!("graph endpoint row {} is not resident", row_id),
+    };
+
+    if let Some(node) = data
+        .nodes
+        .iter()
+        .find(|node| &node.semantic_id == semantic_object_id)
+    {
+        let position = row_position_of(&node.source_row_id).ok_or_else(|| {
+            missing_row(&node.source_row_id)
+        })?;
+        return Ok(vec![position]);
+    }
+
+    if let Some(edge) = data
+        .edges
+        .iter()
+        .find(|edge| &edge.semantic_id == semantic_object_id)
+    {
+        let endpoint_row = |node_index: u32| -> Result<String, SemanticDetailRefusalV1> {
+            data.nodes
+                .get(node_index as usize)
+                .map(|node| node.source_row_id.clone())
+                .ok_or_else(|| SemanticDetailRefusalV1 {
+                    code: SemanticDetailErrorCodeV1::DeletedTarget,
+                    message: format!(
+                        "graph edge {} has an out-of-bounds payload node index",
+                        semantic_object_id
+                    ),
+                })
+        };
+        let source_row_id = endpoint_row(edge.source_node_index)?;
+        let target_row_id = endpoint_row(edge.target_node_index)?;
+        let source = row_position_of(&source_row_id).ok_or_else(|| missing_row(&source_row_id))?;
+        let target = row_position_of(&target_row_id).ok_or_else(|| missing_row(&target_row_id))?;
+        // A self-loop's two endpoints are the same source row.
+        if source == target {
+            return Ok(vec![source]);
+        }
+        return Ok(vec![source, target]);
+    }
+
+    Err(SemanticDetailRefusalV1 {
+        code: SemanticDetailErrorCodeV1::DeletedTarget,
+        message: format!(
+            "No graph node or edge matches semanticObjectId {}",
+            semantic_object_id
+        ),
+    })
+}
+
 fn bin_index_u(value: f64, domain: &crate::moneta::embodiment::DensityDomainV1, bins: usize) -> usize {
     if domain.min == domain.max {
         return bins - 1;
@@ -763,3 +871,220 @@ fn bin_index_u(value: f64, domain: &crate::moneta::embodiment::DensityDomainV1, 
     lo.min(bins - 1)
 }
 
+
+#[cfg(test)]
+mod tests {
+    use crate::data::column::{Column, ColumnType};
+    use crate::data::dataset::{Dataset, Edge};
+    use crate::data::value::Value;
+    use crate::data::register_dataset;
+
+    use super::*;
+
+    fn numeric_rows(count: usize) -> Vec<std::collections::HashMap<String, Value>> {
+        (0..count)
+            .map(|index| {
+                std::collections::HashMap::from([(
+                    "value".to_string(),
+                    Value::Number(index as f64),
+                )])
+            })
+            .collect()
+    }
+
+    fn graph_authority() -> crate::moneta::graph_embodiment::SourceGraphAuthorityV1 {
+        crate::moneta::graph_embodiment::SourceGraphAuthorityV1 {
+            kind: crate::moneta::graph_embodiment::GraphAuthorityKindV1::SourceEdges,
+            directionality: crate::moneta::graph_embodiment::GraphDirectionalityV1::Directed,
+            node_identity: crate::moneta::graph_embodiment::GraphNodeIdentityV1::DatasetRow,
+            missing_endpoint_policy:
+                crate::moneta::graph_embodiment::GraphMissingEndpointPolicyV1::Refuse,
+            parallel_edge_policy:
+                crate::moneta::graph_embodiment::GraphParallelEdgePolicyV1::Preserve,
+            self_loop_policy: crate::moneta::graph_embodiment::GraphSelfLoopPolicyV1::Preserve,
+        }
+    }
+
+    fn graph_embodiment_request() -> crate::moneta::graph_embodiment::GraphEmbodimentRequestV1 {
+        crate::moneta::graph_embodiment::GraphEmbodimentRequestV1 {
+            schema_version: 1,
+            candidate_id: crate::moneta::embodiment::SemanticRepresentationIdV1::RelationshipGraph,
+            graph_authority: graph_authority(),
+            decision_id: Some("decision-graph-b3".to_string()),
+            decision_model_version: Some("bootstrap-fitness-v5".to_string()),
+            decision_model_artifact_hash: None,
+        }
+    }
+
+    fn register_graph_fixture(edges: Vec<Edge>) -> (u32, String) {
+        let mut dataset = Dataset::new(
+            "drill-down-graph-fixture",
+            vec![Column::new("value", ColumnType::Numeric)],
+            numeric_rows(3),
+        );
+        dataset.edges = Some(edges);
+        dataset.row_ids = vec![
+            "row-alpha".to_string(),
+            "row-beta".to_string(),
+            "row-gamma".to_string(),
+        ];
+        let handle = register_dataset(dataset);
+        let fingerprint = crate::data::fingerprint_for_handle(handle)
+            .expect("handle registered")
+            .expect("row-major fingerprint");
+        (handle, fingerprint)
+    }
+
+    fn graph_payload(handle: u32) -> crate::moneta::graph_embodiment::RelationshipGraphPayloadV1 {
+        let envelope = crate::moneta::graph_embodiment::build_graph_embodiment_v1(
+            handle,
+            &graph_embodiment_request(),
+        )
+        .expect("graph envelope");
+        match envelope.result {
+            crate::moneta::graph_embodiment::GraphEmbodimentResultV1::Ready {
+                payload:
+                    crate::moneta::graph_embodiment::GraphRepresentationPayloadV1::RelationshipGraph(
+                        payload,
+                    ),
+            } => payload,
+            crate::moneta::graph_embodiment::GraphEmbodimentResultV1::Refused { refusal } => {
+                panic!("expected READY graph envelope, got REFUSED: {}", refusal.message);
+            }
+        }
+    }
+
+    fn detail_query(
+        handle: u32,
+        fingerprint: &str,
+        semantic_object_id: &str,
+    ) -> SemanticDetailEnvelopeV1 {
+        let request = SemanticDetailRequestV1 {
+            schema_version: SEMANTIC_DETAIL_SCHEMA_VERSION,
+            target: SemanticTargetIdentityV1 {
+                dataset_fingerprint: fingerprint.to_string(),
+                decision_id: "decision-graph-b3".to_string(),
+                representation_family: SemanticEmbodimentFamilyV1::Graph,
+                semantic_object_id: semantic_object_id.to_string(),
+            },
+            limit: 256,
+            offset: 0,
+            investigation_context: "drill-down graph membership fixture".to_string(),
+        };
+        query_semantic_detail_v1(
+            handle,
+            SemanticDetailQueryV1 {
+                request,
+                embodiment_request: serde_json::to_value(graph_embodiment_request())
+                    .expect("serializable graph request"),
+                generation: 1,
+            },
+        )
+    }
+
+    fn ready_observation_ids(envelope: &SemanticDetailEnvelopeV1) -> Vec<String> {
+        match &envelope.result {
+            SemanticDetailResultV1::Ready { observation_ids, .. } => observation_ids.clone(),
+            SemanticDetailResultV1::Refused { refusal } => {
+                panic!("expected READY detail, got REFUSED: {}", refusal.message);
+            }
+        }
+    }
+
+    fn refusal_code(envelope: &SemanticDetailEnvelopeV1) -> SemanticDetailErrorCodeV1 {
+        match &envelope.result {
+            SemanticDetailResultV1::Refused { refusal } => refusal.code,
+            SemanticDetailResultV1::Ready { .. } => {
+                panic!("expected REFUSED detail, got READY");
+            }
+        }
+    }
+
+    #[test]
+    fn graph_membership_binds_nodes_and_edges_to_source_rows() {
+        // Mixed endpoint vocabulary: string row IDs, numeric positions and a
+        // retained self-loop, all declared by the source.
+        let edges = vec![
+            Edge::new_id("row-alpha", "row-beta"),
+            Edge::new(1, 2),
+            Edge::new_id("row-gamma", "row-gamma"),
+        ];
+        let (handle, fingerprint) = register_graph_fixture(edges);
+        let payload = graph_payload(handle);
+
+        // Node target: exactly the one source row minting that node.
+        let alpha = payload
+            .nodes
+            .iter()
+            .find(|node| node.source_row_id == "row-alpha")
+            .expect("row-alpha node retained");
+        let node_detail = detail_query(handle, &fingerprint, &alpha.semantic_id);
+        assert_eq!(ready_observation_ids(&node_detail), vec!["row-alpha"]);
+
+        // Edge target: exactly its two endpoint rows.
+        let spanning = payload
+            .edges
+            .iter()
+            .find(|edge| edge.source_node_index != edge.target_node_index)
+            .expect("spanning edge retained");
+        let source_row = payload.nodes[spanning.source_node_index as usize].source_row_id.clone();
+        let target_row = payload.nodes[spanning.target_node_index as usize].source_row_id.clone();
+        let edge_detail = detail_query(handle, &fingerprint, &spanning.semantic_id);
+        assert_eq!(
+            ready_observation_ids(&edge_detail),
+            vec![source_row, target_row]
+        );
+
+        // Self-loop edge target: the single endpoint row, never invented twice.
+        let self_loop = payload
+            .edges
+            .iter()
+            .find(|edge| edge.source_node_index == edge.target_node_index)
+            .expect("self-loop retained");
+        let self_loop_detail = detail_query(handle, &fingerprint, &self_loop.semantic_id);
+        assert_eq!(ready_observation_ids(&self_loop_detail), vec!["row-gamma"]);
+    }
+
+    #[test]
+    fn graph_membership_refuses_unknown_malformed_or_refused_targets() {
+        // Unknown and malformed targets are judged against a dataset whose
+        // graph the authority can actually embody.
+        let (valid_handle, valid_fingerprint) =
+            register_graph_fixture(vec![Edge::new_id("row-alpha", "row-beta")]);
+
+        // An unknown graph target refuses with DeletedTarget.
+        let unknown = detail_query(valid_handle, &valid_fingerprint, "graph-node:unknown");
+        assert_eq!(refusal_code(&unknown), SemanticDetailErrorCodeV1::DeletedTarget);
+
+        // A non-graph target vocabulary refuses with UnsupportedMembership.
+        let malformed = detail_query(valid_handle, &valid_fingerprint, "cluster-region:bogus");
+        assert_eq!(
+            refusal_code(&malformed),
+            SemanticDetailErrorCodeV1::UnsupportedMembership
+        );
+
+        // A dataset the graph authority itself refuses (unresolved endpoint)
+        // fails closed for membership too: no partial membership may leak from
+        // a refused graph, whatever the target.
+        let (refused_handle, refused_fingerprint) = register_graph_fixture(vec![
+            Edge::new_id("row-alpha", "row-beta"),
+            Edge::new_id("row-alpha", "row-missing"),
+        ]);
+        let refused_builder = crate::moneta::graph_embodiment::build_graph_embodiment_v1(
+            refused_handle,
+            &graph_embodiment_request(),
+        )
+        .expect("graph envelope");
+        assert!(matches!(
+            refused_builder.result,
+            crate::moneta::graph_embodiment::GraphEmbodimentResultV1::Refused { .. }
+        ));
+
+        let refused_membership =
+            detail_query(refused_handle, &refused_fingerprint, "graph-edge:whatever");
+        assert_eq!(
+            refusal_code(&refused_membership),
+            SemanticDetailErrorCodeV1::UnsupportedMembership
+        );
+    }
+}

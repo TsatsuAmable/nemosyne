@@ -99,9 +99,10 @@ function remapEdgesAfterPrefixEviction(
   edges: DatasetEdge[] | undefined,
   start: number,
   previousRowCount: number
-): DatasetEdge[] | undefined {
-  if (!edges) return undefined;
-  return edges.flatMap((edge) => {
+): { edges: DatasetEdge[] | undefined; droppedEdgeCount: number } {
+  if (!edges) return { edges: undefined, droppedEdgeCount: 0 };
+  let droppedEdgeCount = 0;
+  const remapped = edges.flatMap((edge) => {
     if (typeof edge.source !== 'number' || typeof edge.target !== 'number') {
       return [cloneEdge(edge)];
     }
@@ -111,6 +112,7 @@ function remapEdgesAfterPrefixEviction(
       edge.source >= previousRowCount ||
       edge.target >= previousRowCount
     ) {
+      droppedEdgeCount += 1;
       return [];
     }
     const copy = cloneEdge(edge);
@@ -118,6 +120,7 @@ function remapEdgesAfterPrefixEviction(
     copy.target = edge.target - start;
     return [copy];
   });
+  return { edges: remapped, droppedEdgeCount };
 }
 
 /**
@@ -135,6 +138,13 @@ export class Dataset {
   edges?: DatasetEdge[];
   /** Durable Rust-owned observation IDs aligned 1:1 with `rows`, when known. */
   rowIds?: string[];
+  /**
+   * Evidence that rolling eviction silently dropped source edges that were
+   * positional against evicted rows (B1-RF-03). Not part of DatasetJSON or
+   * the dataset identity; consumers that must not present lossy topology
+   * (e.g. the governed RELATIONSHIP_GRAPH loader) fail closed on it.
+   */
+  evictedEdgeCount?: number;
   /** Non-scientific adapter/presentation metadata; excluded from DatasetJSON. */
   _meta?: DatasetMeta;
 
@@ -285,7 +295,12 @@ export class Dataset {
     if (limit != null && this.rows.length > limit) {
       const previousRowCount = this.rows.length;
       const start = previousRowCount - limit;
-      this.edges = remapEdgesAfterPrefixEviction(this.edges, start, previousRowCount);
+      const remap = remapEdgesAfterPrefixEviction(this.edges, start, previousRowCount);
+      this.edges = remap.edges;
+      // The drop is recorded instead of staying silent: a consumer that
+      // presents source topology must fail closed rather than show a graph
+      // that quietly lost edges.
+      this.evictedEdgeCount = (this.evictedEdgeCount ?? 0) + remap.droppedEdgeCount;
       this.rows = this.rows.slice(start);
     }
     this.rowIds = undefined;
@@ -300,6 +315,9 @@ export class Dataset {
       this.edges,
       this.rowIds?.slice()
     );
+    if (this.evictedEdgeCount) {
+      copy.evictedEdgeCount = this.evictedEdgeCount;
+    }
     if (this._meta) {
       copy._meta = cloneSanitizedJsonValue(this._meta) as DatasetMeta;
     }

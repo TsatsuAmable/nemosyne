@@ -227,7 +227,13 @@ export class RepresentationSurface {
                   ? mesh.userData.provenance
                     ? 'cluster-region'
                     : 'presentation-cluster'
-                  : 'observation';
+                  : mesh.userData.representationKind === 'RELATIONSHIP_GRAPH'
+                    ? mesh.userData.provenance
+                      ? mesh.userData.semanticRole === 'edge'
+                        ? 'graph-edge'
+                        : 'graph-node'
+                      : 'presentation-graph'
+                    : 'observation';
         this.dependencies.addInteractable(mesh, {
           semantic: { kind: semanticKind },
           onEnter: (object) => node.artifact?.interactions?.onHover?.(object as Mesh),

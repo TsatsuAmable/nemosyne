@@ -7,6 +7,7 @@ import type {
   SemanticPayloadProvenanceV1,
   SemanticRefusalV1,
 } from './SemanticEmbodimentPayload.ts';
+import type { GraphEmbodimentEnvelopeV1 } from './GraphEmbodimentPayload.ts';
 
 export const MAX_CLUSTER_REGIONS_V1 = 256 as const;
 /** Maximum UTF-8 bytes across distinct source labels retained in a READY payload. */
@@ -85,8 +86,10 @@ export interface ClusterEmbodimentEnvelopeV1 {
 /**
  * C3 production transport union. Existing aggregate/distribution/density
  * envelopes remain unchanged; CLUSTER_REGIONS joins them without weakening the
- * narrower Rust/WASM cluster contract above.
+ * narrower Rust/WASM cluster contract above. R2E B3 adds the resident
+ * source-relationship-graph envelope under the same strict single-variant rule.
  */
 export type ProductionSemanticEmbodimentEnvelopeV1 =
   | SemanticEmbodimentEnvelopeV1
-  | ClusterEmbodimentEnvelopeV1;
+  | ClusterEmbodimentEnvelopeV1
+  | GraphEmbodimentEnvelopeV1;
