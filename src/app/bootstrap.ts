@@ -240,6 +240,12 @@ export async function bootstrapApp(): Promise<AppInstance> {
     world.registerExtensionDisposer(disposeA5Evidence);
   }
 
+  if (import.meta.env.VITE_NEMOSYNE_GRAPH_B4_EVIDENCE === '1') {
+    const { installGraphEvidenceDiagnosticHook } = await import('./graphEvidenceDiagnostics.ts');
+    const disposeGraphEvidence = installGraphEvidenceDiagnosticHook(world);
+    world.registerExtensionDisposer(disposeGraphEvidence);
+  }
+
   if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
     const { installBrowserEnvelopeDiagnosticHook } = await import('./browserEnvelopeDiagnostics.ts');
     installBrowserEnvelopeDiagnosticHook(world);
