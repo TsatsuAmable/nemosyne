@@ -12,7 +12,9 @@
  * - a dirty/unknown worktree and a non-governed evidence class are
  *   promotion-ineligible by construction;
  * - the 10M boundary probe mode is explicitly non-qualification;
- * - validation modes never accept the fallback build identity.
+ * - validation modes never accept the fallback build identity;
+ * - machine-captured device/build identity is structurally distinct from the
+ *   legacy investigator declaration fallback.
  */
 
 export const MANIFEST_SCHEMA_VERSION = '1';
@@ -26,11 +28,33 @@ export type EvidenceClass =
   | 'clean-production-qualification';
 
 export type RuntimeClass =
-  'vite-dev' | 'clean-production-dist' | 'desktop-browser' | 'desktop-simulator' | 'physical-webxr';
+  | 'vite-dev'
+  | 'clean-production-dist'
+  | 'desktop-browser'
+  | 'desktop-simulator'
+  | 'physical-webxr';
 
-export type ValidationMode = 'quest' | 'quest-perf' | 'quest-ux' | 'quest-10m' | 'quest-validate';
+export type ValidationMode =
+  | 'quest'
+  | 'quest-perf'
+  | 'quest-ux'
+  | 'quest-10m'
+  | 'quest-validate';
 
 export type GateDispositionStatus = 'PASS' | 'FAIL' | 'PARTIAL' | 'INVALID_RUN' | 'BLOCKED';
+
+export interface QuestDeviceIdentity {
+  /** Provenance owner for these facts. Manual typing must never claim this basis. */
+  captureBasis: 'adb-system-property';
+  /** Android system-property model reported by the attached device. */
+  model: string;
+  manufacturer: string | null;
+  /** Exact machine-reported OS/build identity, not a guessed marketing version. */
+  buildIncremental: string;
+  buildDisplayId: string | null;
+  buildFingerprint: string;
+  securityPatch: string | null;
+}
 
 export interface LinkedArtifact {
   kind: string;
@@ -54,7 +78,17 @@ export interface ValidationManifest {
   profile: string | null;
   runtimeClass: RuntimeClass;
   evidenceClass: EvidenceClass;
-  /** Investigator-declared facts; never inferred by the runtime. */
+  /**
+   * Machine-captured device/build facts used for governed physical attribution.
+   * Null when ADB capture is unavailable or not requested.
+   */
+  deviceIdentity: QuestDeviceIdentity | null;
+  /** Bounded capture failure reason, retained so a blocked run is explainable. */
+  deviceIdentityError: string | null;
+  /**
+   * Legacy/manual fallback fields. They remain useful for exploratory sessions
+   * but cannot satisfy the governed physical identity gate on their own.
+   */
   declaredQuestModel: string | null;
   declaredFirmwareVersion: string | null;
   /** Captured by the runtime later; null at launch. */
@@ -157,6 +191,8 @@ export interface ValidationManifestInput {
   worktree: WorktreeState;
   mode: ValidationMode;
   createdAt?: string;
+  deviceIdentity?: QuestDeviceIdentity | null;
+  deviceIdentityError?: string | null;
   declaredQuestModel?: string | null;
   declaredFirmwareVersion?: string | null;
   userAgent?: string | null;
@@ -172,6 +208,10 @@ function isoNow(): string {
  * randomness — all inputs are supplied. Promotion eligibility is a pure
  * consequence of worktree state + evidence class + mode-specific
  * invalidations, so no launcher path can upgrade it.
+ *
+ * Physical-device identity is deliberately not applied as a pure-QV0 promotion
+ * gate here: QV2 owns the launch-time ADB capture gate and applies it after this
+ * pure derivation step.
  */
 export function deriveValidationManifest(input: ValidationManifestInput): ValidationManifest {
   const spec = VALIDATION_MODE_TABLE[input.mode];
@@ -200,6 +240,8 @@ export function deriveValidationManifest(input: ValidationManifestInput): Valida
     profile: spec.profile,
     runtimeClass: spec.runtimeClass,
     evidenceClass: spec.evidenceClass,
+    deviceIdentity: input.deviceIdentity ?? null,
+    deviceIdentityError: input.deviceIdentityError ?? null,
     declaredQuestModel: input.declaredQuestModel ?? null,
     declaredFirmwareVersion: input.declaredFirmwareVersion ?? null,
     userAgent: input.userAgent ?? null,
@@ -221,7 +263,8 @@ export function deriveValidationManifest(input: ValidationManifestInput): Valida
 }
 
 export type ManifestValidationResult =
-  { ok: true; manifest: ValidationManifest } | { ok: false; errors: string[] };
+  | { ok: true; manifest: ValidationManifest }
+  | { ok: false; errors: string[] };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WORKTREE_STATES: WorktreeState[] = ['clean', 'dirty', 'unknown'];
@@ -256,6 +299,29 @@ function optionalString(value: unknown): string | null {
 
 function optionalNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function validateDeviceIdentity(value: unknown, errors: string[]): void {
+  // Schema v1 remains backward-compatible with QV0/QV1 manifests written before
+  // QV2a introduced machine identity. New derivations always emit the field.
+  if (value === undefined || value === null) return;
+  if (!isRecord(value)) {
+    errors.push('deviceIdentity must be an object or null');
+    return;
+  }
+  if (value.captureBasis !== 'adb-system-property') {
+    errors.push("deviceIdentity.captureBasis must be 'adb-system-property'");
+  }
+  for (const field of ['model', 'buildIncremental', 'buildFingerprint'] as const) {
+    if (typeof value[field] !== 'string' || value[field].length === 0) {
+      errors.push(`deviceIdentity.${field} must be a non-empty string`);
+    }
+  }
+  for (const field of ['manufacturer', 'buildDisplayId', 'securityPatch'] as const) {
+    if (value[field] !== null && typeof value[field] !== 'string') {
+      errors.push(`deviceIdentity.${field} must be a string or null`);
+    }
+  }
 }
 
 /**
@@ -310,6 +376,15 @@ export function validateValidationManifest(value: unknown): ManifestValidationRe
     !EVIDENCE_CLASSES.includes(v.evidenceClass as EvidenceClass)
   ) {
     errors.push('evidenceClass must be one of the supported evidence classes');
+  }
+
+  validateDeviceIdentity(v.deviceIdentity, errors);
+  if (
+    v.deviceIdentityError !== undefined &&
+    optionalString(v.deviceIdentityError) === null &&
+    v.deviceIdentityError !== null
+  ) {
+    errors.push('deviceIdentityError must be a string or null');
   }
   if (optionalString(v.declaredQuestModel) === null && v.declaredQuestModel !== null) {
     errors.push('declaredQuestModel must be a string or null');

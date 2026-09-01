@@ -28,6 +28,7 @@ import {
 } from '../scripts/quest-validation.mjs';
 import {
   validateValidationManifest,
+  type QuestDeviceIdentity,
   type ValidationMode,
 } from '../src/validation/validation-manifest.ts';
 
@@ -59,13 +60,29 @@ function fakeGitDispatch(stdoutByArgs: Record<string, string>): GitFn {
   };
 }
 
+function quest3sIdentity(): QuestDeviceIdentity {
+  return {
+    captureBasis: 'adb-system-property',
+    model: 'Meta Quest 3S',
+    manufacturer: 'Meta',
+    buildIncremental: '5123456789012345678',
+    buildDisplayId: 'SQ3A.220605.009.A1',
+    buildFingerprint: 'oculus/panther/panther:12/SQ3A/5123456789:user/release-keys',
+    securityPatch: '2026-08-01',
+  };
+}
+
+function machineCapture() {
+  return { ok: true as const, identity: quest3sIdentity() };
+}
+
 function context(mode: ValidationMode = 'quest-perf') {
   return buildValidationContext({
     mode,
     git: fakeGitDispatch({ 'rev-parse HEAD': FAKE_SHA, 'status --porcelain': '' }),
     sessionId: FAKE_UUID,
     now: () => new Date('2026-08-29T10:45:12.000Z'),
-    device: { declaredQuestModel: 'Meta Quest 3S', declaredFirmwareVersion: 'v72' },
+    deviceCapture: machineCapture(),
   });
 }
 
@@ -317,7 +334,7 @@ describe('QV3 evidence files and disposition', () => {
       git: fakeGitDispatch({ 'rev-parse HEAD': FAKE_SHA, 'status --porcelain': '' }),
       sessionId: FAKE_UUID,
       now: () => new Date('2026-08-29T10:45:12.000Z'),
-      device: {},
+      deviceCapture: { ok: false, error: 'no ADB device is attached' },
     });
     const files = writeEvidencePlaceholders(manifest, root);
     const names = files.map((file) => file.split('/').pop());
@@ -333,6 +350,7 @@ describe('QV3 evidence files and disposition', () => {
     expect(disposition.promotionEligible).toBe(false);
     expect(disposition.invalidations.length).toBeGreaterThan(0);
     expect(disposition.sessionLabel).toBe(manifest.sessionLabel);
+    expect(disposition.deviceIdentity).toBeNull();
 
     const analysis = JSON.parse(readFileSync(files[0], 'utf8'));
     expect(analysis.status).toBe('pending');
@@ -344,7 +362,7 @@ describe('QV3 evidence files and disposition', () => {
     expect(deriveLaunchDisposition(manifest)).toEqual({ status: null, reasons: [] });
   });
 
-  it('classifies a broken-attribution governed run as INVALID_RUN with reasons', () => {
+  it('classifies broken source or device attribution as INVALID_RUN with reasons', () => {
     const dirty = buildValidationContext({
       mode: 'quest-perf',
       git: fakeGitDispatch({
@@ -353,22 +371,23 @@ describe('QV3 evidence files and disposition', () => {
       }),
       sessionId: FAKE_UUID,
       now: () => new Date('2026-08-29T10:45:12.000Z'),
-      device: { declaredQuestModel: 'Meta Quest 3S', declaredFirmwareVersion: 'v72' },
+      deviceCapture: machineCapture(),
     });
     const disposition = deriveLaunchDisposition(dirty);
     expect(disposition.status).toBe('INVALID_RUN');
     expect(disposition.reasons.join('\n')).toMatch(/worktree state is 'dirty'/);
 
-    const missingDeclaration = buildValidationContext({
+    const missingIdentity = buildValidationContext({
       mode: 'quest-perf',
       git: fakeGitDispatch({ 'rev-parse HEAD': FAKE_SHA, 'status --porcelain': '' }),
       sessionId: FAKE_UUID,
       now: () => new Date('2026-08-29T10:45:12.000Z'),
-      device: {},
+      device: { declaredQuestModel: 'Meta Quest 3S', declaredFirmwareVersion: 'v72' },
+      deviceCapture: { ok: false, error: 'adb unavailable' },
     });
-    const dispositionMissing = deriveLaunchDisposition(missingDeclaration);
+    const dispositionMissing = deriveLaunchDisposition(missingIdentity);
     expect(dispositionMissing.status).toBe('INVALID_RUN');
-    expect(dispositionMissing.reasons.join('\n')).toMatch(/declaredQuestModel/);
+    expect(dispositionMissing.reasons.join('\n')).toMatch(/device identity:/);
   });
 
   it('keeps a valid non-qualification boundary run pending, not INVALID_RUN', () => {
@@ -377,7 +396,7 @@ describe('QV3 evidence files and disposition', () => {
       git: fakeGitDispatch({ 'rev-parse HEAD': FAKE_SHA, 'status --porcelain': '' }),
       sessionId: FAKE_UUID,
       now: () => new Date('2026-08-29T10:45:12.000Z'),
-      device: { declaredQuestModel: 'Meta Quest 3S', declaredFirmwareVersion: 'v72' },
+      deviceCapture: machineCapture(),
     });
     expect(tenM.promotionEligible).toBe(false);
     expect(tenM.invalidations.some((reason) => reason.includes('boundary probe'))).toBe(true);
@@ -401,6 +420,7 @@ describe('QV3 evidence files and disposition', () => {
     );
     expect(disposition.sessionId).toBe(manifest.sessionId);
     expect(disposition.buildId).toBe(manifest.buildId);
+    expect(disposition.deviceIdentity.captureBasis).toBe('adb-system-property');
   });
 
   it('adds UX placeholders only for the quest-ux mode', () => {

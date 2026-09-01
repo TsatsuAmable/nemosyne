@@ -1,18 +1,15 @@
 #!/usr/bin/env node
 /**
- * QV2 local device declaration CLI.
+ * QV2 local device metadata CLI.
  *
- * Thin operator surface for the investigator-declared device facts stored in the
- * ignored local file `logs/validation/device.json`:
+ * Machine facts now come from ADB. The local declaration remains for a friendly
+ * label/investigator and for legacy exploratory model/firmware fallback only.
+ * Governed physical validation does not accept manual model/firmware as a
+ * substitute for ADB identity.
  *
+ *   node scripts/quest-device-declaration.mjs probe
  *   node scripts/quest-device-declaration.mjs show
- *   node scripts/quest-device-declaration.mjs set --model "Meta Quest 3S" \
- *     --firmware "v72" --label "Lab unit A" --investigator "T.A."
- *
- * `set` merges: flags present in the command are applied, absent flags keep the
- * current value; an explicit empty value clears a field. Values are trimmed and
- * bounded. These fields are visibly investigator-declared and never inferred by
- * the runtime; they remain distinct from runtime-measured browser/XR/WebGL facts.
+ *   node scripts/quest-device-declaration.mjs set --label "Lab unit A" --investigator "T.A."
  */
 
 import path from 'node:path';
@@ -23,6 +20,11 @@ import {
   writeDeviceDeclaration,
   mergeDeviceDeclaration,
 } from './quest-validation.mjs';
+import {
+  captureAdbQuestDevice,
+  formatAdbQuestIdentity,
+  QUEST_ADB_SERIAL_ENV,
+} from './quest-adb-device.mjs';
 
 const FLAG_TO_FIELD = {
   '--model': 'declaredQuestModel',
@@ -38,14 +40,14 @@ export function printDeviceDeclaration(
 ) {
   const lines = [
     '',
-    'DEVICE DECLARATION (investigator-declared, local-only)',
+    'DEVICE DECLARATION (local-only metadata / legacy fallback)',
     `File: ${path.join(root, VALIDATION_LOG_ROOT, 'device.json')}`,
-    `  label:                  ${declaration.label ?? '(unset)'}`,
-    `  declaredQuestModel:     ${declaration.declaredQuestModel ?? '(unset)'}`,
+    `  label:                   ${declaration.label ?? '(unset)'}`,
+    `  declaredQuestModel:      ${declaration.declaredQuestModel ?? '(unset)'}`,
     `  declaredFirmwareVersion: ${declaration.declaredFirmwareVersion ?? '(unset)'}`,
-    `  investigator:           ${declaration.investigator ?? '(unset)'}`,
-    'These fields are declared by the investigator and are distinct from the',
-    'runtime-measured browser/XR/WebGL facts captured by QuestTelemetry.',
+    `  investigator:            ${declaration.investigator ?? '(unset)'}`,
+    'Governed Quest validation captures model/build automatically via ADB.',
+    'Manual model/firmware values cannot make a governed run promotion-eligible.',
     '',
   ];
   write(lines.join('\n'));
@@ -68,9 +70,15 @@ export function parseSetArgs(argv) {
 export function main(
   argv = process.argv,
   root = process.cwd(),
-  write = (text) => process.stdout.write(text)
+  write = (text) => process.stdout.write(text),
+  env = process.env
 ) {
   const command = argv[2];
+  if (command === 'probe') {
+    const capture = captureAdbQuestDevice({ selectedSerial: env[QUEST_ADB_SERIAL_ENV] ?? null });
+    write(`${formatAdbQuestIdentity(capture)}\n`);
+    return capture.ok ? 0 : 2;
+  }
   if (command === 'show') {
     printDeviceDeclaration(readDeviceDeclaration(root), root, write);
     return 0;
@@ -87,7 +95,7 @@ export function main(
     printDeviceDeclaration(merged, root, write);
     return 0;
   }
-  write(`Unknown command '${command ?? '(none)'}'.\n${usage()}`);
+  write(`Unknown command '${command ?? '(none)'}.\n${usage()}`);
   return 2;
 }
 
@@ -95,8 +103,11 @@ function usage() {
   return [
     '',
     'Usage:',
+    '  node scripts/quest-device-declaration.mjs probe',
     '  node scripts/quest-device-declaration.mjs show',
-    '  node scripts/quest-device-declaration.mjs set [--model <model>] [--firmware <firmware>] [--label <label>] [--investigator <name>]',
+    '  node scripts/quest-device-declaration.mjs set [--label <label>] [--investigator <name>]',
+    '  legacy fallback only: [--model <model>] [--firmware <firmware>]',
+    `  multiple ADB devices: set ${QUEST_ADB_SERIAL_ENV}=<serial> before probe/launch`,
     '',
   ].join('\n');
 }

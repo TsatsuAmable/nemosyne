@@ -5,13 +5,14 @@ import { join } from 'node:path';
 import {
   validateValidationManifest,
   deriveValidationManifest,
+  type QuestDeviceIdentity,
   type ValidationMode,
 } from '../src/validation/validation-manifest.ts';
 import { captureQuestRuntimeEnvironment } from '../src/vr/scalability/QuestTelemetry.ts';
 import {
   DEVICE_DECLARATION_FILE,
   VALIDATION_LOG_ROOT,
-  applyDeviceDeclarationGate,
+  applyDeviceIdentityGate,
   buildValidationContext,
   mergeDeviceDeclaration,
   readDeviceDeclaration,
@@ -36,8 +37,25 @@ function fakeGitDispatch(stdoutByArgs: Record<string, string>): GitFn {
   };
 }
 
+function quest3sIdentity(overrides: Partial<QuestDeviceIdentity> = {}): QuestDeviceIdentity {
+  return {
+    captureBasis: 'adb-system-property',
+    model: 'Meta Quest 3S',
+    manufacturer: 'Meta',
+    buildIncremental: '5123456789012345678',
+    buildDisplayId: 'SQ3A.220605.009.A1',
+    buildFingerprint: 'oculus/panther/panther:12/SQ3A/5123456789:user/release-keys',
+    securityPatch: '2026-08-01',
+    ...overrides,
+  };
+}
+
 function contextArgs(
-  overrides: { mode?: ValidationMode; device?: Partial<DeviceDeclaration> } = {}
+  overrides: {
+    mode?: ValidationMode;
+    device?: Partial<DeviceDeclaration>;
+    capture?: { ok: true; identity: QuestDeviceIdentity } | { ok: false; error: string };
+  } = {}
 ) {
   return {
     mode: overrides.mode ?? 'quest-perf',
@@ -45,6 +63,7 @@ function contextArgs(
     sessionId: FAKE_UUID,
     now: () => new Date('2026-08-29T10:45:12.000Z'),
     device: overrides.device,
+    deviceCapture: overrides.capture ?? { ok: true as const, identity: quest3sIdentity() },
   };
 }
 
@@ -60,7 +79,7 @@ function tempRoot(): string {
   return directory;
 }
 
-describe('QV2 device declaration store', () => {
+describe('QV2 legacy/manual device declaration store', () => {
   it('writes a declaration and reads it back with all four fields', () => {
     const root = tempRoot();
     const declaration = {
@@ -72,8 +91,7 @@ describe('QV2 device declaration store', () => {
     const file = writeDeviceDeclaration(declaration, root);
     expect(file).toBe(join(root, VALIDATION_LOG_ROOT, DEVICE_DECLARATION_FILE));
     expect(readDeviceDeclaration(root)).toEqual(declaration);
-    const onDisk = JSON.parse(readFileSync(file, 'utf8'));
-    expect(onDisk).toEqual(declaration);
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(declaration);
   });
 
   it('returns nulls for a missing declaration file (never guesses)', () => {
@@ -117,46 +135,65 @@ describe('QV2 device declaration store', () => {
   });
 });
 
-describe('QV2 governed-mode missing-declaration gate', () => {
-  it('downgrades a governed mode with a missing declaration to promotion-ineligible with invalidations', () => {
-    const manifest = buildValidationContext(contextArgs());
-    const validation = validateValidationManifest(manifest);
-    expect(validation.ok).toBe(true);
-    expect(manifest.declaredQuestModel).toBeNull();
-    expect(manifest.declaredFirmwareVersion).toBeNull();
-    expect(manifest.promotionEligible).toBe(false);
-    expect(manifest.invalidations.some((reason) => reason.includes('declaredQuestModel'))).toBe(
-      true
-    );
-    expect(
-      manifest.invalidations.some((reason) => reason.includes('declaredFirmwareVersion'))
-    ).toBe(true);
-  });
-
-  it('keeps a governed mode eligible when the declaration is complete', () => {
+describe('QV2a governed ADB identity gate', () => {
+  it('rejects a governed run when ADB identity is unavailable even if manual values are complete', () => {
     const manifest = buildValidationContext(
       contextArgs({
-        device: { declaredQuestModel: 'Meta Quest 3S', declaredFirmwareVersion: 'v72' },
+        device: { declaredQuestModel: 'Meta Quest 3S', declaredFirmwareVersion: 'v99' },
+        capture: { ok: false, error: 'no ADB device is attached' },
       })
     );
+    expect(validateValidationManifest(manifest).ok).toBe(true);
+    expect(manifest.deviceIdentity).toBeNull();
+    expect(manifest.declaredFirmwareVersion).toBe('v99');
+    expect(manifest.promotionEligible).toBe(false);
+    expect(manifest.invalidations.join('\n')).toMatch(/machine-captured Quest model\/build identity/);
+  });
+
+  it('keeps a governed Quest 3S run eligible with machine capture and no manual model/firmware', () => {
+    const manifest = buildValidationContext(contextArgs({ device: {} }));
+    expect(manifest.deviceIdentity).toEqual(quest3sIdentity());
+    expect(manifest.declaredQuestModel).toBeNull();
+    expect(manifest.declaredFirmwareVersion).toBeNull();
     expect(manifest.promotionEligible).toBe(true);
     expect(manifest.invalidations).toEqual([]);
     expect(validateValidationManifest(manifest).ok).toBe(true);
   });
 
-  it('lets the informational quest mode proceed without a declaration invalidation', () => {
-    const manifest = buildValidationContext(contextArgs({ mode: 'quest' }));
-    expect(validateValidationManifest(manifest).ok).toBe(true);
-    expect(manifest.evidenceClass).toBe('physical-device-trial');
-    expect(manifest.invalidations.some((reason) => reason.includes('declaredQuestModel'))).toBe(
-      false
+  it('rejects a non-Quest ADB device for governed evidence', () => {
+    const manifest = buildValidationContext(
+      contextArgs({
+        capture: {
+          ok: true,
+          identity: quest3sIdentity({ model: 'Pixel 10', manufacturer: 'Google' }),
+        },
+      })
     );
-    expect(
-      manifest.invalidations.some((reason) => reason.includes('declaredFirmwareVersion'))
-    ).toBe(false);
+    expect(manifest.promotionEligible).toBe(false);
+    expect(manifest.invalidations.join('\n')).toMatch(/not recognisable as a Meta Quest/);
   });
 
-  it('does not mutate the pure manifest derivation contract', () => {
+  it('records the machine model verbatim without guessing profile compatibility from its spelling', () => {
+    const manifest = buildValidationContext(
+      contextArgs({
+        capture: { ok: true, identity: quest3sIdentity({ model: 'Meta Quest 3' }) },
+      })
+    );
+    expect(manifest.deviceIdentity?.model).toBe('Meta Quest 3');
+    expect(manifest.promotionEligible).toBe(true);
+    expect(manifest.invalidations).toEqual([]);
+  });
+
+  it('lets informational quest mode proceed without machine identity attribution', () => {
+    const manifest = buildValidationContext(
+      contextArgs({ mode: 'quest', capture: { ok: false, error: 'adb unavailable' } })
+    );
+    expect(validateValidationManifest(manifest).ok).toBe(true);
+    expect(manifest.evidenceClass).toBe('physical-device-trial');
+    expect(manifest.invalidations.some((reason) => reason.startsWith('device identity:'))).toBe(false);
+  });
+
+  it('keeps pure QV0 derivation separate from the launch-time QV2a gate', () => {
     const derived = deriveValidationManifest({
       sessionId: FAKE_UUID,
       sessionLabel: 'PERF04-a8be01a-20260829T104512',
@@ -165,21 +202,22 @@ describe('QV2 governed-mode missing-declaration gate', () => {
       mode: 'quest-perf',
     });
     expect(derived.promotionEligible).toBe(true);
-    expect(applyDeviceDeclarationGate(derived).promotionEligible).toBe(false);
+    expect(applyDeviceIdentityGate(derived).promotionEligible).toBe(false);
     expect(derived.promotionEligible).toBe(true);
   });
 
-  it('keeps runtime-measured and investigator-declared facts distinct', () => {
-    const root = tempRoot();
+  it('keeps machine-captured and manual/runtime facts structurally distinct', () => {
     const declaration = {
       label: 'Lab unit A',
-      declaredQuestModel: 'Meta Quest 3S',
-      declaredFirmwareVersion: 'v72',
+      declaredQuestModel: 'manually typed model',
+      declaredFirmwareVersion: 'manually typed firmware',
       investigator: 'T.A.',
     };
-    writeDeviceDeclaration(declaration, root);
-    const read = readDeviceDeclaration(root);
-    expect(read).toEqual(declaration);
+    const manifest = buildValidationContext(contextArgs({ device: declaration }));
+    expect(manifest.deviceIdentity?.model).toBe('Meta Quest 3S');
+    expect(manifest.deviceIdentity?.buildIncremental).toBe('5123456789012345678');
+    expect(manifest.declaredQuestModel).toBe('manually typed model');
+    expect(manifest.declaredFirmwareVersion).toBe('manually typed firmware');
 
     const gl = {
       VENDOR: 1,
@@ -200,21 +238,13 @@ describe('QV2 governed-mode missing-declaration gate', () => {
       { renderer: { xr: { getSession: () => session }, getContext: () => gl } },
       'META_QUEST_3S'
     );
-
     expect(runtime.identityBasis).toBe('investigator-declared');
-    expect(typeof runtime.userAgent).toBe('string');
-    expect(runtime.userAgent).not.toBe(declaration.declaredQuestModel);
     expect(runtime.webgl.renderer).toBe('Adreno');
     expect(runtime.xr.nominalFrameRateHz).toBe(72);
-
-    const manifest = buildValidationContext(contextArgs({ device: read, mode: 'quest-perf' }));
-    expect(manifest.declaredQuestModel).toBe(declaration.declaredQuestModel);
-    expect(manifest.declaredFirmwareVersion).toBe(declaration.declaredFirmwareVersion);
-    expect(runtime.declaredFirmwareVersion).not.toBe(declaration.declaredFirmwareVersion);
   });
 });
 
-describe('QV2 device declaration CLI', () => {
+describe('QV2 device metadata CLI', () => {
   it('parses set flags into declaration fields', () => {
     const parsed = parseSetArgs([
       'node',
@@ -244,43 +274,35 @@ describe('QV2 device declaration CLI', () => {
     expect('error' in parsed && parsed.error).toMatch(/unknown flag/);
   });
 
-  it('set writes the declaration and show prints it back', () => {
+  it('set writes the declaration and show prints it back as legacy/local metadata', () => {
     const root = tempRoot();
     const written: string[] = [];
     const write = (text: string) => written.push(text);
-
-    const code = cliMain(
-      [
-        'node',
-        'quest-device-declaration.mjs',
-        'set',
-        '--model',
-        'Meta Quest 3S',
-        '--firmware',
-        'v72',
-        '--label',
-        'Lab unit A',
-        '--investigator',
-        'T.A.',
-      ],
-      root,
-      write
-    );
-    expect(code).toBe(0);
-    expect(readDeviceDeclaration(root).declaredQuestModel).toBe('Meta Quest 3S');
+    expect(
+      cliMain(
+        [
+          'node',
+          'quest-device-declaration.mjs',
+          'set',
+          '--label',
+          'Lab unit A',
+          '--investigator',
+          'T.A.',
+        ],
+        root,
+        write
+      )
+    ).toBe(0);
+    expect(readDeviceDeclaration(root).label).toBe('Lab unit A');
 
     const shown: string[] = [];
-    const showCode = cliMain(
-      ['node', 'quest-device-declaration.mjs', 'show'],
-      root,
-      (text: string) => shown.push(text)
-    );
-    expect(showCode).toBe(0);
+    expect(
+      cliMain(['node', 'quest-device-declaration.mjs', 'show'], root, (text) => shown.push(text))
+    ).toBe(0);
     const output = shown.join('');
-    expect(output).toContain('Meta Quest 3S');
-    expect(output).toContain('v72');
     expect(output).toContain('Lab unit A');
     expect(output).toContain('T.A.');
+    expect(output).toContain('captures model/build automatically via ADB');
   });
 
   it('unknown command exits non-zero', () => {
