@@ -241,7 +241,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
   }
 
   if (import.meta.env.VITE_NEMOSYNE_GRAPH_B4_EVIDENCE === '1') {
-    const { installGraphEvidenceDiagnosticHook } = await import('./graphEvidenceDiagnostics.ts');
+    const { installGraphEvidenceDiagnosticHook } = await import('./graphEvidenceDiagnosticWrapper.ts');
     const disposeGraphEvidence = installGraphEvidenceDiagnosticHook(world);
     world.registerExtensionDisposer(disposeGraphEvidence);
   }
