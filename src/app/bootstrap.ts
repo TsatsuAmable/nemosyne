@@ -190,15 +190,13 @@ function semanticEmbodimentState(world: World): {
 } | null {
   const data = world.dracoNode?.group?.userData;
   const rawStatus = data?.semanticEmbodimentStatus;
+  const rawMessage = data?.semanticEmbodimentStatusMessage;
   if (typeof rawStatus !== 'string' || !SEMANTIC_STATUS_VALUES.has(rawStatus as SemanticEmbodimentPresentationStatus)) {
     return null;
   }
   return {
     status: rawStatus as SemanticEmbodimentPresentationStatus,
-    message:
-      typeof data.semanticEmbodimentStatusMessage === 'string'
-        ? data.semanticEmbodimentStatusMessage
-        : null,
+    message: typeof rawMessage === 'string' ? rawMessage : null,
   };
 }
 
