@@ -7,13 +7,10 @@
  * explicitly selected serial), reads immutable-ish Android build properties,
  * and returns a bounded identity record for the validation manifest.
  *
- * The raw ADB serial is used only while talking to adb. It is not persisted.
- * The manifest receives a SHA-256 hash instead so validation evidence can
- * distinguish devices without retaining the host-visible serial identifier.
+ * The raw ADB serial exists only ephemerally as the ADB selector and is never persisted.
  */
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 export const QUEST_ADB_SERIAL_ENV = 'NEMOSYNE_QUEST_ADB_SERIAL';
@@ -63,10 +60,6 @@ export function parseAdbDevices(stdout) {
       };
     })
     .filter((entry) => entry.serial.length > 0);
-}
-
-function hashSerial(serial) {
-  return createHash('sha256').update(serial, 'utf8').digest('hex');
 }
 
 function readProperty(adb, serial, property) {
@@ -156,7 +149,6 @@ export function captureAdbQuestDevice({
     ok: true,
     identity: {
       captureBasis: ADB_CAPTURE_BASIS,
-      deviceIdHash: hashSerial(serial),
       model: values.model,
       manufacturer: values.manufacturer,
       buildIncremental: values.buildIncremental,
@@ -178,7 +170,6 @@ export function formatAdbQuestIdentity(capture) {
     `  buildDisplayId:   ${identity.buildDisplayId ?? '(unreported)'}`,
     `  buildFingerprint: ${identity.buildFingerprint}`,
     `  securityPatch:    ${identity.securityPatch ?? '(unreported)'}`,
-    `  deviceIdHash:     ${identity.deviceIdHash}`,
   ].join('\n');
 }
 

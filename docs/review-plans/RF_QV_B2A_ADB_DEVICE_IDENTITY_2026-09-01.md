@@ -52,9 +52,9 @@ machine-reported build identity. QV2a deliberately does **not** invent a friendl
 Horizon OS marketing version such as `vXX` when the operating system does not
 expose one through the governed capture seam.
 
-The host-visible raw ADB serial is **not persisted**. It is SHA-256 hashed into
-`deviceIdHash` before entering `manifest.json` so repeated runs can be associated
-with the same physical unit without retaining the raw host identifier.
+The host-visible raw ADB serial is **not persisted at all**. It exists only long
+enough to select the device for the ADB `getprop` calls. The manifest therefore
+does not create a stable serial-derived tracking identifier.
 
 ## Selection rules
 
@@ -116,7 +116,7 @@ Focused tests cover:
 - multiple-device fail-closed behavior;
 - explicit serial selection;
 - missing required build property;
-- raw-serial non-persistence;
+- raw-serial and serial-derived identifier non-persistence;
 - manual declaration unable to satisfy governed identity;
 - valid machine-captured Quest 3S eligibility;
 - non-Quest rejection;

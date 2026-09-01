@@ -63,7 +63,6 @@ function fakeGitDispatch(stdoutByArgs: Record<string, string>): GitFn {
 function quest3sIdentity(): QuestDeviceIdentity {
   return {
     captureBasis: 'adb-system-property',
-    deviceIdHash: 'a'.repeat(64),
     model: 'Meta Quest 3S',
     manufacturer: 'Meta',
     buildIncremental: '5123456789012345678',

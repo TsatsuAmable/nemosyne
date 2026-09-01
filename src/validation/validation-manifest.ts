@@ -46,8 +46,6 @@ export type GateDispositionStatus = 'PASS' | 'FAIL' | 'PARTIAL' | 'INVALID_RUN' 
 export interface QuestDeviceIdentity {
   /** Provenance owner for these facts. Manual typing must never claim this basis. */
   captureBasis: 'adb-system-property';
-  /** SHA-256 of the host-visible ADB serial; raw serial is never persisted. */
-  deviceIdHash: string;
   /** Android system-property model reported by the attached device. */
   model: string;
   manufacturer: string | null;
@@ -269,7 +267,6 @@ export type ManifestValidationResult =
   | { ok: false; errors: string[] };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SHA256_RE = /^[0-9a-f]{64}$/i;
 const WORKTREE_STATES: WorktreeState[] = ['clean', 'dirty', 'unknown'];
 const EVIDENCE_CLASSES: EvidenceClass[] = [
   'ordinary-development',
@@ -314,9 +311,6 @@ function validateDeviceIdentity(value: unknown, errors: string[]): void {
   }
   if (value.captureBasis !== 'adb-system-property') {
     errors.push("deviceIdentity.captureBasis must be 'adb-system-property'");
-  }
-  if (typeof value.deviceIdHash !== 'string' || !SHA256_RE.test(value.deviceIdHash)) {
-    errors.push('deviceIdentity.deviceIdHash must be a SHA-256 hex digest');
   }
   for (const field of ['model', 'buildIncremental', 'buildFingerprint'] as const) {
     if (typeof value[field] !== 'string' || value[field].length === 0) {

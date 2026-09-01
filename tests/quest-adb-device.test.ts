@@ -60,7 +60,7 @@ describe('QV2a ADB device discovery', () => {
     ]);
   });
 
-  it('captures one authorised Quest and persists a hash rather than the raw ADB serial', () => {
+  it('captures one authorised Quest without persisting the raw ADB serial', () => {
     const adb = fakeAdb({
       'devices -l': `List of devices attached\n${SERIAL_A}\tdevice product:panther model:Quest_3S\n`,
       ...questProperties(),
@@ -73,7 +73,6 @@ describe('QV2a ADB device discovery', () => {
     expect(capture.identity.buildIncremental).toBe('5123456789012345678');
     expect(capture.identity.buildFingerprint).toContain('oculus/panther');
     expect(capture.identity.securityPatch).toBe('2026-08-01');
-    expect(capture.identity.deviceIdHash).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(capture.identity)).not.toContain(SERIAL_A);
   });
 
