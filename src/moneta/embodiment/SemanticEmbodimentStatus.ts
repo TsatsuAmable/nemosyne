@@ -62,7 +62,8 @@ const CANDIDATE_COPY: Record<
   },
   RELATIONSHIP_GRAPH: {
     label: 'RELATIONSHIP GRAPH',
-    pending: 'Building the source-authoritative relationship graph in the analytical kernel.',
+    pending:
+      'Awaiting the source-authoritative relationship graph; no heuristic topology may substitute.',
     refused: 'The analytical kernel refused this source-relationship-graph request.',
     invalid: 'The returned payload did not match the governed source-relationship-graph contract.',
     unavailable: 'No current analytical source-relationship-graph result is available.',

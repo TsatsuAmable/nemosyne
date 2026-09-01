@@ -184,9 +184,11 @@ export class LoadDatasetUseCase {
       activeRequirements.graphAuthority
     ) {
       // The governed graph marker intercepts presentation before any
-      // row/proximity-derived topology path; without an explicit B1
-      // SOURCE_EDGES authority the candidate is not governed and the raw
-      // row path remains the only fallback.
+      // row/proximity-derived topology path. Without an explicit B1
+      // SOURCE_EDGES authority no loader is issued here, yet
+      // MonetaTopologyNode still sets the marker for a RELATIONSHIP_GRAPH
+      // decision — so the ungoverned case fails closed to a PENDING status
+      // plane rather than falling back to raw heuristic topology.
       dataInput.semanticEmbodimentCandidateId = 'RELATIONSHIP_GRAPH';
       dataInput.semanticEmbodimentPromise = loadGraphSemanticEmbodiment(
         this.atlas,

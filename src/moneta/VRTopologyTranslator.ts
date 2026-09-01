@@ -61,8 +61,12 @@ export class VRTopologyTranslator {
     const governedSemanticInput = dataInput as GovernedSemanticMonetaDataInput;
     const usesClusterSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
+    // A retained graph envelope is governance evidence in itself: even if a
+    // marker/candidate sync defect cleared the marker, it must never fall through.
+    const retained = governedSemanticInput.semanticEmbodiment as { candidateId?: string } | null | undefined;
     const usesGraphSemanticEmbodiment =
-      governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH';
+      governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH' ||
+      retained?.candidateId === 'RELATIONSHIP_GRAPH';
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
     const group = new THREE.Group();

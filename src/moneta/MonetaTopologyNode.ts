@@ -257,9 +257,14 @@ export class MonetaTopologyNode {
     // A source mutation supersedes any governed graph payload: the resident
     // topology describes the dataset as loaded, so a re-synthesis must render
     // the pending state rather than reuse a stale graph as current truth.
+    // The incremental fast-path is skipped entirely for governed graphs — an
+    // incremental artifact update could keep rendering the pre-mutation
+    // topology even after the envelope above was invalidated.
     const semanticInput = this.dataInput as SemanticMonetaDataInput;
     if (semanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH') {
       delete semanticInput.semanticEmbodiment;
+      this.reSolveAndSynthesize();
+      return false;
     }
 
     const incremental = VRTopologyTranslator.appendRowsToArtifact(

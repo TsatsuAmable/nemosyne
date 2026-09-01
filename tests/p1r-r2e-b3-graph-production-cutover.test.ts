@@ -616,11 +616,11 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     const resolveEndpoint = (endpoint: string | number): string =>
       typeof endpoint === 'number' ? ROW_IDS[endpoint] : endpoint;
     const expectedAdjacency = sourceEdges()
-      .map((edge) => `${resolveEndpoint(edge.source)} ${resolveEndpoint(edge.target)}`)
+      .map((edge) => `${resolveEndpoint(edge.source)}\x00${resolveEndpoint(edge.target)}`)
       .sort();
     const renderedAdjacency = payload.edges
       .map((edge) =>
-        `${payload.nodes[edge.sourceNodeIndex].sourceRowId} ${payload.nodes[edge.targetNodeIndex].sourceRowId}`
+        `${payload.nodes[edge.sourceNodeIndex].sourceRowId}\x00${payload.nodes[edge.targetNodeIndex].sourceRowId}`
       )
       .sort();
     expect(renderedAdjacency).toEqual(expectedAdjacency);
@@ -766,7 +766,11 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
       translator.indexOf('layouts.buildForceDirected(')
     );
     expect(translator).toContain('!usesGraphSemanticEmbodiment &&');
-    // Raw edge reads stay behind the marker gate on the governed path.
+    // The marker is set for every governed RELATIONSHIP_GRAPH decision, so no
+    // raw row/edge read can serve the governed branch. (The pre-branch
+    // `let edges = dataInput.edges ?? []` initializer still executes first;
+    // the governed branch overwrites it with `edges = []` and must never
+    // consume it — the adapter-level `dataset.edges` ban below is the fence.)
     expect(node).toContain("semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH'");
     // The adapter never reads rows for topology and claims no support boundary.
     expect(adapter).not.toContain('dataset.rows');
@@ -776,7 +780,7 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     expect(adapter).toContain('GRAPH_PRESENTATION_LAYOUT_SEED_V1');
   });
 
-  it('reuses the strict self-consistency gate directly for envelope-shaped refusals', () => {
+  it('renders envelope-shaped refusals and identity mismatches as status planes only', () => {
     const group = new THREE.Group();
     const data = graphDataset();
     const real = realEnvelope(data);
@@ -799,8 +803,32 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     buildGraphSemanticTopology(noDataset, [], [], structuredClone(real), undefined);
     expect(noDataset.userData.semanticEmbodimentStatus).toBe('INVALID');
 
+    // Malformed-but-truthy transport values (an unresolved promise, a torn
+    // payload) fail closed to INVALID rather than crashing the synthesis.
+    const promiseLeak = new THREE.Group();
+    buildGraphSemanticTopology(
+      promiseLeak,
+      [],
+      [],
+      Promise.resolve(real) as unknown as GraphEmbodimentEnvelopeV1,
+      data
+    );
+    expect(promiseLeak.userData.semanticEmbodimentStatus).toBe('INVALID');
+
+    const badSchema = new THREE.Group();
+    buildGraphSemanticTopology(
+      badSchema,
+      [],
+      [],
+      { ...structuredClone(real), schemaVersion: 2 } as unknown as GraphEmbodimentEnvelopeV1,
+      data
+    );
+    expect(badSchema.userData.semanticEmbodimentStatus).toBe('INVALID');
+
     disposeObject(group);
     disposeObject(fresh);
     disposeObject(noDataset);
+    disposeObject(promiseLeak);
+    disposeObject(badSchema);
   });
 });

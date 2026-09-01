@@ -36,6 +36,9 @@ function validateGraphPayload(
   envelope: GraphEmbodimentEnvelopeV1,
   payload: RelationshipGraphPayloadV1
 ): boolean {
+  if (!Array.isArray(payload.nodes) || !Array.isArray(payload.edges) || !payload.counts) {
+    return false;
+  }
   if (payload.nodes.length === 0) return false;
   if (payload.nodes.length > MAX_RELATIONSHIP_GRAPH_NODES_V1) return false;
   if (payload.edges.length > MAX_RELATIONSHIP_GRAPH_EDGES_V1) return false;
@@ -43,6 +46,10 @@ function validateGraphPayload(
   if (payload.counts.retainedNodeCount !== payload.nodes.length) return false;
   if (payload.counts.retainedEdgeCount !== payload.edges.length) return false;
   if (payload.counts.sourceNodeCount !== payload.nodes.length) return false;
+  // Mirror the Rust authority's own READY reconciliation: a source edge may
+  // be neither silently dropped nor unaccounted at presentation time.
+  if (payload.counts.sourceEdgeCount !== payload.edges.length) return false;
+  if (payload.counts.refusedEdgeCount !== 0) return false;
 
   const nodeIds = new Set<string>();
   for (const node of payload.nodes) {
@@ -108,7 +115,31 @@ export function buildGraphSemanticTopology(
     setSemanticEmbodimentPresentationStatus(group, 'PENDING', undefined, 'RELATIONSHIP_GRAPH');
     return;
   }
+  // Runtime-shape fence: a truthy but non-conforming transport value (an
+  // unresolved promise, a torn payload, a foreign envelope) renders INVALID
+  // rather than crashing the synthesis loop. The declared types are trusted
+  // everywhere below this point.
+  const shapedEnvelope = envelope as {
+    schemaVersion?: unknown;
+    result?: { status?: unknown; refusal?: { message?: unknown }; payload?: unknown } | null;
+  };
+  if (
+    typeof envelope !== 'object' ||
+    shapedEnvelope.schemaVersion !== 1 ||
+    !shapedEnvelope.result ||
+    typeof shapedEnvelope.result.status !== 'string'
+  ) {
+    invalid(group);
+    return;
+  }
   if (envelope.result.status === 'REFUSED') {
+    if (
+      typeof envelope.result.refusal?.message !== 'string' ||
+      envelope.result.refusal.message.length === 0
+    ) {
+      invalid(group);
+      return;
+    }
     setSemanticEmbodimentPresentationStatus(
       group,
       'REFUSED',
@@ -121,7 +152,7 @@ export function buildGraphSemanticTopology(
   if (
     envelope.candidateId !== 'RELATIONSHIP_GRAPH' ||
     envelope.representationFamily !== 'GRAPH' ||
-    envelope.result.payload.kind !== 'RELATIONSHIP_GRAPH'
+    envelope.result.payload?.kind !== 'RELATIONSHIP_GRAPH'
   ) {
     invalid(group);
     return;
