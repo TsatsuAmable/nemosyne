@@ -131,7 +131,9 @@ describe('P1-UV C3 desktop/XR semantic parity', () => {
     for (const task of INVESTIGATOR_TASKS) {
       const button = document.getElementById(`desktop-task-${task.id}`);
       expect(button).not.toBeNull();
-      expect(button?.textContent).toBe(task.label);
+      expect(button?.getAttribute('label')).toBe(task.label);
+      expect(button?.getAttribute('aria-label')).toBe(task.label);
+      expect(button?.textContent).toBe('');
     }
 
     document.getElementById('desktop-task-inspect')?.click();
