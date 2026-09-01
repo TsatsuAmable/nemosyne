@@ -8,6 +8,10 @@ interface GraphEvidenceDebugWorld {
   dracoNode: MonetaTopologyNode | null;
 }
 
+function residentDataset(world: GraphEvidenceDebugWorld): Dataset | undefined {
+  return (world.dracoNode?.dataInput as { dataset?: Dataset } | undefined)?.dataset;
+}
+
 function boundedIdentitySnapshot(world: GraphEvidenceDebugWorld): Record<string, unknown> {
   const node = world.dracoNode;
   const semanticInput = node?.dataInput as
@@ -72,7 +76,15 @@ export function installGraphEvidenceDiagnosticHook(world: GraphEvidenceDebugWorl
   const baseRunScenario = hook.runScenario.bind(hook);
   hook.runScenario = async (input) => {
     try {
-      return await baseRunScenario(input);
+      const result = await baseRunScenario(input);
+      if (input.shape === 'mutation-stale') {
+        // appendRows mutates the product-resident dataset, not the pre-load fixture
+        // object retained by the base diagnostic scenario. Evidence must therefore
+        // read eviction state from the resident identity that actually mutated.
+        result.staleFence.evictedEdgeCount =
+          residentDataset(world)?.evictedEdgeCount ?? result.staleFence.evictedEdgeCount;
+      }
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`${message}; identity=${JSON.stringify(boundedIdentitySnapshot(world))}`, {
