@@ -70,13 +70,24 @@ function semanticStatus(
   return { status: 'IDLE', message: null };
 }
 
+function isDatasetStateNode(node: InvestigationNode): boolean {
+  if (node.kind === 'dataset_version') return true;
+
+  // Compatibility for investigation roots created before the initial dataset
+  // node was explicitly typed. InvestigationGraph historically normalized an
+  // omitted kind to `operation`; only a parentless canonical `:vN` node is
+  // eligible here. Fingerprint matching remains mandatory in the caller, so an
+  // ordinary operation cannot be promoted to dataset-state origin by shape alone.
+  return node.parentId === null && /:v\d+$/.test(node.id);
+}
+
 /**
  * InvestigationGraph.activeNodeId records graph construction/navigation state,
  * while undo/redo may restore an older analytical dataset without rewinding the
  * graph's insertion cursor. Never present that stale cursor as the current
  * investigation origin. Prefer the active node only while its fingerprint
  * agrees with the current analytical dataset; otherwise accept exactly one
- * matching dataset-version node. Ambiguous/no matches fail closed to no origin.
+ * matching dataset-state node. Ambiguous/no matches fail closed to no origin.
  */
 function resolveCurrentOriginNode(graph: InvestigationStateGraphSnapshot): InvestigationNode | null {
   const activeNode = graph.activeNodeId
@@ -88,9 +99,7 @@ function resolveCurrentOriginNode(graph: InvestigationStateGraphSnapshot): Inves
   if (activeNode?.datasetFingerprint === currentFingerprint) return activeNode;
 
   const matches = graph.nodes.filter(
-    (node) =>
-      node.kind === 'dataset_version' &&
-      node.datasetFingerprint === currentFingerprint,
+    (node) => isDatasetStateNode(node) && node.datasetFingerprint === currentFingerprint,
   );
   return matches.length === 1 ? matches[0] : null;
 }
