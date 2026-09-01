@@ -8,6 +8,10 @@ import {
 } from '../src/vr/presentation/epistemic/MemoryPalaceWorldView.ts';
 import type { MemoryPalaceProjectionSource } from '../src/vr/presentation/epistemic/MemoryPalaceWorldView.ts';
 
+type TestInteractable = {
+  onSelect?: (mesh: THREE.Object3D) => void;
+};
+
 function landmarkHarness() {
   const core = new TechnoCoreNode();
   const dispatchIntent = vi.fn();
@@ -80,7 +84,7 @@ describe('P1-UV C1 functional world objects', () => {
 
   it('bounds Memory Palace objects and projects only explicit epistemic sources', () => {
     const scene = new THREE.Scene();
-    const interactables = new Map<THREE.Object3D, { onSelect?: () => void }>();
+    const interactables = new Map<THREE.Object3D, TestInteractable>();
     const tooltips = new Set<THREE.Object3D>();
     const view = new MemoryPalaceWorldView({
       scene,
@@ -131,7 +135,7 @@ describe('P1-UV C1 functional world objects', () => {
 
   it('shows only authoritative relationships incident to the selected epistemic object', () => {
     const scene = new THREE.Scene();
-    const interactables = new Map<THREE.Object3D, { onSelect?: () => void }>();
+    const interactables = new Map<THREE.Object3D, TestInteractable>();
     const view = new MemoryPalaceWorldView({
       scene,
       addInteractable: (object, handlers) => interactables.set(object, handlers),
@@ -174,7 +178,7 @@ describe('P1-UV C1 functional world objects', () => {
       edges: [
         { id: 'support-1', source: 'test-1', target: 'finding-1', relationship: 'supports' },
         { id: 'support-2', source: 'test-1', target: 'finding-2', relationship: 'supports' },
-        { id: 'other', source: 'finding-1', target: 'finding-2', relationship: 'extends' },
+        { id: 'other', source: 'finding-1', target: 'finding-2', relationship: 'motivates' },
       ],
       activeNodeId: 'finding-1',
       observations: [],
@@ -189,7 +193,7 @@ describe('P1-UV C1 functional world objects', () => {
       (mesh) => mesh.userData.epistemicId === 'test-1',
     );
     expect(testMesh).toBeDefined();
-    interactables.get(testMesh!)?.onSelect?.();
+    interactables.get(testMesh!)?.onSelect?.(testMesh!);
     expect(view.getSnapshot().selectedId).toBe('test-1');
     expect(view.getSnapshot().relationshipCount).toBe(2);
 
