@@ -3,11 +3,13 @@ import type { Dataset } from '../data/Dataset.ts';
 import type { EncodingMapping } from '../data/SampleDatasets.ts';
 import { buildClusterSemanticRegions } from './embodiment/ClusterSemanticEmbodiment.ts';
 import { buildDensitySemanticField } from './embodiment/DensitySemanticEmbodiment.ts';
+import { buildGraphSemanticTopology } from './embodiment/GraphSemanticEmbodiment.ts';
 import { ScalableTopologyEmbodiment } from './embodiment/ScalableTopologyEmbodiment.ts';
 import { TimeRibbonArtifactUpdater } from './embodiment/TimeRibbonArtifactUpdater.ts';
 import { TopologyInteractionOwner } from './embodiment/TopologyInteractionOwner.ts';
 import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.ts';
 import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
+import type { GraphEmbodimentEnvelopeV1 } from './representation/GraphEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import type {
   Artifact,
@@ -24,10 +26,9 @@ type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
 };
 
-type ClusterSemanticMonetaDataInput = MonetaDataInput & {
-  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
-  semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | null;
-  semanticEmbodimentPromise?: Promise<ClusterEmbodimentEnvelopeV1 | null>;
+type GovernedSemanticMonetaDataInput = MonetaDataInput & {
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
+  semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | GraphEmbodimentEnvelopeV1 | null;
 };
 
 export class VRTopologyTranslator {
@@ -57,9 +58,15 @@ export class VRTopologyTranslator {
     this._colorblindMode = options?.colorblindMode ?? 'none';
     const { spec, facts } = monetaResult;
     const semanticInput = dataInput as SemanticMonetaDataInput;
-    const clusterSemanticInput = dataInput as ClusterSemanticMonetaDataInput;
+    const governedSemanticInput = dataInput as GovernedSemanticMonetaDataInput;
     const usesClusterSemanticEmbodiment =
-      clusterSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
+      governedSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
+    // A retained graph envelope is governance evidence in itself: even if a
+    // marker/candidate sync defect cleared the marker, it must never fall through.
+    const retained = governedSemanticInput.semanticEmbodiment as { candidateId?: string } | null | undefined;
+    const usesGraphSemanticEmbodiment =
+      governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH' ||
+      retained?.candidateId === 'RELATIONSHIP_GRAPH';
     const dataset = dataInput.dataset;
     const encodings = dataInput.encodings ?? {};
     const group = new THREE.Group();
@@ -90,7 +97,12 @@ export class VRTopologyTranslator {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else if (spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) {
-      buildClusterSemanticRegions(group, nodeMeshes, clusterSemanticInput.semanticEmbodiment);
+      buildClusterSemanticRegions(group, nodeMeshes, governedSemanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null);
+      edges = [];
+    } else if (usesGraphSemanticEmbodiment) {
+      // The governed RELATIONSHIP_GRAPH marker — not a geometry constant — is the
+      // authority gate: no raw row/edge read can precede this intercept.
+      buildGraphSemanticTopology(group, nodeMeshes, edgeMeshes, governedSemanticInput.semanticEmbodiment as GraphEmbodimentEnvelopeV1 | null, dataset);
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
@@ -189,6 +201,7 @@ export class VRTopologyTranslator {
       spec.geometry !== 'DISTRIBUTION_FIELD' &&
       spec.geometry !== 'DENSITY_FIELD' &&
       !(spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) &&
+      !usesGraphSemanticEmbodiment &&
       (facts.numericColumns > 1 || facts.hasTimeSeries) &&
       dataset &&
       chartPlaneFactory

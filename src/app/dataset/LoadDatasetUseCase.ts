@@ -21,6 +21,7 @@ import {
   loadClusterSemanticEmbodiment,
   loadDensitySemanticEmbodiment,
   loadDistributionSemanticEmbodiment,
+  loadGraphSemanticEmbodiment,
 } from './SemanticEmbodimentLoader.ts';
 
 export type DatasetLoadAuthority = Pick<
@@ -42,7 +43,7 @@ export type DatasetLoadAuthority = Pick<
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
-  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
 };
 
 export interface LoadDatasetUseCaseOptions {
@@ -177,6 +178,23 @@ export class LoadDatasetUseCase {
           ? activeRequirements.clusterAuthority.field
           : '',
         activeRequirements.primaryDimensions ?? []
+      );
+    } else if (
+      representationDecision?.chosenCandidateId === 'RELATIONSHIP_GRAPH' &&
+      activeRequirements.graphAuthority
+    ) {
+      // The governed graph marker intercepts presentation before any
+      // row/proximity-derived topology path. Without an explicit B1
+      // SOURCE_EDGES authority no loader is issued here, yet
+      // MonetaTopologyNode still sets the marker for a RELATIONSHIP_GRAPH
+      // decision — so the ungoverned case fails closed to a PENDING status
+      // plane rather than falling back to raw heuristic topology.
+      dataInput.semanticEmbodimentCandidateId = 'RELATIONSHIP_GRAPH';
+      dataInput.semanticEmbodimentPromise = loadGraphSemanticEmbodiment(
+        this.atlas,
+        embodiedDataset,
+        representationDecision,
+        activeRequirements.graphAuthority
       );
     }
 

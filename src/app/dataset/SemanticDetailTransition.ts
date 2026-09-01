@@ -12,6 +12,8 @@ import {
   type SemanticDetailEnvelopeV1,
   type SemanticDetailRequestV1,
 } from '../../moneta/representation/SemanticDrillDown.ts';
+import type { GraphEmbodimentRequestV1 } from '../../moneta/representation/GraphEmbodimentPayload.ts';
+import { createSourceRelationshipGraphAuthority } from '../../moneta/representation/RelationshipGraphAuthority.ts';
 import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
@@ -100,7 +102,8 @@ type DetailEmbodimentRequest =
   | AggregateEmbodimentRequestV1
   | DistributionEmbodimentRequestV1
   | DensityEmbodimentRequestV1
-  | ClusterEmbodimentRequestV1;
+  | ClusterEmbodimentRequestV1
+  | GraphEmbodimentRequestV1;
 
 interface ActiveDetailContext {
   readonly parent: SemanticSelectionIdentity;
@@ -203,6 +206,25 @@ function detailEmbodimentRequest(
       candidateId: 'CLUSTER_REGIONS',
       partitionField: cluster.partitionField,
       coordinateFields: [...cluster.coordinateFields],
+      ...decision,
+    };
+  }
+
+  if (
+    envelope.candidateId === 'RELATIONSHIP_GRAPH' &&
+    envelope.result.payload.kind === 'RELATIONSHIP_GRAPH'
+  ) {
+    // Reconstruct the exact B1 authority from the retained payload. Every
+    // authority field except directionality is fixed single-variant V1
+    // vocabulary, so this is a gate over the governed contract, not a
+    // parallel parser: the resident Rust side re-derives membership from
+    // the retained authoritative request and refuses any mismatch.
+    return {
+      schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
+      candidateId: 'RELATIONSHIP_GRAPH',
+      graphAuthority: createSourceRelationshipGraphAuthority(
+        envelope.result.payload.data.directionality
+      ),
       ...decision,
     };
   }

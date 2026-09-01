@@ -2,9 +2,9 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
-## Status snapshot - 31 August 2026
+## Status snapshot - 1 September 2026
 
-**Current integration base for this planning update:** `main@84a4b77` (#607, Stream B B1 promotion, merged). Stream A is fully closed; Stream B B1 is merged and B2 (resident Rust/WASM relationship-graph payload) is implemented on `stream-b/b2-graph-payload`, pending independent adversarial review, exact-head gates and merge.
+**Current integration base for this planning update:** `main@008165e` (#610, Stream B B2 resident Rust/WASM relationship-graph payload, merged). Stream A is fully closed; Stream B B1 and B2 are merged and B3 (production cutover + thin graph adapter) is implemented on `stream-b/b3-production-cutover` with its independent adversarial review closed, pending exact-head gates and merge.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, and the current Progressive Disclosure Stream A have reached their finite implementation exits. In particular:
 
@@ -13,7 +13,7 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - A3 semantic selection lineage, bounded observation reveal, and explicit return-to-structure are `VERIFIED COMPLETE` for the generic production path.
 - A4 exact datum/provenance inspection is `VERIFIED COMPLETE` after #605, using a second bounded authority query rather than a whole-dataset UI cache.
 - A5 cross-family product evidence and the independent STOP review establish the finite P1-R5 closure for Aggregate, Distribution, Density and source-partition Cluster, with #606 merged and all exact-head gates green.
-- Stream B B1 source relationship-graph authority contract is `VERIFIED COMPLETE` and merged via #607 (`main@84a4b77`). B2 — the resident Rust/WASM relationship-graph payload (strict authority mirror, deterministic semantic node/edge IDs, whole-payload endpoint refusal, 4096-node/16,384-edge/2 MiB envelope enforced at the authority, real-Worker transport and named no-invented-edges falsifier) — is implemented and pending review/gates; the measured byte-bound/edge-bound envelope interaction is recorded in `roadmap/P1_R2E_RELATIONSHIP_GRAPH.md`. `RELATIONSHIP_GRAPH` remains unavailable as a governed production representation until B2/B3 land.
+- Stream B B1 source relationship-graph authority contract is `VERIFIED COMPLETE` and merged via #607 (`main@84a4b77`); B2 — the resident Rust/WASM relationship-graph payload (strict authority mirror, deterministic semantic node/edge IDs, whole-payload endpoint refusal, 4096-node/16,384-edge/2 MiB envelope enforced at the authority, real-Worker transport and named no-invented-edges falsifier) — is `VERIFIED COMPLETE` and merged via #610 (`main@008165e`). B3 — the production cutover (marker-gated translator intercept before any raw row read, thin graph adapter rendering only resident payload topology, presentation-only force-directed layout, appendRows staleness invalidation, B1-RF-03 eviction-evidence fail-closed, and graph membership through Stream A's generic drill-down re-running the exact resident builder) — is implemented with its independent adversarial review closed (`review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`) and pending exact-head gates/merge; governed `RELATIONSHIP_GRAPH` is live-reachable only through the B4 evidence workflow (the R2D C4 precedent) and through tests until B4 closes product evidence and the Stream-B STOP.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -43,7 +43,7 @@ Only one forward implementation PR should be active at a time unless the user ex
 | Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
-| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B2 resident graph payload (review/gates pending) | **ACTIVE** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
+| **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | B3 production cutover (review/gates pending) | **ACTIVE** | First selected structural family is verified complete; then STOP and explicitly select the next family. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects | **QUEUED AFTER B** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
 | **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | **QUEUED AFTER C** | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
 
@@ -154,7 +154,7 @@ B must not create a competing graph-specific member-query API. C may present `Re
 
 # Stream B - Source-Authoritative Structural Representations
 
-**Status:** ACTIVE — B1 PROMOTION #607; B2 NEXT AFTER MERGE  
+**Status:** ACTIVE — B1 #607 / B2 #610 MERGED; B3 IMPLEMENTED, REVIEW/GATES PENDING  
 **Primary programme:** P1-R2E in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
 **First selected family:** source-provided `RELATIONSHIP_GRAPH`.
 

@@ -7,7 +7,8 @@ export type SemanticEmbodimentPresentationCandidateId =
   | 'AGGREGATE_VOLUME'
   | 'DISTRIBUTION_FIELD'
   | 'DENSITY_FIELD'
-  | 'CLUSTER_REGIONS';
+  | 'CLUSTER_REGIONS'
+  | 'RELATIONSHIP_GRAPH';
 
 export const SEMANTIC_EMBODIMENT_STATUS_SURFACE_NAME = 'semantic-embodiment-status';
 
@@ -58,6 +59,14 @@ const CANDIDATE_COPY: Record<
     refused: 'The analytical kernel refused this source-partition cluster request.',
     invalid: 'The returned payload did not match the governed cluster-region contract.',
     unavailable: 'No current analytical source-partition cluster result is available.',
+  },
+  RELATIONSHIP_GRAPH: {
+    label: 'RELATIONSHIP GRAPH',
+    pending:
+      'Awaiting the source-authoritative relationship graph; no heuristic topology may substitute.',
+    refused: 'The analytical kernel refused this source-relationship-graph request.',
+    invalid: 'The returned payload did not match the governed source-relationship-graph contract.',
+    unavailable: 'No current analytical source-relationship-graph result is available.',
   },
 };
 

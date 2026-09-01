@@ -23,7 +23,7 @@ import {
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
-  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS';
+  semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
 };
 
 function usesSemanticEmbodiment(
@@ -33,7 +33,8 @@ function usesSemanticEmbodiment(
     candidateId === 'AGGREGATE_VOLUME' ||
     candidateId === 'DISTRIBUTION_FIELD' ||
     candidateId === 'DENSITY_FIELD' ||
-    candidateId === 'CLUSTER_REGIONS'
+    candidateId === 'CLUSTER_REGIONS' ||
+    candidateId === 'RELATIONSHIP_GRAPH'
   );
 }
 
@@ -95,6 +96,8 @@ export class MonetaTopologyNode {
     const input = this.dataInput as SemanticMonetaDataInput;
     if (this.representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
       input.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
+    } else if (this.representationDecision?.chosenCandidateId === 'RELATIONSHIP_GRAPH') {
+      input.semanticEmbodimentCandidateId = 'RELATIONSHIP_GRAPH';
     } else {
       delete input.semanticEmbodimentCandidateId;
     }
@@ -250,6 +253,19 @@ export class MonetaTopologyNode {
     const mode = options.mode || 'append';
     const limit = options.limit ?? null;
     this.dataInput.dataset.updateRows(newRows, mode, limit);
+
+    // A source mutation supersedes any governed graph payload: the resident
+    // topology describes the dataset as loaded, so a re-synthesis must render
+    // the pending state rather than reuse a stale graph as current truth.
+    // The incremental fast-path is skipped entirely for governed graphs — an
+    // incremental artifact update could keep rendering the pre-mutation
+    // topology even after the envelope above was invalidated.
+    const semanticInput = this.dataInput as SemanticMonetaDataInput;
+    if (semanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH') {
+      delete semanticInput.semanticEmbodiment;
+      this.reSolveAndSynthesize();
+      return false;
+    }
 
     const incremental = VRTopologyTranslator.appendRowsToArtifact(
       this.artifact,

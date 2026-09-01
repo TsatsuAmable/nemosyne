@@ -552,7 +552,10 @@ fn validate_ready_envelope(
     Ok(())
 }
 
-fn graph_from_dataset(
+/// Builds the deterministic graph envelope for a resident dataset. `pub(crate)`
+/// so the B3 drill-down can re-run the exact builder for membership instead of
+/// maintaining a parallel topology parser.
+pub(crate) fn graph_from_dataset(
     fingerprint: String,
     dataset: &Dataset,
     request: &GraphEmbodimentRequestV1,
