@@ -133,8 +133,11 @@ export class InvestigationStatePresenter {
       }),
       host.eventBus.on(WorldTopics.OPERATION_CLEAR_PREVIEW, () => {
         this.operationPreview = null;
-        host.statusStrip.recordAction('Operation preview ended', 'Continue investigation');
+        // Reconcile representation state first. A PREVIEW -> COMMITTED transition
+        // may emit the generic "Preview ended" action; the explicit operation
+        // event is more informative, so preserve it as the final visible action.
         this.syncNow();
+        host.statusStrip.recordAction('Operation preview ended', 'Continue investigation');
       }),
       host.eventBus.on(WorldTopics.OPERATION_APPLIED, () => {
         this.operationPreview = null;
