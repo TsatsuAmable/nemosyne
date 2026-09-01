@@ -108,10 +108,9 @@ export function mountDesktopSelectionTaskRail(
     for (const task of INVESTIGATOR_TASKS) {
       const button = buttons.get(task.id);
       if (!button) continue;
-      const availability = actions.taskAvailability?.(task.id, selected?.data ?? null) ?? {
-        available: selected !== null,
-        reason: selected ? undefined : 'Select an object',
-      };
+      const availability: DesktopSelectionTaskAvailability = selected
+        ? (actions.taskAvailability?.(task.id, selected.data) ?? { available: true })
+        : { available: false, reason: 'Select an object' };
       if (availability.available) button.removeAttribute('disabled');
       else button.setAttribute('disabled', '');
       button.setAttribute('title', availability.reason ?? task.description);
