@@ -29,12 +29,22 @@ import {
 } from './intents/ApplicationIntent.ts';
 import { bindInputCallbacksToApplicationIntents } from './intents/InputIntentBindings.ts';
 import { FunctionalWorldObjectsPresenter } from '../vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts';
+import { InvestigationStatePresenter } from '../vr/presentation/investigation/InvestigationStatePresenter.ts';
+import type { SemanticEmbodimentPresentationStatus } from '../moneta/embodiment/SemanticEmbodimentStatus.ts';
 
 export interface AppInstance {
   world: World;
   dispatchIntent: ApplicationDispatchIntentDispatcher;
   investigationShell: InvestigationShellHandle;
 }
+
+const SEMANTIC_STATUS_VALUES = new Set<SemanticEmbodimentPresentationStatus>([
+  'PENDING',
+  'REFUSED',
+  'INVALID',
+  'UNAVAILABLE',
+  'READY',
+]);
 
 /**
  * Keep the legacy sample-cycle cursor aligned with the dataset that is actually
@@ -174,6 +184,24 @@ function applyNormalAnalystShell(world: World): void {
   world.diagnostic?.hide();
 }
 
+function semanticEmbodimentState(world: World): {
+  status: SemanticEmbodimentPresentationStatus;
+  message: string | null;
+} | null {
+  const data = world.dracoNode?.group?.userData;
+  const rawStatus = data?.semanticEmbodimentStatus;
+  if (typeof rawStatus !== 'string' || !SEMANTIC_STATUS_VALUES.has(rawStatus as SemanticEmbodimentPresentationStatus)) {
+    return null;
+  }
+  return {
+    status: rawStatus as SemanticEmbodimentPresentationStatus,
+    message:
+      typeof data.semanticEmbodimentStatusMessage === 'string'
+        ? data.semanticEmbodimentStatusMessage
+        : null,
+  };
+}
+
 export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
@@ -226,6 +254,38 @@ export async function bootstrapApp(): Promise<AppInstance> {
     getPreviewDecision: () => world._previewedDecision,
   });
   world.registerExtensionDisposer(() => functionalWorldObjects.dispose());
+
+  // P1-UV C2: keep the single persistent status surface body/workspace anchored
+  // and project authoritative investigation state into it. Reparenting to the
+  // analyst anchor removes the previous persistent head-lock without adding a
+  // new surface.
+  world.analystAnchor.add(world.uiManager.statusStripPanel.mesh);
+  const investigationState = new InvestigationStatePresenter({
+    engine: world.engine,
+    eventBus: world.eventBus,
+    statusStrip: world.uiManager.statusStrip,
+    isAnalyticalReady: () => world.atlas.isReady(),
+    getSemanticEmbodimentState: () => semanticEmbodimentState(world),
+    getDecisionState: () =>
+      world._activeOutcome?.state ??
+      world.atlas.activeRepresentationDecision?.decisionStatus ??
+      null,
+    getFencedPreviewDecision: () => world._getCurrentPreviewDecision(),
+    getFocusState: () => world.focusContext.exportState(),
+    getHistoryState: () => ({
+      canUndo: world.atlas.analysisHistory.canUndo,
+      canRedo: world.atlas.analysisHistory.canRedo,
+    }),
+    getArchiveCount: () => world.uiManager.vaultPanel.archives.length,
+    getGraphSnapshot: () => ({
+      activeNodeId: world.atlas.aggregate.graph.activeNodeId,
+      nodes: world.atlas.aggregate.graph.nodes,
+      edges: world.atlas.aggregate.graph.edges,
+      observationCount: world.atlas.observations.length,
+      findingCount: world.atlas.findings.length,
+    }),
+  });
+  world.registerExtensionDisposer(() => investigationState.dispose());
 
   if (import.meta.env.DEV) {
     const { installDevEvidence } = await import('./devEvidence.ts');
