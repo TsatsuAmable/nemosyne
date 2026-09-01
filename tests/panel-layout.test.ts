@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   PANEL_LAYOUT,
+  UI_TREATMENT_VERSION,
   fanSlot,
   ANCHOR_TORSO_WORLD_Y,
 } from '../src/vr/ui/panelLayout.ts';
 
 const dist = (p: readonly number[]) => Math.hypot(p[0], p[2]);
 
-describe('panelLayout (C1′ role-aware depth tiers, torso-locked)', () => {
+describe('panelLayout (role-aware depth tiers, torso-locked)', () => {
   it('fanSlot places panels on the forward −Z arc', () => {
     const p = fanSlot(30, 1.15, 0.2);
     expect(p[0]).toBeCloseTo(0.575, 2);
@@ -16,7 +17,7 @@ describe('panelLayout (C1′ role-aware depth tiers, torso-locked)', () => {
   });
 
   it('keeps the forward center cone (±12°) clear in the mid tier', () => {
-    const midFan = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel'] as const;
+    const midFan = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'statusStrip'] as const;
     for (const key of midFan) {
       const p = PANEL_LAYOUT[key];
       const angle = Math.abs(Math.atan2(p[0], -p[2])) * (180 / Math.PI);
@@ -24,8 +25,18 @@ describe('panelLayout (C1′ role-aware depth tiers, torso-locked)', () => {
     }
   });
 
+  it('keeps the persistent status grounding peripheral and subordinate to the data field', () => {
+    const p = PANEL_LAYOUT.statusStrip;
+    const angle = Math.abs(Math.atan2(p[0], -p[2])) * (180 / Math.PI);
+    const worldY = ANCHOR_TORSO_WORLD_Y + p[1];
+    expect(angle).toBeCloseTo(45, 5);
+    expect(dist(p)).toBeCloseTo(1.15, 5);
+    expect(worldY).toBeCloseTo(0.77, 5);
+    expect(UI_TREATMENT_VERSION).toBe('panel-layout/4+intent-wheel/1+frames/torso-locked');
+  });
+
   it('keeps mid-tier panels inside the 0.9–1.4 m comfort band', () => {
-    const mid = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'vrConsole', 'narrativeStrip'] as const;
+    const mid = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'vrConsole', 'narrativeStrip', 'statusStrip'] as const;
     for (const key of mid) {
       expect(dist(PANEL_LAYOUT[key])).toBeGreaterThanOrEqual(0.9);
       expect(dist(PANEL_LAYOUT[key])).toBeLessThanOrEqual(1.4);
