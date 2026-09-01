@@ -5,6 +5,12 @@ import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
+import {
+  INVESTIGATOR_TASKS,
+  dispatchInvestigatorTask,
+  type InvestigatorTaskCallbacks,
+  type InvestigatorTaskIntent,
+} from '../../app/intents/InvestigatorTaskIntent.ts';
 
 export type TopologyType =
   | 'TABULAR'
@@ -52,20 +58,18 @@ export const TASK_SURFACE_ACTIONS: readonly TaskSurfaceAction[] = [
   { id: 'spawn_portal', label: 'Spawn Collaboration Portal', intent: 'Portals', relevantTopologies: ['TABULAR', 'GRAPH', 'TIME_SERIES', 'SPATIAL', 'HIERARCHICAL', 'STREAM'], description: 'Share live workspace with observer' },
 ];
 
-export interface ContextualTaskSurfaceCallbacks {
-  onInspect?: (data: Record<string, unknown> | null) => void;
-  onCompare?: (data: Record<string, unknown> | null) => void;
-  onChallenge?: (data: Record<string, unknown> | null) => void;
-  onRecord?: (data: Record<string, unknown> | null) => void;
-  onNavigate?: (data: Record<string, unknown> | null) => void;
-  onMore?: (data: Record<string, unknown> | null) => void;
-}
+/** @deprecated Prefer InvestigatorTaskCallbacks from the shared selected-task intent contract. */
+export interface ContextualTaskSurfaceCallbacks extends InvestigatorTaskCallbacks {}
 
 type EngineWithPanelBudget = EngineLike & {
   uiManager?: {
     panelBudgetController?: PanelBudgetController;
   };
 };
+
+const TASK_DEFINITION_BY_ID = new Map(
+  INVESTIGATOR_TASKS.map((task) => [task.id, task] as const),
+);
 
 /**
  * Short-lived object-attached action rail for the canonical novice verbs.
@@ -151,39 +155,56 @@ export class ContextualTaskSurface extends SpatialPanel {
 
     const addVerb = (
       parent: Container,
-      id: string,
-      label: string,
-      callback: ((data: Record<string, unknown> | null) => void) | undefined,
+      id: InvestigatorTaskIntent,
       width: number,
       variant: 'primary' | 'secondary' | 'danger' = 'secondary',
     ) => {
+      const task = TASK_DEFINITION_BY_ID.get(id);
+      if (!task) throw new Error(`Unknown investigator task: ${id}`);
       const btn = new Button({
-        label,
+        label: task.label,
         width,
         height: 56,
         paddingX: 8,
         paddingY: 6,
         variant,
         onClick: () => {
-          const data = this._activeData;
-          this.hide();
-          callback?.(data);
+          this.dispatchTask(id);
         },
       });
       parent.add(btn);
       this._buttons.set(id, btn);
     };
 
-    addVerb(primaryRow, 'inspect', 'Inspect', callbacks.onInspect, 94, 'primary');
-    addVerb(primaryRow, 'compare', 'Compare', callbacks.onCompare, 94);
-    addVerb(primaryRow, 'challenge', 'Challenge', callbacks.onChallenge, 94);
-    addVerb(primaryRow, 'record', 'Record', callbacks.onRecord, 94);
-    addVerb(secondaryRow, 'navigate', 'Navigate', callbacks.onNavigate, 196);
-    addVerb(secondaryRow, 'more', 'More', callbacks.onMore, 196);
+    addVerb(primaryRow, 'inspect', 94, 'primary');
+    addVerb(primaryRow, 'compare', 94);
+    addVerb(primaryRow, 'challenge', 94);
+    addVerb(primaryRow, 'record', 94);
+    addVerb(secondaryRow, 'navigate', 196);
+    addVerb(secondaryRow, 'more', 196);
   }
 
   get activeNode(): THREE.Object3D | null {
     return this._activeNode;
+  }
+
+  /** Read-only selected payload used by the desktop parity projection. */
+  get activeData(): Record<string, unknown> | null {
+    return this._activeData;
+  }
+
+  /**
+   * Shared transient task resolver for XR and desktop presentation.
+   * The payload is captured before the contextual surface is cleared so both
+   * modalities have identical single-shot selection semantics.
+   */
+  dispatchTask(
+    intent: InvestigatorTaskIntent,
+    data: Record<string, unknown> | null = this._activeData,
+  ): boolean {
+    const payload = data;
+    this.hide();
+    return dispatchInvestigatorTask(this.callbacks, intent, payload);
   }
 
   /** Diagnostic/evidence helper: distance from the rail to its active object. */
