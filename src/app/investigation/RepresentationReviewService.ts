@@ -1,6 +1,7 @@
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import {
   createDefaultRequirements,
+  type AnalyticalTask,
   type RepresentationRequirements,
 } from '../../moneta/representation/RepresentationRequirements.ts';
 import {
@@ -53,6 +54,7 @@ export interface RepresentationReviewSnapshot {
   explanation: string | null;
   current: RepresentationDecisionSummary | null;
   preview: RepresentationDecisionSummary | null;
+  previewActionId: string | null;
   alternatives: readonly RepresentationAlternativeSummary[];
   constraints: readonly RepresentationConstraintSummary[];
   remediations: readonly RepresentationRemediationSummary[];
@@ -64,6 +66,7 @@ export interface RepresentationReviewHost {
   atlas: AtlasCore;
   getOutcome(): InvestigatorActionableOutcome | null;
   getFencedPreviewDecision(): RepresentationDecision | null;
+  getFencedPreviewAction(): RemedialAction | null;
   previewRemediation(action: RemedialAction): boolean;
   commitRemediation(action: RemedialAction): void;
   cancelRemediationPreview(): void;
@@ -100,10 +103,11 @@ function reconstructRequirements(
  * Presentation/orchestration seam for skeptical representation review.
  *
  * It reads the existing Moneta/Atlas outcome and invokes the existing fenced
- * preview/commit path. Revert is append-only: it reconstructs the requirements
- * immediately before the latest remediation, verifies the persisted hashes,
- * then applies those prior requirements as a new remediation event through the
- * same World-owned mutation path. It never deletes provenance or re-ranks in UI.
+ * preview/commit path. Explicit task comparison is a researcher-authored
+ * requirement change evaluated by Moneta, not a UI-selected analytical result.
+ * Revert is append-only: it reconstructs the requirements immediately before
+ * the latest remediation, verifies persisted hashes, then applies those prior
+ * requirements as a new remediation event through the same World-owned path.
  */
 export class RepresentationReviewService {
   private readonly host: RepresentationReviewHost;
@@ -116,6 +120,7 @@ export class RepresentationReviewService {
     const outcome = this.host.getOutcome();
     const current = this.host.atlas.activeRepresentationDecision;
     const preview = this.host.getFencedPreviewDecision();
+    const previewAction = preview ? this.host.getFencedPreviewAction() : null;
     const events = this.host.atlas.remediationEvents();
     const last = events.at(-1) ?? null;
 
@@ -139,6 +144,7 @@ export class RepresentationReviewService {
       explanation: outcome?.readableExplanation ?? current?.explanation ?? null,
       current: summarizeDecision(current),
       preview: summarizeDecision(preview),
+      previewActionId: previewAction?.id ?? null,
       alternatives,
       constraints: (outcome?.blockingConstraints ?? []).map((constraint) => ({
         rule: constraint.rule,
@@ -165,14 +171,31 @@ export class RepresentationReviewService {
 
   preview(remediationId: string): RepresentationReviewSnapshot {
     const action = this.findCurrentAction(remediationId);
-    if (!this.host.previewRemediation(action)) {
-      throw new Error(`Representation preview unavailable for ${remediationId}.`);
-    }
-    return this.snapshot();
+    return this.previewAction(action);
   }
 
-  commit(remediationId: string): RepresentationReviewSnapshot {
-    const action = this.findCurrentAction(remediationId);
+  previewTaskAlternative(task: AnalyticalTask): RepresentationReviewSnapshot {
+    const action: RemedialAction = {
+      id: `compare-task:${task}`,
+      label: `Compare ${task}`,
+      kind: 'switch-task',
+      description: `Preview Moneta's representation for the investigator-declared ${task} task.`,
+      isSafeToRelax: true,
+      deviceFeasibility: 'unverified',
+      suggestedRequirementPatch: { task },
+      unblocksCandidates: [],
+    };
+    return this.previewAction(action);
+  }
+
+  commit(remediationId?: string): RepresentationReviewSnapshot {
+    const previewAction = this.host.getFencedPreviewAction();
+    const action = previewAction && (!remediationId || previewAction.id === remediationId)
+      ? previewAction
+      : remediationId
+        ? this.findCurrentAction(remediationId)
+        : null;
+    if (!action) throw new Error('No current representation preview is available to accept.');
     this.host.commitRemediation(action);
     return this.snapshot();
   }
@@ -214,6 +237,13 @@ export class RepresentationReviewService {
       constraintCode: last.constraintCode,
     };
     this.host.applyRemediation(revertAction);
+    return this.snapshot();
+  }
+
+  private previewAction(action: RemedialAction): RepresentationReviewSnapshot {
+    if (!this.host.previewRemediation(action)) {
+      throw new Error(`Representation preview unavailable for ${action.id}.`);
+    }
     return this.snapshot();
   }
 
