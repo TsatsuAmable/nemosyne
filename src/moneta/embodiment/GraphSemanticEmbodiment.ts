@@ -80,12 +80,19 @@ function validateGraphPayload(
 }
 
 /**
- * Translator-time staleness fence. The identity hash is the only thing this
- * adapter ever reads from the resident dataset: no row, column or edge value
- * enters presentation. A dataset whose identity cannot be established, or that
- * no longer matches the payload's fingerprint, renders NO topology.
+ * Presentation receives Atlas/Rust's dataset fingerprint alongside a governed
+ * graph request. That identity is authoritative. The optional Dataset fallback
+ * exists only for direct adapter callers/tests that predate the production
+ * marker; production must not override the analytical identity with a second
+ * TypeScript fingerprint computation.
  */
-function currentDatasetFingerprint(dataset: Dataset | undefined): string | null {
+function governedDatasetFingerprint(
+  dataset: Dataset | undefined,
+  authoritativeFingerprint: string | undefined
+): string | null {
+  if (authoritativeFingerprint !== undefined) {
+    return authoritativeFingerprint.length > 0 ? authoritativeFingerprint : null;
+  }
   if (!dataset) return null;
   try {
     const fingerprint = dataset.fingerprint;
@@ -109,7 +116,8 @@ export function buildGraphSemanticTopology(
   nodeMeshes: THREE.Mesh[],
   edgeMeshes: THREE.Line[],
   envelope: GraphEmbodimentEnvelopeV1 | null | undefined,
-  dataset: Dataset | undefined
+  dataset: Dataset | undefined,
+  authoritativeDatasetFingerprint?: string
 ): void {
   if (!envelope) {
     setSemanticEmbodimentPresentationStatus(group, 'PENDING', undefined, 'RELATIONSHIP_GRAPH');
@@ -164,7 +172,10 @@ export function buildGraphSemanticTopology(
     return;
   }
 
-  if (currentDatasetFingerprint(dataset) !== envelope.datasetFingerprint) {
+  if (
+    governedDatasetFingerprint(dataset, authoritativeDatasetFingerprint) !==
+    envelope.datasetFingerprint
+  ) {
     invalid(group);
     return;
   }
@@ -280,16 +291,17 @@ export function buildGraphSemanticTopology(
   payload.edges.forEach((edge, index) => {
     const source = nodePositions[edge.sourceNodeIndex];
     const target = nodePositions[edge.targetNodeIndex];
-    segmentPositions.push(
-      source.x, source.y, source.z,
-      target.x, target.y, target.z
-    );
+    segmentPositions.push(source.x, source.y, source.z, target.x, target.y, target.z);
     const sourceColor = nodeBatch.instanceColor
       ? new THREE.Color().fromBufferAttribute(nodeBatch.instanceColor, edge.sourceNodeIndex)
       : new THREE.Color(0x88ccff);
     segmentColors.push(
-      sourceColor.r, sourceColor.g, sourceColor.b,
-      sourceColor.r, sourceColor.g, sourceColor.b
+      sourceColor.r,
+      sourceColor.g,
+      sourceColor.b,
+      sourceColor.r,
+      sourceColor.g,
+      sourceColor.b
     );
 
     const proxy = new THREE.Mesh(proxyGeometry, proxyMaterial);
@@ -317,10 +329,7 @@ export function buildGraphSemanticTopology(
   });
 
   const segmentGeometry = new THREE.BufferGeometry();
-  segmentGeometry.setAttribute(
-    'position',
-    new THREE.Float32BufferAttribute(segmentPositions, 3)
-  );
+  segmentGeometry.setAttribute('position', new THREE.Float32BufferAttribute(segmentPositions, 3));
   segmentGeometry.setAttribute('color', new THREE.Float32BufferAttribute(segmentColors, 3));
   const segmentMaterial = new THREE.LineBasicMaterial({
     vertexColors: true,
