@@ -139,7 +139,11 @@ describe('P1-UV C3 desktop/XR semantic parity', () => {
     expect(document.getElementById('desktop-selection-context')?.textContent).toContain(
       'Select a data object',
     );
-    expect(document.getElementById('desktop-task-record')?.hasAttribute('disabled')).toBe(true);
+    for (const task of INVESTIGATOR_TASKS) {
+      expect(document.getElementById(`desktop-task-${task.id}`)?.hasAttribute('disabled')).toBe(
+        true,
+      );
+    }
 
     handle.dispose();
   });
@@ -202,7 +206,11 @@ describe('P1-UV C3 desktop/XR semantic parity', () => {
     expect(document.getElementById('desktop-selection-context')?.textContent).toContain(
       'Select a data object',
     );
-    expect(document.getElementById('desktop-task-inspect')?.hasAttribute('disabled')).toBe(true);
+    for (const task of INVESTIGATOR_TASKS) {
+      expect(document.getElementById(`desktop-task-${task.id}`)?.hasAttribute('disabled')).toBe(
+        true,
+      );
+    }
 
     handle.dispose();
     expect(contextSubscribers).toHaveLength(0);
