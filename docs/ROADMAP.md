@@ -4,9 +4,9 @@
 
 ## Status snapshot - 1 September 2026
 
-**Current integration base for this planning update:** `main@232d9524158ab3b7982f580c9afa7c2741f69041` (#612, Relationship Graph B4 product evidence + finite Stream B STOP, merged). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C is now the sole forward programme; C1 functional epistemic world objects is implemented and adversarially reviewed on PR #613, with merge contingent on the unchanged final head passing ordinary exact-head gates and the dedicated C1 product-evidence workflow.
+**Current integration base for this planning update:** `main@5c593b57d74b01b90f639166f7d9b414651e9241` (#613, C1 functional epistemic world objects, merged). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C is the sole forward programme; C1 is `VERIFIED COMPLETE`, while C2 investigation-state legibility is implemented and adversarially reviewed on PR #614 with final promotion contingent on the unchanged final head passing the required exact-head gates and dedicated C2 production-browser evidence.
 
-The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, and the first selected Stream B structural family have reached their finite implementation exits. In particular:
+The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and Stream C C1 have reached their finite implementation exits. In particular:
 
 - A1 semantic drill-down contract/falsifiers is `VERIFIED COMPLETE` after establishing SemanticDrillDown.ts and drill_down.rs WASM validation boundary.
 - A2 resident bounded semantic membership/query capability is `VERIFIED COMPLETE` through the canonical Worker/Rust authority.
@@ -14,7 +14,8 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - A4 exact datum/provenance inspection is `VERIFIED COMPLETE` after #605, using a second bounded authority query rather than a whole-dataset UI cache.
 - A5 cross-family product evidence and the independent STOP review establish the finite P1-R5 closure for Aggregate, Distribution, Density and source-partition Cluster, with #606 merged and all exact-head gates green.
 - Stream B Relationship Graph V1 is `VERIFIED COMPLETE / STOP`: B1 source authority contract merged via #607; B2 resident Rust/WASM bounded topology payload merged via #610; B3 production cutover + thin graph adapter merged via #611; and B4 product/scale/perceptual evidence + independent STOP review merged via #612 at `main@232d952`.
-- C1 on #613 makes TechnoCore, Evidence Vault, Farcaster portals and a bounded Memory Palace projection investigator-functional without creating a second analytical/epistemic authority. Its post-review is `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md`; final promotion still requires the unchanged PR head to pass exact-head gates.
+- C1 on #613 is `VERIFIED COMPLETE`: TechnoCore, Evidence Vault, Farcaster portals and a bounded Memory Palace projection are investigator-functional without creating a second analytical/epistemic authority. Its post-review is `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md`.
+- C2 on #614 extends the existing persistent Status Strip into a compact projection of governed focus, analytical/decision state, preview/commit state, explicit evidence, recovery and state origin. The post-review found and fixed stale visible origin after undo, including compatibility with historically untyped initial dataset graph roots. Final merge still requires unchanged-head exact evidence.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -22,7 +23,7 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - Fresh dataset loads are overview-first rather than silently biasing Moneta toward individual observation identity.
 - Aggregate, distribution, density, governed cluster and source-authoritative relationship-graph structures are first-class semantic interaction targets rather than being registered as raw observations.
 - Explicit individual-inspection intent can still select `POINT_SET`; progressive disclosure removes point universality, not legitimate observation-level representation.
-- P1-UV baseline evidence, task-first shell/contextual-locus substrate, unified UI primitives and C1 functional world-object foundations are landed or under exact-head promotion, but the full visible product treatment is not yet complete.
+- P1-UV baseline evidence, task-first shell/contextual-locus substrate, unified UI primitives, C1 functional world-object foundations and C2 investigation-state legibility are landed or under exact-head promotion, but desktop/XR parity and the full canonical visible-product convergence remain open.
 
 ## Sequential execution model
 
@@ -45,7 +46,7 @@ Only one forward implementation PR should be active at a time unless the user ex
 | --- | --- | --- | --- | --- |
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | Relationship Graph B4 STOP / #612 | **VERIFIED COMPLETE / STOP FOR FIRST SELECTED FAMILY** | Source-authoritative Relationship Graph V1 is verified complete; selecting another B family requires an explicit fresh-main choice. |
-| **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C1 functional epistemic world objects / #613 | **ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
+| **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C2 investigation-state legibility / #614 | **ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
 | **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | **QUEUED AFTER C** | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
 
 A is the shared semantic integration spine and is frozen at its finite P1-R5 boundary. B's first structural family is frozen at its Relationship Graph V1 boundary. C consumes A/B semantic state and may not manufacture analytical facts. D validates and hardens the converged product but may not promote physical or preview claims before the owning product prerequisites are satisfied.
@@ -233,7 +234,7 @@ B's Relationship Graph V1 integration contract is frozen. Future B-family work, 
 
 # Stream C - Visible Investigator Product Convergence
 
-**Status:** ACTIVE — C1 IMPLEMENTED / POST-REVIEW CLOSED ON #613; EXACT-HEAD PROMOTION REQUIRED  
+**Status:** ACTIVE — C1 VERIFIED COMPLETE / #613 MERGED; C2 IMPLEMENTED / POST-REVIEW CLOSED ON #614; EXACT-HEAD PROMOTION REQUIRED  
 **Primary programme:** `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`  
 **Baseline authority:** `roadmap/P1_UV0_BASELINE_INVENTORY.md`.
 
@@ -243,7 +244,7 @@ C consumes analytical/semantic truth from A/B/Moneta/Atlas. No C implementation 
 
 ## C1 - functional epistemic world objects
 
-**Status:** IMPLEMENTED / BOUNDED REVIEW CLOSED ON #613; merge requires unchanged final-head CI, CodeQL, architecture and dedicated C1 browser evidence.  
+**Status:** VERIFIED COMPLETE — #613 MERGED AT `main@5c593b57`  
 **Pre-review:** `review-plans/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_PRE_REVIEW_2026-09-01.md`  
 **Post-review:** `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md`
 
@@ -272,21 +273,37 @@ Re-audit every persistent world object against the rule: **persistent objects ea
 
 **C1 evidence boundary:** production-browser evidence proves TechnoCore guidance without analytical mutation, real observation projection, real archive freeze -> Vault state transition, saved-portal availability, and the bounded Memory Palace envelope. Retained screenshots also show that legacy scale/salience and overall scene hierarchy still require convergence; C1 does not claim final visual hierarchy, XR parity or physical Quest fitness.
 
-**Exit:** C1's bounded product-function contract is satisfied when #613's unchanged final head is green and merged. After fresh-main sync, the next forward checkpoint is **C2 investigation-state legibility**.
+**Exit:** SATISFIED for the bounded C1 product-function contract. #613 merged after exact-head CI, CodeQL, architecture, dedicated C1 browser evidence and bounded adversarial review. C2 is the current forward checkpoint.
 
 ## C2 - investigation-state legibility
 
-Make the world answer without log reading:
+**Status:** IMPLEMENTED / BOUNDED REVIEW CLOSED ON #614; final merge requires unchanged-head CI, CodeQL, architecture, dedicated C2 browser evidence and approval gate.  
+**Pre-review:** `review-plans/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_PRE_REVIEW_2026-09-01.md`  
+**Post-review:** `review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md`
+
+C2 makes the normal Status Strip answer without log reading:
 
 - what changed;
 - what is selected/focused;
 - what analytical work is pending/ready/refused;
-- what evidence supports the current interpretation;
-- whether a change is preview or committed;
-- whether the user can undo/recover;
-- where the current branch/state came from.
+- what evidence supports/refutes the current explicit epistemic state;
+- whether a representation change is preview or committed;
+- whether the user can undo/redo or recover from a real archive;
+- where the current state came from.
 
-Transitions must preserve spatial continuity where semantic identity survives and respect reduced-motion/accessibility settings.
+Implementation/review invariants:
+
+- the existing Status Strip is reused; no second persistent status panel is added;
+- Status Strip placement is governed by `PANEL_LAYOUT.statusStrip`, constructed directly under `analystAnchor`, and pinned to `panel-layout/4+intent-wheel/1+frames/torso-locked`;
+- analytical and decision categories are projected from existing authorities without reclassification;
+- evidence counts use only explicit incident `supports`/`refutes` edges;
+- undo/redo and archive state are read from real Atlas/Vault owners;
+- state origin is reconciled against the current analytical fingerprint rather than blindly projecting the graph insertion cursor;
+- historical parentless canonical `:vN` load roots remain eligible for exact-fingerprint origin reconciliation because older graph construction normalized their omitted kind to `operation`;
+- arbitrary parentless operations are rejected and ambiguous origin matches fail closed;
+- no physical Quest claim is made by C2 browser evidence.
+
+**Exit:** C2 becomes `VERIFIED COMPLETE` for its bounded desktop/production-browser legibility scope only when #614's unchanged final head passes the required gates and is merged. After fresh-main sync, proceed to **C3 desktop/XR parity**.
 
 ## C3 - desktop/XR parity
 
@@ -522,6 +539,7 @@ These remain authoritative for their scoped contracts/evidence even when their s
 - `review/P1_R5_A5_STOP_REVIEW_2026-08-31.md` - P1-R5 progressive-disclosure closure evidence;
 - `review/P1_R2E_B4_STOP_REVIEW_2026-09-01.md` - Relationship Graph V1 finite STOP evidence;
 - `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md` - C1 functional world-object closure review;
+- `review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md` - C2 investigation-state legibility closure review;
 - `rfcs/0001-source-partition-cluster-authority.md` - durable R2D scientific decision;
 - `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md` - visible product convergence specification;
 - `roadmap/P1_UV0_BASELINE_INVENTORY.md` - executable visible baseline/inventory;
