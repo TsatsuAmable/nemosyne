@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import type { World } from '../vr/World.ts';
-import type { FunctionalWorldObjectsPresenter } from '../vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts';
 
 export interface C1ProductEvidenceSnapshot {
   schemaVersion: 1;
@@ -28,19 +26,55 @@ export interface C1ProductEvidenceHook {
   focus(target: 'technocore' | 'vault' | 'saved-portal' | 'memory-palace'): void;
 }
 
+/**
+ * Diagnostics need only this read/action surface. Keeping it structural avoids
+ * a reverse dependency on the World composition root (RF-062).
+ */
+export interface C1ProductEvidenceWorldPort {
+  engine: { camera: THREE.Camera };
+  uiManager: {
+    recommendationPanel: { mesh?: THREE.Object3D | null };
+    vaultPanel: {
+      archives: readonly unknown[];
+      onFreeze?: (() => unknown) | null;
+    };
+  };
+  landmarkController: {
+    onCoreSelect(): void;
+    onVaultSelect(): void;
+  };
+  core: { group: THREE.Object3D };
+  iceVault: { group: THREE.Object3D };
+  portalB: { group: THREE.Object3D };
+  _statisticalLensEnabled: boolean;
+  atlas: { results: readonly unknown[] };
+  markMoment(note?: string): { id: string };
+}
+
+export interface C1ProductEvidencePresenterPort {
+  memoryPalace: { group: THREE.Object3D };
+  syncNow(): void;
+  getDiagnosticSnapshot(): {
+    technoCore: Record<string, unknown>;
+    vault: { state: string; archiveCount: number };
+    portals: { overview: unknown; saved: unknown };
+    memoryPalace: C1ProductEvidenceSnapshot['memoryPalace'];
+  };
+}
+
 declare global {
   interface Window {
     __NEMOSYNE_C1_EVIDENCE__?: C1ProductEvidenceHook;
   }
 }
 
-function panelVisible(world: World): boolean {
+function panelVisible(world: C1ProductEvidenceWorldPort): boolean {
   return Boolean(world.uiManager.recommendationPanel.mesh?.visible);
 }
 
 function snapshot(
-  world: World,
-  presenter: FunctionalWorldObjectsPresenter,
+  world: C1ProductEvidenceWorldPort,
+  presenter: C1ProductEvidencePresenterPort,
 ): C1ProductEvidenceSnapshot {
   const projected = presenter.getDiagnosticSnapshot();
   return {
@@ -52,7 +86,7 @@ function snapshot(
   };
 }
 
-function focusCamera(world: World, object: THREE.Object3D): void {
+function focusCamera(world: C1ProductEvidenceWorldPort, object: THREE.Object3D): void {
   const target = new THREE.Vector3();
   object.getWorldPosition(target);
   world.engine.camera.position.set(target.x, target.y + 0.35, target.z + 3.1);
@@ -61,8 +95,8 @@ function focusCamera(world: World, object: THREE.Object3D): void {
 }
 
 async function waitForArchiveCount(
-  world: World,
-  presenter: FunctionalWorldObjectsPresenter,
+  world: C1ProductEvidenceWorldPort,
+  presenter: C1ProductEvidencePresenterPort,
   minimum: number,
 ): Promise<void> {
   const deadline = performance.now() + 8_000;
@@ -80,8 +114,8 @@ async function waitForArchiveCount(
  * it does not manufacture Moneta, Atlas, archive, or epistemic records.
  */
 export function installC1ProductEvidenceHook(
-  world: World,
-  presenter: FunctionalWorldObjectsPresenter,
+  world: C1ProductEvidenceWorldPort,
+  presenter: C1ProductEvidencePresenterPort,
 ): () => void {
   const hook: C1ProductEvidenceHook = {
     schemaVersion: 1,
