@@ -61,6 +61,11 @@ export const TASK_SURFACE_ACTIONS: readonly TaskSurfaceAction[] = [
 /** @deprecated Prefer InvestigatorTaskCallbacks from the shared selected-task intent contract. */
 export interface ContextualTaskSurfaceCallbacks extends InvestigatorTaskCallbacks {}
 
+export interface InvestigatorTaskAvailability {
+  available: boolean;
+  reason?: string;
+}
+
 type EngineWithPanelBudget = EngineLike & {
   uiManager?: {
     panelBudgetController?: PanelBudgetController;
@@ -193,6 +198,22 @@ export class ContextualTaskSurface extends SpatialPanel {
     return this._activeData;
   }
 
+  taskAvailability(
+    intent: InvestigatorTaskIntent,
+    data: Record<string, unknown> | null = this._activeData,
+  ): InvestigatorTaskAvailability {
+    const topology = (data?.topology ?? this._currentTopology) as TopologyType;
+    if (intent === 'more') return { available: true };
+    if (!data) return { available: false, reason: 'Select an object' };
+    if (intent === 'challenge' && topology === 'TABULAR') {
+      return { available: false, reason: 'Needs linked structure' };
+    }
+    if (intent === 'navigate' && topology === 'TABULAR') {
+      return { available: false, reason: 'No linked path' };
+    }
+    return { available: true };
+  }
+
   /**
    * Shared transient task resolver for XR and desktop presentation.
    * The payload is captured before the contextual surface is cleared so both
@@ -202,6 +223,8 @@ export class ContextualTaskSurface extends SpatialPanel {
     intent: InvestigatorTaskIntent,
     data: Record<string, unknown> | null = this._activeData,
   ): boolean {
+    const availability = this.taskAvailability(intent, data);
+    if (!availability.available) return false;
     const payload = data;
     this.hide();
     return dispatchInvestigatorTask(this.callbacks, intent, payload);
@@ -303,56 +326,12 @@ export class ContextualTaskSurface extends SpatialPanel {
   }
 
   private _updateButtonStates(): void {
-    const data = this._activeData;
-    const topology = (data?.topology ?? this._currentTopology) as TopologyType;
-
-    const inspectBtn = this._buttons.get('inspect');
-    if (inspectBtn) {
-      const disabled = !data;
-      inspectBtn.disabled = disabled;
-      inspectBtn.disabledReason = disabled ? 'Select an object' : undefined;
-    }
-
-    const compareBtn = this._buttons.get('compare');
-    if (compareBtn) {
-      const disabled = !data;
-      compareBtn.disabled = disabled;
-      compareBtn.disabledReason = disabled ? 'Select an object' : undefined;
-    }
-
-    const challengeBtn = this._buttons.get('challenge');
-    if (challengeBtn) {
-      const disabled = !data || topology === 'TABULAR';
-      challengeBtn.disabled = disabled;
-      challengeBtn.disabledReason = !data
-        ? 'Select an object'
-        : disabled
-          ? 'Needs linked structure'
-          : undefined;
-    }
-
-    const recordBtn = this._buttons.get('record');
-    if (recordBtn) {
-      const disabled = !data;
-      recordBtn.disabled = disabled;
-      recordBtn.disabledReason = disabled ? 'Select an object' : undefined;
-    }
-
-    const navigateBtn = this._buttons.get('navigate');
-    if (navigateBtn) {
-      const disabled = !data || topology === 'TABULAR';
-      navigateBtn.disabled = disabled;
-      navigateBtn.disabledReason = !data
-        ? 'Select an object'
-        : disabled
-          ? 'No linked path'
-          : undefined;
-    }
-
-    const moreBtn = this._buttons.get('more');
-    if (moreBtn) {
-      moreBtn.disabled = false;
-      moreBtn.disabledReason = undefined;
+    for (const task of INVESTIGATOR_TASKS) {
+      const button = this._buttons.get(task.id);
+      if (!button) continue;
+      const availability = this.taskAvailability(task.id);
+      button.disabled = !availability.available;
+      button.disabledReason = availability.reason;
     }
   }
 
