@@ -1,0 +1,120 @@
+name: P1-UV C2 investigation-state legibility evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1uv-c2-investigation-state-legibility.yml'
+      - 'src/app/bootstrap.ts'
+      - 'src/app/c2ProductEvidenceDiagnostics.ts'
+      - 'src/atlas/AtlasCore.ts'
+      - 'src/atlas/domain/InvestigationGraph.ts'
+      - 'src/data/AnalysisHistory.ts'
+      - 'src/moneta/embodiment/SemanticEmbodimentStatus.ts'
+      - 'src/moneta/representation/DecisionPolicy.ts'
+      - 'src/vr/coordinators/WorldUIManager.ts'
+      - 'src/vr/interactions/FocusContextController.ts'
+      - 'src/vr/presentation/investigation/**'
+      - 'src/vr/ui/panelLayout.ts'
+      - 'src/vr/ui/StatusStripController.ts'
+      - 'src/vr/ui/StatusStripPanel.ts'
+      - 'src/vr/ui/VaultPanel.ts'
+      - 'tests/c2-investigation-state-legibility.test.ts'
+      - 'tests/panel-layout.test.ts'
+      - 'tests/smoke/p1uv-c2-investigation-state-legibility.spec.ts'
+      - 'docs/ROADMAP.md'
+      - 'docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md'
+      - 'docs/study/UI_TREATMENT.md'
+      - 'docs/roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md'
+      - 'docs/review-plans/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_PRE_REVIEW_2026-09-01.md'
+      - 'docs/review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1uv-c2-investigation-state-legibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: Visible investigation-state evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact evidence head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          if [[ "$checkout_sha" != "$NEMOSYNE_SOURCE_HEAD_SHA" ]]; then
+            echo "Expected checkout $NEMOSYNE_SOURCE_HEAD_SHA but found $checkout_sha" >&2
+            exit 1
+          fi
+          echo "NEMOSYNE_CHECKOUT_HEAD_SHA=$checkout_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_WORKFLOW_EVENT_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build instrumented production bundle
+        run: |
+          mkdir -p p1uv-c2-results
+          /usr/bin/time -v -o p1uv-c2-results/build-time.txt \
+            env VITE_NEMOSYNE_C2_PRODUCT_EVIDENCE=1 npm run build
+
+      - name: Prove C2 hook is diagnostics-gated into evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R -q '__NEMOSYNE_C2_EVIDENCE__' dist
+
+      - name: Pin evidence artifact identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_sha="$({ find dist -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; } | sha256sum | awk '{print $1}')"
+          wasm_sha="$(sha256sum dist/wasm/pkg/nemosyne_wasm_bg.wasm | awk '{print $1}')"
+          echo "NEMOSYNE_C2_BUNDLE_SHA256=$bundle_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_C2_WASM_SHA256=$wasm_sha" >> "$GITHUB_ENV"
+          printf 'source_head_sha=%s\ncheckout_head_sha=%s\nworkflow_event_sha=%s\nbundle_sha256=%s\nwasm_sha256=%s\n' \
+            "$NEMOSYNE_SOURCE_HEAD_SHA" \
+            "$NEMOSYNE_CHECKOUT_HEAD_SHA" \
+            "$NEMOSYNE_WORKFLOW_EVENT_SHA" \
+            "$bundle_sha" \
+            "$wasm_sha" \
+            | tee p1uv-c2-results/artifact-identities.txt
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture C2 production evidence
+        run: |
+          /usr/bin/time -v -o p1uv-c2-results/probe-time.txt \
+            env \
+              NEMOSYNE_C2_BROWSER_PROBE=1 \
+              NEMOSYNE_SMOKE_PREBUILT=1 \
+              npx playwright test tests/smoke/p1uv-c2-investigation-state-legibility.spec.ts --retries=0
+
+      - name: Upload C2 structured and visual evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: p1uv-c2-investigation-state-legibility
+          path: p1uv-c2-results
+          if-no-files-found: warn
+          retention-days: 7

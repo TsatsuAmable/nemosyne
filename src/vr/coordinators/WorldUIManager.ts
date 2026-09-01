@@ -231,14 +231,14 @@ export class WorldUIManager {
     applyPanelLayout(this.vrConsole, PANEL_LAYOUT.vrConsole);
     this.engine.addUpdatable(this.vrConsole);
 
-    // Persistent status strip showing dataset, mode, focus, and last action.
-    this.statusStripPanel = new StatusStripPanel(this.engine.cameraGroup, {
+    // Persistent C2 investigation grounding. Construct directly in the governed
+    // torso frame and apply the central layout slot; bootstrap must not repair
+    // reference-frame ownership after construction.
+    this.statusStripPanel = new StatusStripPanel(this.analystAnchor, {
       statusStrip: this.statusStrip,
-      position: [0, 1.75, -1.1],
-      worldSize: [0.72, 0.08],
     });
+    applyPanelLayout(this.statusStripPanel, PANEL_LAYOUT.statusStrip);
     this.engine.addUpdatable(this.statusStripPanel);
-
 
     // Main operation / dataset menu — retired as primary navigation per P1-U8.
     // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.

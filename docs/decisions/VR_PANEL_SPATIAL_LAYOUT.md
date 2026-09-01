@@ -156,3 +156,40 @@ Note: this supersedes the §5 wiring table where it disagreed with the shipped
 table plus `tests/panel-layout.test.ts` invariants are authoritative for exact slots.
 
 Research classification: unchanged — CONTROLLED-TREATMENT MODIFICATION candidate.
+
+---
+
+## 9. Revision 4 (1 September 2026) — C2 persistent grounding joins layout authority
+
+P1-UV C2 expanded the existing Status Strip from a one-line contextual label into a
+four-line persistent investigation-grounding surface. Adversarial review found that the
+old construction path was an exception to revision 3: `WorldUIManager` still constructed
+the strip under `engine.cameraGroup`, and C2 bootstrap attempted to repair ownership later
+by reparenting the mesh. Reparenting also preserved the old camera-local coordinates as
+new torso-local coordinates, placing the surface outside the governed spatial treatment.
+
+**Decision:** the Status Strip is now constructed directly under
+`WorldSceneComposer.analystAnchor` and receives its default/reset position exclusively from
+`PANEL_LAYOUT.statusStrip`. Bootstrap is presentation-state composition only and performs
+no spatial ownership repair.
+
+The selected slot is `fanSlot(45, 1.15, -0.58)`, approximately
+`[0.813, -0.58, -0.813]` in torso-anchor-local coordinates. With the nominal 1.35 m torso
+anchor, the strip centre is approximately 0.77 m world height. The choice is deliberately
+peripheral and low:
+
+1. the 45° centre keeps the 0.9 m-wide strip away from the forward data-dominant cone;
+2. 1.15 m remains inside the established mid-tier comfort band;
+3. the low row makes grounding persistent without competing with the analytical field;
+4. no new panel or position authority is introduced; the existing Status Strip simply
+   joins the same layout/reset authority as the rest of the persistent UI.
+
+`UI_TREATMENT_VERSION` is therefore bumped to
+`panel-layout/4+intent-wheel/1+frames/torso-locked`. `docs/study/UI_TREATMENT.md` declares
+the new treatment. `tests/panel-layout.test.ts` pins the slot and treatment identity, while
+the P1-UV C2 production-browser evidence asserts the live parent, exact local coordinates,
+and treatment version on the instrumented production bundle.
+
+Research classification: CONTROLLED-TREATMENT MODIFICATION. This revision must not be
+used in a study frozen to revision 3; the study freeze manifest will fail the treatment
+identity comparison rather than silently accepting spatial drift.
