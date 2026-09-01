@@ -48,6 +48,7 @@ export class WorldLandmarkController {
   private readonly registry: LandmarkRegistryPort;
   private readonly application: LandmarkApplicationPort;
   private readonly feedback: LandmarkFeedbackPort;
+  private representationGuidanceOpener: (() => void) | null = null;
 
   constructor({ targets, registry, application, feedback }: WorldLandmarkControllerOptions) {
     this.targets = targets;
@@ -56,12 +57,22 @@ export class WorldLandmarkController {
     this.feedback = feedback;
   }
 
+  /**
+   * C1 composition hook. The production composition root installs the existing
+   * governed representation-guidance surface here. Keeping this optional
+   * preserves the historical lens-hub behavior for isolated/legacy harnesses
+   * without making the landmark itself own UI construction.
+   */
+  setRepresentationGuidanceOpener(opener: (() => void) | null): void {
+    this.representationGuidanceOpener = opener;
+  }
+
   registerTooltipTargets(): void {
     const targets = this.targets;
     if (targets.core?.group) {
       targets.core.group.userData.tooltipMeta = {
         title: 'TechnoCore',
-        body: 'Lens hub: pinch to cycle statistical/anomaly lens',
+        body: 'Representation reasoning: select to inspect why, alternatives, constraints, and remediation',
       };
       this.registry.registerTooltipTarget(targets.core.group);
     }
@@ -112,6 +123,19 @@ export class WorldLandmarkController {
   }
 
   onCoreSelect(): void {
+    if (this.representationGuidanceOpener) {
+      this.representationGuidanceOpener();
+      const state = this.targets.core.group?.userData?.decisionState ?? 'PENDING';
+      this.application.recordInteraction('TechnoCore representation guidance', { state });
+      this.feedback.log(`TechnoCore: representation ${String(state).toLowerCase()}`);
+      this.feedback.playCoreTone(String(state).toLowerCase());
+      this.feedback.playHaptic(0.5, 60);
+      this.application.captureSession();
+      return;
+    }
+
+    // Compatibility fallback for isolated harnesses that do not install the C1
+    // product projection. The production path always installs guidance.
     const mode = this.targets.core.nextLensMode();
     if (mode === 'statistical') {
       this.application.setStatisticalLensVisible(true);
