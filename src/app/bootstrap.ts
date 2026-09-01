@@ -141,8 +141,20 @@ function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions 
     },
     dispatchTask: (intent, data) => surface.dispatchTask(intent, data),
     taskAvailability: (intent, data) => surface.taskAvailability(intent, data),
-    subscribeSelectionContext: (handler) =>
-      world.eventBus.on(WorldTopics.DATASET_LOADED, () => queueMicrotask(handler)),
+    subscribeSelectionContext: (handler) => {
+      const refreshAfterSelectionSettles = () => queueMicrotask(handler);
+      const unsubscribeSelection = world.representationSurface.subscribeSelection(
+        refreshAfterSelectionSettles,
+      );
+      const unsubscribeDataset = world.eventBus.on(
+        WorldTopics.DATASET_LOADED,
+        refreshAfterSelectionSettles,
+      );
+      return () => {
+        unsubscribeSelection();
+        unsubscribeDataset();
+      };
+    },
   };
 }
 
