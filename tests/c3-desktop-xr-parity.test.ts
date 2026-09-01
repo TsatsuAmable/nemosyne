@@ -181,28 +181,30 @@ describe('P1-UV C3 desktop/XR semantic parity', () => {
       label: 'Node 1',
       data: payload,
     };
-    let contextChanged: (() => void) | null = null;
+    const contextSubscribers: Array<() => void> = [];
 
     const handle = mountDesktopSelectionTaskRail({
       getSelection: () => selected,
       dispatchTask: vi.fn(() => true),
       subscribeSelectionContext: (handler) => {
-        contextChanged = handler;
+        contextSubscribers.push(handler);
         return () => {
-          contextChanged = null;
+          const index = contextSubscribers.indexOf(handler);
+          if (index >= 0) contextSubscribers.splice(index, 1);
         };
       },
     });
 
     expect(document.getElementById('desktop-selection-context')?.textContent).toContain('Node 1');
+    expect(contextSubscribers).toHaveLength(1);
     selected = null;
-    contextChanged?.();
+    contextSubscribers[0]!();
     expect(document.getElementById('desktop-selection-context')?.textContent).toContain(
       'Select a data object',
     );
     expect(document.getElementById('desktop-task-inspect')?.hasAttribute('disabled')).toBe(true);
 
     handle.dispose();
-    expect(contextChanged).toBeNull();
+    expect(contextSubscribers).toHaveLength(0);
   });
 });
