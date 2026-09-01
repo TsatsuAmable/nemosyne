@@ -8,9 +8,19 @@ export interface DesktopSelectionTaskContext {
   data: Record<string, unknown>;
 }
 
+export interface DesktopSelectionTaskAvailability {
+  available: boolean;
+  reason?: string;
+}
+
 export interface DesktopSelectionTaskActions {
   getSelection(): DesktopSelectionTaskContext | null;
   dispatchTask(intent: InvestigatorTaskIntent, data: Record<string, unknown>): boolean;
+  taskAvailability?(
+    intent: InvestigatorTaskIntent,
+    data: Record<string, unknown> | null,
+  ): DesktopSelectionTaskAvailability;
+  subscribeSelectionContext?(handler: () => void): () => void;
 }
 
 export interface DesktopSelectionTaskRailHandle {
@@ -95,9 +105,17 @@ export function mountDesktopSelectionTaskRail(
   const refresh = (): void => {
     const selected = actions.getSelection();
     context.textContent = selectionLabel(selected);
-    for (const button of buttons.values()) {
-      if (selected) button.removeAttribute('disabled');
+    for (const task of INVESTIGATOR_TASKS) {
+      const button = buttons.get(task.id);
+      if (!button) continue;
+      const availability = actions.taskAvailability?.(task.id, selected?.data ?? null) ?? {
+        available: selected !== null,
+        reason: selected ? undefined : 'Select an object',
+      };
+      if (availability.available) button.removeAttribute('disabled');
       else button.setAttribute('disabled', '');
+      button.setAttribute('title', availability.reason ?? task.description);
+      button.setAttribute('aria-description', availability.reason ?? task.description);
     }
   };
 
@@ -112,6 +130,14 @@ export function mountDesktopSelectionTaskRail(
       const selected = actions.getSelection();
       if (!selected) {
         feedback.textContent = 'Select a data object first.';
+        refresh();
+        return;
+      }
+      const availability = actions.taskAvailability?.(task.id, selected.data) ?? {
+        available: true,
+      };
+      if (!availability.available) {
+        feedback.textContent = availability.reason ?? `${task.label} is unavailable.`;
         refresh();
         return;
       }
@@ -132,16 +158,18 @@ export function mountDesktopSelectionTaskRail(
   else sidebar.appendChild(section);
   refresh();
 
-  // Selection changes are currently represented by the production selected
-  // mesh facade rather than an event. Refresh on pointer/focus return without
-  // introducing a second selection store or polling loop.
+  // Pointer/focus returns cover ordinary desktop selection. The optional
+  // authoritative subscription invalidates the rail on dataset/representation
+  // changes so a stale selected payload cannot survive a rebuild.
   const refreshFromInteraction = () => refresh();
   document.addEventListener('pointerup', refreshFromInteraction, true);
   document.addEventListener('focusin', refreshFromInteraction, true);
+  const unsubscribeSelectionContext = actions.subscribeSelectionContext?.(refresh) ?? null;
 
   return {
     refresh,
     dispose: () => {
+      unsubscribeSelectionContext?.();
       document.removeEventListener('pointerup', refreshFromInteraction, true);
       document.removeEventListener('focusin', refreshFromInteraction, true);
       section.remove();
