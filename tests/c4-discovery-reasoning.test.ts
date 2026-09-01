@@ -37,7 +37,7 @@ function fixture() {
       spec: {
         datasetFingerprint: 'fp-1',
         datasetVersion: 1,
-        operation: { op: 'anomaly' },
+        operation: { op: 'anomaly_zscore', column: 'value' },
         algorithmVersion: 'kernel-test',
       },
       dataset: { name: 'fixture', columns: [], rows: [] },
@@ -45,7 +45,7 @@ function fixture() {
       implementationVersion: 'kernel-test',
       outputHash: 'output-1',
       evidenceStatus: 'exploratory',
-    } as AnalysisResult,
+    },
   ];
 
   const atlas = {
