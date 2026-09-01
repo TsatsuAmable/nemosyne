@@ -263,14 +263,13 @@ export function mountDesktopReasoningRail(
         evidence.appendChild(conclusionLine);
       }
 
-      const activeNode = snapshot.activeGraphNode;
-      if (
-        activeNode?.metadata?.discoveryId === selected.discoveryId &&
-        activeNode.metadata.discoveryRole === 'branch'
-      ) {
+      const branches = snapshot.branches.filter(
+        (branch) => branch.discoveryId === selected.discoveryId,
+      );
+      if (branches.length > 0) {
         const branchLine = document.createElement('span');
         branchLine.id = 'reasoning-branch-provenance';
-        branchLine.textContent = `Branch · ${activeNode.label} · from ${activeNode.parentId ?? 'unknown origin'}`;
+        branchLine.textContent = `Branches · ${branches.map((branch) => `${branch.label} · from ${branch.parentId ?? 'unknown origin'}${branch.active ? ' · active' : ' · recorded'}`).join(' | ')}`;
         evidence.appendChild(branchLine);
       }
     }
