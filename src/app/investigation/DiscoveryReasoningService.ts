@@ -10,12 +10,21 @@ import type { InvestigationNode } from '../../atlas/domain/InvestigationGraph.ts
 
 export type DiscoveryTestOutcome = DiscoveryAnalyticalTest['outcome'];
 
+export interface DiscoveryBranchSummary {
+  id: string;
+  discoveryId: string;
+  label: string;
+  parentId: string | null;
+  active: boolean;
+}
+
 export interface DiscoveryReasoningSnapshot {
   discoveries: readonly DiscoveryEpisode[];
   latestObservation: Observation | null;
   latestResult: AnalysisResult | null;
   activeGraphNodeId: string | null;
   activeGraphNode: InvestigationNode | null;
+  branches: readonly DiscoveryBranchSummary[];
 }
 
 export interface StartDiscoveryInput {
@@ -106,15 +115,23 @@ export class DiscoveryReasoningService {
   }
 
   snapshot(): DiscoveryReasoningSnapshot {
-    const activeGraphNodeId = this.atlas.aggregate.graph.activeNodeId;
+    const graph = this.atlas.aggregate.graph;
+    const activeGraphNodeId = graph.activeNodeId;
     return {
       discoveries: this.atlas.aggregate.discoveries.all(),
       latestObservation: this.atlas.observations.at(-1) ?? null,
       latestResult: this.atlas.results.at(-1) ?? null,
       activeGraphNodeId,
-      activeGraphNode: activeGraphNodeId
-        ? this.atlas.aggregate.graph.getNode(activeGraphNodeId) ?? null
-        : null,
+      activeGraphNode: activeGraphNodeId ? graph.getNode(activeGraphNodeId) ?? null : null,
+      branches: graph.nodes
+        .filter((node) => node.metadata?.discoveryRole === 'branch')
+        .map((node) => ({
+          id: node.id,
+          discoveryId: String(node.metadata?.discoveryId ?? ''),
+          label: node.label,
+          parentId: node.parentId,
+          active: node.id === activeGraphNodeId,
+        })),
     };
   }
 
