@@ -23,6 +23,10 @@ import {
   type InvestigationShellHandle,
 } from './InvestigationShell.ts';
 import {
+  mountDesktopSelectionTaskRail,
+  type DesktopSelectionTaskActions,
+} from './DesktopSelectionTaskRail.ts';
+import {
   createApplicationIntentDispatcher,
   type ApplicationDispatchIntentDispatcher,
   type ApplicationIntentDispatcher,
@@ -120,6 +124,25 @@ function investigationActions(
         platform: navigator.platform,
         webxrSupported: 'xr' in navigator,
       }),
+  };
+}
+
+function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions {
+  const surface = world.uiManager.contextualTaskSurface;
+  return {
+    getSelection: () => {
+      const data = surface.activeData;
+      if (!data) return null;
+      const rawLabel = data.name ?? data.label ?? data.id ?? surface.activeNode?.name ?? 'Selected object';
+      return {
+        label: String(rawLabel).slice(0, 80),
+        data,
+      };
+    },
+    dispatchTask: (intent, data) => surface.dispatchTask(intent, data),
+    taskAvailability: (intent, data) => surface.taskAvailability(intent, data),
+    subscribeSelectionContext: (handler) =>
+      world.eventBus.on(WorldTopics.DATASET_LOADED, () => queueMicrotask(handler)),
   };
 }
 
@@ -364,11 +387,26 @@ export async function bootstrapApp(): Promise<AppInstance> {
     }
   }
 
+  const shell = mountInvestigationShell(
+    investigationActions(world, dispatchIntent, functionalWorldObjects),
+  );
+  const desktopSelectionTaskRail = mountDesktopSelectionTaskRail(
+    desktopSelectionTaskActions(world),
+  );
+  const investigationShell: InvestigationShellHandle = {
+    refreshContext: () => {
+      shell.refreshContext();
+      desktopSelectionTaskRail.refresh();
+    },
+    dispose: () => {
+      desktopSelectionTaskRail.dispose();
+      shell.dispose();
+    },
+  };
+
   return {
     world,
     dispatchIntent,
-    investigationShell: mountInvestigationShell(
-      investigationActions(world, dispatchIntent, functionalWorldObjects),
-    ),
+    investigationShell,
   };
 }
