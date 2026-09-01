@@ -157,20 +157,15 @@ export function mountDesktopSelectionTaskRail(
   else sidebar.appendChild(section);
   refresh();
 
-  // Pointer/focus returns cover ordinary desktop selection. The optional
-  // authoritative subscription invalidates the rail on dataset/representation
-  // changes so a stale selected payload cannot survive a rebuild.
-  const refreshFromInteraction = () => refresh();
-  document.addEventListener('pointerup', refreshFromInteraction, true);
-  document.addEventListener('focusin', refreshFromInteraction, true);
+  // The composition root supplies a read-only authoritative selection/context
+  // subscription. Avoid document-wide interaction listeners that would turn
+  // focus or pointer activity into a second, timing-sensitive selection signal.
   const unsubscribeSelectionContext = actions.subscribeSelectionContext?.(refresh) ?? null;
 
   return {
     refresh,
     dispose: () => {
       unsubscribeSelectionContext?.();
-      document.removeEventListener('pointerup', refreshFromInteraction, true);
-      document.removeEventListener('focusin', refreshFromInteraction, true);
       section.remove();
     },
   };
