@@ -52,6 +52,7 @@ test('P1-UV C2 proves investigation state is legible on the normal product surfa
   });
   expectGrounded(initial);
   expect(initial.status.representationState).toBe('COMMITTED');
+  expect(initial.status.origin.activeNodeId).not.toBeNull();
   await page.waitForTimeout(150);
   await page.screenshot({ path: 'p1uv-c2-results/c2-grounded-baseline.png', fullPage: true });
 
@@ -97,6 +98,7 @@ test('P1-UV C2 proves investigation state is legible on the normal product surfa
   });
   expect(applied.status.representationState).toBe('COMMITTED');
   expect(applied.status.recovery.canUndo).toBe(true);
+  expect(applied.status.origin.activeNodeId).not.toBe(initial.status.origin.activeNodeId);
 
   const undone = await page.evaluate(() => {
     const hook = window.__NEMOSYNE_C2_EVIDENCE__;
@@ -104,6 +106,7 @@ test('P1-UV C2 proves investigation state is legible on the normal product surfa
     return hook.undo();
   });
   expect(undone.status.recovery.canRedo).toBe(true);
+  expect(undone.status.origin.activeNodeId).toBe(initial.status.origin.activeNodeId);
 
   const frozen = await page.evaluate(async () => {
     const hook = window.__NEMOSYNE_C2_EVIDENCE__;
@@ -126,6 +129,7 @@ test('P1-UV C2 proves investigation state is legible on the normal product surfa
       statusSurfaceAnalystAnchored: true,
       statusSurfaceUsesGovernedLayout: true,
       uiTreatmentVersionPinned: true,
+      historyRecoveryOriginReconciled: true,
       screenshotsRetained: true,
     },
     initial,
