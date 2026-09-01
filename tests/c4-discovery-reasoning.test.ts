@@ -172,6 +172,27 @@ describe('P1-UV C4 governed discovery reasoning', () => {
     expect(source?.metadata?.discoveryRole).toBe('conclusion');
   });
 
+  it('returns to the tested conclusion without erasing branch provenance', () => {
+    const { aggregate, service } = fixture();
+    const episode = start(service);
+    record(service, episode.discoveryId, 'REFUTES');
+    const branch = service.branch({ discoveryId: episode.discoveryId, label: 'Alternative cause' });
+    const branchEdge = aggregate.graph.edges.find((edge) => edge.target === branch.id);
+
+    expect(service.snapshot().activeGraphNodeId).toBe(branch.id);
+    expect(service.snapshot().activeGraphNode?.metadata?.discoveryRole).toBe('branch');
+
+    const conclusion = service.returnToConclusion(episode.discoveryId);
+
+    expect(conclusion.metadata?.discoveryRole).toBe('conclusion');
+    expect(service.snapshot().activeGraphNodeId).toBe(conclusion.id);
+    expect(aggregate.graph.getNode(branch.id)).toEqual(branch);
+    expect(branchEdge).toBeDefined();
+    expect(aggregate.graph.edges).toContainEqual(branchEdge);
+    expect(branchEdge?.source).toBe(conclusion.id);
+    expect(branchEdge?.relationship).toBe('branches_from');
+  });
+
   it('rejects missing researcher question or hypothesis instead of manufacturing one', () => {
     const { service } = fixture();
     expect(() =>
