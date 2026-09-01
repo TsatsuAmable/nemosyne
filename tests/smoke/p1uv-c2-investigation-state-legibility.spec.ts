@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import type { C2ProductEvidenceSnapshot } from '../../src/app/c2ProductEvidenceDiagnostics.ts';
+import { PANEL_LAYOUT, UI_TREATMENT_VERSION } from '../../src/vr/ui/panelLayout.ts';
 
 function sourceMetadata() {
   return {
@@ -16,6 +17,10 @@ function expectGrounded(snapshot: C2ProductEvidenceSnapshot): void {
   expect(snapshot.lines).toHaveLength(4);
   expect(snapshot.statusPanelParent).toBe('analystAnchor');
   expect(snapshot.statusPanelVisible).toBe(true);
+  expect(snapshot.uiTreatmentVersion).toBe(UI_TREATMENT_VERSION);
+  snapshot.statusPanelLocalPosition.forEach((value, index) => {
+    expect(value).toBeCloseTo(PANEL_LAYOUT.statusStrip[index], 6);
+  });
   expect(['IDLE', 'PENDING', 'REFUSED', 'INVALID', 'UNAVAILABLE', 'READY']).toContain(
     snapshot.status.analyticalStatus,
   );
@@ -119,6 +124,8 @@ test('P1-UV C2 proves investigation state is legible on the normal product surfa
       inferredEpistemicRelationships: false,
       newPersistentPanelAdded: false,
       statusSurfaceAnalystAnchored: true,
+      statusSurfaceUsesGovernedLayout: true,
+      uiTreatmentVersionPinned: true,
       screenshotsRetained: true,
     },
     initial,
