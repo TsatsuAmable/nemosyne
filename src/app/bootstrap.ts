@@ -27,6 +27,13 @@ import {
   type DesktopSelectionTaskActions,
 } from './DesktopSelectionTaskRail.ts';
 import {
+  DiscoveryReasoningService,
+} from './investigation/DiscoveryReasoningService.ts';
+import {
+  mountDesktopReasoningRail,
+  type DesktopReasoningRailActions,
+} from './investigation/DesktopReasoningRail.ts';
+import {
   createApplicationIntentDispatcher,
   type ApplicationDispatchIntentDispatcher,
   type ApplicationIntentDispatcher,
@@ -158,6 +165,55 @@ function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions 
   };
 }
 
+function desktopReasoningRailActions(
+  world: World,
+  reasoning: DiscoveryReasoningService,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter,
+): DesktopReasoningRailActions {
+  const syncPresentation = (): void => functionalWorldObjects.syncNow();
+  return {
+    snapshot: () => reasoning.snapshot(),
+    start: (input) => {
+      const episode = reasoning.start(input);
+      syncPresentation();
+      return { discoveryId: episode.discoveryId };
+    },
+    recordTest: (input) => {
+      const episode = reasoning.recordTest(input);
+      syncPresentation();
+      return {
+        discoveryId: episode.discoveryId,
+        validationStatus: episode.validationStatus,
+      };
+    },
+    branch: (input) => {
+      const node = reasoning.branch(input);
+      syncPresentation();
+      return { id: node.id };
+    },
+    subscribeContext: (handler) => {
+      const refresh = () => queueMicrotask(handler);
+      const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
+      const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
+      const unsubscribeInteraction = world.eventBus.on(WorldTopics.INTERACTION_LOG, (payload) => {
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          'action' in payload &&
+          payload.action === 'Mark moment'
+        ) {
+          refresh();
+        }
+      });
+      return () => {
+        unsubscribeDataset();
+        unsubscribeOperation();
+        unsubscribeInteraction();
+      };
+    },
+  };
+}
+
 function devTraceBindings(world: World): DevTraceBindings {
   return {
     recorderOptions: {
@@ -270,6 +326,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
     getPreviewDecision: () => world._previewedDecision,
   });
   world.registerExtensionDisposer(() => functionalWorldObjects.dispose());
+
+  const discoveryReasoning = new DiscoveryReasoningService(world.atlas);
 
   // P1-UV C2 projects existing authority into the existing persistent Status
   // Strip. WorldUIManager owns its governed torso-locked reference frame and
@@ -405,12 +463,17 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const desktopSelectionTaskRail = mountDesktopSelectionTaskRail(
     desktopSelectionTaskActions(world),
   );
+  const desktopReasoningRail = mountDesktopReasoningRail(
+    desktopReasoningRailActions(world, discoveryReasoning, functionalWorldObjects),
+  );
   const investigationShell: InvestigationShellHandle = {
     refreshContext: () => {
       shell.refreshContext();
       desktopSelectionTaskRail.refresh();
+      desktopReasoningRail.refresh();
     },
     dispose: () => {
+      desktopReasoningRail.dispose();
       desktopSelectionTaskRail.dispose();
       shell.dispose();
     },
