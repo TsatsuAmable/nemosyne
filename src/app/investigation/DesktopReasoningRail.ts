@@ -10,6 +10,7 @@ export interface DesktopReasoningRailActions {
   start(input: StartDiscoveryInput): { discoveryId: string };
   recordTest(input: RecordDiscoveryTestInput): { discoveryId: string; validationStatus: string };
   branch(input: BranchDiscoveryInput): { id: string };
+  returnToConclusion(discoveryId: string): { id: string };
   subscribeContext?(handler: () => void): () => void;
 }
 
@@ -141,6 +142,22 @@ export function mountDesktopReasoningRail(
   `;
   body.appendChild(discoverySelect);
 
+  const evidence = document.createElement('div');
+  evidence.id = 'reasoning-evidence';
+  evidence.setAttribute('aria-live', 'polite');
+  evidence.style.cssText = `
+    display: grid;
+    gap: var(--nms-spacing-x4);
+    padding: var(--nms-spacing-x8);
+    background: var(--nms-color-surface-raised);
+    border: 1px solid var(--nms-color-surface-border);
+    border-radius: var(--nms-panel-border-radius);
+    color: var(--nms-color-text-secondary);
+    font-size: var(--nms-font-size-meta);
+    line-height: 1.35;
+  `;
+  body.appendChild(evidence);
+
   const outcome = document.createElement('select');
   outcome.id = 'reasoning-test-outcome';
   outcome.setAttribute('aria-label', 'Researcher test interpretation');
@@ -167,7 +184,8 @@ export function mountDesktopReasoningRail(
 
   const branchLabel = input('reasoning-branch-label', 'Branch label', 'Optional branch question');
   const branchButton = button('reasoning-branch', 'Branch here');
-  body.append(branchLabel, branchButton);
+  const returnButton = button('reasoning-return', 'Return to tested conclusion');
+  body.append(branchLabel, branchButton, returnButton);
 
   const feedback = document.createElement('p');
   feedback.id = 'reasoning-feedback';
@@ -217,6 +235,45 @@ export function mountDesktopReasoningRail(
     const terminal = Boolean(selected && selected.validationStatus !== 'UNDER_INVESTIGATION' && selected.validationStatus !== 'UNTESTED');
     testButton.toggleAttribute('disabled', !selected || !result || terminal);
     branchButton.toggleAttribute('disabled', !selected?.conclusion);
+    returnButton.toggleAttribute('disabled', !selected?.conclusion);
+
+    evidence.replaceChildren();
+    if (!selected) {
+      evidence.textContent = 'No reasoning path yet.';
+    } else {
+      const status = document.createElement('strong');
+      status.textContent = selected.validationStatus;
+      status.style.color = 'var(--nms-color-text-primary)';
+      evidence.appendChild(status);
+
+      const hypothesisLine = document.createElement('span');
+      hypothesisLine.textContent = `Hypothesis · ${selected.hypothesis ?? 'not stated'}`;
+      evidence.appendChild(hypothesisLine);
+
+      const latestTest = selected.analyticalTests.at(-1) ?? null;
+      const evidenceLine = document.createElement('span');
+      evidenceLine.textContent = latestTest
+        ? `${latestTest.outcome} · cited analytical evidence ${latestTest.evidenceIds.join(', ')}`
+        : `Observation evidence · ${selected.evidenceIds.join(', ')}`;
+      evidence.appendChild(evidenceLine);
+
+      if (selected.conclusion) {
+        const conclusionLine = document.createElement('span');
+        conclusionLine.textContent = `Conclusion · ${selected.conclusion}`;
+        evidence.appendChild(conclusionLine);
+      }
+
+      const activeNode = snapshot.activeGraphNode;
+      if (
+        activeNode?.metadata?.discoveryId === selected.discoveryId &&
+        activeNode.metadata.discoveryRole === 'branch'
+      ) {
+        const branchLine = document.createElement('span');
+        branchLine.id = 'reasoning-branch-provenance';
+        branchLine.textContent = `Branch · ${activeNode.label} · from ${activeNode.parentId ?? 'unknown origin'}`;
+        evidence.appendChild(branchLine);
+      }
+    }
   };
 
   discoverySelect.addEventListener('change', () => {
@@ -279,6 +336,17 @@ export function mountDesktopReasoningRail(
     }
   });
 
+  returnButton.addEventListener('click', () => {
+    try {
+      if (!selectedDiscoveryId) throw new Error('Choose a reasoning path first.');
+      const conclusionNode = actions.returnToConclusion(selectedDiscoveryId);
+      feedback.textContent = `Returned to conclusion · ${conclusionNode.id}`;
+      refresh();
+    } catch (error) {
+      feedback.textContent = error instanceof Error ? error.message : String(error);
+    }
+  });
+
   const moreTools = Array.from(sidebar.children).find(
     (child) => child instanceof HTMLDetailsElement,
   );
@@ -286,6 +354,7 @@ export function mountDesktopReasoningRail(
   else sidebar.appendChild(section);
 
   const unsubscribe = actions.subscribeContext?.(refresh) ?? null;
+  section.addEventListener('toggle', refresh);
   refresh();
 
   return {
