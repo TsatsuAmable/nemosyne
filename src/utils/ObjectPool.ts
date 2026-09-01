@@ -23,6 +23,17 @@ export const sharedNodeMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.2,
 });
 
+const SHARED_GEOMETRIES = new Set<THREE.BufferGeometry>([
+  sharedSphereGeometry,
+  sharedBoxGeometry,
+  sharedCylinderGeometry,
+]);
+
+type DisposableRenderable = THREE.Object3D & {
+  geometry?: THREE.BufferGeometry;
+  material?: THREE.Material | THREE.Material[];
+};
+
 export class MeshPool implements IMeshPool {
   private static _instance: MeshPool;
   private _spherePool: THREE.Mesh[] = [];
@@ -105,7 +116,7 @@ export class MeshPool implements IMeshPool {
       this._boxPool.push(mesh);
     } else {
       // Custom geometry and material fallback
-      mesh.geometry?.dispose?.();
+      if (!SHARED_GEOMETRIES.has(mesh.geometry)) mesh.geometry?.dispose?.();
       this._disposeMaterial(mesh.material);
     }
   }
@@ -128,24 +139,47 @@ export class MeshPool implements IMeshPool {
     }
   }
 
-  /** Recycle all meshes in an object group. */
+  /**
+   * Recycle pooled meshes and dispose every other renderable in an object tree.
+   * Line/Points primitives are not THREE.Mesh instances, so leaving them behind
+   * leaks their GPU resources and can leave retired representation groups dirty.
+   */
   releaseGroup(group: THREE.Object3D): void {
     const toRelease: THREE.Mesh[] = [];
+    const toDispose: DisposableRenderable[] = [];
     group.traverse((child) => {
+      if (child === group) return;
       if (child instanceof THREE.Mesh) {
         toRelease.push(child);
+        return;
+      }
+      const renderable = child as DisposableRenderable;
+      if (renderable.geometry || renderable.material) {
+        toDispose.push(renderable);
       }
     });
+
     for (const mesh of toRelease) {
       this.release(mesh);
     }
+    for (const renderable of toDispose) {
+      renderable.removeFromParent();
+      if (renderable.geometry && !SHARED_GEOMETRIES.has(renderable.geometry)) {
+        renderable.geometry.dispose();
+      }
+      this._disposeMaterial(renderable.material);
+    }
+
+    // Detach any empty/nested containers so a retired group contains no stale
+    // representation objects even when a child had no GPU resources of its own.
+    group.clear();
   }
 
   /** Clear and dispose all pooled meshes. */
   clear(): void {
     for (const mesh of [...this._spherePool, ...this._boxPool, ...this._activeMeshes]) {
       mesh.removeFromParent();
-      if (mesh.geometry !== sharedSphereGeometry && mesh.geometry !== sharedBoxGeometry) {
+      if (!SHARED_GEOMETRIES.has(mesh.geometry)) {
         mesh.geometry?.dispose?.();
       }
       this._disposeMaterial(mesh.material);
