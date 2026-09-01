@@ -191,6 +191,11 @@ function desktopReasoningRailActions(
       syncPresentation();
       return { id: node.id };
     },
+    returnToConclusion: (discoveryId) => {
+      const node = reasoning.returnToConclusion(discoveryId);
+      syncPresentation();
+      return { id: node.id };
+    },
     subscribeContext: (handler) => {
       const refresh = () => queueMicrotask(handler);
       const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
