@@ -28,6 +28,7 @@ import {
   type ApplicationIntentDispatcher,
 } from './intents/ApplicationIntent.ts';
 import { bindInputCallbacksToApplicationIntents } from './intents/InputIntentBindings.ts';
+import { FunctionalWorldObjectsPresenter } from '../vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts';
 
 export interface AppInstance {
   world: World;
@@ -72,6 +73,7 @@ function applicationIntentDispatcher(world: World): ApplicationDispatchIntentDis
 function investigationActions(
   world: World,
   dispatchIntent: ApplicationDispatchIntentDispatcher,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter,
 ): InvestigationActions {
   return {
     dispatchIntent,
@@ -82,13 +84,29 @@ function investigationActions(
         // LoadDatasetUseCase publishes the logical transition synchronously;
         // World assigns currentEntry immediately after it returns. Refresh on
         // the next microtask so the shell reads the completed facade state.
-        queueMicrotask(handler);
+        queueMicrotask(() => {
+          functionalWorldObjects.noteAssessmentOutcome('decision');
+          functionalWorldObjects.syncNow();
+          handler();
+        });
       }),
-    assessRepresentation: (maxRenderedElements) =>
-      assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements),
+    assessRepresentation: (maxRenderedElements) => {
+      const outcome = assessAnalystRepresentation(world.atlas, world.session, maxRenderedElements);
+      functionalWorldObjects.noteAssessmentOutcome(outcome.kind);
+      return outcome;
+    },
     analysisResultCount: () => world.atlas.results.length,
-    markMoment: (note) => world.markMoment(note).id,
-    replayPortableInvestigation: (bytes) => world.replayPortableInvestigation(bytes),
+    markMoment: (note) => {
+      const observation = world.markMoment(note);
+      functionalWorldObjects.syncNow();
+      return observation.id;
+    },
+    replayPortableInvestigation: async (bytes) => {
+      const result = await world.replayPortableInvestigation(bytes);
+      functionalWorldObjects.noteAssessmentOutcome('decision');
+      functionalWorldObjects.syncNow();
+      return result;
+    },
     exportPortableInvestigation: () =>
       world.session.exportPortablePackage({
         userAgent: navigator.userAgent,
@@ -189,6 +207,26 @@ export async function bootstrapApp(): Promise<AppInstance> {
 
   applyNormalAnalystShell(world);
 
+  // P1-UV C1: project existing Moneta/Atlas/Vault truth into the persistent
+  // world objects. This is presentation-only composition and does not activate
+  // the dormant MemoryPalaceController authoring path.
+  const functionalWorldObjects = new FunctionalWorldObjectsPresenter({
+    engine: world.engine,
+    atlas: world.atlas,
+    core: world.core,
+    iceVault: world.iceVault,
+    portalA: world.portalA,
+    portalB: world.portalB,
+    landmarkController: world.landmarkController,
+    panelManager: world.uiManager.panelManager,
+    recommendationPanel: world.uiManager.recommendationPanel,
+    vaultPanel: world.uiManager.vaultPanel,
+    tooltipManager: world.tooltipManager,
+    getOutcome: () => world._activeOutcome,
+    getPreviewDecision: () => world._previewedDecision,
+  });
+  world.registerExtensionDisposer(() => functionalWorldObjects.dispose());
+
   if (import.meta.env.DEV) {
     const { installDevEvidence } = await import('./devEvidence.ts');
     const devEvidence = installDevEvidence({
@@ -246,6 +284,12 @@ export async function bootstrapApp(): Promise<AppInstance> {
     world.registerExtensionDisposer(disposeGraphEvidence);
   }
 
+  if (import.meta.env.VITE_NEMOSYNE_C1_PRODUCT_EVIDENCE === '1') {
+    const { installC1ProductEvidenceHook } = await import('./c1ProductEvidenceDiagnostics.ts');
+    const disposeC1Evidence = installC1ProductEvidenceHook(world, functionalWorldObjects);
+    world.registerExtensionDisposer(disposeC1Evidence);
+  }
+
   if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
     const { installBrowserEnvelopeDiagnosticHook } = await import('./browserEnvelopeDiagnostics.ts');
     installBrowserEnvelopeDiagnosticHook(world);
@@ -277,6 +321,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
   return {
     world,
     dispatchIntent,
-    investigationShell: mountInvestigationShell(investigationActions(world, dispatchIntent)),
+    investigationShell: mountInvestigationShell(
+      investigationActions(world, dispatchIntent, functionalWorldObjects),
+    ),
   };
 }
