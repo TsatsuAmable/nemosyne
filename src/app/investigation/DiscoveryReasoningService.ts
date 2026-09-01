@@ -309,6 +309,23 @@ export class DiscoveryReasoningService {
     return updated;
   }
 
+  returnToConclusion(discoveryId: string): InvestigationNode {
+    const episode = this.atlas.aggregate.discoveries.get(discoveryId);
+    if (!episode) throw new Error(`Discovery not found: ${discoveryId}`);
+    const conclusionNode = graphNodeForDiscoveryRole(
+      this.atlas.aggregate.graph.nodes,
+      discoveryId,
+      'conclusion',
+    );
+    if (!conclusionNode) {
+      throw new Error(`Discovery ${discoveryId} has no tested conclusion to return to.`);
+    }
+    if (!this.atlas.aggregate.graph.setActiveNode(conclusionNode.id)) {
+      throw new Error(`Conclusion node is unavailable: ${conclusionNode.id}`);
+    }
+    return conclusionNode;
+  }
+
   branch(input: BranchDiscoveryInput): InvestigationNode {
     const episode = this.atlas.aggregate.discoveries.get(input.discoveryId);
     if (!episode) throw new Error(`Discovery not found: ${input.discoveryId}`);
