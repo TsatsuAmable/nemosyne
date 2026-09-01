@@ -30,6 +30,9 @@ on:
       - 'wasm/src/moneta/embodiment.rs'
       - 'tests/smoke/p1r-graph-b4-evidence.spec.ts'
       - 'tests/p1r-r2e-b4-evidence-trigger-coverage.test.ts'
+      - 'docs/roadmap/P1_R2E_RELATIONSHIP_GRAPH.md'
+      - 'docs/ROADMAP.md'
+      - 'docs/review/P1_R2E_B4_STOP_REVIEW_2026-09-01.md'
   workflow_dispatch:
 
 permissions:
