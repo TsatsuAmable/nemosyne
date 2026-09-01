@@ -148,7 +148,13 @@ describe('post-M4 independent fix-forward', () => {
 
     const bootstrapSource = readFileSync('src/app/bootstrap.ts', 'utf8');
     expect(bootstrapSource).toContain('world.eventBus.on(WorldTopics.DATASET_LOADED');
-    expect(bootstrapSource).toContain('queueMicrotask(handler)');
+    // Preserve the semantic contract rather than pinning the exact callback
+    // spelling: dataset context refresh stays deferred until World has finished
+    // assigning the newly loaded entry, while C1 may perform presentation-only
+    // synchronization in the same microtask before notifying the shell.
+    expect(bootstrapSource).toMatch(
+      /world\.eventBus\.on\(WorldTopics\.DATASET_LOADED[\s\S]*?queueMicrotask\(\(\) => \{[\s\S]*?handler\(\);[\s\S]*?\}\)/
+    );
   });
 
   it('pins M4 evidence to the real checkout while retaining the workflow event SHA separately', () => {
