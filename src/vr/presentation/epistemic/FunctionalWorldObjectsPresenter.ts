@@ -50,6 +50,7 @@ export class FunctionalWorldObjectsPresenter {
   readonly memoryPalace: MemoryPalaceWorldView;
   private elapsed = 0;
   private lastDecisionState: TechnoCoreDecisionState | null = null;
+  private assessmentOverride: TechnoCoreDecisionState | null = null;
   private restoringArchive = false;
   private readonly originalVaultRestore?: (archiveId: string) => unknown;
   private readonly originalVaultFreeze?: () => unknown;
@@ -79,6 +80,12 @@ export class FunctionalWorldObjectsPresenter {
     this.syncNow();
   }
 
+  /** Preserve an explicit assessment result without translating its score. */
+  noteAssessmentOutcome(kind: 'decision' | 'nil'): void {
+    this.assessmentOverride = kind === 'nil' ? 'INFEASIBLE' : null;
+    this.syncNow();
+  }
+
   update(delta = 0): void {
     this.elapsed += delta;
     if (this.elapsed < 0.2) return;
@@ -97,7 +104,7 @@ export class FunctionalWorldObjectsPresenter {
     const outcome = this.host.getOutcome();
     const activeDecision = this.host.atlas.activeRepresentationDecision;
     const state: TechnoCoreDecisionState =
-      outcome?.state ?? activeDecision?.decisionStatus ?? 'PENDING';
+      this.assessmentOverride ?? outcome?.state ?? activeDecision?.decisionStatus ?? 'PENDING';
     if (state !== this.lastDecisionState) {
       this.host.core.setDecisionState(state);
       this.lastDecisionState = state;
