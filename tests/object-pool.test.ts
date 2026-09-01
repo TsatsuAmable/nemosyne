@@ -38,10 +38,33 @@ describe('Object Pool & Time-Sliced Execution Subsystem', () => {
     pool.releaseGroup(group);
 
     expect(childMesh.visible).toBe(false);
+    expect(group.children).toHaveLength(0);
 
     // Re-acquiring box should reuse childMesh
     const reusedBox = pool.acquireBox(0x00ccff, [0.1, 0.1, 0.1]);
     expect(reusedBox).toBe(childMesh);
+  });
+
+  it('disposes non-mesh renderables when releasing a group', () => {
+    const pool = MeshPool.instance;
+    pool.clear();
+
+    const group = new THREE.Group();
+    const nested = new THREE.Group();
+    const geometry = new THREE.BufferGeometry();
+    const material = new THREE.LineBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const segments = new THREE.LineSegments(geometry, material);
+    nested.add(segments);
+    group.add(nested);
+
+    pool.releaseGroup(group);
+
+    expect(geometryDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+    expect(segments.parent).toBeNull();
+    expect(group.children).toHaveLength(0);
   });
 
   it('executes item batches smoothly in time slices', async () => {

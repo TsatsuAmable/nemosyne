@@ -25,12 +25,11 @@ import type {
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
 };
-
 type GovernedSemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
   semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | GraphEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentDatasetFingerprint?: string;
 };
-
 export class VRTopologyTranslator {
   private static _colorblindMode: string | boolean = 'none';
   private static _pointCloudFactory: InstancedPointCloudFactory | null = null;
@@ -41,15 +40,12 @@ export class VRTopologyTranslator {
   static registerPointCloudFactory(factory: InstancedPointCloudFactory): void {
     this._pointCloudFactory = factory;
   }
-
   static registerChartPlaneFactory(factory: ChartPlaneFactory): void {
     this._chartPlaneFactory = factory;
   }
-
   static registerMetaphorActions(actions: MetaphorActionHandlers): void {
     this._metaphorActions = { ...this._metaphorActions, ...actions };
   }
-
   static synthesizeArtifact(
     monetaResult: SolverResult,
     dataInput: MonetaDataInput,
@@ -61,9 +57,11 @@ export class VRTopologyTranslator {
     const governedSemanticInput = dataInput as GovernedSemanticMonetaDataInput;
     const usesClusterSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
-    // A retained graph envelope is governance evidence in itself: even if a
-    // marker/candidate sync defect cleared the marker, it must never fall through.
-    const retained = governedSemanticInput.semanticEmbodiment as { candidateId?: string } | null | undefined;
+    // Retained graph authority must not fall through if its marker was cleared.
+    const retained = governedSemanticInput.semanticEmbodiment as
+      | { candidateId?: string }
+      | null
+      | undefined;
     const usesGraphSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH' ||
       retained?.candidateId === 'RELATIONSHIP_GRAPH';
@@ -79,12 +77,7 @@ export class VRTopologyTranslator {
       this._colorblindMode,
       this._pointCloudFactory
     );
-
-    // Governed dataset-level semantic candidates consume only bounded
-    // Rust-owned payloads. CLUSTER_VOLUME remains a presentation primitive;
-    // only an explicit CLUSTER_REGIONS authority marker intercepts it before
-    // source-row resolution. That governed path has deliberately no row-backed
-    // grouping/sphere fallback when evidence is pending, refused or unavailable.
+    // Governed semantic candidates consume bounded Rust-owned payloads only.
     let rows: Record<string, unknown>[] = [];
     let edges = dataInput.edges ?? [];
     if (spec.geometry === 'AGGREGATE_BARS') {
@@ -97,12 +90,22 @@ export class VRTopologyTranslator {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else if (spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) {
-      buildClusterSemanticRegions(group, nodeMeshes, governedSemanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null);
+      buildClusterSemanticRegions(
+        group,
+        nodeMeshes,
+        governedSemanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null
+      );
       edges = [];
     } else if (usesGraphSemanticEmbodiment) {
-      // The governed RELATIONSHIP_GRAPH marker — not a geometry constant — is the
-      // authority gate: no raw row/edge read can precede this intercept.
-      buildGraphSemanticTopology(group, nodeMeshes, edgeMeshes, governedSemanticInput.semanticEmbodiment as GraphEmbodimentEnvelopeV1 | null, dataset);
+      // The governed marker intercepts raw rows/edges and reuses Atlas/Rust identity.
+      buildGraphSemanticTopology(
+        group,
+        nodeMeshes,
+        edgeMeshes,
+        governedSemanticInput.semanticEmbodiment as GraphEmbodimentEnvelopeV1 | null,
+        dataset,
+        governedSemanticInput.semanticEmbodimentDatasetFingerprint
+      );
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
