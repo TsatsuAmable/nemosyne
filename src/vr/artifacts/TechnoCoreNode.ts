@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import type { RepresentationDecisionStatus } from '../../moneta/representation/DecisionPolicy.ts';
 import type { LensMode, Updatable } from '../coordinators/types.ts';
 
 export interface TechnoCoreNodeOptions {
   position?: [number, number, number];
   scale?: number;
 }
+
+export type TechnoCoreDecisionState = RepresentationDecisionStatus | 'PENDING';
 
 const MODE_COLORS: Record<LensMode, number> = {
   off: 0x00ffff,
@@ -13,12 +16,14 @@ const MODE_COLORS: Record<LensMode, number> = {
 };
 
 /**
- * A functional landmark that serves as the memory palace's computation hub.
+ * A functional landmark that serves as the memory palace's representation
+ * reasoning instrument.
  *
- * Beyond symbolism, the TechnoCore is an interactable lens hub. Pointing and
- * pinching it cycles through analysis modes (statistical lens, anomaly lens,
- * off). Its pulse intensity also reflects live analysis activity so the user
- * can "feel" the amount of computation in the scene.
+ * The node keeps the historical lens APIs for compatibility, but the normal
+ * product path projects the exact Moneta decision state here and uses selection
+ * to inspect the governed guidance surface. Decision state is communicated by
+ * geometry/pose as well as colour so it is categorical rather than a faux
+ * confidence gauge.
  */
 export class TechnoCoreNode implements Updatable {
   static readonly LENS_MODES: LensMode[] = ['off', 'statistical', 'anomaly'];
@@ -33,12 +38,18 @@ export class TechnoCoreNode implements Updatable {
 
   private _dataActivity: number;
   lensMode: LensMode;
+  decisionState: TechnoCoreDecisionState;
+  private _decisionBaseOpacity = 0.45;
 
   constructor({ position = [6, 4, -8], scale = 1 }: TechnoCoreNodeOptions = {}) {
     this.group = new THREE.Group();
     this.group.position.set(...position);
     this.group.scale.setScalar(scale);
-    this.group.userData = { role: 'technocore', interactive: true };
+    this.group.userData = {
+      role: 'technocore',
+      interactive: true,
+      decisionState: 'PENDING',
+    };
 
     // Soft inner glow core.
     const coreGeo = new THREE.SphereGeometry(1.05, 24, 24);
@@ -76,17 +87,67 @@ export class TechnoCoreNode implements Updatable {
     });
     this.ring1 = new THREE.Mesh(ringGeo, ringMat);
     this.ring2 = new THREE.Mesh(ringGeo, ringMat.clone());
-    this.ring1.rotation.x = Math.PI / 3;
-    this.ring2.rotation.y = Math.PI / 4;
     this.group.add(this.ring1);
     this.group.add(this.ring2);
 
     this._dataActivity = 0;
     this.lensMode = 'off';
+    this.decisionState = 'PENDING';
+    this.setDecisionState('PENDING');
   }
 
   setDataActivity(value: number): void {
     this._dataActivity = Math.max(0, Math.min(1, value));
+  }
+
+  /**
+   * Project the exact categorical Moneta decision state into non-numeric visual
+   * cues. This method never derives or reclassifies the state.
+   */
+  setDecisionState(state: TechnoCoreDecisionState): void {
+    this.decisionState = state;
+    this.group.userData.decisionState = state;
+
+    this.core.scale.setScalar(1);
+    this.megasphere.scale.setScalar(1);
+    this.ring1.scale.setScalar(1);
+    this.ring2.scale.setScalar(1);
+    this.ring1.visible = true;
+    this.ring2.visible = true;
+
+    switch (state) {
+      case 'DECISIVE':
+        this.ring1.rotation.set(Math.PI / 2, 0, 0);
+        this.ring2.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        this._decisionBaseOpacity = 0.55;
+        break;
+      case 'AMBIGUOUS':
+        this.ring1.rotation.set(Math.PI / 3, 0, Math.PI / 6);
+        this.ring2.rotation.set(-Math.PI / 3, Math.PI / 4, -Math.PI / 6);
+        this.ring2.scale.setScalar(0.82);
+        this._decisionBaseOpacity = 0.5;
+        break;
+      case 'UNDERDETERMINED':
+        this.ring1.rotation.set(Math.PI / 4, 0, 0);
+        this.ring2.rotation.set(0, Math.PI / 4, 0);
+        this.ring1.scale.setScalar(0.72);
+        this.ring2.scale.setScalar(1.14);
+        this._decisionBaseOpacity = 0.36;
+        break;
+      case 'INFEASIBLE':
+        this.ring1.rotation.set(Math.PI / 4, Math.PI / 4, 0);
+        this.ring2.rotation.set(-Math.PI / 4, Math.PI / 4, 0);
+        this.core.scale.setScalar(0.72);
+        this.megasphere.scale.setScalar(0.88);
+        this._decisionBaseOpacity = 0.62;
+        break;
+      case 'PENDING':
+      default:
+        this.ring1.rotation.set(Math.PI / 3, 0, 0);
+        this.ring2.rotation.set(0, Math.PI / 4, 0);
+        this._decisionBaseOpacity = 0.32;
+        break;
+    }
   }
 
   setLensMode(mode: LensMode): boolean {
@@ -117,7 +178,8 @@ export class TechnoCoreNode implements Updatable {
     this.sphereMat.opacity = Math.min(0.9, pulse);
     this.coreMat.opacity = Math.min(0.45, 0.12 + this._dataActivity * 0.35);
 
-    const ringPulse = 0.45 + Math.sin(time * 3 + 1) * 0.15 + this._dataActivity * 0.4;
+    const ringPulse =
+      this._decisionBaseOpacity + Math.sin(time * 3 + 1) * 0.1 + this._dataActivity * 0.25;
     (this.ring1.material as THREE.MeshBasicMaterial).opacity = Math.min(1, ringPulse);
     (this.ring2.material as THREE.MeshBasicMaterial).opacity = Math.min(1, ringPulse);
   }
