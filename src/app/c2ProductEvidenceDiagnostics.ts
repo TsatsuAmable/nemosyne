@@ -1,4 +1,5 @@
 import type { InvestigationStatusProjection, StatusStripState } from '../vr/ui/StatusStripController.ts';
+import { UI_TREATMENT_VERSION } from '../vr/ui/panelLayout.ts';
 
 export interface C2ProductEvidenceSnapshot {
   schemaVersion: 1;
@@ -6,6 +7,8 @@ export interface C2ProductEvidenceSnapshot {
   lines: string[];
   statusPanelParent: string | null;
   statusPanelVisible: boolean;
+  statusPanelLocalPosition: [number, number, number];
+  uiTreatmentVersion: string;
 }
 
 export interface C2ProductEvidenceHook {
@@ -47,7 +50,11 @@ interface C2ProductEvidenceWorldPort {
       formatInvestigationLines(): string[];
     };
     statusStripPanel: {
-      mesh: { parent: { name?: string } | null; visible: boolean };
+      mesh: {
+        parent: { name?: string } | null;
+        visible: boolean;
+        position: { x: number; y: number; z: number };
+      };
     };
     vaultPanel: {
       archives: readonly unknown[];
@@ -83,12 +90,15 @@ function snapshot(
   presenter: C2ProductEvidencePresenterPort,
 ): C2ProductEvidenceSnapshot {
   presenter.syncNow();
+  const position = world.uiManager.statusStripPanel.mesh.position;
   return {
     schemaVersion: 1,
     status: copyState(world.uiManager.statusStrip.state),
     lines: world.uiManager.statusStrip.formatInvestigationLines(),
     statusPanelParent: world.uiManager.statusStripPanel.mesh.parent?.name ?? null,
     statusPanelVisible: world.uiManager.statusStripPanel.mesh.visible,
+    statusPanelLocalPosition: [position.x, position.y, position.z],
+    uiTreatmentVersion: UI_TREATMENT_VERSION,
   };
 }
 
