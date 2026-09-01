@@ -1,4 +1,5 @@
 import type { InvestigationStatusProjection, StatusStripState } from '../vr/ui/StatusStripController.ts';
+import type { FocusLevel } from '../vr/interactions/FocusContextController.ts';
 import { UI_TREATMENT_VERSION } from '../vr/ui/panelLayout.ts';
 
 export interface C2ProductEvidenceSnapshot {
@@ -32,12 +33,12 @@ interface C2ProductEvidenceWorldPort {
           semantic?: { structureId?: string; kind?: string };
         }>;
       };
-      onFocusChange?: ((state: { currentLevel: string; focusedStructureId: string | null }) => void) | null;
+      onFocusChange?: ((state: { currentLevel: FocusLevel; focusedStructureId: string | null }) => void) | null;
     };
   };
   focusContext: {
     focusStructure(structureId: string): void;
-    exportState(): { currentLevel: string; focusedStructureId: string | null };
+    exportState(): { currentLevel: FocusLevel; focusedStructureId: string | null };
   };
   dataOperationController: {
     preview(operation: string): void;
