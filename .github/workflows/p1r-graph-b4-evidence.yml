@@ -83,6 +83,7 @@ jobs:
             env \
               VITE_NEMOSYNE_DIAGNOSTICS=1 \
               VITE_NEMOSYNE_GRAPH_B4_EVIDENCE=1 \
+              VITE_NEMOSYNE_Q3B_RESOURCE_PROBE=1 \
               npm run build
 
       - name: Pin evidence artifact identities
