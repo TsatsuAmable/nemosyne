@@ -51,8 +51,9 @@ function assertReadyScenario(
   expect(scenario.artifact.interactionProxyCount).toBe(payload.nodes.length + payload.edges.length);
   expect(scenario.artifact.renderedBatchCount).toBe(2);
   expect(scenario.artifact.candidateLocalDrawCalls).toBe(2);
-  expect(scenario.artifact.nodeSurfacePresent).toBe(true);
-  expect(scenario.artifact.edgeSurfacePresent).toBe(true);
+  const graphSurfaceShouldRemain = shape !== 'mutation-stale';
+  expect(scenario.artifact.nodeSurfacePresent).toBe(graphSurfaceShouldRemain);
+  expect(scenario.artifact.edgeSurfacePresent).toBe(graphSurfaceShouldRemain);
   expect(scenario.artifact.presentationSemantics).toBe(
     'force-directed-positioning-over-payload-topology'
   );
