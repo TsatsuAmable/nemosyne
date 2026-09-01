@@ -22,16 +22,16 @@ async function runtimeSnapshot(page: import('@playwright/test').Page): Promise<U
   });
 }
 
-async function selectNodeAndRefresh(page: import('@playwright/test').Page): Promise<void> {
+async function selectNodeAndWaitForProjection(page: import('@playwright/test').Page): Promise<void> {
   const selected = await page.evaluate(() => {
     const hook = (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle })
       .__NEMOSYNE_UV0__;
     if (!hook) throw new Error('UV0 product evidence handle unavailable.');
-    const ok = hook.selectNode(0);
-    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-    return ok;
+    return hook.selectNode(0);
   });
   expect(selected).toBe(true);
+  // No synthetic pointer/focus event is sent here. C3 must update the desktop
+  // projection from the authoritative RepresentationSurface selection signal.
   await expect(page.locator('#desktop-selection-context')).toContainText('Selected ·');
 }
 
@@ -60,7 +60,7 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
   expect(initial.palaceNodeCount).toBeGreaterThan(0);
   expect(initial.kernelAvailable).toBe(true);
 
-  await selectNodeAndRefresh(page);
+  await selectNodeAndWaitForProjection(page);
   for (const task of INVESTIGATOR_TASKS) {
     const button = page.locator(`#desktop-task-${task.id}`);
     await expect(button).toHaveText(task.label);
@@ -76,7 +76,7 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
   expect(afterRecord.taskSurfaceVisible).toBe(false);
   await expect(page.locator('#desktop-selection-context')).toContainText('Select a data object');
 
-  await selectNodeAndRefresh(page);
+  await selectNodeAndWaitForProjection(page);
   await page.locator('#desktop-task-inspect').click();
   await expect
     .poll(async () => (await runtimeSnapshot(page)).inspectorVisible, { timeout: 10_000 })
@@ -87,14 +87,16 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
 
   // A dataset rebuild must invalidate both the XR contextual selection and its
   // desktop projection. This proves the desktop rail cannot retain a stale row.
-  await selectNodeAndRefresh(page);
+  await selectNodeAndWaitForProjection(page);
   const selectedDataset = (await runtimeSnapshot(page)).datasetName;
   await page.locator('#action-load-sample').click();
   await expect
     .poll(async () => (await runtimeSnapshot(page)).datasetName, { timeout: 20_000 })
     .not.toBe(selectedDataset);
   await expect(page.locator('#desktop-selection-context')).toContainText('Select a data object');
-  await expect(page.locator('#desktop-task-inspect')).toHaveAttribute('disabled', '');
+  for (const task of INVESTIGATOR_TASKS) {
+    await expect(page.locator(`#desktop-task-${task.id}`)).toHaveAttribute('disabled', '');
+  }
   const afterDatasetChange = await runtimeSnapshot(page);
   expect(afterDatasetChange.taskSurfaceVisible).toBe(false);
 
@@ -107,6 +109,7 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
       analyticalAuthorityChanged: false,
       newSelectionAuthorityAdded: false,
       desktopUsesCanonicalTaskVocabulary: true,
+      desktopSelectionUsesAuthoritativeSurfaceSignal: true,
       desktopRecordUsesAuthoritativeEvidenceOwner: true,
       desktopInspectUsesExistingInspectorOwner: true,
       selectionInvalidatedAcrossDatasetRebuild: true,
