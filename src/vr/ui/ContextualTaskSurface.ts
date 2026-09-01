@@ -59,7 +59,7 @@ export const TASK_SURFACE_ACTIONS: readonly TaskSurfaceAction[] = [
 ];
 
 /** @deprecated Prefer InvestigatorTaskCallbacks from the shared selected-task intent contract. */
-export interface ContextualTaskSurfaceCallbacks extends InvestigatorTaskCallbacks {}
+export type ContextualTaskSurfaceCallbacks = InvestigatorTaskCallbacks;
 
 export interface InvestigatorTaskAvailability {
   available: boolean;
