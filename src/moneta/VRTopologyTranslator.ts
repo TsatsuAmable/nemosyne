@@ -29,6 +29,7 @@ type SemanticMonetaDataInput = MonetaDataInput & {
 type GovernedSemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
   semanticEmbodiment?: ClusterEmbodimentEnvelopeV1 | GraphEmbodimentEnvelopeV1 | null;
+  semanticEmbodimentDatasetFingerprint?: string;
 };
 
 export class VRTopologyTranslator {
@@ -63,7 +64,10 @@ export class VRTopologyTranslator {
       governedSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
     // A retained graph envelope is governance evidence in itself: even if a
     // marker/candidate sync defect cleared the marker, it must never fall through.
-    const retained = governedSemanticInput.semanticEmbodiment as { candidateId?: string } | null | undefined;
+    const retained = governedSemanticInput.semanticEmbodiment as
+      | { candidateId?: string }
+      | null
+      | undefined;
     const usesGraphSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH' ||
       retained?.candidateId === 'RELATIONSHIP_GRAPH';
@@ -97,12 +101,25 @@ export class VRTopologyTranslator {
       buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
     } else if (spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment) {
-      buildClusterSemanticRegions(group, nodeMeshes, governedSemanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null);
+      buildClusterSemanticRegions(
+        group,
+        nodeMeshes,
+        governedSemanticInput.semanticEmbodiment as ClusterEmbodimentEnvelopeV1 | null
+      );
       edges = [];
     } else if (usesGraphSemanticEmbodiment) {
       // The governed RELATIONSHIP_GRAPH marker — not a geometry constant — is the
-      // authority gate: no raw row/edge read can precede this intercept.
-      buildGraphSemanticTopology(group, nodeMeshes, edgeMeshes, governedSemanticInput.semanticEmbodiment as GraphEmbodimentEnvelopeV1 | null, dataset);
+      // authority gate: no raw row/edge read can precede this intercept. The
+      // staleness fence consumes the Atlas/Rust identity captured by the load
+      // use case; presentation does not mint a parallel dataset identity.
+      buildGraphSemanticTopology(
+        group,
+        nodeMeshes,
+        edgeMeshes,
+        governedSemanticInput.semanticEmbodiment as GraphEmbodimentEnvelopeV1 | null,
+        dataset,
+        governedSemanticInput.semanticEmbodimentDatasetFingerprint
+      );
       edges = [];
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
