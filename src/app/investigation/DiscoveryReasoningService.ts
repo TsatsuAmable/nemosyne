@@ -15,6 +15,7 @@ export interface DiscoveryReasoningSnapshot {
   latestObservation: Observation | null;
   latestResult: AnalysisResult | null;
   activeGraphNodeId: string | null;
+  activeGraphNode: InvestigationNode | null;
 }
 
 export interface StartDiscoveryInput {
@@ -105,11 +106,15 @@ export class DiscoveryReasoningService {
   }
 
   snapshot(): DiscoveryReasoningSnapshot {
+    const activeGraphNodeId = this.atlas.aggregate.graph.activeNodeId;
     return {
       discoveries: this.atlas.aggregate.discoveries.all(),
       latestObservation: this.atlas.observations.at(-1) ?? null,
       latestResult: this.atlas.results.at(-1) ?? null,
-      activeGraphNodeId: this.atlas.aggregate.graph.activeNodeId,
+      activeGraphNodeId,
+      activeGraphNode: activeGraphNodeId
+        ? this.atlas.aggregate.graph.getNode(activeGraphNodeId) ?? null
+        : null,
     };
   }
 
