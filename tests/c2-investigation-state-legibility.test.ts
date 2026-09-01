@@ -25,6 +25,7 @@ function makeHarness() {
   let nodes: InvestigationNode[] = [];
   let edges: InvestigationEdge[] = [];
   let activeNodeId: string | null = null;
+  let currentDatasetFingerprint: string | null = 'fp';
   let observationCount = 0;
   let findingCount = 0;
 
@@ -41,6 +42,7 @@ function makeHarness() {
     getArchiveCount: () => archiveCount,
     getGraphSnapshot: () => ({
       activeNodeId,
+      currentDatasetFingerprint,
       nodes,
       edges,
       observationCount,
@@ -60,6 +62,7 @@ function makeHarness() {
     setFocus: (value: typeof focus) => { focus = value; },
     setHistory: (value: typeof history) => { history = value; },
     setArchiveCount: (value: number) => { archiveCount = value; },
+    setCurrentDatasetFingerprint: (value: string | null) => { currentDatasetFingerprint = value; },
     setGraph: (value: {
       activeNodeId: string | null;
       nodes: InvestigationNode[];
@@ -105,12 +108,12 @@ describe('P1-UV C2 investigation-state legibility', () => {
     expect(h.presenter.syncNow()?.analyticalStatus).toBe('READY');
   });
 
-  it('counts only explicit support/refute edges incident to the active epistemic node', () => {
+  it('counts only explicit support/refute edges incident to the current origin node', () => {
     const h = makeHarness();
     const nodes: InvestigationNode[] = [
       { id: 'root', parentId: null, datasetVersion: 1, datasetFingerprint: 'fp', label: 'root', timestamp: 1 },
-      { id: 'active', parentId: 'root', datasetVersion: 1, datasetFingerprint: 'fp', label: 'active', timestamp: 2 },
-      { id: 'other', parentId: 'root', datasetVersion: 1, datasetFingerprint: 'fp', label: 'other', timestamp: 3 },
+      { id: 'active', kind: 'dataset_version', parentId: 'root', datasetVersion: 1, datasetFingerprint: 'fp', label: 'active', timestamp: 2 },
+      { id: 'other', parentId: 'root', datasetVersion: 1, datasetFingerprint: 'fp-other', label: 'other', timestamp: 3 },
     ];
     const edges: InvestigationEdge[] = [
       { id: 'support-active', source: 'root', target: 'active', relationship: 'supports' },
@@ -129,8 +132,8 @@ describe('P1-UV C2 investigation-state legibility', () => {
   it('projects branch origin only from an explicit incoming branches_from edge', () => {
     const h = makeHarness();
     const nodes: InvestigationNode[] = [
-      { id: 'source', parentId: null, datasetVersion: 1, datasetFingerprint: 'fp', label: 'source', timestamp: 1 },
-      { id: 'branch', parentId: 'source', datasetVersion: 1, datasetFingerprint: 'fp', label: 'branch', timestamp: 2 },
+      { id: 'source', parentId: null, datasetVersion: 1, datasetFingerprint: 'source-fp', label: 'source', timestamp: 1 },
+      { id: 'branch', kind: 'dataset_version', parentId: 'source', datasetVersion: 1, datasetFingerprint: 'fp', label: 'branch', timestamp: 2 },
     ];
     h.setGraph({
       activeNodeId: 'branch',
@@ -142,6 +145,33 @@ describe('P1-UV C2 investigation-state legibility', () => {
 
     h.setGraph({ activeNodeId: 'branch', nodes, edges: [] });
     expect(h.presenter.syncNow()?.origin.branchSourceId).toBeNull();
+  });
+
+  it('does not present a stale graph insertion cursor as current origin after undo/seek', () => {
+    const h = makeHarness();
+    const nodes: InvestigationNode[] = [
+      { id: 'v1', kind: 'dataset_version', parentId: null, datasetVersion: 1, datasetFingerprint: 'fp-v1', label: 'v1', timestamp: 1 },
+      { id: 'op2', kind: 'operation', parentId: 'v1', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'sort', timestamp: 2 },
+      { id: 'v2', kind: 'dataset_version', parentId: 'op2', datasetVersion: 2, datasetFingerprint: 'fp-v2', label: 'v2', timestamp: 3 },
+    ];
+    h.setGraph({ activeNodeId: 'v2', nodes, edges: [] });
+    h.setCurrentDatasetFingerprint('fp-v1');
+
+    const restored = h.presenter.syncNow();
+    expect(restored?.origin.activeNodeId).toBe('v1');
+    expect(restored?.origin.parentNodeId).toBeNull();
+
+    // Multiple graph states with the same fingerprint are ambiguous. C2 must
+    // fail closed instead of guessing which branch is current.
+    h.setGraph({
+      activeNodeId: 'v2',
+      nodes: [
+        ...nodes,
+        { id: 'v1-copy', kind: 'dataset_version', parentId: 'other', datasetVersion: 3, datasetFingerprint: 'fp-v1', label: 'v1 copy', timestamp: 4 },
+      ],
+      edges: [],
+    });
+    expect(h.presenter.syncNow()?.origin.activeNodeId).toBeNull();
   });
 
   it('mirrors undo, redo and real archive availability without a synthetic recovery stack', () => {
