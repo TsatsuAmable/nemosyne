@@ -91,9 +91,6 @@ function investigationActions(
       world.currentEntry?.name ?? world.currentEntry?.label ?? world.currentEntry?.key ?? null,
     subscribeDatasetContext: (handler) =>
       world.eventBus.on(WorldTopics.DATASET_LOADED, () => {
-        // LoadDatasetUseCase publishes the logical transition synchronously;
-        // World assigns currentEntry immediately after it returns. Refresh on
-        // the next microtask so the shell reads the completed facade state.
         queueMicrotask(() => {
           functionalWorldObjects.noteAssessmentOutcome('decision');
           functionalWorldObjects.syncNow();
@@ -166,14 +163,6 @@ function devTraceBindings(world: World): DevTraceBindings {
   };
 }
 
-/**
- * P1-UV1 composition policy for the normal analyst path.
- *
- * Existing diagnostic surfaces stay constructed/registered so the explicit
- * developer route and evidence harnesses retain them, but they no longer
- * dominate first use. This is deliberately a composition-root policy rather
- * than another UI coordinator or a change to analytical owners.
- */
 function applyNormalAnalystShell(world: World): void {
   if (world.uiManager.panelRolesManager.uiMode === 'DEVELOPER') return;
 
@@ -191,7 +180,10 @@ function semanticEmbodimentState(world: World): {
   const data = world.dracoNode?.group?.userData;
   const rawStatus = data?.semanticEmbodimentStatus;
   const rawMessage = data?.semanticEmbodimentStatusMessage;
-  if (typeof rawStatus !== 'string' || !SEMANTIC_STATUS_VALUES.has(rawStatus as SemanticEmbodimentPresentationStatus)) {
+  if (
+    typeof rawStatus !== 'string' ||
+    !SEMANTIC_STATUS_VALUES.has(rawStatus as SemanticEmbodimentPresentationStatus)
+  ) {
     return null;
   }
   return {
@@ -204,9 +196,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const world = new World();
   await world.start();
 
-  // The composition root accepts presentation-only commands (for example
-  // settings.open), while World/XR/input deliberately retain the narrower
-  // canonical analytical/application intent contract.
   const dispatchIntent = applicationIntentDispatcher(world);
   const dispatchCanonicalIntent: ApplicationIntentDispatcher = (intent) => dispatchIntent(intent);
 
@@ -218,9 +207,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
   });
   world.dispatchIntent = dispatchCanonicalIntent;
 
-  // Progressive disclosure and exact datum inspection are composed here rather
-  // than in World. Both consume the generic representation-selection surface
-  // and canonical analytical authority; neither can access or cache source rows.
   const semanticDetailTransition = new SemanticDetailTransition(
     world.representationSurface,
     world.atlas,
@@ -233,9 +219,6 @@ export async function bootstrapApp(): Promise<AppInstance> {
 
   applyNormalAnalystShell(world);
 
-  // P1-UV C1: project existing Moneta/Atlas/Vault truth into the persistent
-  // world objects. This is presentation-only composition and does not activate
-  // the dormant MemoryPalaceController authoring path.
   const functionalWorldObjects = new FunctionalWorldObjectsPresenter({
     engine: world.engine,
     atlas: world.atlas,
@@ -253,10 +236,9 @@ export async function bootstrapApp(): Promise<AppInstance> {
   });
   world.registerExtensionDisposer(() => functionalWorldObjects.dispose());
 
-  // P1-UV C2: keep the single persistent status surface body/workspace anchored
-  // and project authoritative investigation state into it. Reparenting to the
-  // analyst anchor removes the previous persistent head-lock without adding a
-  // new surface.
+  // P1-UV C2 projects existing authority into the one persistent status strip.
+  // The analyst anchor is already body/workspace tracked by WorldSceneComposer,
+  // so this removes direct head-lock without adding another product surface.
   world.analystAnchor.add(world.uiManager.statusStripPanel.mesh);
   const investigationState = new InvestigationStatePresenter({
     engine: world.engine,
@@ -346,6 +328,12 @@ export async function bootstrapApp(): Promise<AppInstance> {
     const { installC1ProductEvidenceHook } = await import('./c1ProductEvidenceDiagnostics.ts');
     const disposeC1Evidence = installC1ProductEvidenceHook(world, functionalWorldObjects);
     world.registerExtensionDisposer(disposeC1Evidence);
+  }
+
+  if (import.meta.env.VITE_NEMOSYNE_C2_PRODUCT_EVIDENCE === '1') {
+    const { installC2ProductEvidenceHook } = await import('./c2ProductEvidenceDiagnostics.ts');
+    const disposeC2Evidence = installC2ProductEvidenceHook(world, investigationState);
+    world.registerExtensionDisposer(disposeC2Evidence);
   }
 
   if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
