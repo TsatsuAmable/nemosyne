@@ -1,13 +1,14 @@
 /**
  * Central VR panel default layout — C1′ role-aware depth-tier zoning.
  *
- * Authority: docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md revision 3 (role-aware
+ * Authority: docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md revision 4 (role-aware
  * tiers grounded in the vision doc §9 "UI / Analyst Cockpit", §4.3 interaction
  * ontology, and docs/archive/USER_STORIES_AND_UX_ANALYSIS_2026-08-19.md).
  *
  * Reference-frame decision (revision 3): every persistent panel is
  * BODY_LOCKED — parented to the torso anchor (WorldSceneComposer.analystAnchor,
  * damped yaw, y ≈ 1.35 m at eye height 1.6 m) — never head/camera-locked.
+ * Revision 4 brings the persistent C2 Status Strip under this same authority.
  * Rationale: body-fixed slots build landmark/survey knowledge, damped yaw
  * avoids visual-vestibular conflict while scanning, snap turns ease instead
  * of jumping, and drag-to-reposition remains the user override.
@@ -65,9 +66,12 @@ export const PANEL_LAYOUT = {
   vaultPanel: fanSlot(30, 1.15, 0.2), // evidence vault — archive/restore
   legacyMenu: fanSlot(45, 1.15, 0.2), // legacy — retired main menu (diagnostic)
 
-  // ---- MID lower strip: transient narrative/log surfaces under the data centerline ----
+  // ---- MID lower strip: quiet grounding/log surfaces below the data centerline ----
   vrConsole: [0, -0.3, -1.05], // live ops/results log
   narrativeStrip: [0, -0.5, -0.95], // history route-knowledge strip
+  // Persistent C2 grounding. 45° keeps the 0.9 m-wide strip outside the
+  // forward data cone; the low local height keeps it subordinate to the data.
+  statusStrip: fanSlot(45, 1.15, -0.58),
 
   // ---- FAR tier (r=1.6): diagnostic / superuser / researcher tooling ----
   // Upper row (eye-line +0.15):
@@ -89,9 +93,10 @@ export type PanelLayoutKey = keyof typeof PANEL_LAYOUT;
 
 /**
  * Participant-facing UI treatment identity for the vision §14 freeze contract:
- * panel defaults = C1′ revision 3 (torso-locked), command surface = intent
- * wheel v1 (+ SUPERUSER annex), reference-frame policy = BODY_LOCKED with
- * head lock reserved for transient alerts. Bump whenever any participant-facing
- * spatial arrangement changes and record it in docs/study/UI_TREATMENT.md.
+ * panel defaults = revision 4 (torso-locked, C2 status grounding governed),
+ * command surface = intent wheel v1 (+ SUPERUSER annex), reference-frame policy
+ * = BODY_LOCKED with head lock reserved for transient alerts. Bump whenever any
+ * participant-facing spatial arrangement changes and record it in
+ * docs/study/UI_TREATMENT.md.
  */
-export const UI_TREATMENT_VERSION = 'panel-layout/3+intent-wheel/1+frames/torso-locked' as const;
+export const UI_TREATMENT_VERSION = 'panel-layout/4+intent-wheel/1+frames/torso-locked' as const;
