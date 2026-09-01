@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 /**
- * QV1 Quest validation launcher.
+ * Quest validation launcher (QV1-QV3 + QV2a ADB device attribution).
  *
  * Thin Node launcher that derives truthful attribution for a physical Quest
  * validation session and starts the existing Vite dev server:
  *
  *   1. resolves the exact Git HEAD SHA;
  *   2. determines clean/dirty/unknown worktree state via `git status --porcelain`;
- *   3. maps the selected mode to its governed gate/profile + evidence/runtime class;
- *   4. generates a session ID + human-readable session label;
- *   5. writes the versioned QV0 manifest to `logs/validation/<sessionLabel>/manifest.json`;
- *   6. builds the WASM dev kernel when the mode requires it;
- *   7. spawns `vite --host` with the build ID and validation metadata in env.
+ *   3. captures Quest model + exact OS/build identity from one authorised ADB device;
+ *   4. maps the selected mode to its governed gate/profile + evidence/runtime class;
+ *   5. generates a session ID + human-readable session label;
+ *   6. writes the versioned manifest to `logs/validation/<sessionLabel>/manifest.json`;
+ *   7. builds the WASM dev kernel when the mode requires it;
+ *   8. spawns `vite --host` with source/session/device identity metadata in env.
  *
- * Fail-closed behavior: if Git HEAD cannot be resolved, the launcher refuses
- * to start rather than emitting a manifest with a fallback build identity.
+ * Fail-closed behavior:
+ * - if Git HEAD cannot be resolved, launch is refused;
+ * - governed physical evidence cannot be promotion-eligible without machine-captured
+ *   ADB identity; manual model/firmware declarations are exploratory fallbacks only.
  *
  * The launcher never edits source, Git state, roadmap, or promotion state.
  * Evidence is written only under the git-ignored `logs/validation/` directory.
@@ -31,6 +34,10 @@ import {
   deriveValidationManifest,
   validateValidationManifest,
 } from '../src/validation/validation-manifest.ts';
+import {
+  captureAdbQuestDevice,
+  QUEST_ADB_SERIAL_ENV,
+} from './quest-adb-device.mjs';
 
 export const VALIDATION_LOG_ROOT = 'logs/validation';
 export const FALLBACK_BUILD_ID = 'unversioned-local-build';
@@ -50,10 +57,7 @@ export function runGit(args, { execFileSyncFn = execFileSync } = {}) {
   }
 }
 
-/**
- * Resolve the exact Git HEAD SHA. Fails closed: a missing, empty, or
- * non-40-hex result throws instead of returning a fallback identity.
- */
+/** Resolve the exact Git HEAD SHA. Missing/invalid identity fails closed. */
 export function resolveGitHead(git = runGit) {
   const result = git(['rev-parse', 'HEAD']);
   if (!result.ok) {
@@ -66,24 +70,16 @@ export function resolveGitHead(git = runGit) {
   return sha;
 }
 
-/**
- * Determine worktree state. `git status --porcelain` output is used
- * verbatim: any non-empty output means `dirty`; exec failure means `unknown`.
- * Untracked build/harness paths (e.g. symlinked node_modules) are reported
- * by porcelain as `??` and therefore conservatively classify as `dirty`.
- */
+/** `git status --porcelain`: any output is dirty; exec failure is unknown. */
 export function resolveWorktreeState(git = runGit) {
   const result = git(['status', '--porcelain']);
   if (!result.ok) return 'unknown';
   return String(result.stdout).trim() === '' ? 'clean' : 'dirty';
 }
 
-/** Session/run ID generation: a fresh UUID v4 per session. */
 export function generateSessionId() {
   const id = randomUUID();
-  if (!UUID_RE.test(id)) {
-    throw new Error(`session ID generator produced an invalid UUID: ${id}`);
-  }
+  if (!UUID_RE.test(id)) throw new Error(`session ID generator produced an invalid UUID: ${id}`);
   return id;
 }
 
@@ -97,10 +93,7 @@ function timestampStamp(date) {
   );
 }
 
-/**
- * Human-readable session label: `<gate-or-mode>-<sha7>-<yyyymmddThhmmss>`.
- * Also names the per-session evidence directory. Deterministic in UTC.
- */
+/** Human-readable `<gate-or-mode>-<sha7>-<yyyymmddThhmmss>` session label. */
 export function generateSessionLabel(mode, buildId, now = () => new Date()) {
   const spec = VALIDATION_MODE_TABLE[mode];
   const prefix = (spec?.gates?.[0] ?? spec?.mode ?? String(mode)).replace(/[^A-Za-z0-9]/g, '');
@@ -121,10 +114,10 @@ function declarationString(value) {
 }
 
 /**
- * Read the optional local investigator-declared device facts (QV2). A
- * missing/invalid file yields nulls; the launcher never guesses firmware or
- * model. The fields are visibly investigator-declared and distinct from the
- * runtime-measured browser/XR/WebGL facts captured by `QuestTelemetry`.
+ * Read legacy/manual local declaration facts.
+ *
+ * Model/firmware remain for backwards-compatible exploratory runs, but governed
+ * physical evidence now requires `deviceIdentity.captureBasis=adb-system-property`.
  */
 export function readDeviceDeclaration(root = process.cwd()) {
   try {
@@ -149,11 +142,6 @@ export function readDeviceDeclaration(root = process.cwd()) {
   }
 }
 
-/**
- * Merge operator updates into a declaration. An absent update keeps the current
- * value; an explicit empty string clears the field. All values are trimmed and
- * bounded (fail closed on oversized/empty -> null).
- */
 export function mergeDeviceDeclaration(current = {}, updates = {}) {
   const merged = {};
   for (const key of DEVICE_DECLARATION_FIELDS) {
@@ -163,7 +151,6 @@ export function mergeDeviceDeclaration(current = {}, updates = {}) {
   return merged;
 }
 
-/** Persist the declaration under ignored local state (logs/validation/device.json). */
 export function writeDeviceDeclaration(declaration, root = process.cwd()) {
   const dir = path.join(root, VALIDATION_LOG_ROOT);
   fs.mkdirSync(dir, { recursive: true });
@@ -172,37 +159,49 @@ export function writeDeviceDeclaration(declaration, root = process.cwd()) {
   return file;
 }
 
+function isRecognisableQuest(identity) {
+  const joined = `${identity?.manufacturer ?? ''} ${identity?.model ?? ''}`;
+  return /quest|oculus|meta/i.test(joined);
+}
+
 /**
- * QV2 gate: a governed validation mode cannot be promotion-eligible without an
- * investigator-declared device identity. Missing model/firmware downgrade the
- * manifest (invalidation + promotionEligible:false) rather than being guessed.
- * Informational modes (`quest`, `quest-validate`) are unaffected.
+ * QV2a governed identity gate.
  *
- * This intentionally lives in the launcher layer, not in the pure manifest
- * derivation, so the B1 `deriveValidationManifest` contract is unchanged.
+ * Manual declarations no longer satisfy promotion-grade physical attribution.
+ * One authorised ADB device must supply an exact build identity. Profile/device
+ * compatibility is adjudicated downstream against governed evidence rather than
+ * inferred from a brittle Android model-string heuristic at capture time.
  */
-export function applyDeviceDeclarationGate(manifest) {
+export function applyDeviceIdentityGate(manifest) {
   const spec = VALIDATION_MODE_TABLE[manifest.validationMode];
   if (!spec || spec.evidenceClass !== 'governed-physical-validation') return manifest;
+
   const invalidations = [...manifest.invalidations];
-  if (!manifest.declaredQuestModel) {
+  const identity = manifest.deviceIdentity;
+  if (!identity) {
     invalidations.push(
-      `no declaredQuestModel in ${VALIDATION_LOG_ROOT}/${DEVICE_DECLARATION_FILE}; physical device identity cannot be attributed`
+      `device identity: ${manifest.deviceIdentityError ?? 'ADB identity capture unavailable'}; ` +
+        'governed physical validation requires machine-captured Quest model/build identity'
     );
+  } else {
+    if (!isRecognisableQuest(identity)) {
+      invalidations.push(
+        `device identity: ADB reported '${identity.manufacturer ?? 'unknown'} ${identity.model}', ` +
+          'which is not recognisable as a Meta Quest device'
+      );
+    }
   }
-  if (!manifest.declaredFirmwareVersion) {
-    invalidations.push(
-      `no declaredFirmwareVersion in ${VALIDATION_LOG_ROOT}/${DEVICE_DECLARATION_FILE}; firmware cannot be attributed`
-    );
-  }
+
   if (invalidations.length === manifest.invalidations.length) return manifest;
   return { ...manifest, invalidations, promotionEligible: invalidations.length === 0 };
 }
 
+/** Backward-compatible export name; semantics are now the stronger machine identity gate. */
+export const applyDeviceDeclarationGate = applyDeviceIdentityGate;
+
 /**
- * Build the full validation context: resolve Git truth, generate the session
- * identity, then derive the QV0 manifest. This is the real production path a
- * Quest developer hits through `npm run dev:quest:*`.
+ * Build the full validation context. Device capture is injected so unit tests do
+ * not invoke host ADB; `main()` supplies the real capture on the production path.
  */
 export function buildValidationContext({
   mode,
@@ -210,6 +209,7 @@ export function buildValidationContext({
   sessionId = generateSessionId(),
   now = () => new Date(),
   device = readDeviceDeclaration(),
+  deviceCapture = { ok: false, error: 'ADB identity capture was not supplied' },
 }) {
   if (!(mode in VALIDATION_MODE_TABLE)) {
     throw new Error(
@@ -219,7 +219,9 @@ export function buildValidationContext({
   const buildId = resolveGitHead(git);
   const worktree = resolveWorktreeState(git);
   const sessionLabel = generateSessionLabel(mode, buildId, now);
-  return applyDeviceDeclarationGate(
+  const identity = deviceCapture.ok ? deviceCapture.identity : null;
+  const identityError = deviceCapture.ok ? null : deviceCapture.error;
+  return applyDeviceIdentityGate(
     deriveValidationManifest({
       sessionId,
       sessionLabel,
@@ -227,15 +229,14 @@ export function buildValidationContext({
       worktree,
       mode,
       createdAt: now().toISOString(),
+      deviceIdentity: identity,
+      deviceIdentityError: identityError,
       ...device,
     })
   );
 }
 
-/**
- * Resolve the per-session evidence directory and refuse any path that escapes
- * the validation root (fail closed). Shared by the manifest and evidence writers.
- */
+/** Resolve per-session directory and refuse path traversal/escape. */
 export function resolveEvidenceDir(manifest, root = process.cwd()) {
   const rootResolved = path.resolve(root);
   const evidenceDir = path.resolve(root, manifest.evidenceDir);
@@ -250,10 +251,6 @@ export function resolveEvidenceDir(manifest, root = process.cwd()) {
   return evidenceDir;
 }
 
-/**
- * Write the manifest JSON under the session evidence directory. Refuses any
- * evidence directory that escapes the validation root (fail closed).
- */
 export function writeManifestFile(manifest, root = process.cwd()) {
   const evidenceDir = resolveEvidenceDir(manifest, root);
   fs.mkdirSync(evidenceDir, { recursive: true });
@@ -263,12 +260,8 @@ export function writeManifestFile(manifest, root = process.cwd()) {
 }
 
 /**
- * Launch-time gate disposition. A governed run whose attribution is broken at
- * launch (dirty/unknown worktree, missing device declaration) is classified
- * INVALID_RUN with the attribution reasons. Mode-intrinsic invalidations (e.g.
- * the 10M boundary probe being non-qualification) are recorded in the manifest
- * but do not make the run's own-gate evidence invalid; those dispositions stay
- * pending (null) for QV4 adjudication. Failures are evidence, never discarded.
+ * Launch-time disposition: attribution failures are INVALID_RUN. Mode-intrinsic
+ * non-qualification reasons such as QUEST 10M remain pending for QV4.
  */
 export function deriveLaunchDisposition(manifest) {
   const spec = VALIDATION_MODE_TABLE[manifest.validationMode];
@@ -277,8 +270,7 @@ export function deriveLaunchDisposition(manifest) {
   }
   const attributionBlockers = manifest.invalidations.filter((reason) => {
     if (reason.startsWith("worktree state is '")) return true;
-    if (reason.includes('declaredQuestModel')) return true;
-    if (reason.includes('declaredFirmwareVersion')) return true;
+    if (reason.startsWith('device identity:')) return true;
     return false;
   });
   if (attributionBlockers.length > 0) {
@@ -287,11 +279,6 @@ export function deriveLaunchDisposition(manifest) {
   return { status: null, reasons: [] };
 }
 
-/**
- * Write the per-session gate disposition. The payload is a view of the manifest's
- * own gate state (session identity, invalidations, promotionEligible) plus the
- * current status/reasons — no thresholds or analysis are recomputed here.
- */
 export function writeDispositionFile(manifest, disposition, root = process.cwd()) {
   const evidenceDir = resolveEvidenceDir(manifest, root);
   fs.mkdirSync(evidenceDir, { recursive: true });
@@ -304,6 +291,7 @@ export function writeDispositionFile(manifest, disposition, root = process.cwd()
     validationMode: manifest.validationMode,
     gates: [...(manifest.gates ?? [])],
     evidenceClass: manifest.evidenceClass,
+    deviceIdentity: manifest.deviceIdentity,
     gateDisposition: {
       status: disposition.status ?? null,
       reasons: disposition.reasons ?? [],
@@ -348,17 +336,15 @@ export function writeUxPlaceholders(manifest, root = process.cwd()) {
   return written;
 }
 
-/** Write the full set of QV3 per-session evidence files at launch. */
 export function writeEvidencePlaceholders(manifest, root = process.cwd()) {
   const written = [writeAnalysisPlaceholder(manifest, root)];
   written.push(writeDispositionFile(manifest, deriveLaunchDisposition(manifest), root));
-  if (manifest.validationMode === 'quest-ux') {
-    written.push(...writeUxPlaceholders(manifest, root));
-  }
+  if (manifest.validationMode === 'quest-ux') written.push(...writeUxPlaceholders(manifest, root));
   return written;
 }
 
 export function printSessionSummary(manifest) {
+  const identity = manifest.deviceIdentity;
   const lines = [
     '',
     'VALIDATION SESSION',
@@ -369,6 +355,10 @@ export function printSessionSummary(manifest) {
     `Profile: ${manifest.profile ?? 'none'}`,
     `Evidence class: ${manifest.evidenceClass}`,
     `Runtime class: ${manifest.runtimeClass}`,
+    `Device identity: ${identity ? 'ADB MACHINE-CAPTURED' : 'UNAVAILABLE'}`,
+    `Quest model: ${identity?.model ?? '(not captured)'}`,
+    `Firmware/build: ${identity?.buildIncremental ?? '(not captured)'}`,
+    `Build fingerprint: ${identity?.buildFingerprint ?? '(not captured)'}`,
     `Promotion eligibility: ${manifest.promotionEligible ? 'YES' : 'NO'}`,
     `Session ID: ${manifest.sessionId}`,
     `Evidence directory: ${manifest.evidenceDir}`,
@@ -388,11 +378,6 @@ function resolveViteCommand(root = process.cwd()) {
   return fs.existsSync(local) ? local : 'vite';
 }
 
-/**
- * Launch a validation session. Exits non-zero (fail closed) rather than
- * writing a manifest when Git attribution cannot be resolved or the derived
- * manifest fails schema validation.
- */
 export function main(argv = process.argv, env = process.env, root = process.cwd()) {
   const mode = argv[2];
   if (!(mode in VALIDATION_MODE_TABLE)) {
@@ -403,9 +388,19 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
   }
   const spec = VALIDATION_MODE_TABLE[mode];
 
+  const deviceCapture = captureAdbQuestDevice({
+    selectedSerial: env[QUEST_ADB_SERIAL_ENV] ?? null,
+  });
+
   let manifest;
   try {
-    manifest = buildValidationContext({ mode, git: runGit, now: () => new Date() });
+    manifest = buildValidationContext({
+      mode,
+      git: runGit,
+      now: () => new Date(),
+      device: readDeviceDeclaration(root),
+      deviceCapture,
+    });
   } catch (error) {
     process.stderr.write(
       `[quest-validation] cannot attribute this run: ${error instanceof Error ? error.message : String(error)}\n`
@@ -448,6 +443,7 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
     }
   }
 
+  const identity = validated.manifest.deviceIdentity;
   const child = spawn(resolveViteCommand(root), ['--host'], {
     stdio: 'inherit',
     cwd: root,
@@ -459,6 +455,12 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
       VITE_NEMOSYNE_VALIDATION_SESSION_LABEL: validated.manifest.sessionLabel,
       VITE_NEMOSYNE_VALIDATION_EVIDENCE_DIR: validated.manifest.evidenceDir,
       VITE_NEMOSYNE_WORKTREE: validated.manifest.worktree,
+      VITE_NEMOSYNE_QUEST_IDENTITY_BASIS: identity?.captureBasis ?? '',
+      VITE_NEMOSYNE_QUEST_MODEL: identity?.model ?? '',
+      VITE_NEMOSYNE_QUEST_BUILD_INCREMENTAL: identity?.buildIncremental ?? '',
+      VITE_NEMOSYNE_QUEST_BUILD_DISPLAY_ID: identity?.buildDisplayId ?? '',
+      VITE_NEMOSYNE_QUEST_BUILD_FINGERPRINT: identity?.buildFingerprint ?? '',
+      VITE_NEMOSYNE_QUEST_SECURITY_PATCH: identity?.securityPatch ?? '',
     },
   });
   child.on('exit', (code) => {
