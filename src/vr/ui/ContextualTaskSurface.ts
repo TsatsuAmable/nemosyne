@@ -5,6 +5,12 @@ import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
+import {
+  INVESTIGATOR_TASKS,
+  dispatchInvestigatorTask,
+  type InvestigatorTaskCallbacks,
+  type InvestigatorTaskIntent,
+} from '../../app/intents/InvestigatorTaskIntent.ts';
 
 export type TopologyType =
   | 'TABULAR'
@@ -52,13 +58,12 @@ export const TASK_SURFACE_ACTIONS: readonly TaskSurfaceAction[] = [
   { id: 'spawn_portal', label: 'Spawn Collaboration Portal', intent: 'Portals', relevantTopologies: ['TABULAR', 'GRAPH', 'TIME_SERIES', 'SPATIAL', 'HIERARCHICAL', 'STREAM'], description: 'Share live workspace with observer' },
 ];
 
-export interface ContextualTaskSurfaceCallbacks {
-  onInspect?: (data: Record<string, unknown> | null) => void;
-  onCompare?: (data: Record<string, unknown> | null) => void;
-  onChallenge?: (data: Record<string, unknown> | null) => void;
-  onRecord?: (data: Record<string, unknown> | null) => void;
-  onNavigate?: (data: Record<string, unknown> | null) => void;
-  onMore?: (data: Record<string, unknown> | null) => void;
+/** @deprecated Prefer InvestigatorTaskCallbacks from the shared selected-task intent contract. */
+export type ContextualTaskSurfaceCallbacks = InvestigatorTaskCallbacks;
+
+export interface InvestigatorTaskAvailability {
+  available: boolean;
+  reason?: string;
 }
 
 type EngineWithPanelBudget = EngineLike & {
@@ -66,6 +71,10 @@ type EngineWithPanelBudget = EngineLike & {
     panelBudgetController?: PanelBudgetController;
   };
 };
+
+const TASK_DEFINITION_BY_ID = new Map(
+  INVESTIGATOR_TASKS.map((task) => [task.id, task] as const),
+);
 
 /**
  * Short-lived object-attached action rail for the canonical novice verbs.
@@ -151,39 +160,74 @@ export class ContextualTaskSurface extends SpatialPanel {
 
     const addVerb = (
       parent: Container,
-      id: string,
-      label: string,
-      callback: ((data: Record<string, unknown> | null) => void) | undefined,
+      id: InvestigatorTaskIntent,
       width: number,
       variant: 'primary' | 'secondary' | 'danger' = 'secondary',
     ) => {
+      const task = TASK_DEFINITION_BY_ID.get(id);
+      if (!task) throw new Error(`Unknown investigator task: ${id}`);
       const btn = new Button({
-        label,
+        label: task.label,
         width,
         height: 56,
         paddingX: 8,
         paddingY: 6,
         variant,
         onClick: () => {
-          const data = this._activeData;
-          this.hide();
-          callback?.(data);
+          this.dispatchTask(id);
         },
       });
       parent.add(btn);
       this._buttons.set(id, btn);
     };
 
-    addVerb(primaryRow, 'inspect', 'Inspect', callbacks.onInspect, 94, 'primary');
-    addVerb(primaryRow, 'compare', 'Compare', callbacks.onCompare, 94);
-    addVerb(primaryRow, 'challenge', 'Challenge', callbacks.onChallenge, 94);
-    addVerb(primaryRow, 'record', 'Record', callbacks.onRecord, 94);
-    addVerb(secondaryRow, 'navigate', 'Navigate', callbacks.onNavigate, 196);
-    addVerb(secondaryRow, 'more', 'More', callbacks.onMore, 196);
+    addVerb(primaryRow, 'inspect', 94, 'primary');
+    addVerb(primaryRow, 'compare', 94);
+    addVerb(primaryRow, 'challenge', 94);
+    addVerb(primaryRow, 'record', 94);
+    addVerb(secondaryRow, 'navigate', 196);
+    addVerb(secondaryRow, 'more', 196);
   }
 
   get activeNode(): THREE.Object3D | null {
     return this._activeNode;
+  }
+
+  /** Read-only selected payload used by the desktop parity projection. */
+  get activeData(): Record<string, unknown> | null {
+    return this._activeData;
+  }
+
+  taskAvailability(
+    intent: InvestigatorTaskIntent,
+    data: Record<string, unknown> | null = this._activeData,
+  ): InvestigatorTaskAvailability {
+    const topology = (data?.topology ?? this._currentTopology) as TopologyType;
+    if (intent === 'more') return { available: true };
+    if (!data) return { available: false, reason: 'Select an object' };
+    if (intent === 'challenge' && topology === 'TABULAR') {
+      return { available: false, reason: 'Needs linked structure' };
+    }
+    if (intent === 'navigate' && topology === 'TABULAR') {
+      return { available: false, reason: 'No linked path' };
+    }
+    return { available: true };
+  }
+
+  /**
+   * Shared transient task resolver for XR and desktop presentation.
+   * The payload is captured before the contextual surface is cleared so both
+   * modalities have identical single-shot selection semantics.
+   */
+  dispatchTask(
+    intent: InvestigatorTaskIntent,
+    data: Record<string, unknown> | null = this._activeData,
+  ): boolean {
+    const availability = this.taskAvailability(intent, data);
+    if (!availability.available) return false;
+    const payload = data;
+    this.hide();
+    return dispatchInvestigatorTask(this.callbacks, intent, payload);
   }
 
   /** Diagnostic/evidence helper: distance from the rail to its active object. */
@@ -282,56 +326,12 @@ export class ContextualTaskSurface extends SpatialPanel {
   }
 
   private _updateButtonStates(): void {
-    const data = this._activeData;
-    const topology = (data?.topology ?? this._currentTopology) as TopologyType;
-
-    const inspectBtn = this._buttons.get('inspect');
-    if (inspectBtn) {
-      const disabled = !data;
-      inspectBtn.disabled = disabled;
-      inspectBtn.disabledReason = disabled ? 'Select an object' : undefined;
-    }
-
-    const compareBtn = this._buttons.get('compare');
-    if (compareBtn) {
-      const disabled = !data;
-      compareBtn.disabled = disabled;
-      compareBtn.disabledReason = disabled ? 'Select an object' : undefined;
-    }
-
-    const challengeBtn = this._buttons.get('challenge');
-    if (challengeBtn) {
-      const disabled = !data || topology === 'TABULAR';
-      challengeBtn.disabled = disabled;
-      challengeBtn.disabledReason = !data
-        ? 'Select an object'
-        : disabled
-          ? 'Needs linked structure'
-          : undefined;
-    }
-
-    const recordBtn = this._buttons.get('record');
-    if (recordBtn) {
-      const disabled = !data;
-      recordBtn.disabled = disabled;
-      recordBtn.disabledReason = disabled ? 'Select an object' : undefined;
-    }
-
-    const navigateBtn = this._buttons.get('navigate');
-    if (navigateBtn) {
-      const disabled = !data || topology === 'TABULAR';
-      navigateBtn.disabled = disabled;
-      navigateBtn.disabledReason = !data
-        ? 'Select an object'
-        : disabled
-          ? 'No linked path'
-          : undefined;
-    }
-
-    const moreBtn = this._buttons.get('more');
-    if (moreBtn) {
-      moreBtn.disabled = false;
-      moreBtn.disabledReason = undefined;
+    for (const task of INVESTIGATOR_TASKS) {
+      const button = this._buttons.get(task.id);
+      if (!button) continue;
+      const availability = this.taskAvailability(task.id);
+      button.disabled = !availability.available;
+      button.disabledReason = availability.reason;
     }
   }
 
