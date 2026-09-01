@@ -22,6 +22,7 @@ interface UpdatableOwner {
 
 export interface InvestigationStateGraphSnapshot {
   activeNodeId: string | null;
+  currentDatasetFingerprint: string | null;
   nodes: readonly InvestigationNode[];
   edges: readonly InvestigationEdge[];
   observationCount: number;
@@ -67,6 +68,31 @@ function semanticStatus(
   }
   if (decisionState !== 'PENDING') return { status: 'READY', message: null };
   return { status: 'IDLE', message: null };
+}
+
+/**
+ * InvestigationGraph.activeNodeId records graph construction/navigation state,
+ * while undo/redo may restore an older analytical dataset without rewinding the
+ * graph's insertion cursor. Never present that stale cursor as the current
+ * investigation origin. Prefer the active node only while its fingerprint
+ * agrees with the current analytical dataset; otherwise accept exactly one
+ * matching dataset-version node. Ambiguous/no matches fail closed to no origin.
+ */
+function resolveCurrentOriginNode(graph: InvestigationStateGraphSnapshot): InvestigationNode | null {
+  const activeNode = graph.activeNodeId
+    ? graph.nodes.find((node) => node.id === graph.activeNodeId) ?? null
+    : null;
+  const currentFingerprint = graph.currentDatasetFingerprint;
+
+  if (!currentFingerprint) return activeNode;
+  if (activeNode?.datasetFingerprint === currentFingerprint) return activeNode;
+
+  const matches = graph.nodes.filter(
+    (node) =>
+      node.kind === 'dataset_version' &&
+      node.datasetFingerprint === currentFingerprint,
+  );
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /**
@@ -139,22 +165,21 @@ export class InvestigationStatePresenter {
     const analytical = semanticStatus(this.host, decisionState);
     const history = this.host.getHistoryState();
     const graph = this.host.getGraphSnapshot();
-    const activeNode = graph.activeNodeId
-      ? graph.nodes.find((node) => node.id === graph.activeNodeId) ?? null
-      : null;
+    const originNode = resolveCurrentOriginNode(graph);
+    const originNodeId = originNode?.id ?? null;
 
     let supports = 0;
     let refutes = 0;
     let branchSourceId: string | null = null;
-    if (graph.activeNodeId) {
+    if (originNodeId) {
       for (const edge of graph.edges) {
-        const incident = edge.source === graph.activeNodeId || edge.target === graph.activeNodeId;
+        const incident = edge.source === originNodeId || edge.target === originNodeId;
         if (!incident) continue;
         if (edge.relationship === 'supports') supports += 1;
         else if (edge.relationship === 'refutes') refutes += 1;
         else if (
           edge.relationship === 'branches_from' &&
-          edge.target === graph.activeNodeId &&
+          edge.target === originNodeId &&
           branchSourceId === null
         ) {
           branchSourceId = edge.source;
@@ -182,8 +207,8 @@ export class InvestigationStatePresenter {
         archiveCount: countBounded(this.host.getArchiveCount()),
       },
       origin: {
-        activeNodeId: graph.activeNodeId,
-        parentNodeId: activeNode?.parentId ?? null,
+        activeNodeId: originNodeId,
+        parentNodeId: originNode?.parentId ?? null,
         branchSourceId,
       },
     };
