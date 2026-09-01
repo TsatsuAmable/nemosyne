@@ -23,6 +23,10 @@ async function cycleDataset(page: Page): Promise<void> {
     .not.toBe(before);
 }
 
+function moreTools(page: Page) {
+  return page.locator('#investigation-shell aside details').filter({ hasText: 'More tools' });
+}
+
 test.describe('UI/UX Adversarial Review - Core User Flows', () => {
   test('cold start exposes context and bounded actions without diagnostic chrome', async ({ page }) => {
     await waitForBoot(page);
@@ -58,7 +62,7 @@ test.describe('UI/UX Adversarial Review - Core User Flows', () => {
 
   test('advanced representation assessment is progressively disclosed and explicit on refusal', async ({ page }) => {
     await waitForBoot(page);
-    const tools = page.locator('#investigation-shell aside details');
+    const tools = moreTools(page);
     await expect(tools).not.toHaveAttribute('open', '');
     await tools.locator('summary').click();
     await page.locator('#max-elements').fill('1');
@@ -120,7 +124,7 @@ test.describe('UI/UX Adversarial Review - Accessibility & Inclusive Design', () 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await waitForBoot(page);
 
-    const tools = page.locator('#investigation-shell aside details');
+    const tools = moreTools(page);
     await tools.locator('summary').click();
     await page.locator('#max-elements').fill('1');
     await page.locator('#assess-btn').click();

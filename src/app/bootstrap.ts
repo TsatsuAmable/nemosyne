@@ -27,6 +27,20 @@ import {
   type DesktopSelectionTaskActions,
 } from './DesktopSelectionTaskRail.ts';
 import {
+  DiscoveryReasoningService,
+} from './investigation/DiscoveryReasoningService.ts';
+import {
+  mountDesktopReasoningRail,
+  type DesktopReasoningRailActions,
+} from './investigation/DesktopReasoningRail.ts';
+import {
+  RepresentationReviewService,
+} from './investigation/RepresentationReviewService.ts';
+import {
+  mountDesktopReviewRecoveryRail,
+  type DesktopReviewRecoveryActions,
+} from './investigation/DesktopReviewRecoveryRail.ts';
+import {
   createApplicationIntentDispatcher,
   type ApplicationDispatchIntentDispatcher,
   type ApplicationIntentDispatcher,
@@ -158,6 +172,140 @@ function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions 
   };
 }
 
+function desktopReasoningRailActions(
+  world: World,
+  reasoning: DiscoveryReasoningService,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter,
+): DesktopReasoningRailActions {
+  const syncPresentation = (): void => functionalWorldObjects.syncNow();
+  return {
+    snapshot: () => reasoning.snapshot(),
+    start: (input) => {
+      const episode = reasoning.start(input);
+      syncPresentation();
+      return { discoveryId: episode.discoveryId };
+    },
+    recordTest: (input) => {
+      const episode = reasoning.recordTest(input);
+      syncPresentation();
+      return {
+        discoveryId: episode.discoveryId,
+        validationStatus: episode.validationStatus,
+      };
+    },
+    branch: (input) => {
+      const node = reasoning.branch(input);
+      syncPresentation();
+      return { id: node.id };
+    },
+    returnToConclusion: (discoveryId) => {
+      const node = reasoning.returnToConclusion(discoveryId);
+      syncPresentation();
+      return { id: node.id };
+    },
+    subscribeContext: (handler) => {
+      const refresh = () => queueMicrotask(handler);
+      const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
+      const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
+      const unsubscribeInteraction = world.eventBus.on(WorldTopics.INTERACTION_LOG, (payload) => {
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          'action' in payload &&
+          payload.action === 'Mark moment'
+        ) {
+          refresh();
+        }
+      });
+      return () => {
+        unsubscribeDataset();
+        unsubscribeOperation();
+        unsubscribeInteraction();
+      };
+    },
+  };
+}
+
+async function waitForProductState(
+  predicate: () => boolean,
+  failureMessage: string,
+  timeoutMs = 10_000,
+): Promise<void> {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+  throw new Error(failureMessage);
+}
+
+function desktopReviewRecoveryActions(
+  world: World,
+  review: RepresentationReviewService,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter,
+): DesktopReviewRecoveryActions {
+  const syncPresentation = (): void => functionalWorldObjects.syncNow();
+  return {
+    representationSnapshot: () => review.snapshot(),
+    previewRemediation: (remediationId) => {
+      const state = review.preview(remediationId);
+      syncPresentation();
+      return state;
+    },
+    commitRemediation: (remediationId) => {
+      const state = review.commit(remediationId);
+      syncPresentation();
+      return state;
+    },
+    rejectPreview: () => {
+      const state = review.rejectPreview();
+      syncPresentation();
+      return state;
+    },
+    revertLastRepresentationChange: () => {
+      const state = review.revertLastChange();
+      syncPresentation();
+      return state;
+    },
+    archives: () => world.uiManager.vaultPanel.archives,
+    freezeCurrent: async () => {
+      const before = world.uiManager.vaultPanel.archives.length;
+      const freeze = world.uiManager.vaultPanel.onFreeze;
+      if (!freeze) throw new Error('Evidence Vault freeze action is unavailable.');
+      freeze();
+      await waitForProductState(
+        () => world.uiManager.vaultPanel.archives.length > before,
+        'Evidence Vault did not publish the frozen investigation.',
+      );
+      syncPresentation();
+    },
+    restoreLatest: async () => {
+      const latest = world.uiManager.vaultPanel.archives.at(-1) ?? null;
+      if (!latest) throw new Error('No frozen investigation is available to restore.');
+      const restore = world.uiManager.vaultPanel.onRestore;
+      if (!restore) throw new Error('Evidence Vault restore action is unavailable.');
+      restore(latest.archiveId);
+      await waitForProductState(
+        () =>
+          world.atlas.datasetFingerprint === latest.datasetFingerprint &&
+          world.atlas.ledger.length === latest.eventCount,
+        'The latest frozen investigation did not restore to its recorded analytical state.',
+        15_000,
+      );
+      syncPresentation();
+    },
+    subscribeContext: (handler) => {
+      const refresh = () => queueMicrotask(handler);
+      const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
+      const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
+      return () => {
+        unsubscribeDataset();
+        unsubscribeOperation();
+      };
+    },
+  };
+}
+
 function devTraceBindings(world: World): DevTraceBindings {
   return {
     recorderOptions: {
@@ -270,6 +418,17 @@ export async function bootstrapApp(): Promise<AppInstance> {
     getPreviewDecision: () => world._previewedDecision,
   });
   world.registerExtensionDisposer(() => functionalWorldObjects.dispose());
+
+  const discoveryReasoning = new DiscoveryReasoningService(world.atlas);
+  const representationReview = new RepresentationReviewService({
+    atlas: world.atlas,
+    getOutcome: () => world._activeOutcome,
+    getFencedPreviewDecision: () => world._getCurrentPreviewDecision(),
+    previewRemediation: (action) => world._previewRemediation(action),
+    commitRemediation: (action) => world._commitRemediation(action),
+    cancelRemediationPreview: () => world._cancelRemediationPreview(),
+    applyRemediation: (action) => world._applyRemediation(action),
+  });
 
   // P1-UV C2 projects existing authority into the existing persistent Status
   // Strip. WorldUIManager owns its governed torso-locked reference frame and
@@ -405,12 +564,22 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const desktopSelectionTaskRail = mountDesktopSelectionTaskRail(
     desktopSelectionTaskActions(world),
   );
+  const desktopReasoningRail = mountDesktopReasoningRail(
+    desktopReasoningRailActions(world, discoveryReasoning, functionalWorldObjects),
+  );
+  const desktopReviewRecoveryRail = mountDesktopReviewRecoveryRail(
+    desktopReviewRecoveryActions(world, representationReview, functionalWorldObjects),
+  );
   const investigationShell: InvestigationShellHandle = {
     refreshContext: () => {
       shell.refreshContext();
       desktopSelectionTaskRail.refresh();
+      desktopReasoningRail.refresh();
+      desktopReviewRecoveryRail.refresh();
     },
     dispose: () => {
+      desktopReviewRecoveryRail.dispose();
+      desktopReasoningRail.dispose();
       desktopSelectionTaskRail.dispose();
       shell.dispose();
     },

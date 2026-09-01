@@ -24,7 +24,7 @@ test('desktop investigation shell completes the visible evidence and export/repl
     .poll(async () => page.locator('#dataset-indicator').textContent(), { timeout: 10_000 })
     .not.toBe(initialDataset);
 
-  const tools = page.locator('#investigation-shell aside details');
+  const tools = page.locator('#investigation-shell aside details').filter({ hasText: 'More tools' });
   await tools.locator('summary').click();
   await expect(tools).toHaveAttribute('open', '');
   await page.locator('#max-elements').fill('1');

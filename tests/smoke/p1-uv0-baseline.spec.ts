@@ -122,7 +122,7 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
   // S3 — Moneta explicit refusal. Modal content is light DOM projected through
   // the component slot, so evidence asserts the rendered host rather than the
   // implementation-private shadow .body wrapper.
-  const tools = page.locator('#investigation-shell aside details');
+  const tools = page.locator('#investigation-shell aside details').filter({ hasText: 'More tools' });
   await tools.locator('summary').click();
   await page.locator('#max-elements').fill('1');
   await page.locator('#assess-btn').click();
