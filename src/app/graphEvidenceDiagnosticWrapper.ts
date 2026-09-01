@@ -75,7 +75,9 @@ export function installGraphEvidenceDiagnosticHook(world: GraphEvidenceDebugWorl
       return await baseRunScenario(input);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`${message}; identity=${JSON.stringify(boundedIdentitySnapshot(world))}`);
+      throw new Error(`${message}; identity=${JSON.stringify(boundedIdentitySnapshot(world))}`, {
+        cause: error,
+      });
     }
   };
   return dispose;
