@@ -2,11 +2,18 @@ import * as THREE from 'three';
 import { MovablePanel } from './MovablePanel.ts';
 import type { MovablePanelOptions } from '../coordinators/types.ts';
 import { StatusStripController } from './StatusStripController.ts';
+import { COLOR_TOKENS, SPACING_TOKENS, TYPOGRAPHY_TOKENS, cssHex } from '../ui-system/tokens.ts';
 
 interface StatusStripPanelOptions extends MovablePanelOptions {
   statusStrip: StatusStripController;
 }
 
+/**
+ * Persistent, analyst-anchored investigation grounding surface.
+ *
+ * C2 deliberately keeps this compact and non-interactive: it projects state
+ * that is acted upon through the existing contextual and precision surfaces.
+ */
 export class StatusStripPanel extends MovablePanel {
   private readonly _statusStrip: StatusStripController;
   private _lastText: string = '';
@@ -15,12 +22,13 @@ export class StatusStripPanel extends MovablePanel {
   constructor(cameraGroup: THREE.Group, options: StatusStripPanelOptions) {
     super(cameraGroup, {
       title: 'STATUS',
-      width: 720,
-      height: 80,
+      width: options.width ?? 900,
+      height: options.height ?? 156,
       position: options.position ?? [0, 1.8, -1.2],
-      worldSize: options.worldSize ?? [0.72, 0.08],
+      worldSize: options.worldSize ?? [0.9, 0.156],
       titleBarHeight: 0,
       tilt: 0,
+      parentGroup: options.parentGroup,
       textScale: options.textScale ?? 1,
       highContrast: options.highContrast ?? false,
       colorblindMode: options.colorblindMode ?? 'none',
@@ -30,7 +38,7 @@ export class StatusStripPanel extends MovablePanel {
   }
 
   update(): void {
-    const text = this._statusStrip.formatStripText();
+    const text = this._statusStrip.formatInvestigationLines().join('\n');
     if (text !== this._lastText) {
       this._lastText = text;
       this._dirty = true;
@@ -42,20 +50,31 @@ export class StatusStripPanel extends MovablePanel {
   }
 
   renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const pad = 16;
+    const pad = SPACING_TOKENS.grid.x16;
+    const lines = this._statusStrip.formatInvestigationLines();
+    const lineHeight = 31;
+    const firstY = 28;
 
-    ctx.fillStyle = 'rgba(10, 20, 35, 0.9)';
+    ctx.fillStyle = `rgba(11, 17, 25, 0.90)`;
     ctx.fillRect(0, 0, w, contentH);
 
-    ctx.strokeStyle = '#00ffff';
+    ctx.strokeStyle = cssHex(COLOR_TOKENS.surface.border);
     ctx.lineWidth = 2;
     ctx.strokeRect(2, 2, w - 4, contentH - 4);
 
-    ctx.font = this._scaleFont('bold 16px monospace');
-    ctx.fillStyle = '#00ffff';
+    ctx.font = this._scaleFont(`600 ${TYPOGRAPHY_TOKENS.scale.label}px ${TYPOGRAPHY_TOKENS.fontFamily}`);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this._lastText || 'Initializing...', pad, contentH / 2);
+
+    lines.forEach((line, index) => {
+      ctx.fillStyle = index === 0
+        ? cssHex(COLOR_TOKENS.text.primary)
+        : index === 1
+          ? cssHex(COLOR_TOKENS.interaction.focus)
+          : cssHex(COLOR_TOKENS.text.secondary);
+      ctx.fillText(line, pad, firstY + index * lineHeight, w - pad * 2);
+    });
+
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
   }
