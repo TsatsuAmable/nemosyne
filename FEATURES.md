@@ -1,81 +1,95 @@
 # Nemosyne — Features
 
 > A personal, experimental WebXR spatial data analysis project — not a maintained
-> product. Status below is honest: **shipped** means it runs and is tested;
-> **experimental** means it runs but is rough or incomplete; **planned** means the
-> scaffolding exists but is not wired in. See [ROADMAP.md](./docs/ROADMAP.md) for
-> detail and current status.
+> product or validated scientific instrument. Status below is intentionally
+> conservative: **shipped** means the capability is production-wired and exercised
+> by repository evidence; **experimental** means it runs but still requires
+> qualification or scientific validation; **planned** means it is not yet a product
+> claim. See [ROADMAP.md](./docs/ROADMAP.md) for the canonical implementation status.
 
-Nemosyne maps multi-dimensional datasets into interactive 3D "memory palaces" using
-three.js / WebGL / WebXR, a Draco-style constraint recommender, a (gradually
-migrating) Rust/WASM compute layer, and an experimental WebRTC collaboration layer.
+Nemosyne maps multi-dimensional datasets into interactive 3D investigation spaces
+using three.js / WebGL / WebXR, the Moneta representation-intelligence layer, a
+Rust/WASM analytical kernel, and an experimental WebRTC collaboration layer.
 
 ---
 
 ## Core Features
 
-### 1. WebXR Spatial Render Engine — _shipped_
-- Direct three.js + WebXR core; frame budget targeting steady frame rate on standalone Meta Quest headsets.
-- Cockpit-style semicircle dashboard (`DashboardManager`) — curved workspace wall with fixed angular columns, billboard orientation, and snap-to-zone dragging.
-- Body-locked radial wheel menu (`HandWheelMenu`) — muscle-memory radial menu anchored at chest height.
-- Diegetic holographic inspector — hand-following slate for deep row metadata inspection.
-- Spatial audio feedback (`SelectionFeedback`) — Web Audio selection/hover tones.
+### 1. WebXR Spatial Render Engine — _shipped; physical qualification ongoing_
+- Direct three.js + WebXR runtime with explicit performance budgets and Quest validation infrastructure.
+- Task-first investigation surfaces with governed desktop/XR task semantics and spatial panel placement.
+- Body-locked radial wheel menu (`HandWheelMenu`) and contextual selected-object actions.
+- Diegetic holographic inspection and bounded semantic drill-down from dataset structure to exact observations/provenance.
+- Spatial audio and haptic interaction feedback.
+- Final physical Quest comfort, tracking, direct-touch and sustained frame-pacing claims remain qualification work rather than inferred from simulator evidence.
 
-### 2. Draco Constraint Recommender & Layout — _shipped_
-- Symbolic constraint engine (`ConstraintEngine`) that evaluates 3,168 candidate visual specifications from dataset facts provided by `AtlasCore` (a Draco-style recommender, not a heavyweight optimizer).
-- 3D spatial layout generators: `Grid3D`, `ForceDirected3D`, `RadialTreeLayout`, `TimeSeriesRibbonLayout`, `StreamlineLayout`, `GeoSurfaceLayout` — with native WASM layout algorithms (`wasm/src/layouts/`).
-- Interactive representation carousel with diegetic weight sliders.
+### 2. Moneta Representation Intelligence & Semantic Embodiment — _shipped bounded core; empirical adaptation experimental_
+- Explainable representation selection from governed dataset semantics and analytical-task requirements.
+- Dataset-level semantic embodiments include aggregate, empirical distribution/density, governed cluster regions, and source-authoritative relationship graphs alongside legitimate observation-level point views.
+- Rust/WASM owns work materially proportional to dataset size and emits bounded semantic payloads; TypeScript adapts those payloads into presentation geometry.
+- Representation decisions retain alternatives, decision/provenance identity, and explicit preview/commit/revert semantics.
+- Open-ended compositional search and generative geometry are not current product claims; the existing finite representation vocabulary is being validated first.
 
 ### 3. Data Operations & History — _shipped_
-- Pure dataset operations executed in the native Rust WASM kernel: filter, sort, aggregate, cluster (k-means++, DBSCAN, hierarchical), time-slice, anomaly detection.
-- Undo/redo history stack with gesture and keyboard shortcuts.
-- Live-stream connectors (WebSocket / REST polling) feeding incremental palace updates.
+- Dataset operations execute in the Rust/WASM analytical kernel: filter, sort, aggregate, clustering, time-slice, anomaly detection, and related governed analyses.
+- Undo/redo, archive recovery and investigation-state provenance are visible through the product journey.
+- Live-stream connectors can feed incremental updates through the governed dataset/representation path.
 
-### 4. Scalability — _shipped_
-- `InstancedMesh` / GPU point cloud / `SpatialIndex` / `LODManager` paths by dataset size.
-- Geometry & material object pooling (`ObjectPool`) and time-sliced batch execution to reduce load-time frame spikes.
+### 4. Scalability & Bounded Detail — _shipped architecture; device envelope qualification ongoing_
+- Instanced rendering, GPU point-cloud, spatial-index and LOD paths are available where appropriate.
+- Dataset-level representations avoid requiring every source row to become a persistent visible mark.
+- Semantic drill-down requests bounded observation/detail payloads from the resident authoritative runtime instead of rematerialising whole datasets in UI code.
+- Large-N and sustained Quest performance claims remain evidence-gated by the physical validation programme.
 
-### 5. Rust / WASM Compute Layer (Analytical Kernel) — _shipped (sole analytical authority)_
-- Native Rust crate (`wasm/`) running data parsing (CSV, JSON, Arrow IPC stream), statistical profiling, clustering, anomaly detection, TDA Mapper graph synthesis, and layout simulation.
-- All analytical operations execute in WebAssembly with cryptographic provenance side-channel envelopes (`{ kernel, kernelVersion, operation, parameters, inputFingerprint, outputFingerprint, timestamp }`).
-- JS analytical fallback was completely removed; Rust is the sole analytical authority.
+### 5. Rust / WASM Analytical Kernel — _shipped sole analytical authority_
+- Native Rust crate (`wasm/`) owns data parsing, scale-sensitive analytical operations, statistical profiling and governed semantic embodiment payload construction.
+- JavaScript analytical fallback has been removed from the production authority path; failure/refusal is surfaced rather than silently selecting a shadow analytical implementation.
+- Measurement semantics distinguish storage type from scientific scale semantics, including compositional, circular, temporal and other governed variable types.
 
-### 6. Gesture Recognition & JIT Hints (Analyst Cockpit) — _shipped_
-- 3D joint-trajectory gesture classifier with biomechanical auto-calibration and just-in-time hints.
-- 4-mode authoritative interaction FSM (`NAVIGATE | INTERACT | TRANSFORM | OBSERVE`).
-- 3-level radial HandWheel navigation (`ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`) with gaze intent acquisition and pinch confirmation.
-- Ephemeral transient context cards and contextual task surfaces.
+### 6. Investigation UX & Interaction — _shipped product semantics; physical-input fitness ongoing_
+- Shared investigator vocabulary across desktop and XR: inspect, compare, challenge, record, navigate and contextual follow-up actions.
+- Compact status projection exposes focus, analytical readiness/refusal, representation state, evidence, recovery and state origin.
+- Explicit reasoning journeys support investigator-authored questions, hypotheses, conclusions, skeptical review, branch lineage and durable recovery without manufacturing analytical truth.
+- Gesture, controller, hand/direct-touch and comfort behavior remain subject to physical Quest qualification where simulator evidence is insufficient.
 
 ### 7. WebRTC Multi-User Collaboration — _experimental_
-- `NetworkManager` / `SignallingChannel` peer-to-peer data channels sharing camera pose and room presence (data stays local — each peer sees their own dataset).
-- Optional shared-secret token gate and duplicate-peerId rejection on the signalling server (see [GETTING_STARTED.md](./docs/GETTING_STARTED.md)).
-- User-presence HUD radar and peer presence indicators.
+- `NetworkManager` / signalling and peer data channels support room presence and bounded collaboration state.
+- Canonical signed-ticket admission includes strict role handling and replay protection on the live room-registry path.
+- Collaboration remains experimental pending broader network, recovery, privacy and deployment qualification.
 
-### 8. Topological Data Analysis — _shipped_
-- Native Rust WASM TDA kernel computing 1D Mapper graphs, 1D-persistence barcode intervals, and Betti-0 radius sample curves (`wasm/src/data/topology.rs`).
-- Diegetic world-space TDA canvas panels (`TDAPlanes.ts`).
+### 8. Topological Data Analysis — _shipped bounded analytical capability_
+- Rust/WASM TDA capabilities include Mapper-style graph summaries, persistence-derived artifacts and Betti-curve summaries where scientifically admissible.
+- TDA surfaces are optional analytical lenses rather than universal claims about every dataset.
 
-### 9. First-Class Evidence Entities & In-VR "Mark Moment" — _shipped_
-- Formal evidence domain models (`Observation`, `Finding`, `Annotation`) preserving 3D observer spatial perspective (`[x, y, z]` coordinates, orientation, active dataset version, focal targets).
-- Append-only `EvidenceLedger` recording attributable investigation provenance and queryable evidence graphs.
-- Diegetic in-VR "Mark Moment" workflow with haptic pulse feedback, visual beacon animation, and HandWheel menu integration.
+### 9. Evidence, Provenance & Reproducibility — _shipped_
+- Formal evidence entities preserve investigation context and attributable provenance.
+- Append-only evidence and investigation structures support replay, skeptical review, branching lineage and explicit recovery.
+- Representation decisions, alternatives and relevant model/artifact identities are retained so the road not taken is inspectable rather than discarded.
 
-### 10. Adaptive Pointer Smoothing & Jitter Suppression — _shipped_
-- Velocity-adaptive 1-Euro `PointerRayFilter` smoothing controller/hand rays in WebXR.
-- Eliminates physiological tremor and sensor noise during long-range pointing at 50k point clouds on Meta Quest 3S while maintaining zero perceptible lag during rapid sweeps.
+### 10. Adaptive Input Filtering & Interaction Diagnostics — _shipped; device tuning ongoing_
+- Pointer filtering and interaction-state machinery reduce jitter and expose bounded diagnostics for controller/hand interaction.
+- UX-friction and validation telemetry are opt-in and evidence-classified; simulator traces do not become physical-device proof.
 
-### 11. Headless Investigation Replay & `.nemosyne` Packaging — _shipped_
-- Deterministic `.nemosyne` ZIP package archiving and streaming extraction with `valibot` schema-validated integrity manifests.
-- Clean-room `InvestigationReplayRunner` replaying investigations headlessly against the Rust/WASM kernel and asserting 100% bit-for-bit analytical and evidence parity without WebGL or DOM dependencies.
+### 11. Investigation Replay & `.nemosyne` Packaging — _shipped_
+- `.nemosyne` packaging preserves governed investigation artifacts and integrity metadata.
+- Headless replay exercises investigation state against the authoritative analytical runtime without requiring WebGL presentation.
+
+### 12. Quest Validation Operations — _experimental infrastructure_
+- Versioned validation manifests separate source identity, worktree state, evidence class, runtime class and gate disposition.
+- Governed Quest modes distinguish ordinary trial evidence, physical validation and later clean-production qualification.
+- Machine-captured ADB device/build identity is structurally separated from investigator-declared fallback metadata.
+- The harness deliberately cannot upgrade simulator/dev evidence into final physical qualification; guided UX and clean-production device evidence remain to be collected.
 
 ---
 
 ## Technical Quality
 
-- **Type safety**: 100% Pure TypeScript (`tsc --noEmit` → 0 errors; `@typescript-eslint/no-explicit-any` enforced as error in `src/`).
-- **Tests**: Vitest suite with 234 test files and 1,512 passing tests (0 failures).
-- **CI**: GitHub Actions matrix; lint and typecheck are blocking gates; `npm run build` must pass.
-- **Rust unit tests**: `cargo test --manifest-path wasm/Cargo.toml` (85 unit tests passing).
+- **Type safety:** production `src/` is TypeScript-checked; legacy test opt-outs are tracked as debt and should only decrease.
+- **Tests:** required Vitest coverage is reconstructed from shards and repository-wide thresholds are enforced; exact file/test counts are intentionally not hard-coded here.
+- **CI:** typecheck, lint, documentation integrity, architecture boundaries, coverage, production build, Rust tests and production-browser smoke are gated in GitHub Actions, with specialised evidence workflows for high-risk product paths.
+- **Architecture policy:** dependency and AST policy checks guard authority boundaries and architectural regressions.
+- **Supply chain:** GitHub Actions are commit-pinned and production runtime trust is kept intentionally narrow.
+- **Evidence discipline:** implementation, production wiring, verification and physical qualification are treated as different claims rather than synonyms.
 
 ---
 
