@@ -2,7 +2,7 @@
 
 **Date:** 2 September 2026
 
-**Status:** implementation complete; independent post-review cleared; pre-merge
+**Status:** merged via #625 at `main@bafc4dfef3a2c800952fe203349deb7dd5d45a83`; independent post-review cleared
 
 **Authority:** accepted RFC 0003
 
@@ -111,3 +111,4 @@ The remaining items are `DEFER` by scope: reviewed production-family enablement;
 - The full source architecture boundary passed over 446 modules / 1,412 dependencies, and its fail-closed fixture proved the governance-to-product rejection plus the allowed hash edge under the supported bundled Node runtime.
 - Focused ESLint passed with no errors; the existing `no-console` warning in the architecture fixture remains. Scoped formatting for the implementation and review artifact passed. Repository-wide formatting is not claimed: the existing broad formatting backlog, including `docs/ROADMAP.md`, still makes the global check fail.
 - The full coverage suite passed: 462 files / 2,813 tests; 81.51% statements, 70.50% branches, 81.23% functions and 84.11% lines.
+- PR #625's exact-head promotion graph passed, including architecture, static analysis, CodeQL, Rust, production build, all coverage shards and aggregate, Chromium smoke, Node 24, dependency/cargo-deny, visible-evidence suites, approval and promotion gates. Browser-envelope jobs that did not apply to this tranche remained intentionally skipped.

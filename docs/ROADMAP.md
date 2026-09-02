@@ -4,7 +4,7 @@
 
 ## Status snapshot - 2 September 2026
 
-**Current integration base for this planning update:** `main@c408577361d102d5b078bc17f7064dafa15d7fff` (#624, RFC 0003 accepted). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is the forward execution frame: PT0 through PT2 are complete, RFC 0003 is accepted, and PT3B executable governance contracts are under implementation and adversarial review.
+**Current integration base for this planning update:** `main@bafc4dfef3a2c800952fe203349deb7dd5d45a83` (#625, PT3B governed-event contracts merged and independently reviewed). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is the forward execution frame: PT0 through PT3B are complete, and PT4's minimal authenticated consent-aware ingestion/storage/export/erasure vertical slice is next.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and the bounded C1-C4 visible-product wave have reached their stated implementation exits. In particular:
 
@@ -40,7 +40,7 @@ Current order:
 Stream A STOP
   -> Stream B Relationship Graph V1 STOP
     -> Stream C bounded C1-C4 implementation/evidence LANDED
-      -> P1-PT product transition (PT0-PT2 complete -> PT3A RFC accepted -> PT3B contracts...)
+      -> P1-PT product transition (PT0-PT3B complete -> PT4 minimal vertical slice...)
         -> assurance / selected-platform physical qualification / preview readiness
           -> P1-W production wiring where still applicable
             -> minimal private preview
@@ -53,7 +53,7 @@ Only one forward implementation PR should be active at a time unless the user ex
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | Relationship Graph B4 STOP / #612 | **VERIFIED COMPLETE / STOP FOR FIRST SELECTED FAMILY** | Source-authoritative Relationship Graph V1 is verified complete; selecting another B family requires an explicit fresh-main choice. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C4 visible journeys / #616 | **IMPLEMENTATION LANDED / REVIEW ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; physical-input/comfort fitness remains later device evidence. |
-| **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT3B executable governance contracts | **ACTIVE** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
+| **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT4 minimal authenticated consent-aware ingestion/storage/export/erasure vertical slice | **ACTIVE** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
 | **D / assurance legacy boundary** | Preserve attributable validation, live-path security/privacy assurance and clean-production/device qualification contracts needed by the selected preview scope. | QV2 attribution landed; QV4/QV5/QV7 and security residuals open | **CONSUMED BY P1-PT / ACTIVE WHEN SELECTED** | Required assurance gates for the selected private-preview scope are satisfied; no browser/simulator evidence is promoted into physical proof. |
 
 A is the shared semantic integration spine and is frozen at its finite P1-R5 boundary. B's first structural family is frozen at its Relationship Graph V1 boundary. C consumes A/B semantic state and may not manufacture analytical facts. P1-PT now sequences product, UX, CI, data, production and learning work. Quest remains a useful reference/qualification platform, not a strategic ceiling or master blocker for unrelated product development.
@@ -435,8 +435,8 @@ Current sequential status:
 - **PT1: COMPLETE** via #621 and #622; its exact cache miss/hit proof and final green coverage/promotion gates are recorded in the PT1B review, while the p50/p95 objective remains a monitored operational SLO.
 - **PT2: COMPLETE** via `TsatsuAmable/nemosyne-data#3` and its PRs #4-#6, ending at `nemosyne-data@8e6b2dfc` with post-merge validation green.
 - **PT3A: COMPLETE / RFC ACCEPTED** - RFC 0003 fixes the production identity, purpose-scoped authorization, lifecycle, governed event-envelope, runtime-provenance and Product/Research Mode boundary for implementation.
-- **PT3B: IMPLEMENTATION IN PROGRESS** - the first closed TypeScript schema/validator tranche and independent adversarial review are complete on a feature branch; merge/CI evidence remains required. No producer is wired and no production-path enforcement is claimed.
-- **Later PT3 implementation and PT4-PT10:** remain planned in the primary product-transition plan and issue #620; they are not completion claims.
+- **PT3B: COMPLETE** via #625 at `main@bafc4df` - the first closed TypeScript schema/validator tranche, independent adversarial review and exact-head promotion evidence are complete. No production event family or producer is wired, and no live ingestion, storage, export, erasure or production-collection property is claimed.
+- **PT4: NEXT** - build the smallest authenticated, consent-aware ingestion/storage/export/erasure vertical slice with observable failure semantics. PT5-PT10 remain planned in the primary product-transition plan and issue #620; they are not completion claims.
 
 P1-PT may select bounded UX, security, reliability, maintainability, CI, documentation and operations ratchets between larger product slices. It must preserve the five product/research authority boundaries and the Notice -> Question -> Hypothesis -> Investigation -> Understanding -> Validation -> Discovery lifecycle.
 
