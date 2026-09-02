@@ -1,9 +1,10 @@
 # RFC 0003: Production data lifecycle and governed event boundary
 
-**Status:** proposed
+**Status:** accepted
 **Programme:** P1-PT3A
 **Proposed:** 2 September 2026
-**Implementation:** deferred until this RFC is accepted
+**Accepted:** 2 September 2026
+**Implementation:** authorized for bounded follow-on tranches; not implemented by this RFC
 
 ## Context
 
@@ -350,9 +351,9 @@ real producer
 
 Independent adversarial review found and this draft corrected blockers in the live producer/store/export inventory, product-session versus investigation compatibility, compound data classification, dataset-reference provenance, stream/replay semantics, purpose-specific pseudonym separation, post-revocation disposition, authorization evidence and retention-policy immutability. The corrected inventory explicitly includes both potentially divergent telemetry preference records, screenshot and unrestricted analysis-story exports, the remote debug sink, validation overrides and transient collaboration dataset-label sharing.
 
-No blocker remains against proposing the RFC. One deliberate defer remains: `RAW_SPATIAL_TRAJECTORY` is not authorized for `engineering qualification`. Current dev traces stay excluded from production, and a later reviewed registry/RFC change is required before raw human spatial traces may be collected for qualification; they cannot be relabelled as generic validation evidence. Executable schemas must also select stable purpose IDs and digest algorithms/canonicalization before implementation promotion.
+No blocker remains against accepting the RFC. One deliberate defer remains: `RAW_SPATIAL_TRAJECTORY` is not authorized for `engineering qualification`. Current dev traces stay excluded from production, and a later reviewed registry/RFC change is required before raw human spatial traces may be collected for qualification; they cannot be relabelled as generic validation evidence. Executable schemas must also select stable purpose IDs and digest algorithms/canonicalization before implementation promotion.
 
-This disposition is review evidence for the proposal, not RFC acceptance, implementation evidence or production-path verification.
+This disposition supported acceptance; it is not implementation evidence or production-path verification.
 
 ## Verification plan
 
@@ -365,4 +366,4 @@ This disposition is review evidence for the proposal, not RFC acceptance, implem
 
 ## Resulting ADR
 
-None while proposed. If accepted and implemented, record the durable boundary in `docs/architecture/decisions/0005-production-data-lifecycle-and-event-boundary.md`.
+None until implemented. Once the accepted contract is implemented and its production boundaries conform, record the durable boundary in `docs/architecture/decisions/0005-production-data-lifecycle-and-event-boundary.md`.

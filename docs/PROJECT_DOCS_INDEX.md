@@ -17,7 +17,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 - [`../SECURITY.md`](../SECURITY.md) - vulnerability reporting and security model.
 - [`OWNERSHIP.md`](OWNERSHIP.md) - semantic ownership and specialist review map.
 - [`RFC_PROCESS.md`](RFC_PROCESS.md) - lightweight threshold for durable architecture/trust-boundary changes.
-- [`rfcs/0003-production-data-lifecycle-and-event-boundary.md`](rfcs/0003-production-data-lifecycle-and-event-boundary.md) - proposed PT3 production identity, purpose-scoped consent, lifecycle, event-envelope and runtime-provenance boundary.
+- [`rfcs/0003-production-data-lifecycle-and-event-boundary.md`](rfcs/0003-production-data-lifecycle-and-event-boundary.md) - accepted PT3 production identity, purpose-scoped authorization, lifecycle, event-envelope and runtime-provenance boundary.
 - [`architecture/decisions/README.md`](architecture/decisions/README.md) - accepted Architecture Decision Records.
 
 ## Implementation and engineering reference
