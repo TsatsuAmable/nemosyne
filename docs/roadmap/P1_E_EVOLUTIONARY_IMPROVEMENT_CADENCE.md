@@ -1,295 +1,507 @@
-# P1-E — Evolutionary Improvement Cadence
+# P1-E — Product Transition & Evolutionary Improvement Cadence
 
-**Status:** ACTIVE SUPPORT PROGRAMME UNTIL PHYSICAL QUEST EVIDENCE IS AVAILABLE  
+**Status:** ACTIVE PRODUCT-TRANSITION PROGRAMME  
 **Date established:** 2 September 2026  
-**Scope:** code, architecture, security, privacy, reliability, tests, CI/CD, documentation, governance, scientific process, developer experience and maintainability  
-**Non-scope:** manufacturing physical Quest evidence, inventing new scientific claims, pulling P2 compositional/generative representation work forward, or changing product semantics merely to stay busy
+**Scope:** product learning, UX, maintainability, architecture, engineering quality, security/privacy, production infrastructure, tests, CI/CD, documentation, data/corpus quality, developer/agent guardrails and scientific integrity  
+**Non-scope:** manufacturing user/device evidence, forcing Nemosyne to fit one headset, promoting unvalidated scientific claims, or pulling speculative P2 representation research forward merely to stay busy
 
 ## Purpose
 
-Nemosyne has reached a useful waiting state: the product and representation architecture are sufficiently coherent that further progress no longer requires constant feature expansion, while final physical Quest qualification still depends on evidence that cannot be manufactured in CI or simulation.
-
-This programme uses that interval deliberately. It turns clear, independently justified improvements into a sequence of small reviewable tranches so the project becomes easier to reason about, safer to operate, cheaper to change and more truthful while physical evidence is pending.
+Nemosyne is approaching the end of its broad exploratory-development phase. The next job is not simply to accumulate more features or satisfy a single hardware qualification gate. It is to turn the existing research system into a product that real investigators can understand, use, trust, maintain and improve.
 
 The governing principle is:
 
-> Improve what can be proved better now; preserve what needs real-world evidence for later.
+> Improve learning velocity toward a useful product while making the system easier to understand, safer to change and harder for humans or agents to accidentally degrade.
 
-This is not a licence for opportunistic refactoring. Every tranche must have a concrete invariant, a bounded failure mode and evidence showing that the change improves the current system without silently changing scientific or product meaning.
+Physical device evidence, formal studies and market feedback remain essential, but they are inputs to product evolution rather than reasons to stop all other progress.
 
-## Relationship to the main roadmap
+`docs/ROADMAP.md` remains the canonical implementation-status authority. P1-E is the rolling transition programme that improves the system between larger product/evidence milestones.
 
-`docs/ROADMAP.md` remains the canonical implementation-status authority. P1-E is a supporting cadence that may execute between or alongside queued physical-evidence prerequisites when its work does not collide with the active forward tranche.
+---
 
-P1-E does not override named roadmap gates. In particular:
+# Strategic corrections
 
-- simulator/browser evidence never becomes physical Quest evidence;
-- a cleaner architecture never closes UX-03, P1-U9, PERF-04 or another device gate;
-- hardening work does not promote private-preview readiness until the owning security/privacy/product requirements are actually satisfied;
-- empirical Moneta work cannot be promoted merely because a heuristic is implemented;
-- open-ended RepresentationGraph/compositional search and generative geometry remain deferred until their explicit prerequisites are met.
+## 1. Quest is a reference platform, not a strategic blocker
 
-## Execution model
+Meta Quest is useful because it gives Nemosyne a concrete standalone-XR performance, interaction and comfort envelope. It must not become an artificial ceiling on the product.
 
-P1-E follows the repository-wide adversarial implementation protocol and the single-forward-stream rule.
+Rules:
+
+- Quest findings remain real evidence about standalone-XR constraints and interaction quality.
+- A Quest-specific limitation must be classified as either a Nemosyne defect, an implementation defect, or a platform ceiling.
+- If the platform ceiling materially prevents the intended analytical experience, Nemosyne may target a more capable headset, tethered XR, desktop GPU or another runtime rather than weakening the product thesis to fit Quest.
+- Core analytical, investigation, provenance and representation contracts must remain hardware-neutral.
+- XR/platform-specific adaptation belongs at embodiment/input/performance boundaries, not in scientific authority.
+- Maintain a small capability matrix for supported targets so product requirements do not silently become Quest-specific assumptions.
+
+Quest qualification is therefore a product-fitness lane, not the master gate for all development.
+
+## 2. UX refinement precedes strong scientific interpretation
+
+The current experience still creates enough interaction friction that user confusion can become a major confounder. Formal comparative studies are premature if participants are substantially measuring interface pain rather than Nemosyne's analytical value.
+
+Priority order:
+
+```text
+usable workflow
+  -> live human observation
+    -> iterative UX repair
+      -> repeatable investigator journeys
+        -> product/value learning
+          -> formal study when the interface is no longer the dominant confounder
+```
+
+Human testing should begin early and remain lightweight, frequent and diagnostic:
+
+- guided usability sessions;
+- think-aloud investigation tasks;
+- observed failure/recovery points;
+- time-to-first-useful-action;
+- task abandonment and repeated-error patterns;
+- unnecessary mode switches and menu traversal;
+- discoverability of state, provenance, undo/recovery and representation reasoning;
+- post-session interviews about analytical usefulness, trust and missing capability.
+
+These sessions are product-development evidence, not automatically inferential scientific evidence. Their purpose is to remove friction and discover what users actually need before freezing a major experiment.
+
+## 3. Product development and market fit become first-class
+
+The next lifecycle should increasingly ask:
+
+- Who gets meaningful value from Nemosyne?
+- Which investigation tasks become easier or newly possible?
+- Which workflows cause users to return?
+- What data do they bring?
+- Which features are indispensable versus impressive but unused?
+- Where does spatial representation create enough value to justify XR complexity?
+- What product shape, deployment model and hardware envelope fit the users who care most?
+
+Private-preview users should therefore be treated as design partners. Usage telemetry, interviews, support burden, retention, completed investigations and dataset/task mix become product-learning inputs, subject to explicit privacy/consent boundaries.
+
+Do not optimise prematurely for broad-market scale. First establish a repeatable high-value workflow for a narrow cohort.
+
+## 4. Maintainability now matters as much as exploratory velocity
+
+Exploratory development tolerates local complexity because ideas are changing rapidly. Product/production development cannot.
+
+The transition criterion is not merely "the code works". A competent new maintainer or agent must be able to determine:
+
+- where a behavior is owned;
+- which layer has authority;
+- what must not be duplicated;
+- which tests establish the contract;
+- how a production request flows through the system;
+- what compatibility constraints exist;
+- what evidence is required before changing a high-risk path.
+
+Prefer deletion, consolidation and narrow contracts over new abstraction layers. Continue the successful `World` convergence but prevent replacement god-managers.
+
+## 5. Test effectiveness matters more than test quantity or coverage
+
+Coverage remains a useful floor and blind-spot detector. It is not a quality target.
+
+A test is valuable when it can falsify a meaningful product, scientific, security, data-integrity or operational claim.
+
+The suite should increasingly be evaluated by:
+
+- defect detection and regression yield;
+- mutation kill rate on high-risk logic;
+- known-answer correctness against canonical datasets;
+- property/metamorphic invariants;
+- production-journey protection;
+- hostile-input/fuzz findings;
+- replay/provenance consistency;
+- failure/recovery behavior;
+- test runtime versus information gained.
+
+Delete or rewrite tests that mostly pin implementation trivia or cannot plausibly fail for a meaningful reason.
+
+## 6. CI must become faster without becoming weaker
+
+Long CI slows every human and agent feedback loop and encourages batching, speculative changes and delayed fixes.
+
+Target architecture:
+
+```text
+local/focused checks < fast required PR checks < risk-triggered evidence < scheduled deep assurance
+```
+
+Required work includes:
+
+- measure p50/p95 wall-clock by workflow and job;
+- identify setup duplication and repeated WASM/package builds;
+- reuse immutable build artifacts where exact-head identity remains provable;
+- make cheap static/contract checks fail early;
+- keep high-risk gates mandatory where relevant;
+- move expensive fuzz/mutation/Miri/soak work to risk-triggered or scheduled lanes unless the change touches their authority boundary;
+- avoid rerunning semantically identical work in several workflows;
+- preserve exact-head evidence and action pinning while simplifying orchestration.
+
+The objective is shorter feedback time per trustworthy result, not simply fewer checks.
+
+## 7. Agentic engineering needs stronger mechanical guardrails
+
+Agent assistance is a productivity multiplier and a source of distinctive failure modes: plausible but false completion, duplicated authorities, over-broad refactors, tests that prove helpers instead of production paths, stale-base work, compatibility breakage and documentation overclaiming.
+
+Guardrails should increasingly be executable rather than prose-only:
+
+- single-forward-stream / fresh-main discipline;
+- mandatory pre-implementation falsifiers for high-risk changes;
+- exact-head promotion evidence;
+- independent adversarial post-review for material changes;
+- architecture/authority AST and dependency policies;
+- change-budget warnings for unexpectedly broad diffs;
+- protected ownership boundaries for analytical authority, provenance, ingestion, persistence and security-critical paths;
+- production-path tests for claims about production behavior;
+- known-answer corpus checks for analytical/representation changes;
+- no weakening/deleting a failing guard in the same PR without an explicit recorded rationale and independent review;
+- stale-branch detection before merge;
+- generated or machine-checked capability/status claims where practical.
+
+A green agent-authored PR should mean "the important ways this could be wrong were actively attacked", not only "the implementation compiled".
+
+## 8. Production infrastructure starts before product-market fit is known
+
+Nemosyne needs real users and real user data to learn. That requires enough production infrastructure to operate responsibly before the final product shape is settled.
+
+Build a minimal production spine, not a premature enterprise platform:
+
+- canonical production/deploy-preview artifact lineage;
+- authenticated user/session identity if persistent user state requires it;
+- explicit data ownership and storage boundaries;
+- consent-aware product analytics and error/crash telemetry;
+- privacy-safe support diagnostics;
+- feature/release flags for controlled rollout;
+- backup/export/recovery for user investigations;
+- observability for app/runtime failures and deployment regressions;
+- environment/configuration separation;
+- basic abuse/resource controls on any server-side capability;
+- cost and capacity visibility;
+- repeatable deployment/rollback;
+- a clear private-preview onboarding/offboarding process.
+
+Prefer local-first handling of sensitive datasets where feasible. Any server-side data path must be deliberate, documented and justified by product value.
+
+## 9. Documentation should shrink as the product stabilises
+
+The repository currently contains valuable history, but historical planning material should not compete with current truth.
+
+Move toward a small active documentation surface:
+
+1. `README.md` — project/product orientation and current status;
+2. `docs/ROADMAP.md` — canonical execution/status authority;
+3. current architecture/system-design document;
+4. current product/UX interaction specification;
+5. current security/privacy/production-operations specification;
+6. current testing/quality/agent-engineering policy;
+7. current data/corpus contract;
+8. current research/study protocol only when actively relevant;
+9. small ADR/compatibility records for durable decisions.
+
+Superseded implementation plans, post-reviews and historical evidence should be archived or generated into a clearly historical area. Current docs must answer "how Nemosyne works now" before they explain how it got here.
+
+## 10. `nemosyne-data` becomes a canonical product and verification dependency
+
+`TsatsuAmable/nemosyne-data` should evolve into a versioned corpus of realistic, synthetic, adversarial and known-answer datasets.
+
+Every governed corpus entry should carry a manifest containing, as applicable:
+
+- stable dataset ID/version/content digest;
+- source, licence and redistribution status;
+- schema and measurement-scale semantics;
+- expected row/column/cardinality facts;
+- known analytical quantities with tolerances and derivation notes;
+- expected structural properties;
+- representation-relevant facts/requirements;
+- provenance and transformations;
+- intended test/product-study uses;
+- size/resource class;
+- privacy/synthetic status.
+
+Corpus families should include:
+
+### Known-answer synthetic datasets
+
+Examples:
+
+- exact clusters with known memberships and centroids;
+- distributions with known moments/quantiles/tails;
+- density fixtures with controlled modes and separations;
+- graphs with exact nodes/edges/components/degrees;
+- temporal series with known seasonality/change points;
+- hierarchical structures with exact parent/child relations;
+- compositional/circular/ordinal examples that expose invalid metric assumptions;
+- deliberately ambiguous datasets where Moneta should abstain or surface alternatives.
+
+### Metamorphic variants
+
+For the same underlying scientific structure:
+
+- row permutations;
+- irrelevant-column additions;
+- harmless label changes;
+- scale/unit transformations where valid;
+- controlled noise/perturbation levels;
+- missingness variants;
+- duplicate/near-duplicate cases.
+
+These let tests ask whether Moneta and the analytical kernel preserve invariants rather than merely match snapshots.
+
+### Realistic public datasets
+
+Curate small-to-large datasets from credible domains with known provenance and licensing. Prefer data with documented analytical questions or independently verifiable properties so product sessions are not built entirely on toy examples.
+
+### Hostile/boundary datasets
+
+Malformed, oversized, adversarial, pathological and precision-sensitive fixtures for ingestion, WASM, rendering and security boundaries.
+
+Nemosyne should consume the corpus through a versioned catalogue/manifest contract rather than hard-coded sample imports.
+
+## 11. Dataset loading and full in-XR workflow are product requirements
+
+A user should not need to repeatedly leave XR to perform ordinary investigative work.
+
+The long-term XR parity target includes:
+
+- browse/select canonical `nemosyne-data` datasets;
+- load local files or approved remote sources through platform-appropriate pickers;
+- inspect schema and inferred measurement semantics;
+- correct/override semantics explicitly where allowed;
+- review load/refusal/errors/provenance;
+- switch datasets and versions;
+- inspect/compare/challenge/record/navigate;
+- choose/review/revert representations;
+- filter/transform/analyse through governed operations;
+- inspect exact observations/provenance;
+- save/export/reopen `.nemosyne` investigations;
+- manage privacy/telemetry/settings;
+- recover from failures;
+- access help/onboarding without removing the headset.
+
+Desktop remains an important accessibility, debugging and complementary workflow surface. XR should not be a decorative viewer sitting behind a desktop control plane.
+
+---
+
+# Execution model
 
 For each tranche:
 
-1. fetch fresh `main` and re-check whether the finding still exists;
-2. state the invariant, live production path, likely regression modes and non-goals;
-3. choose the smallest coherent change that improves the invariant;
-4. add or strengthen a falsifier before or with the implementation;
-5. exercise the real production path when the claim concerns production behavior;
-6. run focused tests, then ordinary exact-head CI and relevant specialised evidence;
-7. perform a distinct post-implementation adversarial review;
-8. fix forward on the same tranche rather than weakening evidence;
-9. merge only when the bounded claim is supported;
-10. fetch fresh `main`, re-score the remaining backlog, and select the next highest-value item.
+1. fetch fresh `main` and re-check the problem still exists;
+2. state the user/product/engineering value, invariant and non-goals;
+3. identify the actual production path and likely agent failure modes;
+4. add or strengthen falsifiers before or with implementation;
+5. make the smallest coherent change;
+6. exercise focused tests plus relevant production/known-answer evidence;
+7. perform independent adversarial review;
+8. fix forward rather than weaken evidence;
+9. merge only on exact-head evidence;
+10. measure whether the change reduced friction, risk, complexity or feedback time;
+11. fetch fresh `main` and re-score the next tranche.
 
-One improvement PR should normally contain one coherent risk class. Small independent hygiene changes may be grouped only when they are individually reversible and share the same verification envelope.
-
-## Selection rule
-
-Prefer work with all four properties:
-
-- **clear correctness:** the desired state is not scientifically or productively ambiguous;
-- **high leverage:** the change reduces future defect probability, maintenance cost or misleading evidence;
-- **low collision:** it does not overlap a pending physical-evidence or major product-semantic tranche;
-- **strong falsifiability:** CI, production-browser, static policy, property tests, fuzzing or other evidence can tell us whether the improvement worked.
-
-When two items compete, prioritise in this order:
-
-1. security, privacy, data integrity and scientific correctness;
-2. production-path reliability and recovery;
-3. architectural authority and maintainability;
-4. test/evidence quality and pipeline truthfulness;
-5. documentation/governance truthfulness;
-6. developer ergonomics and cleanup.
-
-Do not choose work solely because it is aesthetically pleasing.
+One forward implementation PR remains the default unless explicitly changed.
 
 ---
 
-# Rolling schedule
+# Rolling work programme
 
-The schedule is dependency-based rather than calendar-based because the arrival of physical Quest evidence is external to this programme. Each iteration should finish at a clean finite exit before the next begins.
+The work below is dependency- and evidence-driven, not a rigid phase gate. Product/user findings pre-empt housekeeping.
 
-## E0 — Review easy wins and one-way ratchets
+## E0 — Easy wins and one-way ratchets
 
-**Intent:** remove obvious drift and create cheap mechanisms that prevent it returning.
+Current PR tranche:
 
-Initial tranche:
+- remove unnecessary `unpkg.com` runtime trust and tighten CSP;
+- remove retired investigator-facing Draco terminology while preserving compatibility IDs;
+- refresh feature truth;
+- promote architecture policy to every PR;
+- freeze production `@ts-nocheck` at zero and make legacy test opt-outs one-way downward.
 
-- remove the unnecessary `unpkg.com` Three.js import map from shipped HTML;
-- remove the corresponding external script origin from production CSP;
-- add a regression proving production Three.js loading remains self-hosted;
-- remove retired Draco terminology from investigator-visible onboarding while preserving compatibility IDs where changing them would widen scope;
-- refresh `FEATURES.md` so it describes Moneta, Rust/WASM authority, dataset-level embodiments and the distinction between shipped architecture and pending physical qualification;
-- stop hard-coding test-count claims in product documentation;
-- graduate the proven architecture-policy workflow from a path-scoped pilot to an every-PR policy check;
-- freeze production `src/` at zero `@ts-nocheck` and freeze the legacy test baseline as a one-way downward ratchet.
+## E1 — UX friction and complete investigator journeys
 
-**Exit:** easy wins are enforced by normal repository evidence rather than depending on memory.
+Highest product-development priority while live user learning begins.
 
-## E1 — Live-path security and privacy closure
+- map the end-to-end investigator journey and record friction/error points;
+- ensure desktop and XR expose the same canonical task semantics;
+- make dataset loading/schema review/semantic correction usable in XR;
+- reduce menu depth, modal ambiguity and hidden state;
+- improve affordance/discoverability of selection, representation reasoning, undo, recovery and provenance;
+- build lightweight usability-session capture with explicit consent;
+- create a repeatable weekly/batched UX review loop from observed sessions;
+- do not freeze the flagship formal study while interface friction remains a dominant confounder.
 
-**Intent:** close the highest-value private-preview trust-boundary residuals without introducing shadow authorities.
+## E2 — Production spine and private-preview operations
 
-Work queue:
+- choose canonical production/public/preview deployment ownership;
+- fix or retire permanently failing deployment workflows;
+- add artifact/source/WASM identity to deployment evidence;
+- define user/session identity and local/server data boundaries;
+- implement consent-aware product telemetry/crash diagnostics;
+- add controlled rollout/feature flags and rollback;
+- define investigation backup/export/recovery and private-preview support process;
+- establish minimal observability, cost and abuse/resource monitoring.
 
-- **RF-039:** consolidate upload size/name/shape/dangerous-key policy on the real `FileLoader -> Atlas -> Rust -> Dataset` ingress path; remove or narrow orphan policy helpers after production-path parity is proven;
-- **RF-040:** define one telemetry/consent lifecycle across collection, retention, export, revocation and erasure; narrow claims if complete erasure is not implemented;
-- **RF-042:** neutralise terminal control sequences in developer UX trace output while preserving machine-readable logs;
-- **RF-043:** add targeted hostile-input fuzz/property campaigns for parser and WASM ABI boundaries; turn every discovered defect into a deterministic regression;
-- re-review signalling admission/replay semantics after surrounding collaboration changes rather than assuming old evidence survives forever;
-- audit user-controlled filenames, labels and exported metadata for injection/path/control-character edge cases.
+## E3 — Security, privacy and ingestion closure
 
-**Exit:** each preview-relevant trust boundary has one production authority and hostile-path evidence appropriate to its risk.
+- RF-039 live `FileLoader -> Atlas -> Rust -> Dataset` upload policy;
+- RF-040 complete telemetry consent/retention/revocation/export/erasure contract;
+- RF-042 terminal/control-character sanitisation;
+- RF-043 hostile parser/WASM ABI fuzz/property evidence;
+- filename/metadata/path/injection review;
+- re-review collaboration admission/replay/state-ordering boundaries.
 
-## E2 — Reliability, recovery and lifecycle hardening
+## E4 — Maintainability and architectural comprehension
 
-**Intent:** make long-running investigations fail visibly and recoverably rather than merely avoiding crashes in unit tests.
+- narrow `WorldUIManager` callback/capability bags as touched;
+- remove active-path `unknown` service ports where contracts are stable;
+- prevent new manager-shaped god objects;
+- identify high-churn/high-coupling hotspots and simplify them before new feature growth;
+- document ownership at module boundaries rather than in sprawling narrative prose;
+- reduce dependency cycles and compatibility fossils deliberately;
+- add architecture fitness functions only when low-noise and durable.
 
-Work queue:
+Exit question: can a new maintainer trace a representative dataset load, Moneta decision, embodiment, investigation mutation and replay path without repository archaeology?
 
-- complete robust WASM trap containment and stale-handle invalidation;
-- define state rehydration after recoverable analytical-runtime failure;
-- exercise repeated initialise/deallocate/reinitialise sequences;
-- add collaboration ordering/revision protection where delayed packets can overwrite newer state;
-- classify browser storage quota, IndexedDB failure, lost context, WebGL context loss and worker restart behavior;
-- ensure refusal/recovery surfaces preserve investigation context and do not silently fall back to weaker analytical paths;
-- add soak tests only where they expose lifecycle defects that ordinary deterministic tests cannot.
+## E5 — Test effectiveness audit and redesign
 
-**Exit:** failure modes that can occur during a real research session have explicit states, bounded recovery behavior and production-path evidence.
+Do not chase test count.
 
-## E3 — Architecture erosion prevention
+- classify tests by protected failure mode and product claim;
+- find duplicate, inert, implementation-detail and low-value tests;
+- run selective mutation testing on Moneta admissibility/scoring, provenance/replay, ingestion/security and recovery logic;
+- establish known-answer tests backed by `nemosyne-data` manifests;
+- add metamorphic/property tests for row order, irrelevant columns, stable identities and replay;
+- add production-journey tests for critical investigator flows;
+- ensure failure-path tests prove refusal/recovery rather than only happy-path output;
+- remove `@ts-nocheck` on active-path tests as they are touched;
+- keep coverage as a floor/diagnostic, not the optimisation target.
 
-**Intent:** continue the successful `World` convergence without creating new manager-shaped god objects.
+Track useful metrics such as mutation score for selected critical modules, escaped regressions, flaky-test rate, runtime and percentage of critical product journeys with a true system-level falsifier.
 
-Work queue:
+## E6 — CI feedback-time reduction
 
-- narrow broad `WorldUIManager` callback bags into capability-specific local ports as touched;
-- eliminate active-path `unknown` service ports where a stable contract is known;
-- keep `World` as composition root/compatibility facade, not domain authority;
-- prohibit presentation code from growing new scale-sensitive dataset traversal or scientific inference;
-- retire compatibility aliases only when callers and persisted contracts permit it; do not force risky renames for cosmetic purity;
-- classify and gradually reduce dependency cycles rather than hiding them under broad ignores;
-- extend AST/dependency policy only for durable rules that have demonstrated value and low false-positive cost.
+- establish p50/p95 PR completion baselines;
+- rank jobs by time and unique defect yield;
+- deduplicate installs/builds/WASM compilation where artifact identity can remain exact;
+- make cheap failure checks first;
+- separate required fast PR gates from risk-triggered deep assurance and scheduled campaigns;
+- retain CodeQL/security/architecture evidence where it materially protects the touched path;
+- reduce workflow proliferation and make one promotion path obvious;
+- set a concrete feedback-time objective and reject new mandatory jobs that do not justify their cost.
 
-**Exit:** architecture gets simpler under normal feature maintenance, and the policy makes backsliding cheaper to detect than to review manually.
+## E7 — Agentic engineering guardrails
 
-## E4 — Test-quality ratchet
+- codify change-size/diff-scope warnings;
+- create protected-path policies for analytical authority, provenance, ingestion, persistence and security-sensitive code;
+- require production-path evidence for production claims;
+- require known-answer corpus checks for analytical/representation changes;
+- prevent guard weakening in the same PR without explicit independent approval;
+- detect stale base/head evidence;
+- keep architecture-policy and pinned-action enforcement;
+- periodically seed fault-injection or mutation exercises to measure whether agents actually detect defects;
+- audit review documents for claims unsupported by executable evidence.
 
-**Intent:** increase the information value of the test suite rather than merely increasing its size.
+## E8 — Documentation compression and governance
 
-Work queue:
+- inventory active docs and identify the minimal canonical set;
+- archive superseded plans/reviews/status snapshots aggressively while preserving history;
+- consolidate duplicated architecture/security/product descriptions;
+- remove volatile counts and stale claims;
+- add a current-doc index and archive boundary;
+- generate/check capability claims where feasible;
+- ensure a reader can understand present architecture/product operation without reading historical review plans.
 
-- no new `@ts-nocheck`; remove it from active-path tests when those tests are touched;
-- prioritise typing of Moneta embodiment, data ingestion, input, recovery, persistence and collaboration tests;
-- replace implementation-detail assertions with production-contract assertions where appropriate;
-- identify high-risk low-branch-coverage areas rather than chasing repository-wide percentage inflation;
-- apply mutation testing selectively to security admission, analytical admissibility, replay/provenance and failure-state logic;
-- add metamorphic/property tests for invariants such as row-order stability, irrelevant-column stability, deterministic replay and semantic identity preservation;
-- quarantine or delete tests that can no longer fail for a meaningful product reason.
+## E9 — `nemosyne-data` corpus and dataset catalogue
 
-**Exit:** the suite becomes more falsifying and more type-safe while staying bounded in runtime.
+Coordinate with `TsatsuAmable/nemosyne-data`.
 
-## E5 — CI/CD and assurance convergence
+- define the corpus manifest/schema/version contract;
+- add known-answer synthetic families for each verified representation;
+- add metamorphic variants and negative/abstention fixtures;
+- curate realistic licensed datasets;
+- add hostile/boundary fixtures;
+- publish a machine-readable catalogue;
+- connect Nemosyne dataset loading to that catalogue without bypassing normal ingest authority;
+- use corpus digests/versions in CI and product-session evidence;
+- allow datasets to grow independently of application releases.
 
-**Intent:** retain Nemosyne's unusually strong evidence discipline while reducing ceremony and ambiguous workflow status.
+## E10 — Product learning loop / private preview
 
-Work queue:
+- recruit a small design-partner cohort;
+- define onboarding and support path;
+- instrument consented product events around successful/failed investigation journeys;
+- capture qualitative feedback alongside behavior;
+- review cohort retention, repeated use, imported dataset types and completed-investigation outcomes;
+- prioritise fixes/features based on observed value and friction rather than taxonomy completion;
+- evolve hardware requirements from actual workflow needs.
 
-- graduate successful pilots to permanent names and triggers once post-review evidence supports promotion;
-- consolidate repeated setup/evidence logic into reusable workflows or scripts where this does not obscure exact-head identity;
-- keep one obvious path from implementation evidence to promotion disposition;
-- repair the GitHub Pages publication path or deliberately reclassify/decommission it if the canonical website host changes; do not leave a permanently red workflow as background noise;
-- make deployment smoke prove the deployed artifact identity where feasible;
-- continue commit-pinning Actions and validate upgrades as controlled migrations;
-- measure CI wall-clock and failure yield before adding blanket expensive gates;
-- schedule fuzz/mutation/Miri/soak assurance by risk rather than adding them to every PR.
+## E11 — Formal study readiness
 
-**Exit:** green means something precise, red signals actionable failure, and agents do not need archaeology to determine which workflow is authoritative.
+The formal study remains valuable, but it moves after sufficient UX/product refinement.
 
-## E6 — Documentation and public-truth convergence
+Before inferential collection:
 
-**Intent:** keep project claims synchronised with actual capability and evidence.
+- freeze task/estimand/analysis unit;
+- specify crossover/order/carry-over and participant/task/dataset hierarchy;
+- justify sample size/precision;
+- freeze exclusions, missingness, multiplicity and sensitivity analyses;
+- version task/scoring artifacts;
+- ensure interface competence/training is sufficient that UI friction is not the primary treatment effect.
 
-Work queue:
+## E12 — Empirical Moneta evidence redesign
 
-- remove retired terminology from investigator-facing and current technical documentation while retaining clearly labelled compatibility surfaces;
-- distinguish `IMPLEMENTATION PARTIAL`, `IMPLEMENTATION LANDED`, `REVIEW ACTIVE`, `VERIFIED COMPLETE` and physical qualification consistently;
-- stop embedding volatile counts or benchmark claims in narrative docs unless generated/checked;
-- create or derive a small machine-readable capability/release manifest for public claims if this remains cheaper than manual drift review;
-- add documentation checks for known dangerous drift classes: retired authority names, unsupported physical claims, stale deployment descriptions and duplicate status authorities;
-- archive superseded plans rather than allowing several documents to appear simultaneously canonical.
+Do not activate the current ad-hoc empirical scorer as scientific authority.
 
-**Exit:** a reader can identify current truth without understanding the repository's archaeological layers.
-
-## E7 — Scientific-study readiness
-
-**Intent:** make the human validation programme as rigorous as the software's internal epistemic discipline before participant outcomes are collected.
-
-Work queue:
-
-- freeze the primary estimand and analysis unit for the flagship study;
-- specify crossover/order/carry-over treatment and participant/task/dataset hierarchy;
-- justify sample size through power or precision criteria appropriate to the estimand;
-- freeze exclusion, missing-data, multiplicity and sensitivity-analysis policies;
-- version machine-readable task/scoring artifacts together with human wording;
-- record protocol deviations explicitly after freeze;
-- test study export/import/scoring on synthetic sessions before live collection;
-- ensure consent/data-dictionary/retention language matches the actual telemetry and export pipeline.
-
-**Exit:** data collection can begin without leaving material analytical choices to post-hoc discretion.
-
-## E8 — Empirical Moneta evidence redesign
-
-**Intent:** prepare empirical adaptation without promoting an under-justified heuristic into scientific authority.
-
-Current caution:
-
-The legacy/experimental evidence scorer uses an ad-hoc sample-count weight and fixed utility scaling. It must not be promoted merely because it is convenient or already tested.
-
-Work queue:
-
-- inventory production, dormant and compatibility empirical-scoring authorities;
-- remove or quarantine duplicate TypeScript authority where Rust/Moneta owns the eventual decision path;
-- replace ambiguous `confidence` language with calibrated terminology or neutral evidence-weight terminology;
-- define uncertainty, effective sample size, participant/dataset heterogeneity and held-out generalisation requirements;
-- version empirical model/data provenance and freeze promotion criteria before observing candidate performance;
-- require stability under perturbation and out-of-sample evaluation before empirical preferences can materially change representation ranking;
-- preserve the ability to inspect the unadapted baseline and the road not taken.
-
-**Exit:** empirical adaptation, if activated, is auditable evidence-based model selection rather than `N`-weighted preference tuning.
-
-## E9 — Dependency, compatibility and developer-experience maintenance
-
-**Intent:** reduce incidental complexity without changing scientific behavior.
-
-Work queue:
-
-- continue controlled dependency modernisation in reversible waves;
-- prefer maintained libraries when they measurably improve correctness/security/portability and preserve Nemosyne-specific semantics;
-- remove obsolete compatibility shims only after class-wide caller search and persistence review;
-- keep Node/Rust/WASM bootstrap portable across supported development platforms;
-- remove stale scripts, workflows and documentation when a replacement has become authoritative;
-- improve diagnostics for setup/build failures instead of adding hidden fallback behavior.
-
-**Exit:** maintenance cost falls while behavior, provenance and replay compatibility remain explicit.
+- inventory active/dormant scorers;
+- remove duplicate authority;
+- replace ambiguous confidence language;
+- model uncertainty/effective sample size/participant and dataset heterogeneity;
+- require held-out generalisation and perturbation stability;
+- version empirical evidence/model provenance;
+- preserve baseline and rejected alternatives for auditability.
 
 ---
 
-# Repeating maintenance loop
+# Repeating cadence
 
-After E0, the programme does not need to finish E1 through E9 as monolithic phases. Use a repeating loop that selects one bounded tranche at a time:
+A useful default cycle is:
 
 ```text
-fresh main
-  -> re-score known findings
-  -> select highest-leverage non-colliding tranche
-  -> pre-review / falsifiers
-  -> implement
-  -> focused + production evidence
-  -> adversarial post-review
-  -> exact-head gates
-  -> merge
-  -> fresh main
+user/product friction
+  -> production/security risk
+    -> maintainability/architecture
+      -> test/CI/agent guardrails
+        -> docs/data quality
+          -> product learning
+            -> repeat
 ```
 
-A useful default cycle while Quest evidence is pending is:
+Do not execute this as a quota. A serious user, security, integrity or production finding immediately pre-empts the queue.
 
-1. one security/reliability tranche;
-2. one architecture/test-quality tranche;
-3. one pipeline/docs/governance tranche;
-4. one scientific-readiness or empirical-evidence tranche;
-5. re-evaluate whether physical evidence has arrived or a higher-priority defect has appeared.
+Every few tranches, ask four questions:
 
-This ordering is a heuristic, not a quota. Critical correctness/security findings pre-empt it.
+1. Is Nemosyne easier for a real user to complete an investigation with?
+2. Is it easier for a new maintainer/agent to understand and safely change?
+3. Does the evidence pipeline detect more meaningful defects with less waiting?
+4. Are we learning more about who values the product and what data/tasks they need?
 
-## Stop and handoff conditions
+If the answer is no, change the programme rather than polishing the machinery.
 
-P1-E pauses or changes priority when any of the following occurs:
+# Definition of success
 
-- governed physical Quest evidence arrives and requires adjudication/fix-forward;
-- a release/private-preview blocker is discovered;
-- an active PR exposes a correctness, security, scientific or data-integrity regression;
-- a proposed improvement would require changing product/scientific semantics rather than merely improving their implementation;
-- the remaining backlog consists mainly of aesthetic cleanup with low measurable leverage.
+The exploratory phase has successfully transitioned toward product/production when:
 
-When Quest evidence arrives, the correct response is not to finish the current housekeeping list at all costs. Re-enter the owning QV/P1-U9/PERF/UX gate, analyse the evidence, fix concrete device findings, and let physical reality reorder the backlog.
+- real users can complete meaningful investigations without the UI dominating the experience;
+- the product can move beyond Quest if hardware requirements demand it;
+- the full ordinary workflow is available in XR rather than requiring a desktop control plane;
+- production/private-preview infrastructure can safely support users and learning;
+- maintainers can trace ownership and production flows without archaeological reading;
+- agent changes are constrained by executable guardrails and adversarial evidence;
+- tests are demonstrably falsifying, not merely numerous;
+- CI gives trustworthy feedback materially faster;
+- current documentation is small, coherent and authoritative;
+- `nemosyne-data` supplies realistic and known-answer datasets used by product sessions and automated verification;
+- Moneta representations can be checked against independently known quantities and invariants;
+- product decisions increasingly follow observed user value and data rather than feature taxonomy;
+- formal scientific studies begin only when UX maturity makes their conclusions interpretable.
 
-## Definition of success
-
-This programme succeeds if, when physical qualification resumes, Nemosyne is:
-
-- easier to modify without violating authority boundaries;
-- more secure and privacy-consistent on real production paths;
-- more recoverable during long-running investigations;
-- supported by more falsifying and better-typed tests;
-- governed by fewer ambiguous or duplicate workflows;
-- documented in one current vocabulary with claims tied to evidence;
-- scientifically ready to analyse human-study data without post-hoc methodological invention;
-- no more feature-bloated than it was when the programme started.
-
-The desired outcome is compound engineering quality, not motion for its own sake.
+The desired outcome is not simply a cleaner research codebase. It is a system capable of surviving contact with users, maintainers, production operations and repeated agent-assisted development without losing its scientific integrity.
