@@ -1,0 +1,87 @@
+name: P1-UV0 baseline evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1uv-uv0-baseline.yml'
+      - 'src/**'
+      - 'wasm/**'
+      - 'scripts/build-wasm.mjs'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tests/uv0-baseline-inventory.test.ts'
+      - 'tests/smoke/p1-uv0-baseline.spec.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1uv-uv0-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: State-asserted UV0 baseline evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact evidence head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          if [[ "$checkout_sha" != "$NEMOSYNE_SOURCE_HEAD_SHA" ]]; then
+            echo "Expected checkout $NEMOSYNE_SOURCE_HEAD_SHA but found $checkout_sha" >&2
+            exit 1
+          fi
+          echo "NEMOSYNE_CHECKOUT_HEAD_SHA=$checkout_sha" >> "$GITHUB_ENV"
+          echo "NEMOSYNE_WORKFLOW_EVENT_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run fast UV0 inventory/source-audit falsifier
+        run: npx vitest run --config vitest.fast.config.ts tests/uv0-baseline-inventory.test.ts
+
+      - name: Build instrumented UV0 evidence bundle
+        env:
+          VITE_NEMOSYNE_UV0_EVIDENCE: '1'
+        run: npm run build
+
+      - name: Prove instrumented bundle contains UV0 handle
+        run: grep -R --binary-files=without-match -q '__NEMOSYNE_UV0__' dist
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture state-asserted UV0 evidence
+        env:
+          NEMOSYNE_SMOKE_PREBUILT: '1'
+          NEMOSYNE_UV0_EVIDENCE: '1'
+          NEMOSYNE_TESTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: npx playwright test tests/smoke/p1-uv0-baseline.spec.ts
+
+      - name: Upload UV0 screenshots and manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: p1-uv0-baseline-evidence
+          path: tests/smoke/artifacts/uv0-baseline
+          if-no-files-found: error
+          retention-days: 14
