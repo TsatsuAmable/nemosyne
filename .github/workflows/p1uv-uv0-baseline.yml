@@ -58,7 +58,7 @@ jobs:
         run: npm ci
 
       - name: Run fast UV0 inventory/source-audit falsifier
-        run: npx vitest run tests/uv0-baseline-inventory.test.ts
+        run: npx vitest run --config vitest.fast.config.ts tests/uv0-baseline-inventory.test.ts
 
       - name: Build instrumented UV0 evidence bundle
         env:
