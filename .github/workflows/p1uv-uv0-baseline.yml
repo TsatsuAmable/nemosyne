@@ -5,12 +5,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/p1uv-uv0-baseline.yml'
-      - 'src/app/**'
-      - 'src/vr/**'
-      - 'src/moneta/**'
-      - 'src/atlas/**'
-      - 'src/validation/uv0-inventory.ts'
+      - 'src/**'
       - 'wasm/**'
+      - 'scripts/build-wasm.mjs'
       - 'index.html'
       - 'vite.config.ts'
       - 'package.json'
