@@ -21,6 +21,17 @@ const boundaryRules = [
     to: { path: '^src/(vr|ui)/' },
   },
   {
+    name: 'governed-event-boundary-is-product-independent',
+    comment:
+      'PT3B governance contracts may depend only on themselves and the audited cryptographic hash primitive.',
+    severity: 'error',
+    from: { path: '^src/governance/' },
+    to: {
+      path: '^src/',
+      pathNot: '^src/(?:governance/|security/CryptoHash\\.(?:ts|js)$)',
+    },
+  },
+  {
     name: 'world-is-composition-root',
     comment:
       'RF-062: World may compose the runtime, but feature/domain modules must not depend back on World.',

@@ -10,19 +10,26 @@ const depcruiseBin = path.join(
   repoRoot,
   'node_modules',
   '.bin',
-  process.platform === 'win32' ? 'depcruise.cmd' : 'depcruise',
+  process.platform === 'win32' ? 'depcruise.cmd' : 'depcruise'
 );
 const boundaryConfig = path.join(repoRoot, '.dependency-cruiser.boundaries.cjs');
 const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'nemosyne-architecture-boundary-'));
 
 function runFixture() {
   return spawnSync(
-    depcruiseBin,
-    ['--config', path.join(fixtureRoot, 'dependency-cruiser.fixture.cjs'), '--output-type', 'err-long', 'src'],
+    process.execPath,
+    [
+      depcruiseBin,
+      '--config',
+      path.join(fixtureRoot, 'dependency-cruiser.fixture.cjs'),
+      '--output-type',
+      'err-long',
+      'src',
+    ],
     {
       cwd: fixtureRoot,
       encoding: 'utf8',
-    },
+    }
   );
 }
 
@@ -49,6 +56,9 @@ try {
   await mkdir(path.join(fixtureRoot, 'src', 'vr'), { recursive: true });
   await mkdir(path.join(fixtureRoot, 'src', 'feature'), { recursive: true });
   await mkdir(path.join(fixtureRoot, 'src', 'app'), { recursive: true });
+  await mkdir(path.join(fixtureRoot, 'src', 'governance'), { recursive: true });
+  await mkdir(path.join(fixtureRoot, 'src', 'security'), { recursive: true });
+  await mkdir(path.join(fixtureRoot, 'src', 'ui'), { recursive: true });
 
   await writeFile(
     path.join(fixtureRoot, 'dependency-cruiser.fixture.cjs'),
@@ -59,37 +69,71 @@ try {
       `    includeOnly: { path: '^src/' },\n` +
       `    doNotFollow: { path: 'node_modules' },\n` +
       `  },\n` +
-      `};\n`,
+      `};\n`
   );
-  await writeFile(path.join(fixtureRoot, 'src', 'draco', 'compat.js'), 'export const legacy = true;\n');
+  await writeFile(
+    path.join(fixtureRoot, 'src', 'draco', 'compat.js'),
+    'export const legacy = true;\n'
+  );
   await writeFile(path.join(fixtureRoot, 'src', 'safe', 'value.js'), 'export const value = 1;\n');
   await writeFile(path.join(fixtureRoot, 'src', 'vr', 'World.js'), 'export class World {}\n');
 
   const consumerPath = path.join(fixtureRoot, 'src', 'feature', 'consumer.js');
   await writeFile(
     consumerPath,
-    "import { legacy } from '../draco/compat.js';\nexport const value = legacy;\n",
+    "import { legacy } from '../draco/compat.js';\nexport const value = legacy;\n"
   );
-  expectRejected(runFixture(), 'no-production-draco-imports', 'the deliberately invalid production -> Draco fixture');
+  expectRejected(
+    runFixture(),
+    'no-production-draco-imports',
+    'the deliberately invalid production -> Draco fixture'
+  );
 
   await writeFile(
     consumerPath,
-    "import { World } from '../vr/World.js';\nexport const createFeature = () => new World();\n",
+    "import { World } from '../vr/World.js';\nexport const createFeature = () => new World();\n"
   );
-  expectRejected(runFixture(), 'world-is-composition-root', 'the deliberately invalid feature -> World fixture');
+  expectRejected(
+    runFixture(),
+    'world-is-composition-root',
+    'the deliberately invalid feature -> World fixture'
+  );
+
+  const governancePath = path.join(fixtureRoot, 'src', 'governance', 'boundary.js');
+  await writeFile(path.join(fixtureRoot, 'src', 'ui', 'panel.js'), 'export const panel = true;\n');
+  await writeFile(
+    governancePath,
+    "import { panel } from '../ui/panel.js';\nexport const governed = panel;\n"
+  );
+  expectRejected(
+    runFixture(),
+    'governed-event-boundary-is-product-independent',
+    'the deliberately invalid governance -> UI fixture'
+  );
 
   await writeFile(
     consumerPath,
-    "import { value } from '../safe/value.js';\nexport const consumerValue = value;\n",
+    "import { value } from '../safe/value.js';\nexport const consumerValue = value;\n"
   );
   await writeFile(
     path.join(fixtureRoot, 'src', 'app', 'bootstrap.js'),
-    "import { World } from '../vr/World.js';\nexport const bootstrap = () => new World();\n",
+    "import { World } from '../vr/World.js';\nexport const bootstrap = () => new World();\n"
   );
-  expectAccepted(runFixture(), 'the repaired feature dependency plus approved bootstrap -> World composition edge');
+  await writeFile(
+    path.join(fixtureRoot, 'src', 'security', 'CryptoHash.js'),
+    'export const sha256Hex = value => value;\n'
+  );
+  await writeFile(
+    governancePath,
+    "import { sha256Hex } from '../security/CryptoHash.js';\nexport const governed = sha256Hex('value');\n"
+  );
+  expectAccepted(
+    runFixture(),
+    'the repaired feature dependency plus approved bootstrap -> World composition edge'
+  );
 
   console.log(
-    'Architecture boundary fixture proved fail-closed Draco/World enforcement and approved composition-root recovery.',
+    'Architecture boundary fixture proved fail-closed Draco, World, and governed-event dependency enforcement.'
   );
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
