@@ -3,7 +3,7 @@
 **Date:** 2 September 2026  
 **Base:** `main@01e33d01f3b88ba95fe1a32a34dd88cecfa972c8` (#621 merged)  
 **Branch:** `chore/pt1b-wasm-cache`  
-**Status:** PRE-IMPLEMENTATION ADVERSARIAL CONTRACT
+**Status:** COMPLETE / POST-IMPLEMENTATION ADOPTED via #622
 
 ## Why this tranche exists
 
@@ -73,3 +73,13 @@ Record the observed prerequisite duration on miss and hit. Do not extrapolate a 
 - no broad CI workflow consolidation;
 - no claim that cached output is authoritative scientific evidence beyond being the deterministic build product for the exact pinned inputs;
 - no runtime/product behavior change.
+
+## Post-implementation adversarial disposition
+
+**ADOPTED.** Exact head `f5d0c1349d32faf37057a51914477eb5e9bb1594` proved both required paths before #622 merged:
+
+- CI run `33598173904` attempt 1 missed the exact package cache, executed the normal Rust/Node setup and `npm run wasm:dev`, verified and uploaded the package, and completed the ordinary checks green.
+- The unchanged-head rerun hit the exact cache, skipped Rust/Node/install/build setup, re-verified and uploaded the package in about nine seconds, and all three coverage shards plus merged thresholds completed green.
+- CodeQL, architecture policy, supply-chain evidence, approval and exact-head promotion gates completed green before merge.
+
+The execution epic records the rolling clean exact-head objective as p50 <= 270 seconds and p95 <= 360 seconds. One cold or warm run is not a long-term SLO result; the objective remains operational monitoring, not a reason to keep PT1 implementation open.
