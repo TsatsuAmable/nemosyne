@@ -64,6 +64,12 @@
       "owner": "architecture-security"
     },
     {
+      "path": "docs/rfcs/0004-governed-data-plane-vertical-slice.md",
+      "status": "active",
+      "authority": "proposed-governed-data-plane-contract",
+      "owner": "architecture-security"
+    },
+    {
       "path": "docs/architecture/decisions/README.md",
       "status": "active",
       "authority": "architecture-decisions-index",
