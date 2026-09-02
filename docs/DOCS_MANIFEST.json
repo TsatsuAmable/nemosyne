@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-08-31",
+  "lastReviewed": "2026-09-02",
   "statuses": ["canonical", "active", "historical"],
   "documents": [
     {
@@ -56,6 +56,12 @@
       "status": "active",
       "authority": "architecture-change-process",
       "owner": "architecture"
+    },
+    {
+      "path": "docs/rfcs/0003-production-data-lifecycle-and-event-boundary.md",
+      "status": "active",
+      "authority": "proposed-production-data-contract",
+      "owner": "architecture-security"
     },
     {
       "path": "docs/architecture/decisions/README.md",

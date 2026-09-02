@@ -126,7 +126,7 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 **Severity:** High  
 **Status:** `IMPLEMENTATION PARTIAL`
 
-`TelemetryConsentManager.ts` is not the live telemetry authority. The live `TelemetryCollector` uses a simpler opt-in localStorage flag and defaults safely to disabled. The isolated manager should not simply be wired in as-is: its `ConsentRecord` retains the raw subject identifier, its pseudonym is a small fixed-salt non-cryptographic hash, and `executeRightToErasure()` deletes only an in-memory consent record rather than all linked telemetry, traces, exports, or persisted artifacts.
+`TelemetryConsentManager.ts` is not the live telemetry authority. The live `TelemetryCollector` uses a simpler opt-in localStorage flag and defaults safely to disabled. The isolated manager now derives a SHA-256 pseudonym using a required deployment salt and does not retain the raw subject identifier, but it still must not simply be wired in as the product authority: it has no durable consent receipt/revision or shared store registry, and `executeRightToErasure()` deletes only its own in-memory consent record rather than linked telemetry, traces, exports or persisted artifacts. PT3 owns the required production identity/consent/lifecycle contract; RF-040 remains open until the real paths conform and end-to-end evidence exists.
 
 **Required disposition:**
 

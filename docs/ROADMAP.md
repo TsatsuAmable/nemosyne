@@ -4,7 +4,7 @@
 
 ## Status snapshot - 2 September 2026
 
-**Current integration base for this planning update:** `main@fd53ae22797f6c2e77f4a8791bb67706a6f042a2` (#619, product-transition cadence and E0 ratchets, merged). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is now the forward execution frame: PT0 is complete via #619 and PT1 CI-feedback reduction is active.
+**Current integration base for this planning update:** `main@8e534c84cb1d7f528935eb81fb52d0d2b7f6190a` (#622, exact-input WASM CI cache, merged). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is the forward execution frame: PT0 and PT1 are complete, the independent PT2 corpus tranche is complete, and PT3A production-data contract RFC review is active.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and the bounded C1-C4 visible-product wave have reached their stated implementation exits. In particular:
 
@@ -20,6 +20,8 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - C4 on #616 landed the four canonical visible investigator journeys, including governed investigator-authored reasoning projected through the existing Memory Palace path. Browser/IWER evidence remains non-physical evidence; C4 does not close P1-U9.
 - QV0/QV1 validation manifest/launcher and the governed evidence sink are landed; #617 replaced error-prone governed manual Quest firmware/model attribution with fail-closed ADB machine capture. QV4 automatic gate adjudication remains open.
 - #619 completed PT0/E0: removed unused `unpkg` Three.js runtime trust, tightened CSP, refreshed feature truth, made architecture policy an every-PR check, and installed one-way TypeScript hygiene ratchets.
+- #621 and #622 completed PT1's bounded CI-feedback work while preserving exact-head evidence. The concrete rolling clean exact-head objective recorded by execution epic #620 is p50 <= 270 seconds and p95 <= 360 seconds; it remains an operational SLO to monitor rather than an indefinitely open implementation tranche.
+- `TsatsuAmable/nemosyne-data#3` completed PT2 at `nemosyne-data@8e6b2dfc74ea1c60283790668cc93030c61423f8`: catalogue schema 2.2 / corpus v0.4.0, five known-answer families, ten direct metamorphic variants and one explicitly production-pending NIL fixture are governed and independently validated outside Nemosyne production code.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -38,7 +40,7 @@ Current order:
 Stream A STOP
   -> Stream B Relationship Graph V1 STOP
     -> Stream C bounded C1-C4 implementation/evidence LANDED
-      -> P1-PT product transition (PT0 complete -> PT1 active -> PT2...)
+      -> P1-PT product transition (PT0-PT2 complete -> PT3A RFC active -> PT3 implementation...)
         -> assurance / selected-platform physical qualification / preview readiness
           -> P1-W production wiring where still applicable
             -> minimal private preview
@@ -51,7 +53,7 @@ Only one forward implementation PR should be active at a time unless the user ex
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | Relationship Graph B4 STOP / #612 | **VERIFIED COMPLETE / STOP FOR FIRST SELECTED FAMILY** | Source-authoritative Relationship Graph V1 is verified complete; selecting another B family requires an explicit fresh-main choice. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C4 visible journeys / #616 | **IMPLEMENTATION LANDED / REVIEW ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; physical-input/comfort fitness remains later device evidence. |
-| **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT1 CI feedback | **ACTIVE** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
+| **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT3A production-data contract RFC | **ACTIVE** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
 | **D / assurance legacy boundary** | Preserve attributable validation, live-path security/privacy assurance and clean-production/device qualification contracts needed by the selected preview scope. | QV2 attribution landed; QV4/QV5/QV7 and security residuals open | **CONSUMED BY P1-PT / ACTIVE WHEN SELECTED** | Required assurance gates for the selected private-preview scope are satisfied; no browser/simulator evidence is promoted into physical proof. |
 
 A is the shared semantic integration spine and is frozen at its finite P1-R5 boundary. B's first structural family is frozen at its Relationship Graph V1 boundary. C consumes A/B semantic state and may not manufacture analytical facts. P1-PT now sequences product, UX, CI, data, production and learning work. Quest remains a useful reference/qualification platform, not a strategic ceiling or master blocker for unrelated product development.
@@ -430,9 +432,10 @@ For the selected private-preview platform/scope:
 Current sequential status:
 
 - **PT0: COMPLETE** via #619 at `main@fd53ae22`.
-- **PT1: ACTIVE** - measure CI feedback time and remove low-value duplication without weakening exact-head evidence.
-- **PT2:** queued after PT1 - versioned `nemosyne-data` catalogue/manifests plus first known-answer/metamorphic/NIL corpus.
-- **PT3-PT10:** remain planned in the primary product-transition plan and issue #620; they are not completion claims.
+- **PT1: COMPLETE** via #621 and #622; its exact cache miss/hit proof and final green coverage/promotion gates are recorded in the PT1B review, while the p50/p95 objective remains a monitored operational SLO.
+- **PT2: COMPLETE** via `TsatsuAmable/nemosyne-data#3` and its PRs #4-#6, ending at `nemosyne-data@8e6b2dfc` with post-merge validation green.
+- **PT3A: ACTIVE / RFC PROPOSED** - decide the production identity, purpose-scoped consent, lifecycle, governed event-envelope, runtime-provenance and Product/Research Mode boundary before implementation.
+- **PT3 implementation and PT4-PT10:** remain planned in the primary product-transition plan and issue #620; they are not completion claims.
 
 P1-PT may select bounded UX, security, reliability, maintainability, CI, documentation and operations ratchets between larger product slices. It must preserve the five product/research authority boundaries and the Notice -> Question -> Hypothesis -> Investigation -> Understanding -> Validation -> Discovery lifecycle.
 
