@@ -22,6 +22,7 @@ The cache key must include:
 - every `wasm/src/**/*.rs` source file;
 - `rust-toolchain.toml`;
 - `scripts/build-wasm.mjs`;
+- `package.json`, which owns the `wasm:dev` command contract;
 - `package-lock.json`, which pins the project-local `wasm-pack` tool used by the build script;
 - an explicit cache-schema version.
 
@@ -30,7 +31,7 @@ There is deliberately **no restore-key prefix fallback**. A near match is a miss
 ## Authority / evidence invariants
 
 1. Rust/WASM remains the sole analytical and scale-sensitive computational authority.
-2. A Rust source, Cargo dependency/lock, Rust toolchain, WASM build-script or npm-toolchain lock change must produce a different cache key.
+2. A Rust source, Cargo dependency/lock, Rust toolchain, WASM build-script, package-script or npm-toolchain lock change must produce a different cache key.
 3. Cache miss behavior is the existing build path, not a degraded fallback.
 4. Cache hit behavior must still verify `wasm/pkg/nemosyne_wasm_bg.wasm` is non-empty before upload and again in every coverage shard after download.
 5. Coverage shards consume a per-run GitHub artifact, not the shared cache directly. The cache is only an input to the prerequisite job.
