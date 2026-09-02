@@ -4,9 +4,10 @@ import { join, relative } from 'node:path';
 
 const repoRoot = process.cwd();
 const tsNoCheckMarker = ['@ts', 'nocheck'].join('-');
-// Verified against the synced repository baseline on 2026-09-02. This is an
-// inherited ceiling, not a target: lower it whenever legacy opt-outs are removed.
-const LEGACY_TEST_TS_NOCHECK_BASELINE = 190;
+// Verified against the synced repository baseline on 2026-09-02, then lowered
+// by removing the stale opt-out from features-wiki.test.ts. This is an inherited
+// ceiling, not a target: lower it whenever more legacy opt-outs are removed.
+const LEGACY_TEST_TS_NOCHECK_BASELINE = 189;
 
 function filesUnder(root: string): string[] {
   const files: string[] = [];
