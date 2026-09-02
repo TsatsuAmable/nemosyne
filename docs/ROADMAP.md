@@ -2,11 +2,11 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
-## Status snapshot - 1 September 2026
+## Status snapshot - 2 September 2026
 
-**Current integration base for this planning update:** `main@5c593b57d74b01b90f639166f7d9b414651e9241` (#613, C1 functional epistemic world objects, merged). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C is the sole forward programme; C1 is `VERIFIED COMPLETE`, while C2 investigation-state legibility is implemented and adversarially reviewed on PR #614 with final promotion contingent on the unchanged final head passing the required exact-head gates and dedicated C2 production-browser evidence.
+**Current integration base for this planning update:** `main@fd53ae22797f6c2e77f4a8791bb67706a6f042a2` (#619, product-transition cadence and E0 ratchets, merged). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is now the forward execution frame: PT0 is complete via #619 and PT1 CI-feedback reduction is active.
 
-The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and Stream C C1 have reached their finite implementation exits. In particular:
+The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and the bounded C1-C4 visible-product wave have reached their stated implementation exits. In particular:
 
 - A1 semantic drill-down contract/falsifiers is `VERIFIED COMPLETE` after establishing SemanticDrillDown.ts and drill_down.rs WASM validation boundary.
 - A2 resident bounded semantic membership/query capability is `VERIFIED COMPLETE` through the canonical Worker/Rust authority.
@@ -15,7 +15,11 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - A5 cross-family product evidence and the independent STOP review establish the finite P1-R5 closure for Aggregate, Distribution, Density and source-partition Cluster, with #606 merged and all exact-head gates green.
 - Stream B Relationship Graph V1 is `VERIFIED COMPLETE / STOP`: B1 source authority contract merged via #607; B2 resident Rust/WASM bounded topology payload merged via #610; B3 production cutover + thin graph adapter merged via #611; and B4 product/scale/perceptual evidence + independent STOP review merged via #612 at `main@232d952`.
 - C1 on #613 is `VERIFIED COMPLETE`: TechnoCore, Evidence Vault, Farcaster portals and a bounded Memory Palace projection are investigator-functional without creating a second analytical/epistemic authority. Its post-review is `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md`.
-- C2 on #614 extends the existing persistent Status Strip into a compact projection of governed focus, analytical/decision state, preview/commit state, explicit evidence, recovery and state origin. The post-review found and fixed stale visible origin after undo, including compatibility with historically untyped initial dataset graph roots. Final merge still requires unchanged-head exact evidence.
+- C2 on #614 landed investigation-state legibility in the existing Status Strip, including the post-review fix for stale visible origin after undo and historical graph-root compatibility.
+- C3 on #615 landed one canonical `Inspect | Compare | Challenge | Record | Navigate | More` selected-object task vocabulary across desktop and XR presentation, with production-browser evidence and no second selection/analytical authority.
+- C4 on #616 landed the four canonical visible investigator journeys, including governed investigator-authored reasoning projected through the existing Memory Palace path. Browser/IWER evidence remains non-physical evidence; C4 does not close P1-U9.
+- QV0/QV1 validation manifest/launcher and the governed evidence sink are landed; #617 replaced error-prone governed manual Quest firmware/model attribution with fail-closed ADB machine capture. QV4 automatic gate adjudication remains open.
+- #619 completed PT0/E0: removed unused `unpkg` Three.js runtime trust, tightened CSP, refreshed feature truth, made architecture policy an every-PR check, and installed one-way TypeScript hygiene ratchets.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -23,21 +27,21 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - Fresh dataset loads are overview-first rather than silently biasing Moneta toward individual observation identity.
 - Aggregate, distribution, density, governed cluster and source-authoritative relationship-graph structures are first-class semantic interaction targets rather than being registered as raw observations.
 - Explicit individual-inspection intent can still select `POINT_SET`; progressive disclosure removes point universality, not legitimate observation-level representation.
-- P1-UV baseline evidence, task-first shell/contextual-locus substrate, unified UI primitives, C1 functional world-object foundations and C2 investigation-state legibility are landed or under exact-head promotion, but desktop/XR parity and the full canonical visible-product convergence remain open.
 
 ## Sequential execution model
 
-The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream with adversarial review/fix-forward integrated into each tranche.
+The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream with adversarial review/fix-forward integrated into each tranche. From #619 onward, `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` and issue #620 provide the rolling product-transition tranche sequence while this file remains the canonical status authority.
 
 Current order:
 
 ```text
 Stream A STOP
   -> Stream B Relationship Graph V1 STOP
-    -> Stream C visible investigator product convergence
-      -> Stream D assurance / physical qualification / preview readiness
-        -> P1-W production wiring
-          -> minimal private preview
+    -> Stream C bounded C1-C4 implementation/evidence LANDED
+      -> P1-PT product transition (PT0 complete -> PT1 active -> PT2...)
+        -> assurance / selected-platform physical qualification / preview readiness
+          -> P1-W production wiring where still applicable
+            -> minimal private preview
 ```
 
 Only one forward implementation PR should be active at a time unless the user explicitly changes this execution policy. Before each tranche, fetch fresh `main`; after implementation, perform the bounded adversarial review, run the relevant exact-head evidence, fix forward, merge, then fetch fresh `main` again.
@@ -46,10 +50,11 @@ Only one forward implementation PR should be active at a time unless the user ex
 | --- | --- | --- | --- | --- |
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | Relationship Graph B4 STOP / #612 | **VERIFIED COMPLETE / STOP FOR FIRST SELECTED FAMILY** | Source-authoritative Relationship Graph V1 is verified complete; selecting another B family requires an explicit fresh-main choice. |
-| **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C2 investigation-state legibility / #614 | **ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; remaining physical questions are handed to P1-U9. |
-| **D - Assurance & Private-Preview Readiness** | Build attributable Quest validation operations, close live-path security/privacy residuals and prepare clean production/private-preview qualification. | D1 validation manifest + launcher | **QUEUED AFTER C** | Validation/security prerequisites are ready; final physical qualification and P1-W execute only when C and other named prerequisites are satisfied. |
+| **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C4 visible journeys / #616 | **IMPLEMENTATION LANDED / REVIEW ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; physical-input/comfort fitness remains later device evidence. |
+| **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT1 CI feedback | **ACTIVE** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
+| **D / assurance legacy boundary** | Preserve attributable validation, live-path security/privacy assurance and clean-production/device qualification contracts needed by the selected preview scope. | QV2 attribution landed; QV4/QV5/QV7 and security residuals open | **CONSUMED BY P1-PT / ACTIVE WHEN SELECTED** | Required assurance gates for the selected private-preview scope are satisfied; no browser/simulator evidence is promoted into physical proof. |
 
-A is the shared semantic integration spine and is frozen at its finite P1-R5 boundary. B's first structural family is frozen at its Relationship Graph V1 boundary. C consumes A/B semantic state and may not manufacture analytical facts. D validates and hardens the converged product but may not promote physical or preview claims before the owning product prerequisites are satisfied.
+A is the shared semantic integration spine and is frozen at its finite P1-R5 boundary. B's first structural family is frozen at its Relationship Graph V1 boundary. C consumes A/B semantic state and may not manufacture analytical facts. P1-PT now sequences product, UX, CI, data, production and learning work. Quest remains a useful reference/qualification platform, not a strategic ceiling or master blocker for unrelated product development.
 
 ---
 
@@ -234,13 +239,11 @@ B's Relationship Graph V1 integration contract is frozen. Future B-family work, 
 
 # Stream C - Visible Investigator Product Convergence
 
-**Status:** ACTIVE — C1 VERIFIED COMPLETE / #613 MERGED; C2 IMPLEMENTED / POST-REVIEW CLOSED ON #614; EXACT-HEAD PROMOTION REQUIRED  
+**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE — C1 #613, C2 #614, C3 #615 and C4 #616 merged; physical P1-U9 evidence remains open  
 **Primary programme:** `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`  
 **Baseline authority:** `roadmap/P1_UV0_BASELINE_INVENTORY.md`.
 
-The substrate is substantially better than the original baseline, including the task-first shell, contextual locus, shared design-system components and unified analyst/developer mode. C must now make the *normal product experience* visibly converge rather than reopen the UI architecture.
-
-C consumes analytical/semantic truth from A/B/Moneta/Atlas. No C implementation may calculate new scientific facts from visual appearance.
+The bounded C1-C4 product-convergence implementation has landed. C consumes analytical/semantic truth from A/B/Moneta/Atlas and may not calculate new scientific facts from visual appearance. Browser and simulator evidence prove production wiring and simulator-testable semantics, not physical controller/direct-touch/comfort fitness.
 
 ## C1 - functional epistemic world objects
 
@@ -273,11 +276,11 @@ Re-audit every persistent world object against the rule: **persistent objects ea
 
 **C1 evidence boundary:** production-browser evidence proves TechnoCore guidance without analytical mutation, real observation projection, real archive freeze -> Vault state transition, saved-portal availability, and the bounded Memory Palace envelope. Retained screenshots also show that legacy scale/salience and overall scene hierarchy still require convergence; C1 does not claim final visual hierarchy, XR parity or physical Quest fitness.
 
-**Exit:** SATISFIED for the bounded C1 product-function contract. #613 merged after exact-head CI, CodeQL, architecture, dedicated C1 browser evidence and bounded adversarial review. C2 is the current forward checkpoint.
+**Exit:** SATISFIED for the bounded C1 product-function contract. #613 merged after exact-head CI, CodeQL, architecture, dedicated C1 browser evidence and bounded adversarial review.
 
 ## C2 - investigation-state legibility
 
-**Status:** IMPLEMENTED / BOUNDED REVIEW CLOSED ON #614; final merge requires unchanged-head CI, CodeQL, architecture, dedicated C2 browser evidence and approval gate.  
+**Status:** LANDED / #614 MERGED; bounded post-review closed  
 **Pre-review:** `review-plans/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_PRE_REVIEW_2026-09-01.md`  
 **Post-review:** `review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md`
 
@@ -303,34 +306,35 @@ Implementation/review invariants:
 - arbitrary parentless operations are rejected and ambiguous origin matches fail closed;
 - no physical Quest claim is made by C2 browser evidence.
 
-**Exit:** C2 becomes `VERIFIED COMPLETE` for its bounded desktop/production-browser legibility scope only when #614's unchanged final head passes the required gates and is merged. After fresh-main sync, proceed to **C3 desktop/XR parity**.
+**Exit:** bounded desktop/production-browser legibility implementation and review landed through #614. Physical XR fitness remains outside C2's claim.
 
 ## C3 - desktop/XR parity
 
-- keep one task vocabulary and semantic intent across desktop, pointer, controller, ray and direct touch;
-- preserve platform-appropriate mechanics without creating two products;
-- ensure essential tasks are discoverable without a hidden gesture;
-- keep diagnostics out of normal analyst hierarchy;
-- preserve the normal surface budget.
+**Status:** LANDED / #615 MERGED  
+**Post-review:** `review/P1_UV_C3_DESKTOP_XR_PARITY_POST_REVIEW_2026-09-01.md`
+
+- one canonical selected-object task vocabulary: `Inspect | Compare | Challenge | Record | Navigate | More`;
+- desktop and XR dispatch through the same contextual task resolver and owning callbacks;
+- task availability/disabled reasons are shared across modalities;
+- no second analytical authority, selection store or modality-specific semantic command tree was added;
+- production-browser evidence proved real selected-object dispatch and dataset-replacement invalidation;
+- no physical controller/direct-touch/Quest fitness claim is made.
 
 ## C4 - visible-product evidence
 
-For materially visible C changes:
+**Status:** LANDED / #616 MERGED; canonical browser journeys present; physical evidence still open  
+**Pre-review:** `review-plans/P1_UV_C4_VISIBLE_PRODUCT_JOURNEYS_PRE_REVIEW_2026-09-01.md`
 
-- capture production-build before/after evidence against the canonical UV baseline;
-- exercise complete product journeys in Playwright;
-- run IWER where spatial/input behavior is simulator-testable;
-- assert semantic-intent outcomes, not component existence;
-- independently review discoverability, usefulness, information hierarchy and visual salience.
-
-Canonical journeys remain:
+C4 exercised the canonical journeys:
 
 1. first insight;
 2. skeptical investigation / representation challenge;
 3. Memory Palace reasoning;
 4. archive/replay/recovery.
 
-**Finite exit:** C reaches `IMPLEMENTATION LANDED / REVIEW ACTIVE` when the canonical journeys visibly converge on desktop and simulator-testable XR. `VERIFIED COMPLETE` still requires the P1-U9 physical evidence owned by the later D qualification phase.
+It also added governed investigator-authored question/hypothesis/conclusion/branch lineage over existing investigation/evidence authorities. Supported/refuted/inconclusive terminal reasoning requires existing analytical evidence rather than being inferred from geometry or visual appearance. The dormant `MemoryPalaceController` remains offline.
+
+**Finite exit:** C is `IMPLEMENTATION LANDED / REVIEW ACTIVE`. Canonical journeys visibly converge on desktop and simulator-testable surfaces, but `VERIFIED COMPLETE` still requires the physical-input/comfort evidence owned by later qualification work for whichever target platform is selected.
 
 ### Stream C collision rule
 
@@ -340,21 +344,16 @@ C owns product shell/world-object/presentation state and affordances. It consume
 
 # Stream D - Assurance & Private-Preview Readiness
 
-**Status:** QUEUED AFTER C  
+**Status:** PARTIALLY LANDED / NOW CONSUMED AS BOUNDED ASSURANCE TRANCHES WITHIN P1-PT  
 **Primary programmes:** `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`, `STREAM_C_SECURITY_ASSURANCE.md` (legacy execution name), issue #314 hardening backlog, and later P1-U9/P1-W gates.
 
-The file `STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current wave, all unresolved security/privacy/live-path findings in that document are owned by **Stream D**.
+The file `STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current product-transition programme, unresolved security/privacy/live-path findings are selected as bounded forward tranches rather than executed as a parallel stream.
 
-D retains two conceptual sub-lanes because their file surfaces and evidence contracts are distinct, but they are **not executed in parallel under the current operating model**:
-
-- **D-QV:** Quest validation operations and evidence attribution.
-- **D-SA:** security/privacy/supply-chain/WASM assurance.
-
-The forward implementation stream selects and completes one bounded D tranche at a time, with the same adversarial review/fix-forward and exact-head promotion discipline.
+Quest is a concrete reference platform for standalone-XR performance, interaction and comfort evidence. It is not a strategic ceiling and its unfinished qualification work does not block unrelated product-transition work.
 
 ## D1 - validation manifest and launcher
 
-Implement P1-QV QV0/QV1:
+**Status:** LANDED through QV0/QV1 (#531) and governed evidence-sink work (#535)
 
 - one versioned validation manifest;
 - exact source/build identity and clean/dirty state;
@@ -363,25 +362,29 @@ Implement P1-QV QV0/QV1:
 - session ID/evidence directory/runtime class/gate/profile attribution;
 - no automatic roadmap mutation.
 
-## D2 - evidence sink and adjudication
+## D2 - evidence attribution, sink and adjudication
 
-Implement QV2-QV4:
+**Status:** QV2 attribution + QV3 sink LANDED; QV4 ADJUDICATION OPEN
 
-- local declared Quest model/firmware metadata with measured/declarative distinction;
-- per-session bounded evidence directories;
-- analyzer validity separate from gate disposition;
-- `PASS | FAIL | PARTIAL | INVALID_RUN | BLOCKED` outcomes;
-- explicit prevention of current 10M boundary evidence being relabelled as final device qualification.
+- #617 makes host-side ADB machine capture the governed Quest model/build attribution path;
+- required machine facts include model, build incremental and build fingerprint, with optional manufacturer/display/security-patch facts;
+- raw ADB serial and serial-derived stable identifiers are not persisted;
+- missing, unauthorized or ambiguous ADB attribution fails closed for governed runs;
+- manually typed model/firmware metadata cannot upgrade an unattributed governed run;
+- per-session bounded evidence directories and fail-closed session routing are landed;
+- analyzer validity remains separate from gate disposition;
+- QV4 must emit `PASS | FAIL | PARTIAL | INVALID_RUN | BLOCKED` from owned evidence/threshold contracts rather than manufacturing a verdict;
+- current 10M boundary evidence may not be relabelled as final device qualification.
 
 ## D3 - live-path security quick wins
 
-Prioritize isolated, production-path findings that do not collide with the earlier completed programmes:
+Current status:
 
-- RF-039 upload policy consolidation at the real `FileLoader -> Atlas -> Rust -> Dataset` path;
-- RF-041 remove unnecessary `unpkg` trust/import-map/CSP widening if production proof confirms it is unused;
-- RF-042 terminal control-sequence sanitization in the dev UX trace path.
+- RF-041 unused `unpkg` trust/import-map/CSP widening: **FIXED by #619**, with a production hygiene ratchet;
+- RF-039 upload policy consolidation at the real `FileLoader -> Atlas -> Rust -> Dataset` path: **OPEN**;
+- RF-042 terminal control-sequence sanitization in the dev UX trace path: **OPEN**.
 
-Each remains high-risk or production-path evidence-bearing according to `AGENTS.md`; helper-only tests are insufficient.
+Each remaining item stays high-risk or production-path evidence-bearing according to `AGENTS.md`; helper-only tests are insufficient.
 
 ## D4 - deeper privacy/WASM assurance
 
@@ -392,7 +395,7 @@ Each remains high-risk or production-path evidence-bearing according to `AGENTS.
 
 ## D5 - guided physical UX validation readiness
 
-Implement QV5/QV6 after C's current treatment is stable enough to test:
+Implement QV5/QV6 when a selected product treatment/platform is stable enough to test:
 
 - controller/direct-touch semantic tasks;
 - capture/cancel/tracking-loss recovery;
@@ -402,19 +405,36 @@ Implement QV5/QV6 after C's current treatment is stable enough to test:
 - bounded comfort/task outcome records;
 - dev-only validation dashboard excluded from production artifacts.
 
-Final P1-U9 evidence starts only after C's visible product convergence gate.
+IWER/browser evidence may exercise simulator-testable wiring but cannot backfill physical input, comfort or sustained-device claims.
 
 ## D6 - physical qualification and P1-W/private-preview handoff
 
-After C reaches its product convergence exit and other named prerequisites are satisfied:
+For the selected private-preview platform/scope:
 
-1. run P1-U9 physical Quest qualification on the converged treatment;
-2. add QV7 clean-production evidence handoff;
-3. execute P1-W production wiring only against surfaces that are no longer scheduled for structural replacement;
+1. collect attributable physical-device evidence where the owning gate requires it;
+2. add QV7-equivalent clean-production evidence handoff for the target runtime;
+3. execute remaining P1-W production wiring only against surfaces that are no longer scheduled for structural replacement;
 4. close required security/privacy/production blockers;
 5. assemble the minimal private-preview promotion evidence.
 
-**Finite exit:** D has not completed merely because the validation harness exists. The stream exits only when the required assurance gates for the selected private-preview scope are satisfied and clean-production/device evidence is correctly classified.
+**Finite exit:** assurance has not completed merely because a validation harness exists. The required assurance gates for the selected private-preview scope must be satisfied and evidence classes must remain correctly classified.
+
+---
+
+# P1-PT - Product Transition & Evolutionary Improvement
+
+**Status:** ACTIVE  
+**Primary plan:** `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md`  
+**Execution epic:** #620
+
+Current sequential status:
+
+- **PT0: COMPLETE** via #619 at `main@fd53ae22`.
+- **PT1: ACTIVE** - measure CI feedback time and remove low-value duplication without weakening exact-head evidence.
+- **PT2:** queued after PT1 - versioned `nemosyne-data` catalogue/manifests plus first known-answer/metamorphic/NIL corpus.
+- **PT3-PT10:** remain planned in the primary product-transition plan and issue #620; they are not completion claims.
+
+P1-PT may select bounded UX, security, reliability, maintainability, CI, documentation and operations ratchets between larger product slices. It must preserve the five product/research authority boundaries and the Notice -> Question -> Hypothesis -> Investigation -> Understanding -> Validation -> Discovery lifecycle.
 
 ---
 
@@ -422,14 +442,14 @@ After C reaches its product convergence exit and other named prerequisites are s
 
 ## Ownership matrix
 
-| Surface | A | B | C | D |
+| Surface | A | B | C | Assurance / P1-PT |
 | --- | --- | --- | --- | --- |
-| Generic semantic drill-down / selection lineage | **frozen authority** | consumes | consumes | tests |
-| Representation-specific Rust/payload math | consumes | **OWNS while active** | no | assurance only |
-| Generic semantic Worker/loader/translator seam | **frozen contract** | narrow integration window | no scientific changes | tests/security only |
-| Product shell/world objects/presentation hierarchy | consumes | no | **OWNS when active** | validation only |
-| Quest validation scripts/manifests/evidence sink | no | no | consumer | **OWNS when active** |
-| Upload/auth/privacy/CSP/fuzz/live-path assurance | no | no | consumer | **OWNS when active** |
+| Generic semantic drill-down / selection lineage | **frozen authority** | consumes | consumes | tests/consumes |
+| Representation-specific Rust/payload math | consumes | **OWNS while explicitly reactivated** | no | assurance only |
+| Generic semantic Worker/loader/translator seam | **frozen contract** | narrow integration window | no scientific changes | tests/security/product integration only |
+| Product shell/world objects/presentation hierarchy | consumes | no | **landed C authority** | evolves through bounded product tranches |
+| Quest validation scripts/manifests/evidence sink | no | no | consumer | **assurance authority** |
+| Upload/auth/privacy/CSP/fuzz/live-path assurance | no | no | consumer | **P1-PT/assurance authority when selected** |
 | `docs/ROADMAP.md` status | checkpoint updates | checkpoint updates | checkpoint updates | checkpoint updates |
 
 ## Collision-sensitive files
@@ -451,9 +471,10 @@ Representation-specific Rust modules, payload files, thin adapters, UI component
 
 1. **A is frozen complete** at the generic progressive-disclosure contract and its four verified families.
 2. **B's Relationship Graph V1 is frozen complete**; a new B family requires explicit reactivation rather than automatic continuation.
-3. **C** consumes the completed A/B semantic contracts to converge the investigator experience; it does not implement membership lookup or analytical facts.
-4. **D** follows C for final physical qualification and private-preview assurance; its internal assurance work is still executed as bounded sequential tranches.
-5. **P1-W** waits for C plus the required D assurance/device prerequisites.
+3. **C1-C4 are landed**; further UX/product refinement proceeds through P1-PT without inventing analytical authority.
+4. **P1-PT** is the active sequential programme and selects one bounded forward tranche at a time.
+5. **Assurance/device qualification** is invoked where the selected product/private-preview scope requires it; Quest evidence is not a master blocker for unrelated work.
+6. **P1-W/private-preview wiring** proceeds only against sufficiently stable surfaces and required assurance contracts.
 
 ## Sync discipline
 
@@ -478,7 +499,7 @@ Default maximum:
 1 open forward implementation PR
 ```
 
-Do not parallelize A/B/C/D implementation. Documentation-only closure/fix-forward commits should normally remain on the owning active PR rather than creating overlapping work. A different execution model requires an explicit user decision.
+Do not parallelize product-transition implementation. Documentation-only closure/fix-forward commits should normally remain on the owning active PR rather than creating overlapping work. A different execution model requires an explicit user decision.
 
 ---
 
@@ -521,7 +542,7 @@ Do **not** start these merely because capacity exists:
 - P2 RepresentationGraph/compositional representation search;
 - generative geometry as a substitute for governed semantic payloads;
 - broad automatic learned-representation expansion;
-- the full major dependency-modernization programme in issue #300 while the current structural/product/assurance programmes are moving;
+- the full major dependency-modernization programme in issue #300 while the current product-transition programme is moving;
 - Node/toolchain/Three.js/Rust major migrations that would create cross-programme churn without a specific blocker.
 
 Safe isolated patch/minor dependency maintenance and narrowly justified CI-action updates may proceed only when selected as the current bounded forward tranche and when they retain exact-head evidence.
@@ -540,12 +561,16 @@ These remain authoritative for their scoped contracts/evidence even when their s
 - `review/P1_R2E_B4_STOP_REVIEW_2026-09-01.md` - Relationship Graph V1 finite STOP evidence;
 - `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md` - C1 functional world-object closure review;
 - `review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md` - C2 investigation-state legibility closure review;
+- `review/P1_UV_C3_DESKTOP_XR_PARITY_POST_REVIEW_2026-09-01.md` - C3 desktop/XR task-semantics review;
+- #616 - C4 visible investigator journey implementation/evidence record;
 - `rfcs/0001-source-partition-cluster-authority.md` - durable R2D scientific decision;
 - `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md` - visible product convergence specification;
 - `roadmap/P1_UV0_BASELINE_INVENTORY.md` - executable visible baseline/inventory;
 - `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md` - Quest validation operations specification;
-- `STREAM_C_SECURITY_ASSURANCE.md` - legacy-named security assurance finding set, now owned by current Stream D;
+- `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` - active product-transition tranche specification;
+- `STREAM_C_SECURITY_ASSURANCE.md` - legacy-named security assurance finding set, now consumed by bounded P1-PT assurance tranches;
 - `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md` - implementation-quality policy from the prior wave, still useful as process guidance but not the current Stream A mission;
+- issue #620 - active product-transition execution epic;
 - issue #314 - post-Moneta hardening backlog;
 - issue #300 - major dependency modernization, deferred as a broad sprint during this wave.
 
@@ -564,10 +589,10 @@ preserved source data
   -> bounded dataset-level representations
   -> progressive disclosure and structural breadth
   -> coherent investigator UX
-  -> simulator-testable XR proof
-  -> governed physical Quest proof
+  -> simulator-testable XR proof where relevant
+  -> governed physical target-platform proof where required
   -> production wiring and security/privacy assurance
   -> minimal private preview
 ```
 
-A/B/C/D are now ordered programme boundaries for reaching that chain without duplicate authority. They are not permission to weaken scientific, UX, security or evidence gates, and they are not to be implemented in parallel under the current operating model.
+A/B/C and the legacy D labels remain useful programme/evidence boundaries, but P1-PT is now the active sequential execution frame. Quest supplies valuable reference evidence for standalone XR; it is not permission to weaken the product thesis, and it is not a blocker for unrelated product-transition work. No programme label permits weakening scientific, UX, security or evidence gates.
