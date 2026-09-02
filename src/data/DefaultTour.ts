@@ -38,9 +38,10 @@ export const FIRST_DATASET_TOUR: Tour = {
       actionHint: 'Look around',
     },
     {
+      // Compatibility target ID retained until the scene-resolver contract migrates.
       target: 'draco-palace',
-      text: 'In front of you is the Draco palace: nodes, beams, and volumes chosen by the constraint engine for this dataset.',
-      actionHint: 'Point at a node',
+      text: 'In front of you is the dataset representation selected by Moneta: structures, nodes, beams, or volumes chosen for the current analytical task and dataset semantics.',
+      actionHint: 'Inspect the representation',
     },
     {
       target: 'node-mesh',
@@ -99,7 +100,7 @@ export const FIRST_DATASET_TOUR: Tour = {
     },
     {
       target: 'live-stream',
-      text: 'LIVE DATA: Stream real-time data from built-in sources (ticker/trades/earthquakes/aircraft) or your own WebSocket endpoint. Rows flow into the palace and re-solve live (Data → Live Ingest).',
+      text: 'LIVE DATA: Stream real-time data from built-in sources (ticker/trades/earthquakes/aircraft) or your own WebSocket endpoint. Rows flow into the current representation and are re-evaluated as the data changes (Data → Live Ingest).',
       actionHint: 'Start a live source from Data menu',
     },
     {
@@ -109,12 +110,13 @@ export const FIRST_DATASET_TOUR: Tour = {
     },
     {
       target: 'narrative-timeline',
-      text: 'TIMELINE: The timeline strip records every analysis step as a chip. Click a chip to seek back to any prior state of the palace — your full analysis history is reversible (Study → Timeline Strip).',
+      text: 'TIMELINE: The timeline strip records every analysis step as a chip. Click a chip to seek back to any prior state of the investigation — your analysis history is reversible (Study → Timeline Strip).',
       actionHint: 'Open the Timeline panel',
     },
     {
+      // Compatibility target ID retained until the scene-resolver contract migrates.
       target: 'draco-palace',
-      text: 'That is the core loop: load, probe, transform, save, and share. Press Next to complete the tour!',
+      text: 'That is the core loop: load, investigate, challenge, record, recover, and share. Press Next to complete the tour!',
       actionHint: 'Press Next to finish',
     },
   ],
