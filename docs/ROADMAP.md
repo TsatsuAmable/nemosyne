@@ -4,7 +4,7 @@
 
 ## Status snapshot - 2 September 2026
 
-**Current integration base for this planning update:** `main@357f63ddaa6b5c57d66ea0e64ddd7ac549b38809` (#623, PT3 production-data boundary proposed and reviewed). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is the forward execution frame: PT0 through PT2 are complete, RFC 0003 is accepted, and PT3B executable governance contracts are next.
+**Current integration base for this planning update:** `main@c408577361d102d5b078bc17f7064dafa15d7fff` (#624, RFC 0003 accepted). Stream A is fully closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, is `VERIFIED COMPLETE / STOP` through B1-B4. Stream C's bounded C1-C4 implementation/evidence wave has landed through #616; canonical desktop and simulator-testable journeys are now present, while physical XR fitness remains an explicit later evidence boundary rather than inferred completion. The rolling P1 product-transition programme is the forward execution frame: PT0 through PT2 are complete, RFC 0003 is accepted, and PT3B executable governance contracts are under implementation and adversarial review.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and the bounded C1-C4 visible-product wave have reached their stated implementation exits. In particular:
 
@@ -435,7 +435,7 @@ Current sequential status:
 - **PT1: COMPLETE** via #621 and #622; its exact cache miss/hit proof and final green coverage/promotion gates are recorded in the PT1B review, while the p50/p95 objective remains a monitored operational SLO.
 - **PT2: COMPLETE** via `TsatsuAmable/nemosyne-data#3` and its PRs #4-#6, ending at `nemosyne-data@8e6b2dfc` with post-merge validation green.
 - **PT3A: COMPLETE / RFC ACCEPTED** - RFC 0003 fixes the production identity, purpose-scoped authorization, lifecycle, governed event-envelope, runtime-provenance and Product/Research Mode boundary for implementation.
-- **PT3B: NEXT** - implement the first closed TypeScript schema/validator tranche with deterministic canonical digest rules and negative falsifiers; do not wire producers or claim production-path enforcement.
+- **PT3B: IMPLEMENTATION IN PROGRESS** - the first closed TypeScript schema/validator tranche and independent adversarial review are complete on a feature branch; merge/CI evidence remains required. No producer is wired and no production-path enforcement is claimed.
 - **Later PT3 implementation and PT4-PT10:** remain planned in the primary product-transition plan and issue #620; they are not completion claims.
 
 P1-PT may select bounded UX, security, reliability, maintainability, CI, documentation and operations ratchets between larger product slices. It must preserve the five product/research authority boundaries and the Notice -> Question -> Hypothesis -> Investigation -> Understanding -> Validation -> Discovery lifecycle.
