@@ -1,10 +1,11 @@
 # RFC 0004: Governed data-plane vertical slice
 
-**Status:** proposed  
-**Programme:** P1-PT4A  
-**Proposed:** 2 September 2026  
-**Depends on:** accepted RFC 0003  
-**Implementation:** blocked until this RFC is accepted
+**Status:** accepted
+**Programme:** P1-PT4A
+**Proposed:** 2 September 2026
+**Accepted:** 2 September 2026
+**Depends on:** accepted RFC 0003
+**Implementation:** authorized for the bounded PT4B vertical slice; not implemented by this RFC
 
 ## Context
 
@@ -234,6 +235,10 @@ successful DataOperationController operation
 - No `.nemosyne` v3 identity migration, multi-node database, backup, general account system or GDPR-compliance claim.
 - `nemosyne-data` remains an external PT5 dependency and is not part of this data plane.
 
+## Post-draft adversarial disposition
+
+Independent trust-boundary review found and this draft corrected blockers in principal/receipt binding, consent serialization, revocation-at-capture, JWT validation, pseudonym framing, transactional replay and durability, logical-erasure wording, retention time, public schemas, resource limits, cross-purpose traversal, runtime-attestation claims, capture-authorization correlation, timestamp authority and export framing/digests. A final exact-workspace review found no blocker against acceptance. This disposition authorizes only the bounded PT4B implementation and is not implementation, deployment or production-path evidence.
+
 ## Verification plan
 
 1. Accept this RFC after independent trust-boundary review and resolve every blocker.
@@ -244,4 +249,4 @@ successful DataOperationController operation
 
 ## Resulting ADR
 
-None while proposed. After acceptance and conforming implementation, record `docs/architecture/decisions/0005-production-data-lifecycle-and-event-boundary.md` as required by RFC 0003.
+None until implemented. After conforming implementation and production-boundary verification, record `docs/architecture/decisions/0005-production-data-lifecycle-and-event-boundary.md` as required by RFC 0003.
