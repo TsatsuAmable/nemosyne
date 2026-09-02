@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -16,8 +17,18 @@ if (isDev) {
   args.push('--dev');
 }
 
-const wasmPackExecutable = process.platform === 'win32' ? 'wasm-pack.cmd' : 'wasm-pack';
-let res = spawnSync(wasmPackExecutable, args, { stdio: 'inherit', env });
+const require = createRequire(import.meta.url);
+let wasmPackRunner;
+try {
+  wasmPackRunner = require.resolve('wasm-pack/run.js');
+} catch {
+  // The Cargo-installed executable below remains available for environments
+  // that intentionally install production dependencies without devDependencies.
+}
+
+let res = wasmPackRunner
+  ? spawnSync(process.execPath, [wasmPackRunner, ...args], { stdio: 'inherit', env })
+  : { error: new Error('The project-local wasm-pack npm package is not installed') };
 
 if (res.error) {
   const localWasmPack = path.join(cargoBin, process.platform === 'win32' ? 'wasm-pack.exe' : 'wasm-pack');

@@ -15,6 +15,17 @@ This guide walks you through building, running, and exploring datasets in Nemosy
 
 ## 2. Quickstart Commands
 
+### Windows (PowerShell)
+
+The Windows setup script installs npm dependencies, checks Rust and the WebAssembly target, verifies the project-pinned `wasm-pack`, creates local certificates, and runs the initial verification:
+
+```powershell
+npm run setup:windows
+npm run dev:wasm
+```
+
+### macOS and Linux
+
 ```bash
 # 1. Install dependencies
 npm install
@@ -31,6 +42,22 @@ npm run dev
 
 # 5. Run full CI verification gate
 npm run typecheck && npm run lint && npm run test:coverage && npm run build
+```
+
+### Windows WASM troubleshooting
+
+`npm run wasm:dev` normally uses the `wasm-pack` version installed with the project's npm dependencies. If npm dev dependencies were intentionally omitted, install the supported Cargo fallback and retry:
+
+```powershell
+cargo install wasm-pack
+& "$env:USERPROFILE\.cargo\bin\wasm-pack.exe" --version
+npm run wasm:dev
+```
+
+If Rust is installed but the WebAssembly compilation target is missing, add it with:
+
+```powershell
+rustup target add wasm32-unknown-unknown
 ```
 
 ---
