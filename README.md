@@ -29,7 +29,10 @@ investigation and provenance model.
 
 Nemosyne is a research instrument under construction, not a finished product. The
 [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) defines the
-target and the [Roadmap](./docs/ROADMAP.md) tracks progress.
+target and the [Roadmap](./docs/ROADMAP.md) tracks progress. While final physical Quest evidence is
+pending, the [Evolutionary Improvement Cadence](./docs/roadmap/P1_E_EVOLUTIONARY_IMPROVEMENT_CADENCE.md)
+governs bounded security, reliability, architecture, testing, pipeline, documentation and scientific-readiness
+improvements that can be verified without manufacturing device claims.
 
 The governing architecture is:
 
@@ -129,6 +132,7 @@ nemosyne/
 - [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) — governing product, research and architecture specification.
 - [Developer Guide & Explainer](./docs/DEVELOPER_EXPLAINER.md) — codebase mental model, data lifecycle, Rust/WASM ABI, and cookbooks.
 - [Roadmap](./docs/ROADMAP.md) — current implementation status, blockers and planned work.
+- [Evolutionary Improvement Cadence](./docs/roadmap/P1_E_EVOLUTIONARY_IMPROVEMENT_CADENCE.md) — bounded rolling improvement work while physical Quest evidence is pending.
 - [Technical Architecture](./docs/ARCHITECTURE.md) — modular subsystems specification & boundaries.
 - [Pre-P1 Systematic Audit](./docs/PRE_P1_SYSTEMATIC_AUDIT.md) — current adversarial review, implementation fixes and governed risk backlog.
 - [Getting Started](./docs/GETTING_STARTED.md)

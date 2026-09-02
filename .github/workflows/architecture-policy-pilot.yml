@@ -1,16 +1,8 @@
-name: Architecture policy pilot
+name: Architecture policy
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.dependency-cruiser.cjs'
-      - 'sgconfig.yml'
-      - 'tools/architecture-policy/**'
-      - '.github/workflows/architecture-policy-pilot.yml'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +10,7 @@ permissions:
 
 jobs:
   architecture-policy:
-    name: P1-Q Q0 architecture policy
+    name: Architecture policy
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,4 +22,4 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run architecture policy with timing
-        run: /usr/bin/time -f 'P1-Q Q0 elapsed=%e sec maxrss=%M KB' npm run architecture:check
+        run: /usr/bin/time -f 'architecture-policy elapsed=%e sec maxrss=%M KB' npm run architecture:check
