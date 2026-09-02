@@ -77,13 +77,13 @@ if (-not $rustInstalled) {
 Write-Host "Ensuring WebAssembly (wasm32-unknown-unknown) target is installed..." -ForegroundColor Yellow
 rustup target add wasm32-unknown-unknown
 
-# 4. Check wasm-pack
-Write-Host "`n[4/6] Checking wasm-pack..." -ForegroundColor Yellow
+# 4. Check the project-pinned wasm-pack npm package
+Write-Host "`n[4/6] Checking project-local wasm-pack..." -ForegroundColor Yellow
 $wasmPackInstalled = $false
 try {
-    $wasmPackVersion = wasm-pack --version 2>$null
+    $wasmPackVersion = node "node_modules\wasm-pack\run.js" --version 2>$null
     if ($wasmPackVersion) {
-        Write-Host "✓ wasm-pack is installed ($wasmPackVersion)." -ForegroundColor Green
+        Write-Host "✓ Project-local wasm-pack is installed ($wasmPackVersion)." -ForegroundColor Green
         $wasmPackInstalled = $true
     }
 } catch {
@@ -91,7 +91,7 @@ try {
 }
 
 if (-not $wasmPackInstalled) {
-    Write-Host "wasm-pack not found. Installing via cargo..." -ForegroundColor Yellow
+    Write-Host "Project-local wasm-pack is unavailable. Installing the Cargo fallback..." -ForegroundColor Yellow
     cargo install wasm-pack
 }
 
