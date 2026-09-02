@@ -60,7 +60,7 @@
     {
       "path": "docs/rfcs/0003-production-data-lifecycle-and-event-boundary.md",
       "status": "active",
-      "authority": "proposed-production-data-contract",
+      "authority": "accepted-production-data-contract",
       "owner": "architecture-security"
     },
     {
