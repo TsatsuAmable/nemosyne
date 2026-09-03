@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { strToU8 } from 'fflate';
+import { strFromU8, strToU8 } from 'fflate';
 import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
@@ -164,7 +164,7 @@ describe('Gate 5 InvestigationReplayRunner', () => {
     expect(result.finalOutputHash).toBe(atlas.datasetSpace?.fingerprint ?? atlas.datasetFingerprint);
   });
 
-  it('fails replay when the kernel identity or analytical provenance drifts', async () => {
+  it('fails replay when the kernel identity differs from the package manifest', async () => {
     const { packageBytes } = buildInvestigationPackage();
     const runner = new InvestigationReplayRunner(
       createMockBridge({ fingerprintPrefix: 'different-fp', kernelVersion: '0.3.0' })
@@ -173,8 +173,34 @@ describe('Gate 5 InvestigationReplayRunner', () => {
     const result = await runner.replayArchive(packageBytes);
 
     expect(result.success).toBe(false);
-    expect(result.provenanceEventsVerified).toBe(0);
     expect(result.discrepancies.some((entry) => entry.includes('Kernel version mismatch'))).toBe(true);
-    expect(result.discrepancies.some((entry) => entry.includes('Analysis drift'))).toBe(true);
+  });
+
+  it('fails replay when recorded analytical provenance is tampered', async () => {
+    const { packageBytes } = buildInvestigationPackage();
+    const payload = NemosynePackageManager.unpack(packageBytes);
+    const commandLog = JSON.parse(strFromU8(payload.commandLogBytes)) as Array<{
+      kind?: string;
+      result?: { provenance?: Provenance | null };
+    }>;
+    const analysisEvent = commandLog.find(
+      (event) => event.kind === 'analysis' && event.result?.provenance
+    );
+    if (!analysisEvent?.result?.provenance) {
+      throw new Error('headless replay fixture requires recorded analysis provenance');
+    }
+    analysisEvent.result.provenance.inputFingerprint = 'tampered-recorded-fingerprint';
+    payload.commandLogBytes = strToU8(JSON.stringify(commandLog));
+
+    const runner = new InvestigationReplayRunner(createMockBridge());
+    const result = await runner.replayPayload(payload);
+
+    expect(result.success).toBe(false);
+    expect(result.provenanceEventsVerified).toBeLessThan(2);
+    expect(
+      result.discrepancies.some(
+        (entry) => entry.includes('Analysis drift') && entry.includes('inputFingerprint')
+      )
+    ).toBe(true);
   });
 });
