@@ -267,7 +267,9 @@ export class InvestigationJourneyPanel extends MovablePanel {
     addRow(['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p']);
     addRow(['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l']);
     addRow(['z', 'x', 'c', 'v', 'b', 'n', 'm']);
-    addRow(['.', ',', '?', '-', "'", '!', ':']);
+    addRow(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
+    addRow(['.', ',', '?', '-', '+', '=', '/', '%', '<', '>']);
+    addRow(['(', ')', ':', ';', "'", '"', '_', '#', '@', '&']);
 
     buttons.push(
       { id: 'shift', label: this.uppercase ? 'SHIFT ON' : 'Shift', x: left, y, w: 120, h: keyHeight },
