@@ -19,6 +19,7 @@ export const FAST_NODE_TESTS = [
   'tests/pt4b-lifecycle-restart.test.ts',
   'tests/pt4b-oidc-jwks-authority.test.ts',
   'tests/pt4b-runtime-manifest-authority.test.ts',
+  'tests/pt4b9-postgres-migration-authority.test.ts',
   'tests/q2-dataset-identity-cross-language-golden.test.ts',
   'tests/q2-dataset-identity-parity.test.ts',
   'tests/q2-dataset-identity-properties.test.ts',

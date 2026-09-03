@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-09-02",
+  "lastReviewed": "2026-09-03",
   "statuses": ["canonical", "active", "historical"],
   "documents": [
     {
@@ -67,6 +67,12 @@
       "path": "docs/rfcs/0004-governed-data-plane-vertical-slice.md",
       "status": "active",
       "authority": "accepted-governed-data-plane-contract",
+      "owner": "architecture-security"
+    },
+    {
+      "path": "docs/rfcs/0005-persistence-architecture-rationalisation.md",
+      "status": "active",
+      "authority": "accepted-persistence-architecture",
       "owner": "architecture-security"
     },
     {

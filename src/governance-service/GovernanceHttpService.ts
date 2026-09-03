@@ -9,16 +9,18 @@ import {
   type DataPlaneScope,
 } from './DataPlaneAccessTokenAuthority.ts';
 import { OidcJwksAuthority, OidcJwksError } from './OidcJwksAuthority.ts';
-import { SqliteProductAnalyticsEventIngestion } from './ProductAnalyticsEventIngestion.ts';
+import type {
+  ProductAnalyticsConsentAuthorityPortV1,
+  ProductAnalyticsEventIngestionPortV1,
+  ProductAnalyticsLifecycleAuthorityPortV1,
+} from './GovernanceAuthorityPorts.ts';
 import {
   ProductAnalyticsLifecycleError,
-  SqliteProductAnalyticsLifecycleAuthority,
   type ProductAnalyticsErasureRequestV1,
   type ProductAnalyticsExportRequestV1,
 } from './ProductAnalyticsLifecycleAuthority.ts';
 import {
   ProductAnalyticsAuthorityError,
-  SqliteProductAnalyticsConsentAuthority,
   type AuthenticatedPrincipalV1,
   type ProductAnalyticsCaptureAuthorizationRequestV1,
   type ProductAnalyticsGrantRequestV1,
@@ -65,9 +67,9 @@ export interface GovernanceAuthenticatorV1 {
 export interface GovernanceHttpServiceOptions {
   readonly allowedOrigins: readonly string[];
   readonly authenticator: GovernanceAuthenticatorV1;
-  readonly consentAuthority: SqliteProductAnalyticsConsentAuthority;
-  readonly eventIngestion?: SqliteProductAnalyticsEventIngestion;
-  readonly lifecycleAuthority?: SqliteProductAnalyticsLifecycleAuthority;
+  readonly consentAuthority: ProductAnalyticsConsentAuthorityPortV1;
+  readonly eventIngestion?: ProductAnalyticsEventIngestionPortV1;
+  readonly lifecycleAuthority?: ProductAnalyticsLifecycleAuthorityPortV1;
   readonly now?: () => number;
   readonly requestId?: () => string;
 }
@@ -204,9 +206,9 @@ class FixedWindowLimiter {
 export class GovernanceHttpService {
   private readonly origins: ReadonlySet<string>;
   private readonly authenticator: GovernanceAuthenticatorV1;
-  private readonly consentAuthority: SqliteProductAnalyticsConsentAuthority;
-  private readonly eventIngestion: SqliteProductAnalyticsEventIngestion | null;
-  private readonly lifecycleAuthority: SqliteProductAnalyticsLifecycleAuthority | null;
+  private readonly consentAuthority: ProductAnalyticsConsentAuthorityPortV1;
+  private readonly eventIngestion: ProductAnalyticsEventIngestionPortV1 | null;
+  private readonly lifecycleAuthority: ProductAnalyticsLifecycleAuthorityPortV1 | null;
   private readonly limiter: FixedWindowLimiter;
   private readonly requestId: () => string;
   private readonly principalInFlight = new Map<string, number>();
@@ -266,7 +268,7 @@ export class GovernanceHttpService {
         }
 
         try {
-          if (route.action === 'current') return jsonResponse(200, this.consentAuthority.getCurrent(principal), origin);
+          if (route.action === 'current') return jsonResponse(200, await this.consentAuthority.getCurrent(principal), origin);
           if (request.contentEncoding !== null && request.contentEncoding !== 'identity') {
             return errorResponse(415, 'CONTENT_ENCODING_REFUSED', origin);
           }
@@ -274,15 +276,15 @@ export class GovernanceHttpService {
             return errorResponse(415, 'MEDIA_TYPE_REFUSED', origin);
           }
           const body = await this.readJson(request);
-          if (route.action === 'grant') return jsonResponse(200, this.consentAuthority.grant(principal, body as ProductAnalyticsGrantRequestV1), origin);
-          if (route.action === 'revoke') return jsonResponse(200, this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
-          if (route.action === 'capture') return jsonResponse(200, this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1), origin);
+          if (route.action === 'grant') return jsonResponse(200, await this.consentAuthority.grant(principal, body as ProductAnalyticsGrantRequestV1), origin);
+          if (route.action === 'revoke') return jsonResponse(200, await this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
+          if (route.action === 'capture') return jsonResponse(200, await this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1), origin);
           if (!this.lifecycleAuthority) return errorResponse(503, 'LIFECYCLE_UNAVAILABLE', origin);
           if (route.action === 'export') {
-            const exported = this.lifecycleAuthority.exportRecords(principal, body as ProductAnalyticsExportRequestV1);
+            const exported = await this.lifecycleAuthority.exportRecords(principal, body as ProductAnalyticsExportRequestV1);
             return ndjsonResponse(200, exported.body, origin);
           }
-          return jsonResponse(200, this.lifecycleAuthority.erase(principal, body as ProductAnalyticsErasureRequestV1), origin);
+          return jsonResponse(200, await this.lifecycleAuthority.erase(principal, body as ProductAnalyticsErasureRequestV1), origin);
         } catch (error) {
           if (error instanceof ProductAnalyticsAuthorityError) {
             const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT' ? 409 : error.code === 'CONSENT_REQUIRED' ? 403 : 400;
@@ -319,8 +321,8 @@ export class GovernanceHttpService {
     if (!this.eventIngestion) return errorResponse(503, 'INGESTION_UNAVAILABLE', origin);
     if (!this.lifecycleAuthority) return errorResponse(503, 'LIFECYCLE_UNAVAILABLE', origin);
     try {
-      this.lifecycleAuthority.runRetention();
-      this.lifecycleAuthority.assertReadyForIngestion();
+      await this.lifecycleAuthority.runRetention();
+      await this.lifecycleAuthority.assertReadyForIngestion();
     } catch (error) {
       if (error instanceof ProductAnalyticsLifecycleError) return errorResponse(503, error.code, origin);
       return errorResponse(503, 'LIFECYCLE_UNHEALTHY', origin);

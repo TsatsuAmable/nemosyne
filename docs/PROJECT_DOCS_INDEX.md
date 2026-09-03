@@ -19,6 +19,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 - [`RFC_PROCESS.md`](RFC_PROCESS.md) - lightweight threshold for durable architecture/trust-boundary changes.
 - [`rfcs/0003-production-data-lifecycle-and-event-boundary.md`](rfcs/0003-production-data-lifecycle-and-event-boundary.md) - accepted PT3 production identity, purpose-scoped authorization, lifecycle, event-envelope and runtime-provenance boundary.
 - [`rfcs/0004-governed-data-plane-vertical-slice.md`](rfcs/0004-governed-data-plane-vertical-slice.md) - accepted PT4 trust-boundary contract for the first authenticated consent-aware ingestion, storage, export and erasure slice.
+- [`rfcs/0005-persistence-architecture-rationalisation.md`](rfcs/0005-persistence-architecture-rationalisation.md) - accepted persistence architecture: PostgreSQL is the canonical production server database, one versioned IndexedDB database is the canonical durable browser database, and database implementations remain behind explicit persistence ports.
 - [`architecture/decisions/README.md`](architecture/decisions/README.md) - accepted Architecture Decision Records.
 
 ## Implementation and engineering reference
