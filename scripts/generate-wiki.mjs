@@ -58,7 +58,7 @@ function sourceLink(path) {
   return `https://github.com/${repository}/blob/main/${encodeURI(toPosix(path))}`;
 }
 
-function rewriteLinks(markdown, sourcePath) {
+function rewriteInlineLinks(markdown, sourcePath) {
   return markdown.replace(/(!?\[[^\]]*\])\(([^)]+)\)/g, (full, label, rawTarget) => {
     const target = rawTarget.trim();
     if (!target || target.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(target)) return full;
@@ -76,6 +76,26 @@ function rewriteLinks(markdown, sourcePath) {
     const url = `https://github.com/${repository}/blob/main/${encodeURI(repositoryPath)}${suffix}`;
     return `${label}(${url})`;
   });
+}
+
+function rewriteLinks(markdown, sourcePath) {
+  const lines = markdown.split('\n');
+  let fence = null;
+  return lines
+    .map((line) => {
+      const match = line.match(/^\s*(`{3,}|~{3,})/);
+      if (match) {
+        const marker = match[1];
+        if (fence === null) {
+          fence = { char: marker[0], length: marker.length };
+        } else if (marker[0] === fence.char && marker.length >= fence.length) {
+          fence = null;
+        }
+        return line;
+      }
+      return fence === null ? rewriteInlineLinks(line, sourcePath) : line;
+    })
+    .join('\n');
 }
 
 function renderDocument(document) {
