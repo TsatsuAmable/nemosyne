@@ -228,7 +228,12 @@ export class InvestigationContinuityController {
       };
     }
 
-    const snapshot = await this.verifyEmbeddedSnapshot(snapshotBytes, payload.manifest);
+    const verifiedSnapshot = await this.verifyEmbeddedSnapshot(snapshotBytes, payload.manifest);
+    // A portable investigation may come from another researcher/device. Local
+    // settings include privacy, comfort and runtime preferences, so the file
+    // must not silently overwrite them. Investigation-local camera/theme/focus
+    // still travel; device-local settings stay with the recipient runtime.
+    const snapshot = this.withCurrentDeviceSettings(verifiedSnapshot);
     await this.restoreWithRollback(snapshot, '.nemosyne package');
     return {
       verification,
@@ -283,6 +288,18 @@ export class InvestigationContinuityController {
       }
     }
     return snapshot;
+  }
+
+  private withCurrentDeviceSettings(snapshot: NemosyneSessionJSON): NemosyneSessionJSON {
+    const current = this.safeCaptureCurrent();
+    if (!current) return snapshot;
+    return {
+      ...snapshot,
+      presentation: {
+        ...snapshot.presentation,
+        settings: structuredClone(current.presentation.settings),
+      },
+    };
   }
 
   private safeCaptureCurrent(): NemosyneSessionJSON | null {
