@@ -20,7 +20,7 @@ function catalog(
   sha256: string,
   bytes = 3,
   path = 'data/test/smoke.csv',
-  governanceState: 'governed' | 'pending' | 'rejected' = 'governed',
+  governanceState: 'candidate' | 'governed' | 'retired' = 'governed',
 ) {
   return JSON.stringify({
     schemaVersion: NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION,
@@ -36,7 +36,7 @@ function catalog(
         description: 'fixture',
         topology: 'POINT_CLOUD',
         governanceState,
-        contentDigest: `sha256:${'1'.repeat(64)}`,
+        contentDigest: governanceState === 'candidate' ? null : `sha256:${'1'.repeat(64)}`,
         privacy: 'synthetic',
         license: { status: 'declared', name: 'test' },
         provenance: { origin: 'test fixture', transformations: [] },
@@ -98,7 +98,7 @@ describe('NemosyneDataCatalogClient', () => {
 
   it('refuses non-governed catalogue entries before artifact fetch', async () => {
     const expectedDigest = 'b'.repeat(64);
-    const fetchImpl = vi.fn(async (url: string) => response(catalog(expectedDigest, 3, 'data/test/smoke.csv', 'pending'), url));
+    const fetchImpl = vi.fn(async (url: string) => response(catalog(expectedDigest, 3, 'data/test/smoke.csv', 'candidate'), url));
     const client = new NemosyneDataCatalogClient({ fetchImpl: fetchImpl as unknown as typeof fetch });
     await expect(client.loadArtifact('synthetic.test', 'smoke')).rejects.toThrow(/not governed for product loading/i);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
