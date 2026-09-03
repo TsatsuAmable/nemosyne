@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../../../src/moneta/ConstraintEngine.js';
+import {
+  ConstraintEngine,
+  TopologyTypes,
+  isNoFeasibleConstraintResult,
+} from '../../../src/moneta/ConstraintEngine.js';
 import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.js';
 import { Dataset } from '../../../src/data/Dataset.js';
 import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
@@ -25,11 +29,20 @@ describe('Feature 7: Edge Draw Call Optimization & Line Rendering', () => {
     return new Dataset('GraphDS', columns, rows, edges);
   }
 
+  function solveGraph(engine: ConstraintEngine, dataInput: Parameters<ConstraintEngine['solve']>[0]) {
+    const result = engine.solve(dataInput);
+    expect(isNoFeasibleConstraintResult(result)).toBe(false);
+    if (isNoFeasibleConstraintResult(result)) {
+      throw new Error('expected a feasible graph representation');
+    }
+    return result;
+  }
+
   it('F7-TC1: Synthesizing graph artifact creates edge meshes for graph dataset', () => {
     const ds = makeGraphDataset();
     const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataInput = { dataset: ds, topology: TopologyTypes.GRAPH, edges: ds.edges };
-    const solverResult = engine.solve(dataInput);
+    const solverResult = solveGraph(engine, dataInput);
     const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, dataInput);
 
     expect(artifact.edgeMeshes).toBeDefined();
@@ -40,7 +53,7 @@ describe('Feature 7: Edge Draw Call Optimization & Line Rendering', () => {
     const ds = makeGraphDataset();
     const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataInput = { dataset: ds, topology: TopologyTypes.GRAPH, edges: ds.edges };
-    const solverResult = engine.solve(dataInput);
+    const solverResult = solveGraph(engine, dataInput);
     const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, dataInput);
 
     const edge = artifact.edgeMeshes[0];
@@ -53,7 +66,7 @@ describe('Feature 7: Edge Draw Call Optimization & Line Rendering', () => {
     const ds = makeGraphDataset();
     const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataInput = { dataset: ds, topology: TopologyTypes.GRAPH, edges: ds.edges };
-    const solverResult = engine.solve(dataInput);
+    const solverResult = solveGraph(engine, dataInput);
     const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, dataInput);
 
     const edgeChildren = artifact.group.children.filter((c) => c instanceof THREE.Line);
@@ -64,7 +77,7 @@ describe('Feature 7: Edge Draw Call Optimization & Line Rendering', () => {
     const ds = makeGraphDataset();
     const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataInput = { dataset: ds, topology: TopologyTypes.GRAPH, edges: ds.edges };
-    const solverResult = engine.solve(dataInput);
+    const solverResult = solveGraph(engine, dataInput);
     const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, dataInput);
 
     const line = artifact.edgeMeshes[0];
