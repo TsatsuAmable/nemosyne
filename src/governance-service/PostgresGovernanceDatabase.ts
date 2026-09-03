@@ -1,6 +1,16 @@
 const GOVERNANCE_SCHEMA = 'nemosyne_governance';
 const CURRENT_SCHEMA_VERSION = 1;
 const MIGRATION_LOCK_KEY = 0x4e454d4f53594e45n; // "NEMOSYNE" as a stable advisory-lock namespace.
+const MANAGED_TABLES = Object.freeze([
+  'data_plane_credential_sessions',
+  'governed_product_events',
+  'governed_product_streams',
+  'product_analytics_capture_authorizations',
+  'product_analytics_consent_revisions',
+  'product_analytics_erasure_actions',
+  'product_analytics_idempotency',
+  'schema_version',
+] as const);
 
 export interface PostgresQueryResultV1<Row = Record<string, unknown>> {
   readonly rows: readonly Row[];
@@ -92,9 +102,7 @@ export function parsePostgresGovernanceConnectionProfileV1(
 }
 
 const MIGRATION_V1 = `
-CREATE SCHEMA IF NOT EXISTS ${GOVERNANCE_SCHEMA};
-
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_consent_revisions (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.product_analytics_consent_revisions (
   principal_handle TEXT NOT NULL,
   purpose TEXT NOT NULL,
   revision INTEGER NOT NULL CHECK (revision > 0),
@@ -106,11 +114,11 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_consent_revisi
   action_id TEXT NOT NULL,
   PRIMARY KEY (principal_handle, purpose, revision)
 );
-CREATE INDEX IF NOT EXISTS product_analytics_consent_current_idx
+CREATE INDEX product_analytics_consent_current_idx
   ON ${GOVERNANCE_SCHEMA}.product_analytics_consent_revisions
   (principal_handle, purpose, revision DESC);
 
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_idempotency (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.product_analytics_idempotency (
   principal_handle TEXT NOT NULL,
   endpoint TEXT NOT NULL,
   action_id TEXT NOT NULL,
@@ -119,7 +127,7 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_idempotency (
   PRIMARY KEY (principal_handle, endpoint, action_id)
 );
 
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_capture_authorizations (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.product_analytics_capture_authorizations (
   authorization_id TEXT PRIMARY KEY,
   principal_handle TEXT NOT NULL,
   event_id TEXT NOT NULL,
@@ -137,10 +145,10 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_capture_author
   invalidated_at TIMESTAMPTZ,
   UNIQUE (principal_handle, event_id)
 );
-CREATE INDEX IF NOT EXISTS product_analytics_capture_principal_idx
+CREATE INDEX product_analytics_capture_principal_idx
   ON ${GOVERNANCE_SCHEMA}.product_analytics_capture_authorizations (principal_handle, event_id);
 
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.governed_product_streams (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.governed_product_streams (
   stream_id TEXT PRIMARY KEY,
   principal_handle TEXT NOT NULL,
   producer_instance_id TEXT NOT NULL,
@@ -150,10 +158,10 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.governed_product_streams (
   mode TEXT NOT NULL,
   next_sequence INTEGER NOT NULL CHECK (next_sequence >= 0)
 );
-CREATE INDEX IF NOT EXISTS governed_product_streams_principal_idx
+CREATE INDEX governed_product_streams_principal_idx
   ON ${GOVERNANCE_SCHEMA}.governed_product_streams (principal_handle);
 
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.governed_product_events (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.governed_product_events (
   principal_handle TEXT NOT NULL,
   event_id TEXT NOT NULL,
   stream_id TEXT NOT NULL REFERENCES ${GOVERNANCE_SCHEMA}.governed_product_streams(stream_id),
@@ -167,13 +175,13 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.governed_product_events (
   PRIMARY KEY (principal_handle, event_id),
   UNIQUE (stream_id, stream_sequence)
 );
-CREATE INDEX IF NOT EXISTS governed_product_events_export_idx
+CREATE INDEX governed_product_events_export_idx
   ON ${GOVERNANCE_SCHEMA}.governed_product_events
   (principal_handle, server_received_at, event_id);
-CREATE INDEX IF NOT EXISTS governed_product_events_retention_idx
+CREATE INDEX governed_product_events_retention_idx
   ON ${GOVERNANCE_SCHEMA}.governed_product_events (physical_delete_deadline);
 
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_erasure_actions (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.product_analytics_erasure_actions (
   principal_handle TEXT NOT NULL,
   action_id TEXT NOT NULL,
   request_digest TEXT NOT NULL,
@@ -182,10 +190,10 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.product_analytics_erasure_action
   purge_after TIMESTAMPTZ NOT NULL,
   PRIMARY KEY (principal_handle, action_id)
 );
-CREATE INDEX IF NOT EXISTS product_analytics_erasure_purge_idx
+CREATE INDEX product_analytics_erasure_purge_idx
   ON ${GOVERNANCE_SCHEMA}.product_analytics_erasure_actions (purge_after);
 
-CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.data_plane_credential_sessions (
+CREATE TABLE ${GOVERNANCE_SCHEMA}.data_plane_credential_sessions (
   session_handle TEXT PRIMARY KEY,
   first_seen_at TIMESTAMPTZ NOT NULL,
   last_seen_at TIMESTAMPTZ NOT NULL,
@@ -195,6 +203,26 @@ CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.data_plane_credential_sessions (
 
 interface MigrationVersionRow {
   readonly version: number;
+}
+
+interface TableNameRow {
+  readonly table_name: string;
+}
+
+async function managedTableNames(database: PostgresQueryableV1): Promise<readonly string[]> {
+  const result = await database.query<TableNameRow>(
+    `SELECT table_name
+     FROM information_schema.tables
+     WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+     ORDER BY table_name ASC`,
+    [GOVERNANCE_SCHEMA],
+  );
+  return Object.freeze(result.rows.map((row) => row.table_name));
+}
+
+function sameManagedTables(actual: readonly string[]): boolean {
+  const expected = [...MANAGED_TABLES].sort();
+  return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
 /**
@@ -210,13 +238,23 @@ export class PostgresGovernanceMigrationAuthorityV1 {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK_KEY.toString()]);
       await client.query(`CREATE SCHEMA IF NOT EXISTS ${GOVERNANCE_SCHEMA}`);
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${GOVERNANCE_SCHEMA}.schema_version (
-          singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-          version INTEGER NOT NULL CHECK (version >= 0),
-          updated_at TIMESTAMPTZ NOT NULL
-        )
-      `);
+      const existingTables = await managedTableNames(client);
+      const hadVersionTable = existingTables.includes('schema_version');
+      if (!hadVersionTable && existingTables.length > 0) {
+        throw new PostgresGovernanceConfigurationError(
+          'SCHEMA_STATE_INVALID',
+          'governance schema contains unversioned managed or foreign tables',
+        );
+      }
+      if (!hadVersionTable) {
+        await client.query(`
+          CREATE TABLE ${GOVERNANCE_SCHEMA}.schema_version (
+            singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+            version INTEGER NOT NULL CHECK (version >= 0),
+            updated_at TIMESTAMPTZ NOT NULL
+          )
+        `);
+      }
       const versionResult = await client.query<MigrationVersionRow>(
         `SELECT version FROM ${GOVERNANCE_SCHEMA}.schema_version WHERE singleton = TRUE FOR UPDATE`,
       );
@@ -231,6 +269,12 @@ export class PostgresGovernanceMigrationAuthorityV1 {
         );
       }
       if (version === 0) {
+        if (hadVersionTable && existingTables.length !== 1) {
+          throw new PostgresGovernanceConfigurationError(
+            'SCHEMA_STATE_INVALID',
+            'version-zero governance schema must not contain managed data tables',
+          );
+        }
         await client.query(MIGRATION_V1);
         await client.query(
           `INSERT INTO ${GOVERNANCE_SCHEMA}.schema_version (singleton, version, updated_at)
@@ -239,6 +283,13 @@ export class PostgresGovernanceMigrationAuthorityV1 {
           [CURRENT_SCHEMA_VERSION],
         );
         version = CURRENT_SCHEMA_VERSION;
+      }
+      const finalTables = await managedTableNames(client);
+      if (!sameManagedTables(finalTables)) {
+        throw new PostgresGovernanceConfigurationError(
+          'SCHEMA_STATE_INVALID',
+          'governance schema table inventory does not match the reviewed version',
+        );
       }
       await client.query('COMMIT');
       return version;
@@ -264,10 +315,18 @@ export class PostgresGovernanceMigrationAuthorityV1 {
         'governance PostgreSQL schema is absent, incomplete, or unsupported',
       );
     }
+    const tables = await managedTableNames(this.pool);
+    if (!sameManagedTables(tables)) {
+      throw new PostgresGovernanceConfigurationError(
+        'SCHEMA_STATE_INVALID',
+        'governance PostgreSQL table inventory does not match the reviewed version',
+      );
+    }
   }
 }
 
 export const POSTGRES_GOVERNANCE_SCHEMA_V1 = Object.freeze({
   schema: GOVERNANCE_SCHEMA,
   version: CURRENT_SCHEMA_VERSION,
+  managedTables: MANAGED_TABLES,
 });
