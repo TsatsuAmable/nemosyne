@@ -113,6 +113,26 @@ export class AtlasCore {
     return this._workerDatasetPayload ?? undefined;
   }
 
+  /**
+   * All analytical execution modes target exactly the current authoritative
+   * dataset identity. The synchronous resident-kernel path used to treat the
+   * spec fingerprint as advisory while the Worker path failed closed; that made
+   * the same command valid or invalid depending on transport. Keep one fence.
+   */
+  private _requireCurrentAnalysisFingerprint(
+    spec: AnalysisSpec,
+    mode: 'sync' | 'async' | 'preview'
+  ): string {
+    const inputFingerprint = this.datasetFingerprint ?? '';
+    if (!inputFingerprint) {
+      throw new KernelUnavailableError('[AtlasCore] current dataset has no authoritative fingerprint.');
+    }
+    if (spec.datasetFingerprint && spec.datasetFingerprint !== inputFingerprint) {
+      throw new Error(`[AtlasCore] ${mode} analysis spec targets a non-current dataset fingerprint.`);
+    }
+    return inputFingerprint;
+  }
+
   private _canUseWorkerRowView(dataset: Dataset | null, operation: OperationSpec): boolean {
     const rowIds = dataset?.rowIds;
     return Boolean(
@@ -615,14 +635,7 @@ export class AtlasCore {
         '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
       );
     }
-    // The exact-fingerprint fence is enforced on the asynchronous worker path
-    // (see `applyAnalysisAsync`), where the Worker must register the dataset by
-    // exact fingerprint before executing. The resident synchronous kernel always
-    // operates on the current handle, so `spec.datasetFingerprint` here is an
-    // advisory identity tag — rejecting it would break the pre-existing
-    // investigation-replay contract, which records each operation's spec (with
-    // the fingerprint that was current when it was issued) and replays it back
-    // through this method against the evolving current dataset.
+    this._requireCurrentAnalysisFingerprint(spec, 'sync');
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
@@ -739,6 +752,7 @@ export class AtlasCore {
         '[AtlasCore] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
       );
     }
+    this._requireCurrentAnalysisFingerprint(spec, 'preview');
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
@@ -783,13 +797,7 @@ export class AtlasCore {
     if (!this._executionPort?.isAsync) {
       return this.applyAnalysis(spec);
     }
-    const inputFingerprint = this.datasetFingerprint ?? '';
-    if (!inputFingerprint) {
-      throw new KernelUnavailableError('[AtlasCore] current dataset has no authoritative fingerprint.');
-    }
-    if (spec.datasetFingerprint && spec.datasetFingerprint !== inputFingerprint) {
-      throw new Error('[AtlasCore] async analysis spec targets a non-current dataset fingerprint.');
-    }
+    const inputFingerprint = this._requireCurrentAnalysisFingerprint(spec, 'async');
     const version = this.datasetVersion;
     const generation = this._generation;
     const inputDataset = this._aggregate.analytical.currentNullable;
