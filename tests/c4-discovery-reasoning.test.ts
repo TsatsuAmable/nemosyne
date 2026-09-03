@@ -52,6 +52,7 @@ function fixture() {
     aggregate,
     observations,
     results,
+    findings: [],
     datasetFingerprint: 'fp-1',
     datasetVersion: 1,
     kernelVersion: () => 'kernel-test',
@@ -158,7 +159,7 @@ describe('P1-UV C4 governed discovery reasoning', () => {
     const { aggregate, service } = fixture();
     const episode = start(service);
     expect(() => service.branch({ discoveryId: episode.discoveryId })).toThrow(
-      'Record a tested conclusion before branching this reasoning path.',
+      'Record an understanding before branching this reasoning path.',
     );
 
     record(service, episode.discoveryId, 'REFUTES');
