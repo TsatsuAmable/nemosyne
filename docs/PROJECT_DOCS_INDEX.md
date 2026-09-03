@@ -54,6 +54,14 @@ These documents may describe current implementation but must not override the go
 
 Study material is operational research governance; it does not override product/architecture authority.
 
+## GitHub Wiki
+
+The repository GitHub Wiki is a generated reference surface, not an independent documentation authority. `scripts/generate-wiki.mjs` projects every non-historical entry in `DOCS_MANIFEST.json` into Wiki pages and also builds a codebase index from exported TypeScript symbols under `src/`.
+
+`.github/workflows/wiki-sync.yml` validates the projection on pull requests and republishes the Wiki after relevant changes land on `main`. The publish job mirrors the generated output, so manually edited Wiki pages are intentionally replaced rather than allowed to diverge from version-controlled sources.
+
+If information in the Wiki conflicts with repository documentation or executable configuration, the repository source is authoritative. Changes intended for the Wiki must therefore be made to the corresponding source document or generator, reviewed through the normal pull-request process, and then published automatically.
+
 ## Historical archive
 
 - [`archive/README.md`](archive/README.md) - archive index.
@@ -68,3 +76,4 @@ Study material is operational research governance; it does not override product/
 4. Machine-readable facts are not duplicated in agent prose.
 5. Any change to documentation authority or engineering instructions must pass `npm run docs:check`.
 6. If an active document conflicts with a governing authority, update it, clearly subordinate its operational status to `ROADMAP.md`, or archive it as part of the next touching change.
+7. GitHub Wiki pages are generated projections and must not be edited as independent sources of truth.

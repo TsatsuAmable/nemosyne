@@ -1,0 +1,81 @@
+name: Sync GitHub Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'AGENTS.md'
+      - 'CONTRIBUTING.md'
+      - 'SECURITY.md'
+      - 'scripts/generate-wiki.mjs'
+      - '.github/workflows/wiki-sync.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - 'AGENTS.md'
+      - 'CONTRIBUTING.md'
+      - 'SECURITY.md'
+      - 'scripts/generate-wiki.mjs'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: wiki-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate generated wiki
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Generate wiki projection
+        run: node scripts/generate-wiki.mjs --check --out "$RUNNER_TEMP/wiki-build"
+
+  publish:
+    name: Publish generated wiki
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Generate wiki projection
+        run: node scripts/generate-wiki.mjs --out "$RUNNER_TEMP/wiki-build"
+
+      - name: Publish wiki repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          wiki_dir="$RUNNER_TEMP/nemosyne-wiki"
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+
+          if ! git clone --quiet "$wiki_url" "$wiki_dir"; then
+            echo "::error::The GitHub Wiki repository could not be cloned. Ensure the repository Wiki feature is enabled and initialized with at least one page."
+            exit 1
+          fi
+
+          rsync --archive --delete --exclude='.git/' "$RUNNER_TEMP/wiki-build/" "$wiki_dir/"
+          cd "$wiki_dir"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Wiki is already synchronized."
+            exit 0
+          fi
+
+          git commit -m "docs: sync wiki from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git push --quiet origin HEAD
