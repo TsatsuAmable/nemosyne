@@ -33,12 +33,12 @@ function root(): string {
   return value;
 }
 
-function authority(dataDirectory: string): DataPlaneAccessTokenAuthority {
+function authority(dataDirectory: string, keyResolver: DataPlaneJwkResolver = resolver): DataPlaneAccessTokenAuthority {
   return new DataPlaneAccessTokenAuthority({
     issuer: ISSUER,
     audience: AUDIENCE,
     allowedAlgorithms: ['RS256'],
-    keyResolver: resolver,
+    keyResolver,
     dataDirectory,
     credentialSessionKey: new Uint8Array(32).fill(7),
     now: () => new Date(NOW_SECONDS * 1000),
@@ -107,6 +107,15 @@ describe('PT4B3 data-plane access-token authority', () => {
     await service.close();
   });
 
+  it('refuses private JWK CRT material even when a custom resolver bypasses JWKS filtering', async () => {
+    const privateFieldResolver: DataPlaneJwkResolver = {
+      resolve: () => ({ ...publicJwk, p: 'private-field' } as JsonWebKey),
+    };
+    const service = authority(root(), privateFieldResolver);
+    await expectCode(() => service.authenticateToken(token(), 'events:capture'), 'UNKNOWN_KEY');
+    await service.close();
+  });
+
   it('refuses extra audiences, overlong lifetimes, future/expired tokens and absent endpoint scope', async () => {
     const service = authority(root());
     await expectCode(() => service.authenticateToken(token({ aud: [AUDIENCE, 'other'] }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
@@ -117,11 +126,13 @@ describe('PT4B3 data-plane access-token authority', () => {
     await service.close();
   });
 
-  it('refuses a modified signature', async () => {
+  it('refuses a canonically encoded modified signature', async () => {
     const service = authority(root());
     const valid = token();
     const [head, body, signature] = valid.split('.');
-    const changed = `${head}.${body}.${signature.slice(0, -1)}${signature.endsWith('A') ? 'B' : 'A'}`;
+    const bytes = Buffer.from(signature, 'base64url');
+    bytes[0] ^= 0x01;
+    const changed = `${head}.${body}.${bytes.toString('base64url')}`;
     await expectCode(() => service.authenticateToken(changed, 'events:capture'), 'INVALID_SIGNATURE');
     await service.close();
   });
