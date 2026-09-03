@@ -45,15 +45,28 @@ class FakePostgres implements PostgresPoolV1, PostgresClientV1 {
   }
 }
 
+function expectConfigurationError(work: () => unknown, code: string): void {
+  try {
+    work();
+  } catch (error) {
+    expect(error).toBeInstanceOf(PostgresGovernanceConfigurationError);
+    expect(error).toMatchObject({ code });
+    return;
+  }
+  throw new Error(`expected configuration error ${code}`);
+}
+
 describe('PT4B9 PostgreSQL connection policy', () => {
   it('requires PostgreSQL and TLS for non-local service databases', () => {
     expect(() => parsePostgresGovernanceConnectionProfileV1('https://db.example/nemosyne')).toThrowError(PostgresGovernanceConfigurationError);
-    expect(() => parsePostgresGovernanceConnectionProfileV1('postgresql://db.example/nemosyne')).toThrowErrorMatchingObject({
-      code: 'DATABASE_TLS_REQUIRED',
-    });
-    expect(() => parsePostgresGovernanceConnectionProfileV1('postgresql://db.example/nemosyne?sslmode=disable')).toThrowErrorMatchingObject({
-      code: 'DATABASE_TLS_REQUIRED',
-    });
+    expectConfigurationError(
+      () => parsePostgresGovernanceConnectionProfileV1('postgresql://db.example/nemosyne'),
+      'DATABASE_TLS_REQUIRED',
+    );
+    expectConfigurationError(
+      () => parsePostgresGovernanceConnectionProfileV1('postgresql://db.example/nemosyne?sslmode=disable'),
+      'DATABASE_TLS_REQUIRED',
+    );
 
     const profile = parsePostgresGovernanceConnectionProfileV1(
       'postgresql://db.example/nemosyne?sslmode=verify-full',
@@ -63,9 +76,10 @@ describe('PT4B9 PostgreSQL connection policy', () => {
   });
 
   it('permits insecure PostgreSQL only for an explicitly authorized local-development profile', () => {
-    expect(() => parsePostgresGovernanceConnectionProfileV1('postgresql://localhost/nemosyne')).toThrowErrorMatchingObject({
-      code: 'DATABASE_TLS_REQUIRED',
-    });
+    expectConfigurationError(
+      () => parsePostgresGovernanceConnectionProfileV1('postgresql://localhost/nemosyne'),
+      'DATABASE_TLS_REQUIRED',
+    );
     const profile = parsePostgresGovernanceConnectionProfileV1(
       'postgresql://localhost/nemosyne?sslmode=disable',
       { allowInsecureLocalDevelopment: true },
