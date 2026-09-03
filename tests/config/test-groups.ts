@@ -11,6 +11,7 @@ export const FAST_NODE_TESTS = [
   'tests/pt4b-consent-capture-authority.test.ts',
   'tests/pt4b-data-plane-auth.test.ts',
   'tests/pt4b-governance-http-surface.test.ts',
+  'tests/pt4b-governed-event-ingestion.test.ts',
   'tests/pt4b-oidc-jwks-authority.test.ts',
   'tests/q2-dataset-identity-cross-language-golden.test.ts',
   'tests/q2-dataset-identity-parity.test.ts',
