@@ -57,7 +57,6 @@ function choosePackage(): Promise<Uint8Array | null> {
 export class InvestigationContinuityPanel extends MovablePanel {
   private readonly continuity: InvestigationContinuityController;
   private busy = false;
-  private checkpointCount = 0;
   private hasCheckpoint = false;
   private canRecoverAutosave: boolean | null = null;
   status = 'Ready';
@@ -82,7 +81,6 @@ export class InvestigationContinuityPanel extends MovablePanel {
   async refreshContinuity(): Promise<void> {
     try {
       const summary = await this.continuity.summary();
-      this.checkpointCount = summary.checkpointCount;
       this.hasCheckpoint = Boolean(summary.latestCheckpoint);
       this.canRecoverAutosave = summary.canRecoverAutosave;
       this.status = summary.latestCheckpoint
