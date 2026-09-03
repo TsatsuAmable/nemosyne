@@ -64,30 +64,10 @@ interface RouteDefinition {
 }
 
 const ROUTES: readonly RouteDefinition[] = [
-  {
-    method: 'GET',
-    path: '/v1/governance/consents/product-analytics/current',
-    scope: 'consent:read',
-    action: 'current',
-  },
-  {
-    method: 'POST',
-    path: '/v1/governance/consents/product-analytics/grants',
-    scope: 'consent:write',
-    action: 'grant',
-  },
-  {
-    method: 'POST',
-    path: '/v1/governance/consents/product-analytics/revocations',
-    scope: 'consent:write',
-    action: 'revoke',
-  },
-  {
-    method: 'POST',
-    path: '/v1/governance/consents/product-analytics/capture-authorizations',
-    scope: 'events:capture',
-    action: 'capture',
-  },
+  { method: 'GET', path: '/v1/governance/consents/product-analytics/current', scope: 'consent:read', action: 'current' },
+  { method: 'POST', path: '/v1/governance/consents/product-analytics/grants', scope: 'consent:write', action: 'grant' },
+  { method: 'POST', path: '/v1/governance/consents/product-analytics/revocations', scope: 'consent:write', action: 'revoke' },
+  { method: 'POST', path: '/v1/governance/consents/product-analytics/capture-authorizations', scope: 'events:capture', action: 'capture' },
 ] as const;
 
 function jsonResponse(status: number, body: unknown, origin: string | null): GovernanceHttpResponseV1 {
@@ -207,13 +187,12 @@ export class GovernanceHttpService {
     const origin = this.authorizeOrigin(request.origin);
     if (request.method === 'OPTIONS') return this.preflight(request, origin);
 
-    if (!this.limiter.take(`source:${request.sourceId}`, SOURCE_WINDOW_LIMIT)) {
-      return errorResponse(429, 'RATE_LIMITED', origin);
-    }
-
     const route = ROUTES.find((candidate) => candidate.method === request.method && candidate.path === request.path);
     if (!route) return errorResponse(404, 'NOT_FOUND', origin);
-    if (request.authorizationValues.length !== 1) return errorResponse(401, 'AUTHENTICATION_REQUIRED', origin);
+    if (request.authorizationValues.length !== 1) {
+      const allowed = this.limiter.take(`unauthenticated:${request.sourceId}`, SOURCE_WINDOW_LIMIT);
+      return errorResponse(allowed ? 401 : 429, allowed ? 'AUTHENTICATION_REQUIRED' : 'RATE_LIMITED', origin);
+    }
     if (this.authenticatedInFlight >= MAX_AUTHENTICATED_IN_FLIGHT) return errorResponse(429, 'BUSY', origin);
 
     this.authenticatedInFlight += 1;
@@ -222,6 +201,8 @@ export class GovernanceHttpService {
       try {
         authenticated = await this.authenticator.authenticate(request.authorizationValues[0], route.scope);
       } catch (error) {
+        const allowed = this.limiter.take(`unauthenticated:${request.sourceId}`, SOURCE_WINDOW_LIMIT);
+        if (!allowed) return errorResponse(429, 'RATE_LIMITED', origin);
         if (error instanceof DataPlaneAuthError || error instanceof OidcJwksError) {
           return errorResponse(error instanceof DataPlaneAuthError && error.code === 'INSUFFICIENT_SCOPE' ? 403 : 401, 'AUTHENTICATION_REFUSED', origin);
         }
@@ -248,11 +229,7 @@ export class GovernanceHttpService {
         if (route.action === 'revoke') {
           return jsonResponse(200, this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
         }
-        return jsonResponse(
-          200,
-          this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1),
-          origin
-        );
+        return jsonResponse(200, this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1), origin);
       } catch (error) {
         if (error instanceof ProductAnalyticsAuthorityError) {
           const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT' ? 409 : error.code === 'CONSENT_REQUIRED' ? 403 : 400;
