@@ -34,9 +34,11 @@ const HEADER_TIMEOUT_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_CONNECTIONS = 128;
 const MAX_AUTHENTICATED_IN_FLIGHT = 64;
+const MAX_PRINCIPAL_IN_FLIGHT = 2;
 const SOURCE_WINDOW_MS = 60_000;
 const SOURCE_WINDOW_LIMIT = 30;
 const PRINCIPAL_CAPTURE_WINDOW_LIMIT = 60;
+const PRINCIPAL_BATCH_WINDOW_LIMIT = 12;
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
 
 export interface GovernanceHttpResponseV1 {
@@ -207,6 +209,7 @@ export class GovernanceHttpService {
   private readonly lifecycleAuthority: SqliteProductAnalyticsLifecycleAuthority | null;
   private readonly limiter: FixedWindowLimiter;
   private readonly requestId: () => string;
+  private readonly principalInFlight = new Map<string, number>();
   private authenticatedInFlight = 0;
 
   constructor(options: GovernanceHttpServiceOptions) {
@@ -248,47 +251,60 @@ export class GovernanceHttpService {
         return errorResponse(503, 'AUTHORITY_UNAVAILABLE', origin);
       }
 
-      const principal: AuthenticatedPrincipalV1 = Object.freeze({ issuer: authenticated.issuer, subject: authenticated.subject });
-      if (route.action === 'ingest') return this.ingestBatch(request, principal, origin);
-      if (route.action === 'capture' && !this.limiter.take(`capture:${authenticated.issuer}\n${authenticated.subject}`, PRINCIPAL_CAPTURE_WINDOW_LIMIT)) {
-        return errorResponse(429, 'RATE_LIMITED', origin);
-      }
-
+      const principalKey = `${authenticated.issuer}\n${authenticated.subject}`;
+      const activeForPrincipal = this.principalInFlight.get(principalKey) ?? 0;
+      if (activeForPrincipal >= MAX_PRINCIPAL_IN_FLIGHT) return errorResponse(429, 'BUSY', origin);
+      this.principalInFlight.set(principalKey, activeForPrincipal + 1);
       try {
-        if (route.action === 'current') return jsonResponse(200, this.consentAuthority.getCurrent(principal), origin);
-        if (request.contentEncoding !== null && request.contentEncoding !== 'identity') {
-          return errorResponse(415, 'CONTENT_ENCODING_REFUSED', origin);
+        const principal: AuthenticatedPrincipalV1 = Object.freeze({ issuer: authenticated.issuer, subject: authenticated.subject });
+        if (route.action === 'ingest') {
+          if (!this.limiter.take(`batch:${principalKey}`, PRINCIPAL_BATCH_WINDOW_LIMIT)) return errorResponse(429, 'RATE_LIMITED', origin);
+          return this.ingestBatch(request, principal, origin);
         }
-        if (request.contentType?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
-          return errorResponse(415, 'MEDIA_TYPE_REFUSED', origin);
+        if (route.action === 'capture' && !this.limiter.take(`capture:${principalKey}`, PRINCIPAL_CAPTURE_WINDOW_LIMIT)) {
+          return errorResponse(429, 'RATE_LIMITED', origin);
         }
-        const body = await this.readJson(request);
-        if (route.action === 'grant') return jsonResponse(200, this.consentAuthority.grant(principal, body as ProductAnalyticsGrantRequestV1), origin);
-        if (route.action === 'revoke') return jsonResponse(200, this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
-        if (route.action === 'capture') return jsonResponse(200, this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1), origin);
-        if (!this.lifecycleAuthority) return errorResponse(503, 'LIFECYCLE_UNAVAILABLE', origin);
-        if (route.action === 'export') {
-          const exported = this.lifecycleAuthority.exportRecords(principal, body as ProductAnalyticsExportRequestV1);
-          return ndjsonResponse(200, exported.body, origin);
+
+        try {
+          if (route.action === 'current') return jsonResponse(200, this.consentAuthority.getCurrent(principal), origin);
+          if (request.contentEncoding !== null && request.contentEncoding !== 'identity') {
+            return errorResponse(415, 'CONTENT_ENCODING_REFUSED', origin);
+          }
+          if (request.contentType?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
+            return errorResponse(415, 'MEDIA_TYPE_REFUSED', origin);
+          }
+          const body = await this.readJson(request);
+          if (route.action === 'grant') return jsonResponse(200, this.consentAuthority.grant(principal, body as ProductAnalyticsGrantRequestV1), origin);
+          if (route.action === 'revoke') return jsonResponse(200, this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
+          if (route.action === 'capture') return jsonResponse(200, this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1), origin);
+          if (!this.lifecycleAuthority) return errorResponse(503, 'LIFECYCLE_UNAVAILABLE', origin);
+          if (route.action === 'export') {
+            const exported = this.lifecycleAuthority.exportRecords(principal, body as ProductAnalyticsExportRequestV1);
+            return ndjsonResponse(200, exported.body, origin);
+          }
+          return jsonResponse(200, this.lifecycleAuthority.erase(principal, body as ProductAnalyticsErasureRequestV1), origin);
+        } catch (error) {
+          if (error instanceof ProductAnalyticsAuthorityError) {
+            const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT' ? 409 : error.code === 'CONSENT_REQUIRED' ? 403 : 400;
+            return errorResponse(status, error.code, origin);
+          }
+          if (error instanceof ProductAnalyticsLifecycleError) {
+            const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT'
+              ? 409
+              : error.code === 'EXPORT_LIMIT_REFUSED'
+                ? 413
+                : error.code === 'LIFECYCLE_UNHEALTHY'
+                  ? 503
+                  : 400;
+            return errorResponse(status, error.code, origin);
+          }
+          if (error instanceof SyntaxError || error instanceof TypeError) return errorResponse(400, 'INVALID_REQUEST', origin);
+          throw error;
         }
-        return jsonResponse(200, this.lifecycleAuthority.erase(principal, body as ProductAnalyticsErasureRequestV1), origin);
-      } catch (error) {
-        if (error instanceof ProductAnalyticsAuthorityError) {
-          const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT' ? 409 : error.code === 'CONSENT_REQUIRED' ? 403 : 400;
-          return errorResponse(status, error.code, origin);
-        }
-        if (error instanceof ProductAnalyticsLifecycleError) {
-          const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT'
-            ? 409
-            : error.code === 'EXPORT_LIMIT_REFUSED'
-              ? 413
-              : error.code === 'LIFECYCLE_UNHEALTHY'
-                ? 503
-                : 400;
-          return errorResponse(status, error.code, origin);
-        }
-        if (error instanceof SyntaxError || error instanceof TypeError) return errorResponse(400, 'INVALID_REQUEST', origin);
-        throw error;
+      } finally {
+        const remaining = (this.principalInFlight.get(principalKey) ?? 1) - 1;
+        if (remaining <= 0) this.principalInFlight.delete(principalKey);
+        else this.principalInFlight.set(principalKey, remaining);
       }
     } finally {
       this.authenticatedInFlight -= 1;
