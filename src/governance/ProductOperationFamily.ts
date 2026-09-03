@@ -117,62 +117,63 @@ export const PRODUCT_ANALYTICS_DATA_SERVICE_AUTHORITY_REFERENCE = immutableRefer
   )
 );
 
-export const PRODUCT_OPERATION_FAMILY_DEFINITION_V1: GovernedEventFamilyDefinitionV1Input =
-  Object.freeze({
-    familyId: PRODUCT_OPERATION_FAMILY_ID,
-    payloadSchemaVersion: '1',
-    purpose: GOVERNED_PURPOSES.PRODUCT_ANALYTICS,
-    dataClasses: Object.freeze([GOVERNED_DATA_CLASSES.PRODUCT_INTERACTION_METADATA]),
-    identityRequirements: Object.freeze({
-      profilePseudonymId: 'REQUIRED',
-      productSessionId: 'REQUIRED',
-      investigationId: 'FORBIDDEN',
-      discoveryEpisodeId: 'FORBIDDEN',
-    }),
-    datasetRequirement: 'FORBIDDEN',
-    runtimeRequirements: Object.freeze({
-      applicationBuild: 'REQUIRED',
-      deploymentConfiguration: 'REQUIRED',
-      wasmKernel: 'FORBIDDEN',
-      representationTreatment: 'FORBIDDEN',
-      monetaEngine: 'FORBIDDEN',
-      fitnessModel: 'FORBIDDEN',
-      nil: 'FORBIDDEN',
-      perceptionGestureTreatment: 'FORBIDDEN',
-      uiTreatment: 'REQUIRED',
-      platformRuntime: 'REQUIRED',
-    }),
-    requiredSeedNames: Object.freeze([]),
-    allowedModes: Object.freeze(['PRODUCT']),
-    allowedSourceComponents: Object.freeze([PRODUCT_OPERATION_SOURCE_COMPONENT]),
-    payloadSchema: Object.freeze({
-      type: 'object',
-      properties: Object.freeze({
-        operation: Object.freeze({
-          type: 'string',
-          minLength: 1,
-          maxLength: 32,
-          allowedValues: PRODUCT_OPERATION_VALUES,
-        }),
-      }),
-      required: Object.freeze(['operation']),
-    }),
-    maxPayloadBytes: 256,
-    retentionPolicy: Object.freeze({
-      schemaVersion: '1',
-      policy: PRODUCT_ANALYTICS_OPERATION_RETENTION_REFERENCE,
-    }),
-    authorizationRequirements: Object.freeze([
-      Object.freeze({
-        basis: 'CONSENT_RECEIPT',
-        authority: PRODUCT_ANALYTICS_DATA_SERVICE_AUTHORITY_REFERENCE,
-        policy: PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
-      }),
-    ]),
-    exportVisibility: 'GOVERNED_EXPORT',
-    revocationBehavior: 'DISCARD_QUEUED',
-    erasureReachability: 'REGISTERED_STORE',
-  });
+const productOperationFamilyDefinition: GovernedEventFamilyDefinitionV1Input = {
+  familyId: PRODUCT_OPERATION_FAMILY_ID,
+  payloadSchemaVersion: '1',
+  purpose: GOVERNED_PURPOSES.PRODUCT_ANALYTICS,
+  dataClasses: [GOVERNED_DATA_CLASSES.PRODUCT_INTERACTION_METADATA],
+  identityRequirements: {
+    profilePseudonymId: 'REQUIRED',
+    productSessionId: 'REQUIRED',
+    investigationId: 'FORBIDDEN',
+    discoveryEpisodeId: 'FORBIDDEN',
+  },
+  datasetRequirement: 'FORBIDDEN',
+  runtimeRequirements: {
+    applicationBuild: 'REQUIRED',
+    deploymentConfiguration: 'REQUIRED',
+    wasmKernel: 'FORBIDDEN',
+    representationTreatment: 'FORBIDDEN',
+    monetaEngine: 'FORBIDDEN',
+    fitnessModel: 'FORBIDDEN',
+    nil: 'FORBIDDEN',
+    perceptionGestureTreatment: 'FORBIDDEN',
+    uiTreatment: 'REQUIRED',
+    platformRuntime: 'REQUIRED',
+  },
+  requiredSeedNames: [],
+  allowedModes: ['PRODUCT'],
+  allowedSourceComponents: [PRODUCT_OPERATION_SOURCE_COMPONENT],
+  payloadSchema: {
+    type: 'object',
+    properties: {
+      operation: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 32,
+        allowedValues: PRODUCT_OPERATION_VALUES,
+      },
+    },
+    required: ['operation'],
+  },
+  maxPayloadBytes: 256,
+  retentionPolicy: {
+    schemaVersion: '1',
+    policy: PRODUCT_ANALYTICS_OPERATION_RETENTION_REFERENCE,
+  },
+  authorizationRequirements: [
+    {
+      basis: 'CONSENT_RECEIPT',
+      authority: PRODUCT_ANALYTICS_DATA_SERVICE_AUTHORITY_REFERENCE,
+      policy: PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
+    },
+  ],
+  exportVisibility: 'GOVERNED_EXPORT',
+  revocationBehavior: 'DISCARD_QUEUED',
+  erasureReachability: 'REGISTERED_STORE',
+};
+
+export const PRODUCT_OPERATION_FAMILY_DEFINITION_V1 = Object.freeze(productOperationFamilyDefinition);
 
 /** The explicit first-family registry. It is not the default for unrelated producers. */
 export const PRODUCT_GOVERNED_EVENT_REGISTRY_V1 = createGovernedEventRegistryV1([
