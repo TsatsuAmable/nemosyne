@@ -2,18 +2,25 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { NemosynePackageManager } from '../../src/session/NemosynePackage.ts';
 
-async function openReplayCommand(page: Page): Promise<void> {
+async function openPortableCommand(page: Page, bytes: Uint8Array): Promise<void> {
   await page.evaluate(() => {
     const palette = document.querySelector('nms-command-palette') as HTMLElement & { show?: () => void };
     palette?.show?.();
   });
   const search = page.locator('nms-command-palette .search-input');
   await expect(search).toBeVisible();
-  await search.fill('Replay investigation');
+  await search.fill('Open .nemosyne');
+  const chooserPromise = page.waitForEvent('filechooser');
   await page.keyboard.press('Enter');
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
+    name: 'investigation.nemosyne',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(bytes),
+  });
 }
 
-test('desktop investigation shell completes the visible evidence and export/replay path', async ({ page }) => {
+test('desktop investigation shell completes the visible evidence and export/reopen path', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#investigation-shell')).toBeVisible();
   await expect(page.locator('#status-message')).toHaveText('Ready');
@@ -46,27 +53,18 @@ test('desktop investigation shell completes the visible evidence and export/repl
   const download = page.waitForEvent('download');
   await page.locator('#export-btn').click();
   const artifact = await download;
-  expect(artifact.suggestedFilename()).toBe('nemosyne-investigation.nemosyne');
+  expect(artifact.suggestedFilename()).toMatch(/^nemosyne-investigation-\d{4}-\d{2}-\d{2}\.nemosyne$/);
   const artifactPath = await artifact.path();
   expect(artifactPath).not.toBeNull();
   const validPackage = new Uint8Array(await readFile(artifactPath!));
-  await expect(page.locator('#status-message')).toContainText('Investigation exported');
+  const continuityFeedback = page.locator('#continuity-feedback');
+  await expect(continuityFeedback).toContainText('Portable investigation ready');
 
-  await openReplayCommand(page);
-  const replayModal = page.locator('nms-modal[title="Replay Investigation"]');
-  await expect(replayModal).toHaveAttribute('open', '');
-  const packageInput = replayModal.locator('#package-input');
-  const replayButton = replayModal.locator('#replay-btn');
-  const replayStatus = replayModal.locator('#replay-status');
-
-  await packageInput.setInputFiles({
-    name: 'verified.nemosyne',
-    mimeType: 'application/zip',
-    buffer: Buffer.from(validPackage),
-  });
-  await expect(replayButton).toBeEnabled();
-  await replayButton.click();
-  await expect(replayStatus).toContainText(/Replay verified|Replay verification failed/, { timeout: 15_000 });
+  await openPortableCommand(page, validPackage);
+  await expect(continuityFeedback).toContainText(
+    /Investigation opened and verified|Verification failed/,
+    { timeout: 15_000 },
+  );
 
   const payload = NemosynePackageManager.unpack(validPackage);
   const tamperedPackage = NemosynePackageManager.pack({
@@ -76,12 +74,8 @@ test('desktop investigation shell completes the visible evidence and export/repl
       investigationDigest: 'tampered-investigation-digest',
     },
   });
-  await packageInput.setInputFiles({
-    name: 'tampered.nemosyne',
-    mimeType: 'application/zip',
-    buffer: Buffer.from(tamperedPackage),
-  });
-  await replayButton.click();
-  await expect(replayStatus).toContainText('Replay verification failed', { timeout: 15_000 });
-  await expect(replayStatus).toContainText('Source investigation unchanged');
+  const datasetBeforeTamper = await page.locator('#dataset-indicator').textContent();
+  await openPortableCommand(page, tamperedPackage);
+  await expect(continuityFeedback).toContainText('Verification failed', { timeout: 15_000 });
+  expect(await page.locator('#dataset-indicator').textContent()).toBe(datasetBeforeTamper);
 });

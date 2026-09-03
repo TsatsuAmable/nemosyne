@@ -156,11 +156,11 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     s4,
   );
 
-  // S5 — portable export + replay through the actual command-palette route.
+  // S5 — portable export + verified reopen through the actual command-palette route.
   const download = page.waitForEvent('download');
   await page.locator('#export-btn').click();
   const artifact = await download;
-  expect(artifact.suggestedFilename()).toBe('nemosyne-investigation.nemosyne');
+  expect(artifact.suggestedFilename()).toMatch(/^nemosyne-investigation-\d{4}-\d{2}-\d{2}\.nemosyne$/);
   const artifactPath = await artifact.path();
   expect(artifactPath).not.toBeNull();
   const packageBytes = await readFile(artifactPath!);
@@ -170,27 +170,25 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     palette?.show?.();
   });
   const paletteSearch = page.locator('nms-command-palette .search-input');
-  await paletteSearch.fill('Replay investigation');
+  await paletteSearch.fill('Open .nemosyne');
+  const chooserPromise = page.waitForEvent('filechooser');
   await page.keyboard.press('Enter');
-
-  const replayModal = page.locator('nms-modal[title="Replay Investigation"]');
-  await expect(replayModal).toHaveAttribute('open', '');
-  await replayModal.locator('#package-input').setInputFiles({
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
     name: 'verified.nemosyne',
     mimeType: 'application/zip',
     buffer: Buffer.from(packageBytes),
   });
-  await replayModal.locator('#replay-btn').click();
 
+  const continuityFeedback = page.locator('#continuity-feedback');
   const s5 = (await snapshot(page)) as Uv0RuntimeSnapshot;
-  const replayStatus = replayModal.locator('#replay-status');
   let s5Outcome: string;
   if (s5.kernelAvailable === false) {
-    await expect(replayStatus).toContainText('Replay verification failed', { timeout: 15_000 });
-    s5Outcome = 'kernel-unavailable: replay not baselined in this environment';
+    await expect(continuityFeedback).toContainText('Verification failed', { timeout: 15_000 });
+    s5Outcome = 'kernel-unavailable: portable reopen not baselined in this environment';
   } else {
-    await expect(replayStatus).toContainText('Replay verified', { timeout: 15_000 });
-    s5Outcome = 'replay-verified';
+    await expect(continuityFeedback).toContainText('Investigation opened and verified', { timeout: 15_000 });
+    s5Outcome = 'portable-reopen-verified';
   }
   await captureState(page, capturedStates, '05-replay', s5Outcome, s5);
 

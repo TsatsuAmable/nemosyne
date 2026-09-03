@@ -35,8 +35,8 @@ test.describe('post-UI fix-forward falsifiers', () => {
     const palette = page.locator('nms-command-palette');
     await expect(palette).toHaveAttribute('open', '');
     const input = palette.locator('.search-input');
-    await input.fill('replay');
-    await expect(palette).toContainText('Replay investigation');
+    await input.fill('open .nemosyne');
+    await expect(palette).toContainText('Open .nemosyne');
     await expect(palette).not.toContainText('Explore another dataset');
 
     await page.keyboard.press('Escape');
@@ -45,7 +45,7 @@ test.describe('post-UI fix-forward falsifiers', () => {
     await page.keyboard.press(shortcut);
     await expect(palette).toHaveAttribute('open', '');
     await expect(palette.locator('.search-input')).toHaveValue('');
-    await expect(palette).toContainText('Replay investigation');
+    await expect(palette).toContainText('Open .nemosyne');
     await expect(palette).toContainText('Explore another dataset');
     await expect(palette).toContainText('Find anomalies');
   });
