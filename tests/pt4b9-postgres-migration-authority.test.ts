@@ -26,7 +26,7 @@ class FakePostgres implements PostgresPoolV1, PostgresClientV1 {
 
   async end(): Promise<void> {}
 
-  async query<Row extends Record<string, unknown> = Record<string, unknown>>(
+  async query<Row = Record<string, unknown>>(
     text: string,
     values: readonly unknown[] = [],
   ): Promise<PostgresQueryResultV1<Row>> {
