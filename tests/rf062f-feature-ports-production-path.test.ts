@@ -41,7 +41,7 @@ describe('RF-062F production feature ports', () => {
     world = new World();
     const sample = getSampleDataset('sales-table');
     if (!sample) throw new Error('sales-table sample is required');
-    const loadDataset = vi.spyOn(world, 'loadDataset').mockImplementation(() => {});
+    const loadDataset = vi.spyOn(world, 'loadDataset').mockImplementation(async () => {});
     world.liveStreamCoordinator.liveConnector = {
       topology: 'TIME_SERIES',
       windowSize: 50,
