@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE, PRODUCT_OPERATION_FAMILY_ID } from '../src/governance/index.ts';
+import {
+  PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
+  PRODUCT_OPERATION_FAMILY_ID,
+} from '../src/governance/index.ts';
 import {
   ProductAnalyticsAuthorityError,
   SqliteProductAnalyticsConsentAuthority,
@@ -18,8 +21,14 @@ const PRINCIPAL: AuthenticatedPrincipalV1 = Object.freeze({
   subject: 'subject-123',
 });
 
-const PURPOSE_KEY = Object.freeze({ version: 'k1', key: Uint8Array.from({ length: 32 }, (_, i) => i) });
-const DELETION_KEY = Object.freeze({ version: 'd1', key: Uint8Array.from({ length: 32 }, (_, i) => 255 - i) });
+const PURPOSE_KEY = Object.freeze({
+  version: 'k1',
+  key: Uint8Array.from({ length: 32 }, (_, i) => i),
+});
+const DELETION_KEY = Object.freeze({
+  version: 'd1',
+  key: Uint8Array.from({ length: 32 }, (_, i) => 255 - i),
+});
 
 const temporaryDirectories: string[] = [];
 
@@ -43,7 +52,10 @@ function deterministicUuidFactory(): () => string {
   };
 }
 
-function createOptions(dataDirectory: string, now = new Date('2026-09-03T04:00:00.000Z')): ProductAnalyticsConsentAuthorityOptions {
+function createOptions(
+  dataDirectory: string,
+  now = new Date('2026-09-03T04:00:00.000Z')
+): ProductAnalyticsConsentAuthorityOptions {
   return {
     dataDirectory,
     purposePseudonymKey: PURPOSE_KEY,
@@ -54,7 +66,10 @@ function createOptions(dataDirectory: string, now = new Date('2026-09-03T04:00:0
   };
 }
 
-function grantRequest(actionId = '11111111-1111-4111-8111-111111111111', expectedPriorRevision: string | null = null) {
+function grantRequest(
+  actionId = '11111111-1111-4111-8111-111111111111',
+  expectedPriorRevision: string | null = null
+) {
   return {
     schemaVersion: '1' as const,
     purpose: 'product-analytics' as const,
@@ -65,7 +80,10 @@ function grantRequest(actionId = '11111111-1111-4111-8111-111111111111', expecte
   };
 }
 
-function captureRequest(eventId = '22222222-2222-4222-8222-222222222222', streamSequence = 0) {
+function captureRequest(
+  eventId = '22222222-2222-4222-8222-222222222222',
+  streamSequence = 0
+) {
   return {
     schemaVersion: '1' as const,
     familyId: PRODUCT_OPERATION_FAMILY_ID,
@@ -91,7 +109,9 @@ describe('PT4B2 durable product analytics consent/capture authority', () => {
     expect(derivePurposePseudonymV1(PRINCIPAL, 'product-analytics', PURPOSE_KEY)).toBe(
       'ppv1_k1_21c135cf2ec5ade8d7d9483d69ca18a5a59b7475fe8ba4576055f890fa1b65dc'
     );
-    expect(derivePurposePseudonymV1({ issuer: 'ab', subject: 'c' }, 'product-analytics', PURPOSE_KEY)).not.toBe(
+    expect(
+      derivePurposePseudonymV1({ issuer: 'ab', subject: 'c' }, 'product-analytics', PURPOSE_KEY)
+    ).not.toBe(
       derivePurposePseudonymV1({ issuer: 'a', subject: 'bc' }, 'product-analytics', PURPOSE_KEY)
     );
   });
@@ -136,11 +156,22 @@ describe('PT4B2 durable product analytics consent/capture authority', () => {
     const authority = new SqliteProductAnalyticsConsentAuthority(createOptions(createDirectory()));
     const request = grantRequest();
     const first = authority.grant(PRINCIPAL, request);
-    expect(authority.grant(PRINCIPAL, request)).toEqual(first);
+    const retry = authority.grant(PRINCIPAL, request);
+    expect(retry).toEqual(first);
+    expect(Object.isFrozen(retry)).toBe(true);
+    expect(Object.isFrozen(retry.receipt)).toBe(true);
+    expect(Object.isFrozen(retry.receipt?.digest)).toBe(true);
 
-    expectAuthorityError(() => authority.grant(PRINCIPAL, grantRequest(request.actionId, '1')), 'ACTION_ID_CONFLICT');
     expectAuthorityError(
-      () => authority.grant(PRINCIPAL, grantRequest('55555555-5555-4555-8555-555555555555', null)),
+      () => authority.grant(PRINCIPAL, grantRequest(request.actionId, '1')),
+      'ACTION_ID_CONFLICT'
+    );
+    expectAuthorityError(
+      () =>
+        authority.grant(
+          PRINCIPAL,
+          grantRequest('55555555-5555-4555-8555-555555555555', null)
+        ),
       'CONSENT_REVISION_CONFLICT'
     );
     authority.close();
@@ -158,15 +189,37 @@ describe('PT4B2 durable product analytics consent/capture authority', () => {
       actionId: '66666666-6666-4666-8666-666666666666',
       expectedCurrentRevision: '1',
     });
-    expect(revoked).toMatchObject({ status: 'DENIED', revision: '2', receipt: null, profilePseudonymId: null });
+    expect(revoked).toMatchObject({
+      status: 'DENIED',
+      revision: '2',
+      receipt: null,
+      profilePseudonymId: null,
+    });
     expectAuthorityError(
-      () => authority.authorizeCapture(PRINCIPAL, captureRequest('77777777-7777-4777-8777-777777777777')),
+      () =>
+        authority.authorizeCapture(
+          PRINCIPAL,
+          captureRequest('77777777-7777-4777-8777-777777777777')
+        ),
       'CONSENT_REQUIRED'
+    );
+
+    authority.grant(
+      PRINCIPAL,
+      grantRequest('88888888-8888-4888-8888-888888888888', '2')
+    );
+    expectAuthorityError(
+      () => authority.authorizeCapture(PRINCIPAL, captureRequest()),
+      'ACTION_ID_CONFLICT'
     );
     authority.close();
 
     const db = new DatabaseSync(join(directory, 'governance.sqlite'), { readOnly: true });
-    const revisions = db.prepare('SELECT revision, status, receipt_json FROM product_analytics_consent_revisions ORDER BY revision').all() as Array<{
+    const revisions = db
+      .prepare(
+        'SELECT revision, status, receipt_json FROM product_analytics_consent_revisions ORDER BY revision'
+      )
+      .all() as Array<{
       revision: number;
       status: string;
       receipt_json: string | null;
@@ -174,11 +227,14 @@ describe('PT4B2 durable product analytics consent/capture authority', () => {
     expect(revisions.map(({ revision, status }) => ({ revision, status }))).toEqual([
       { revision: 1, status: 'GRANTED' },
       { revision: 2, status: 'DENIED' },
+      { revision: 3, status: 'GRANTED' },
     ]);
     expect(revisions[0]?.receipt_json).toContain(grant.receipt?.id);
     expect(revisions[1]?.receipt_json).toBeNull();
     const storedCapture = db
-      .prepare('SELECT authorization_id, invalidated_at FROM product_analytics_capture_authorizations WHERE event_id = ?')
+      .prepare(
+        'SELECT authorization_id, invalidated_at FROM product_analytics_capture_authorizations WHERE event_id = ?'
+      )
       .get(capture.eventId) as { authorization_id: string; invalidated_at: string | null };
     expect(storedCapture.authorization_id).toBe(capture.authorizationId);
     expect(storedCapture.invalidated_at).not.toBeNull();
@@ -200,11 +256,20 @@ describe('PT4B2 durable product analytics consent/capture authority', () => {
       authorizedAt: '2026-09-03T04:00:00.000Z',
       expiresAt: '2026-09-03T04:00:30.000Z',
     });
-    expect(authority.authorizeCapture(PRINCIPAL, request)).toEqual(authorization);
-    expectAuthorityError(() => authority.authorizeCapture(PRINCIPAL, { ...request, streamSequence: 1 }), 'ACTION_ID_CONFLICT');
+    const retry = authority.authorizeCapture(PRINCIPAL, request);
+    expect(retry).toEqual(authorization);
+    expect(Object.isFrozen(retry)).toBe(true);
+    expect(Object.isFrozen(retry.receipt)).toBe(true);
+    expectAuthorityError(
+      () => authority.authorizeCapture(PRINCIPAL, { ...request, streamSequence: 1 }),
+      'ACTION_ID_CONFLICT'
+    );
 
     const otherPrincipal = { issuer: PRINCIPAL.issuer, subject: 'different-subject' };
-    expectAuthorityError(() => authority.authorizeCapture(otherPrincipal, request), 'CONSENT_REQUIRED');
+    expectAuthorityError(
+      () => authority.authorizeCapture(otherPrincipal, request),
+      'CONSENT_REQUIRED'
+    );
     authority.close();
   });
 
@@ -248,7 +313,11 @@ describe('PT4B2 durable product analytics consent/capture authority', () => {
       'INVALID_REQUEST'
     );
     expectAuthorityError(
-      () => authority.authorizeCapture(PRINCIPAL, { ...captureRequest(), eventId: 'not-a-uuid' }),
+      () =>
+        authority.authorizeCapture(PRINCIPAL, {
+          ...captureRequest(),
+          eventId: 'not-a-uuid',
+        }),
       'INVALID_REQUEST'
     );
     authority.close();
