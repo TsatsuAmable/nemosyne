@@ -1,5 +1,8 @@
 export * from './types.ts';
-export * from './ConstraintEngine.ts';
+// ConstraintEngine is intentionally not part of the production Moneta barrel.
+// It is a bounded compatibility/internal solver whose raw-input seam is gated
+// by an authoritative FactProvider. Production representation selection uses
+// the governed Moneta decision/evidence surfaces below.
 export * from './VRTopologyTranslator.ts';
 export * from './MonetaTopologyNode.ts';
 export * from './SpatialStrategy.ts';
