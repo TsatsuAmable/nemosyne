@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE } from '../src/governance/index.ts';
 import { SqliteProductAnalyticsConsentAuthority, type AuthenticatedPrincipalV1 } from '../src/governance-service/ProductAnalyticsConsentAuthority.ts';
 import { SqliteProductAnalyticsEventIngestion } from '../src/governance-service/ProductAnalyticsEventIngestion.ts';
 import { SqliteProductAnalyticsLifecycleAuthority } from '../src/governance-service/ProductAnalyticsLifecycleAuthority.ts';
@@ -64,7 +65,7 @@ describe('PT4B7 lifecycle restart durability', () => {
     const granted = consent.grant(PRINCIPAL, {
       schemaVersion: '1',
       purpose: 'product-analytics',
-      notice: (await import('../src/governance/index.ts')).PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
+      notice: PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
       confirmed: true,
       actionId: '11111111-1111-4111-8111-111111111111',
       expectedPriorRevision: null,
