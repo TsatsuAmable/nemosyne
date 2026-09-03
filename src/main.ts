@@ -1,5 +1,6 @@
 import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
 import { bootstrapApp } from './app/index.ts';
+import { installConfiguredProductAnalyticsClient } from './app/governance/installProductAnalyticsClient.ts';
 import { injectCssVariables } from './vr/ui-system/tokens.ts';
 
 if (import.meta.env.DEV) {
@@ -27,4 +28,23 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
   handleFatalError(e.reason);
 });
 
-bootstrapApp().catch(handleFatalError);
+async function start(): Promise<void> {
+  const app = await bootstrapApp();
+  const productAnalytics = await installConfiguredProductAnalyticsClient(app.world.eventBus);
+  if (!productAnalytics) return;
+
+  const authorize = (): void => { void productAnalytics.beginAuthorization().catch(handleFatalError); };
+  const revokeObserved = (): void => productAnalytics.discardQueuedOnRevocation();
+  const clearCredentials = (): void => productAnalytics.clearCredentials();
+  window.addEventListener('nemosyne:product-analytics-authorize', authorize);
+  window.addEventListener('nemosyne:product-analytics-revoked', revokeObserved);
+  window.addEventListener('nemosyne:product-analytics-signout', clearCredentials);
+  app.world.registerExtensionDisposer(() => {
+    window.removeEventListener('nemosyne:product-analytics-authorize', authorize);
+    window.removeEventListener('nemosyne:product-analytics-revoked', revokeObserved);
+    window.removeEventListener('nemosyne:product-analytics-signout', clearCredentials);
+    productAnalytics.dispose();
+  });
+}
+
+void start().catch(handleFatalError);
