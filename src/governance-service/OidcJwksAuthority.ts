@@ -5,6 +5,8 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 const MAX_CACHE_AGE_MS = 60 * 60 * 1000;
 const MAX_JWKS_KEYS = 64;
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
+const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'] as const;
+const SUPPORTED_JWK_ALGORITHMS = new Set<DataPlaneJwsAlgorithm>(['RS256', 'ES256', 'EdDSA']);
 
 export type OidcJwksErrorCode =
   | 'JWKS_CONFIGURATION_INVALID'
@@ -81,15 +83,29 @@ function validateJwksUri(value: unknown): string {
   }
 }
 
-function isPublicVerificationJwk(jwk: JsonWebKey, algorithm: DataPlaneJwsAlgorithm): boolean {
+function hasPrivateMaterial(jwk: JsonWebKey): boolean {
+  const record = jwk as JsonWebKey & Record<string, unknown>;
+  return PRIVATE_JWK_FIELDS.some((field) => record[field] !== undefined);
+}
+
+function isSupportedPublicSigningJwk(jwk: JsonWebKey): boolean {
   if (typeof jwk.kid !== 'string' || jwk.kid.length === 0 || jwk.kid.length > 256) return false;
-  if (typeof jwk.d === 'string' && jwk.d.length > 0) return false;
+  if (hasPrivateMaterial(jwk)) return false;
   if (jwk.use !== undefined && jwk.use !== 'sig') return false;
   if (jwk.key_ops !== undefined && (!Array.isArray(jwk.key_ops) || !jwk.key_ops.includes('verify'))) return false;
+  if (jwk.alg !== undefined && !SUPPORTED_JWK_ALGORITHMS.has(jwk.alg as DataPlaneJwsAlgorithm)) return false;
+  if (jwk.kty === 'RSA') return typeof jwk.n === 'string' && typeof jwk.e === 'string';
+  if (jwk.kty === 'EC') return jwk.crv === 'P-256' && typeof jwk.x === 'string' && typeof jwk.y === 'string';
+  if (jwk.kty === 'OKP') return jwk.crv === 'Ed25519' && typeof jwk.x === 'string';
+  return false;
+}
+
+function isPublicVerificationJwk(jwk: JsonWebKey, algorithm: DataPlaneJwsAlgorithm): boolean {
+  if (!isSupportedPublicSigningJwk(jwk)) return false;
   if (jwk.alg !== undefined && jwk.alg !== algorithm) return false;
-  if (algorithm === 'RS256') return jwk.kty === 'RSA' && typeof jwk.n === 'string' && typeof jwk.e === 'string';
-  if (algorithm === 'ES256') return jwk.kty === 'EC' && jwk.crv === 'P-256' && typeof jwk.x === 'string' && typeof jwk.y === 'string';
-  return jwk.kty === 'OKP' && jwk.crv === 'Ed25519' && typeof jwk.x === 'string';
+  if (algorithm === 'RS256') return jwk.kty === 'RSA';
+  if (algorithm === 'ES256') return jwk.kty === 'EC' && jwk.crv === 'P-256';
+  return jwk.kty === 'OKP' && jwk.crv === 'Ed25519';
 }
 
 export class OidcJwksAuthority implements DataPlaneJwkResolver {
@@ -155,16 +171,13 @@ export class OidcJwksAuthority implements DataPlaneJwkResolver {
         throw new OidcJwksError('JWKS_REFUSED', 'every JWKS key must be an object');
       }
       const jwk = candidate as JsonWebKey;
-      if (typeof jwk.kid !== 'string' || jwk.kid.length === 0 || jwk.kid.length > 256) {
-        throw new OidcJwksError('JWKS_REFUSED', 'every JWKS key requires a bounded kid');
+      if (!isSupportedPublicSigningJwk(jwk)) {
+        throw new OidcJwksError('JWKS_REFUSED', 'JWKS contains private, non-signing or unsupported key material');
       }
-      if (keys.has(jwk.kid)) {
+      if (keys.has(jwk.kid!)) {
         throw new OidcJwksError('JWKS_REFUSED', 'duplicate JWKS kid is ambiguous');
       }
-      if (typeof jwk.d === 'string' && jwk.d.length > 0) {
-        throw new OidcJwksError('JWKS_REFUSED', 'private JWK material is forbidden');
-      }
-      keys.set(jwk.kid, Object.freeze({ ...jwk }));
+      keys.set(jwk.kid!, Object.freeze({ ...jwk }));
     }
 
     this.cache = Object.freeze({ fetchedAt: this.now(), keys });
