@@ -95,9 +95,13 @@ function decodeBase64Url(segment: string): Uint8Array {
     throw new DataPlaneAuthError('INVALID_TOKEN', 'JWT segment is not canonical base64url text');
   }
   try {
-    return Buffer.from(segment, 'base64url');
+    const decoded = Buffer.from(segment, 'base64url');
+    if (decoded.toString('base64url') !== segment) {
+      throw new Error('non-canonical encoding');
+    }
+    return decoded;
   } catch {
-    throw new DataPlaneAuthError('INVALID_TOKEN', 'JWT segment cannot be decoded');
+    throw new DataPlaneAuthError('INVALID_TOKEN', 'JWT segment cannot be decoded canonically');
   }
 }
 
@@ -193,11 +197,15 @@ function verifyJws(
   signingInput: Uint8Array,
   signature: Uint8Array
 ): boolean {
-  if (algorithm === 'RS256') return verifySignature('RSA-SHA256', signingInput, key, signature);
-  if (algorithm === 'ES256') {
-    return verifySignature('sha256', signingInput, { key, dsaEncoding: 'ieee-p1363' }, signature);
+  try {
+    if (algorithm === 'RS256') return verifySignature('RSA-SHA256', signingInput, key, signature);
+    if (algorithm === 'ES256') {
+      return verifySignature('sha256', signingInput, { key, dsaEncoding: 'ieee-p1363' }, signature);
+    }
+    return verifySignature(null, signingInput, key, signature);
+  } catch {
+    return false;
   }
-  return verifySignature(null, signingInput, key, signature);
 }
 
 function lengthFrame(values: readonly string[]): Buffer {
