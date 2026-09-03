@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "policy": "Every non-development capability must have a production runtime entry point, a user/service discovery marker, and product-path evidence. Development-only exceptions must be explicit and may not leak misleading public production exports.",
+  "capabilities": [
+    {
+      "id": "webxr-runtime",
+      "classification": "production",
+      "sources": ["src/vr/Engine.ts", "src/vr/World.ts"],
+      "entrypoints": ["src/main.ts"],
+      "discovery": [{ "path": "src/main.ts", "contains": "bootstrapApp" }],
+      "evidence": ["playwright.config.ts"]
+    },
+    {
+      "id": "analytical-runtime",
+      "classification": "production",
+      "sources": ["src/atlas/AtlasCore.ts", "src/vr/runtime/AnalyticalRuntimeOwner.ts", "src/wasm/RuntimeBridge.ts"],
+      "entrypoints": ["src/vr/World.ts"],
+      "discovery": [{ "path": "src/vr/World.ts", "contains": "new AnalyticalRuntimeOwner" }],
+      "evidence": ["tests/production-runtime-wiring.test.ts"]
+    },
+    {
+      "id": "moneta-representation",
+      "classification": "production",
+      "sources": ["src/moneta", "src/vr/presentation/representation/RepresentationSurface.ts"],
+      "entrypoints": ["src/vr/World.ts"],
+      "discovery": [{ "path": "src/vr/World.ts", "contains": "RepresentationSurface" }],
+      "evidence": ["tests/representation-topology-node.test.ts"]
+    },
+    {
+      "id": "investigation-session-replay",
+      "classification": "production",
+      "sources": ["src/session/NemosyneSession.ts", "src/session/InvestigationReplayRunner.ts", "src/session/NemosynePackage.ts"],
+      "entrypoints": ["src/vr/World.ts"],
+      "discovery": [{ "path": "src/vr/World.ts", "contains": "InvestigationReplayRunner" }],
+      "evidence": ["tests/production-runtime-wiring.test.ts"]
+    },
+    {
+      "id": "memory-palace",
+      "classification": "production",
+      "sources": ["src/memory", "src/vr/presentation/epistemic/MemoryPalaceWorldView.ts"],
+      "entrypoints": ["src/vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts"],
+      "discovery": [{ "path": "src/vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts", "contains": "MemoryPalaceWorldView" }],
+      "evidence": ["tests/smoke/p1uv-c1-functional-world-objects.spec.ts"]
+    },
+    {
+      "id": "gesture-intelligence",
+      "classification": "production",
+      "sources": ["modules/gesture-intelligence", "src/vr/input/GestureIntelligenceAdapter.ts"],
+      "entrypoints": ["src/vr/coordinators/WorldInputCoordinator.ts"],
+      "discovery": [{ "path": "src/vr/coordinators/WorldInputCoordinator.ts", "contains": "new GestureIntelligenceAdapter" }],
+      "evidence": ["tests/gesture-integration.test.ts"]
+    },
+    {
+      "id": "nemosyne-data-corpus",
+      "classification": "production",
+      "sources": ["src/data/connectors/GitHubCorpusConnector.ts"],
+      "entrypoints": ["src/ui/FileLoader.ts"],
+      "discovery": [{ "path": "src/ui/FileLoader.ts", "contains": "GitHubCorpusConnector" }],
+      "evidence": ["tests/github-corpus-connector.test.ts"]
+    },
+    {
+      "id": "collaboration-client",
+      "classification": "experimental-production",
+      "sources": ["src/network/NetworkManager.ts", "src/vr/coordinators/CollaborationCoordinator.ts"],
+      "entrypoints": ["src/vr/World.ts"],
+      "discovery": [{ "path": "src/vr/World.ts", "contains": "CollaborationCoordinator" }],
+      "evidence": ["tests/smoke/collaboration-harness.ts"],
+      "note": "Client path is production-composed; deployed signalling-service qualification remains RF-054/P1-W service work."
+    },
+    {
+      "id": "live-ingest",
+      "classification": "experimental-production",
+      "sources": ["src/vr/coordinators/LiveStreamCoordinator.ts", "src/data/connectors/WebSocketAdapter.ts", "src/data/connectors/PollingAdapter.ts"],
+      "entrypoints": ["src/vr/World.ts"],
+      "discovery": [{ "path": "src/vr/World.ts", "contains": "LiveStreamCoordinator" }],
+      "evidence": ["tests/rf062f-feature-ports-production-path.test.ts"],
+      "note": "Configured live sources are product paths; bundled demo-stream deployment remains RF-054/P1-W service work."
+    },
+    {
+      "id": "study-harness",
+      "classification": "development-only",
+      "sources": ["src/study"],
+      "reason": "Research protocol and validation instrumentation, not part of the ordinary investigator runtime. Its dedicated barrel is intentionally non-product."
+    },
+    {
+      "id": "multimodal-perception-engine",
+      "classification": "development-only",
+      "sources": ["src/vr/perception/MultimodalPerceptionEnvelope.ts"],
+      "reason": "Dormant experimental perception model awaiting an evidence-backed product integration."
+    },
+    {
+      "id": "rust-scene-command-buffer",
+      "classification": "development-only",
+      "sources": ["src/wasm/CommandApplier.ts", "wasm/src/command_buffer.rs"],
+      "reason": "Deliberately dormant until headset evidence warrants CAP_SCENE_RUST/CAP_COMMAND_BUFFER.",
+      "forbiddenPublicExports": [{ "path": "src/wasm/index.ts", "symbols": ["CommandApplier", "COMMAND_MAGIC", "COMMAND_VERSION", "ParsedCommand"] }]
+    },
+    {
+      "id": "legacy-collaborative-state-sync",
+      "classification": "development-only",
+      "sources": ["src/network/CollaborativeStateSync.ts"],
+      "reason": "Superseded by NetworkManager plus CollaborationCoordinator; retained only for legacy tests until deletion.",
+      "forbiddenPublicExports": [{ "path": "src/network/index.ts", "symbols": ["CollaborativeStateSync"] }]
+    },
+    {
+      "id": "legacy-network-shared-annotations",
+      "classification": "development-only",
+      "sources": ["src/network/SharedAnnotationManager.ts"],
+      "reason": "Superseded by the live VR interaction annotation authority; retained only for legacy tests until deletion.",
+      "forbiddenPublicExports": [{ "path": "src/network/index.ts", "symbols": ["SharedAnnotationManager"] }]
+    },
+    {
+      "id": "shareable-session-url",
+      "classification": "development-only",
+      "sources": ["src/session/ShareableSessionURL.ts"],
+      "reason": "Legacy lightweight URL prototype; .nemosyne packaging is the governed portable investigation product path.",
+      "forbiddenPublicExports": [{ "path": "src/session/index.ts", "symbols": ["ShareableSessionURL", "ShareableSessionPayload"] }]
+    },
+    {
+      "id": "color-palette-engine",
+      "classification": "development-only",
+      "sources": ["src/data/ColorPaletteEngine.ts"],
+      "reason": "Standalone palette experiment not consumed by the production encoding or UI token paths.",
+      "forbiddenPublicExports": [{ "path": "src/data/index.ts", "symbols": ["ColorPaletteEngine", "CVDMode", "PaletteColor"] }]
+    },
+    {
+      "id": "flatbuffers-prototype",
+      "classification": "development-only",
+      "sources": ["src/data/serializers/FlatBuffersSerializer.ts"],
+      "reason": "Hand-rolled Nemosyne row buffer, not FlatBuffers interoperability; kept only for legacy tests pending deletion/rename.",
+      "forbiddenPublicExports": [{ "path": "src/data/serializers/index.ts", "symbols": ["datasetToFlatBuffer", "flatBufferToDataset"] }]
+    },
+    {
+      "id": "learned-fitness-training",
+      "classification": "development-only",
+      "sources": ["src/fitness/FitnessModelRegistry.ts", "src/fitness/PairwiseLearning.ts", "src/app/JudgementFeatureTransaction.ts"],
+      "reason": "Empirical training/promotion machinery is research-only until a promoted artifact and operator workflow are intentionally activated in the product composition root."
+    }
+  ]
+}
