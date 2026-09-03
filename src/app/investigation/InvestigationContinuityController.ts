@@ -32,6 +32,7 @@ export interface InvestigationContinuityControllerOptions {
   sessionController: ContinuitySessionController;
   verifyPortableInvestigation(bytes: Uint8Array): Promise<ReplayVerificationResult>;
   environment?(): PortablePackageEnvironment;
+  currentKernelVersion?(): string | null;
 }
 
 export interface PortableOpenResult {
@@ -91,10 +92,13 @@ function datasetName(snapshot: NemosyneSessionJSON): string {
   return snapshot.entry?.name?.trim() || 'Investigation dataset';
 }
 
-async function investigationDigestForSnapshot(snapshot: NemosyneSessionJSON): Promise<string> {
+async function investigationDigestForSnapshot(
+  snapshot: NemosyneSessionJSON,
+  kernelVersionOverride?: string,
+): Promise<string> {
   const atlas = new AtlasCore({ kernel: null, sessionId: snapshot.sessionId });
   const session = NemosyneSession.deserialize(snapshot, atlas);
-  return atlas.aggregate.computeDigest(snapshotKernelVersion(snapshot), {
+  return atlas.aggregate.computeDigest(kernelVersionOverride ?? snapshotKernelVersion(snapshot), {
     nilOutcomes: [...session.nilOutcomes],
     researchContext: session.researchContext,
   });
@@ -119,11 +123,13 @@ export class InvestigationContinuityController {
   private readonly sessions: ContinuitySessionController;
   private readonly verifyPortableInvestigation: InvestigationContinuityControllerOptions['verifyPortableInvestigation'];
   private readonly environment: () => PortablePackageEnvironment;
+  private readonly currentKernelVersion: () => string | null;
 
   constructor(options: InvestigationContinuityControllerOptions) {
     this.sessions = options.sessionController;
     this.verifyPortableInvestigation = options.verifyPortableInvestigation;
     this.environment = options.environment ?? (() => ({}));
+    this.currentKernelVersion = options.currentKernelVersion ?? (() => null);
   }
 
   captureCurrent(): NemosyneSessionJSON {
@@ -259,7 +265,12 @@ export class InvestigationContinuityController {
   }
 
   private async exportSnapshot(snapshot: NemosyneSessionJSON): Promise<Uint8Array> {
-    const baseArchive = await NemosyneSession.exportPortableSnapshot(snapshot, this.environment());
+    const liveKernelVersion = this.currentKernelVersion();
+    const baseArchive = await NemosyneSession.exportPortableSnapshot(
+      snapshot,
+      this.environment(),
+      liveKernelVersion ?? undefined,
+    );
     const payload = NemosynePackageManager.unpack(baseArchive);
     payload.extraFiles = {
       ...(payload.extraFiles ?? {}),
@@ -297,7 +308,7 @@ export class InvestigationContinuityController {
       throw new Error('The resumable workspace research context does not match the verified package.');
     }
     if (manifest.investigationDigest) {
-      const digest = await investigationDigestForSnapshot(snapshot);
+      const digest = await investigationDigestForSnapshot(snapshot, manifest.kernelVersion);
       if (digest !== manifest.investigationDigest) {
         throw new Error('The resumable workspace investigation digest does not match the verified package.');
       }

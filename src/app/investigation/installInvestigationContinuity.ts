@@ -27,6 +27,7 @@ export function installInvestigationContinuity(app: AppInstance): () => void {
   const continuity = new InvestigationContinuityController({
     sessionController: world.sessionController,
     verifyPortableInvestigation: (bytes) => world.replayPortableInvestigation(bytes),
+    currentKernelVersion: () => world.atlas.kernelVersion(),
     environment: () => ({
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
       platform: typeof navigator !== 'undefined' ? navigator.platform : null,

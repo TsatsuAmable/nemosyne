@@ -24,17 +24,24 @@ Fix-forward: browser and UV0 evidence now exercises the real `Open .nemosyne` fi
 
 Fix-forward: embedded `sessionId` equality is now strict. Missing, empty or different session identity is refused before restore. A focused falsifier deletes `sessionId` from the embedded continuity snapshot while the package replay verifier reports success and proves that no restore occurs and the current investigation remains unchanged.
 
+### BLOCKER 3 — current-app export was stamped with historical analytical kernel instead of the live replay kernel
+
+UV0 proved that a package exported by the current application could immediately fail clean-room reopen: the package manifest inherited historical representation kernel `0.1.0`, while the live replay authority correctly reported kernel `0.2.0`. This made ordinary same-build export → verified reopen impossible even though the analytical provenance itself was valid.
+
+The two version meanings are now separated rather than weakened. PT5D composition supplies the live `AtlasCore.kernelVersion()` as the package replay-kernel version. Historical representation/NIL provenance remains in `analyticalKernelVersion` and the embedded evidence records. The investigation digest is computed and rechecked against the manifest replay-kernel version, so the package does not gain a cosmetic version rewrite that would invalidate its digest. Focused tests require PT5D current and checkpoint exports to carry the live replay kernel.
+
 ## Invariant review
 
 1. **Verify before mutate — PASS.** `openPortable()` invokes the clean-room replay verifier before package continuation is inspected or any live restore is attempted. Verification refusal returns without mutation.
 2. **Independent resumable-snapshot verification — PASS after BLOCKER 2.** The embedded session-v2 snapshot must agree with manifest session identity, canonical dataset identity, command/evidence count, DiscoveryEpisode count, research context and canonical investigation digest before restore.
-3. **Failed restore rollback — PASS.** Checkpoint/package restoration captures the previous live investigation and restores it when the target restore returns false or throws; rollback failure is surfaced explicitly rather than hidden.
-4. **Immutable archive identity — PASS.** Restore/export/delete operate on the selected frozen archive ID and its stored snapshot. Focused tests prove later mutable live state cannot substitute for the selected checkpoint.
-5. **Presentation freshness — PASS.** Product save/checkpoint/current export obtain a fresh `WorldSessionController.snapshotCurrentSession()` before persistence or serialization. Restore uses the ordinary production dataset/session/presentation pathway.
-6. **Single product authority across modalities — PASS.** Desktop, XR and existing Evidence Vault callbacks delegate to the same `InvestigationContinuityController`; they do not create separate persistence or replay semantics.
-7. **Legacy portability — PASS.** Packages without the PT5D continuity snapshot remain replay-verifiable but are explicitly reported as non-resumable and do not mutate live state.
-8. **Scientific authority — PASS.** PT5D persists/reconstructs investigation state; Rust/Atlas remains analytical authority and package continuation does not invent analytical meaning outside the existing replay/restore paths.
-9. **Recipient-local settings boundary — PASS.** Portable reopen preserves current device-local settings rather than silently importing privacy/comfort/runtime preferences from another investigation package.
+3. **Replay-kernel provenance — PASS after BLOCKER 3.** Portable artifacts produced by PT5D identify the live kernel that must verify/replay them; historical analytical kernel provenance remains separately attributable rather than overwriting the replay contract.
+4. **Failed restore rollback — PASS.** Checkpoint/package restoration captures the previous live investigation and restores it when the target restore returns false or throws; rollback failure is surfaced explicitly rather than hidden.
+5. **Immutable archive identity — PASS.** Restore/export/delete operate on the selected frozen archive ID and its stored snapshot. Focused tests prove later mutable live state cannot substitute for the selected checkpoint.
+6. **Presentation freshness — PASS.** Product save/checkpoint/current export obtain a fresh `WorldSessionController.snapshotCurrentSession()` before persistence or serialization. Restore uses the ordinary production dataset/session/presentation pathway.
+7. **Single product authority across modalities — PASS.** Desktop, XR and existing Evidence Vault callbacks delegate to the same `InvestigationContinuityController`; they do not create separate persistence or replay semantics.
+8. **Legacy portability — PASS.** Packages without the PT5D continuity snapshot remain replay-verifiable but are explicitly reported as non-resumable and do not mutate live state.
+9. **Scientific authority — PASS.** PT5D persists/reconstructs investigation state; Rust/Atlas remains analytical authority and package continuation does not invent analytical meaning outside the existing replay/restore paths.
+10. **Recipient-local settings boundary — PASS.** Portable reopen preserves current device-local settings rather than silently importing privacy/comfort/runtime preferences from another investigation package.
 
 ## Failure-mode re-attack
 
@@ -42,6 +49,7 @@ Fix-forward: embedded `sessionId` equality is now strict. Missing, empty or diff
 - archive A exporting live investigation B: fenced by archive-ID load and immutable-snapshot tests;
 - malformed/tampered package mutating state before verification: fenced by verifier-first ordering and browser tamper evidence;
 - replay-valid but tampered embedded snapshot restored: fenced by independent identity/count/context/digest checks, including missing-session-ID falsifier;
+- same-build package refused solely because historical evidence used an older analytical kernel: fenced by explicit live replay-kernel export provenance while preserving historical analytical provenance;
 - failed target restore leaving half-switched state: fenced by rollback path and hostile restore test;
 - autosave absence reported as success: `hasSession('autosave')` and boolean restore result fail closed;
 - desktop/XR semantic split: both consume the same controller;

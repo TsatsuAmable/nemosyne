@@ -102,6 +102,7 @@ function fixture(initial = makeSnapshot('session-a', 'theme-a')): {
     controller: new InvestigationContinuityController({
       sessionController: sessions,
       verifyPortableInvestigation: async (bytes) => replaySuccess(bytes),
+      currentKernelVersion: () => '0.2.0',
       environment: () => ({ platform: 'test', webxrSupported: true }),
     }),
     sessions,
@@ -114,7 +115,7 @@ function fixture(initial = makeSnapshot('session-a', 'theme-a')): {
 }
 
 describe('PT5D investigation continuity', () => {
-  it('exports a resumable package and reopens the exact investigation while retaining recipient device settings', async () => {
+  it('exports a resumable package for the live replay kernel and reopens the exact investigation while retaining recipient device settings', async () => {
     const source = makeSnapshot('session-source', 'neon-source');
     source.presentation.settings = { reducedMotion: true, productAnalytics: true };
     const target = makeSnapshot('session-other', 'neon-other');
@@ -123,6 +124,7 @@ describe('PT5D investigation continuity', () => {
 
     const bytes = await f.controller.exportCurrent();
     const unpacked = NemosynePackageManager.unpack(bytes);
+    expect(unpacked.manifest.kernelVersion).toBe('0.2.0');
     const embedded = unpacked.extraFiles?.['continuity/session-v2.json'];
     expect(embedded).toBeInstanceOf(Uint8Array);
     expect((JSON.parse(strFromU8(embedded!)) as NemosyneSessionJSON).presentation).toMatchObject({
@@ -256,6 +258,7 @@ describe('PT5D investigation continuity', () => {
     f.setCurrent(live);
     const secondBytes = await f.controller.exportCheckpoint(secondEntry.archiveId);
     const secondPayload = NemosynePackageManager.unpack(secondBytes);
+    expect(secondPayload.manifest.kernelVersion).toBe('0.2.0');
     const secondEmbedded = secondPayload.extraFiles?.['continuity/session-v2.json'];
     expect(secondEmbedded).toBeTruthy();
     expect((JSON.parse(strFromU8(secondEmbedded!)) as NemosyneSessionJSON).sessionId).toBe('checkpoint-second');
