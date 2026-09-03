@@ -377,7 +377,13 @@ export class FileLoaderUI {
     const entry = this._selectedCorpusDataset();
     const tier = this.corpusTierSelect.value;
     if (!entry || !tier) return;
-    await this.openRemoteDataset(entry.id, tier);
+    try {
+      await this.openRemoteDataset(entry.id, tier);
+    } catch {
+      // `openRemoteDataset` already rendered a safe user-facing refusal. The
+      // DOM click path consumes it so it cannot escape as an unhandled promise;
+      // XR calls the public method directly and still receives the rejection.
+    }
   }
 
   async openRemoteDataset(datasetId: string, tier: string): Promise<void> {
@@ -419,8 +425,7 @@ export class FileLoaderUI {
       }
       this._renderSchema(parsed.dataset, parsed.topology, parsed.encodings, validation.warnings);
       this._status(
-        message ||
-          `Opened ${entry.label} · ${parsed.dataset.rowCount.toLocaleString()} rows`,
+        message || `Opened ${entry.label} · ${parsed.dataset.rowCount.toLocaleString()} rows`,
       );
       if (!this._isCurrent(generation)) return;
       this.onLoad({
