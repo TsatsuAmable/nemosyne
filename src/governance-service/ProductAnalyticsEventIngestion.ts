@@ -11,6 +11,7 @@ import {
   type GovernanceAdmissionAuthorityV1,
   type GovernanceAuthorityContextV1,
   type GovernanceAuthorityDecisionV1,
+  type JsonValue,
 } from '../governance/index.ts';
 import type { AuthenticatedPrincipalV1, VersionedSecretKeyV1 } from './ProductAnalyticsConsentAuthority.ts';
 
@@ -252,7 +253,7 @@ export class SqliteProductAnalyticsEventIngestion {
           envelope_json, server_received_at, retention_delete_after, physical_delete_deadline)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(handle, eventId, envelope.streamId, envelope.streamSequence, envelope.contentDigest.value,
-        envelope.payloadDigest.value, canonicalGovernedJsonV1(envelope), receivedAt, retentionDeleteAfter, physicalDeleteDeadline);
+        envelope.payloadDigest.value, canonicalGovernedJsonV1(envelope as unknown as JsonValue), receivedAt, retentionDeleteAfter, physicalDeleteDeadline);
       this.db.prepare('UPDATE governed_product_streams SET next_sequence = ? WHERE stream_id = ?')
         .run(envelope.streamSequence + 1, envelope.streamId);
       const consumed = this.db.prepare(
