@@ -1,5 +1,5 @@
 /**
- * Data Subsystem — Barrel Export
+ * Data Subsystem — production barrel export.
  */
 
 export { Dataset, ColumnType } from './Dataset.ts';
@@ -40,8 +40,6 @@ export {
 
 export { categoricalColor, numericColor, normalize } from './Encodings.ts';
 export { PositionSemanticClassifier } from './PositionSemanticClassifier.ts';
-export { ColorPaletteEngine } from './ColorPaletteEngine.ts';
-export type { CVDMode, PaletteColor } from './ColorPaletteEngine.ts';
 
 export type {
   ColumnSchema,
