@@ -3,6 +3,7 @@ import {
   canonicalGovernedJsonV1,
   validateGovernedEventEnvelopeV1,
   type GovernedEventEnvelopeV1,
+  type JsonValue,
   type RuntimeComponentReferenceV1,
 } from '../governance/index.ts';
 import {
@@ -31,7 +32,9 @@ function sameReference(
   actual: RuntimeComponentReferenceV1 | null,
   expected: RuntimeComponentReferenceV1,
 ): boolean {
-  return actual !== null && canonicalGovernedJsonV1(actual) === canonicalGovernedJsonV1(expected);
+  return actual !== null &&
+    canonicalGovernedJsonV1(actual as unknown as JsonValue) ===
+      canonicalGovernedJsonV1(expected as unknown as JsonValue);
 }
 
 export class ReviewedProductAnalyticsRuntimeAuthority implements ProductAnalyticsRuntimeAuthorityV1 {
