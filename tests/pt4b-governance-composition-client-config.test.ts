@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { readProductAnalyticsBrowserConfig } from '../src/app/governance/installProductAnalyticsClient.ts';
 import type { RuntimeComponentReferenceV1 } from '../src/governance/index.ts';
-import { createProductAnalyticsGovernanceCompositionV1 } from '../src/governance-service/ProductAnalyticsGovernanceComposition.ts';
+import { createSqliteProductAnalyticsGovernanceCompatibilityV1 } from '../src/governance-service/ProductAnalyticsGovernanceComposition.ts';
 import { RuntimePinnedProductAnalyticsEventIngestion } from '../src/governance-service/ProductAnalyticsRuntimeAuthority.ts';
 
 const directories: string[] = [];
@@ -24,10 +24,10 @@ const UI = ref('product-ui', '1.0.0+sha.0123456789abcdef', 'c');
 const PLATFORM = ref('browser-runtime', 'chromium-140', 'd');
 
 describe('PT4B8 canonical governed service composition', () => {
-  it('cannot compose the PT4 service without runtime-pinned ingestion', () => {
+  it('keeps the SQLite path explicit and still enforces runtime-pinned ingestion', async () => {
     const dataDirectory = mkdtempSync(join(tmpdir(), 'nemosyne-pt4b8-composition-'));
     directories.push(dataDirectory);
-    const composition = createProductAnalyticsGovernanceCompositionV1({
+    const composition = await createSqliteProductAnalyticsGovernanceCompatibilityV1({
       dataDirectory,
       allowedOrigins: ['https://app.example'],
       authenticator: { async authenticate() { throw new Error('not exercised'); } },
@@ -45,8 +45,8 @@ describe('PT4B8 canonical governed service composition', () => {
     });
     expect(composition.eventIngestion).toBeInstanceOf(RuntimePinnedProductAnalyticsEventIngestion);
     expect(composition.server.maxConnections).toBe(128);
-    composition.closeStorage();
-    composition.closeStorage();
+    await composition.closeStorage();
+    await composition.closeStorage();
   });
 });
 
