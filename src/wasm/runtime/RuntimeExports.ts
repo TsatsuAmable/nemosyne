@@ -154,7 +154,16 @@ export interface LayoutAbiExports {
 
 export interface KernelContractExports {
   kernel_version(ptr: number, len: number): number;
+  /** Legacy compatibility read of the most recent provenance envelope. */
   kernel_provenance(ptr: number, len: number): number;
+  /** Sequence of the most recently recorded provenance envelope; zero means none. */
+  kernel_provenance_sequence(): number;
+  /** Read one retained provenance envelope by sequence id. */
+  kernel_provenance_by_sequence(
+    sequence: number,
+    ptr: number,
+    len: number
+  ): number;
   draco_solve(factsPtr: number, factsLen: number, outPtr: number, outLen: number): number;
   draco_evaluate_candidate(
     inputPtr: number,

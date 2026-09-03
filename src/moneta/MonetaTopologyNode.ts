@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ConstraintEngine } from './ConstraintEngine.ts';
+import { ConstraintEngine, isNoFeasibleConstraintResult } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
 import { solveMoneta, solveDraco } from '../wasm/RuntimeBridge.ts';
@@ -186,9 +186,13 @@ export class MonetaTopologyNode {
         cost: this.representationDecision.utilityScore,
       };
     } else {
-      this.solverResult = this.useRustSolver
-        ? this.solveWithRust()
-        : this.engine.solve(this.dataInput);
+      const result = this.useRustSolver ? this.solveWithRust() : this.engine.solve(this.dataInput);
+      if (isNoFeasibleConstraintResult(result)) {
+        throw new Error(
+          `MonetaTopologyNode: ${result.reason}; refusing to synthesize fabricated fallback geometry`
+        );
+      }
+      this.solverResult = result;
     }
 
     if (this.artifact) {

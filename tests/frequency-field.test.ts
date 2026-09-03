@@ -4,13 +4,13 @@ import {
   SpectralVolumeLayout,
   VRTopologyTranslator,
   PositionSemanticsEngine,
-  VRChannels,
   RepresentationHypothesisEngine,
   type SolverResult,
   type DracoDataInput,
   type SpectralFacts,
   type DracoFacts,
 } from '../src/moneta/index.ts';
+import { VRChannels } from '../src/moneta/ConstraintEngine.ts';
 
 describe('Phase 6: FrequencyField Representation and Renderer', () => {
   it('computes valid 3D positions via SpectralVolumeLayout', () => {

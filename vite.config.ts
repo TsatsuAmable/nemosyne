@@ -21,7 +21,11 @@ export default defineConfig(({ command }) => ({
     spatialSceneInspectorPlugin(),
   ],
   server: {
-    host: true,
+    // Security boundary: all dev middleware, including signalling, remote logs,
+    // load-test results and UX trace endpoints, is loopback-only by default.
+    // Quest/LAN validation must opt in explicitly with `vite --host 0.0.0.0`
+    // (the repository exposes that as `npm run dev:lan`).
+    host: '127.0.0.1',
     https: httpsOptions(command),
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
@@ -30,9 +34,8 @@ export default defineConfig(({ command }) => ({
   },
   preview: {
     // Localhost only: the dev-only signalling/demo-stream plugins mount in
-    // preview too, and `host: true` would expose them to the LAN. Dev (serve)
-    // stays `host: true` because the Quest workflow needs LAN reachability.
-    host: false,
+    // preview too. LAN preview must be an explicit operator choice.
+    host: '127.0.0.1',
     https: httpsOptions(command),
   },
   build: {

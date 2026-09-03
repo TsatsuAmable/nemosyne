@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Plugin, ViteDevServer } from 'vite';
+import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   handleBoundedJsonPost,
@@ -45,6 +45,33 @@ interface UXBatch {
   sid?: unknown;
 }
 
+interface MiddlewareServer {
+  middlewares: {
+    use(handler: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): unknown;
+  };
+}
+
+function isTerminalControlCode(code: number): boolean {
+  return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+}
+
+/**
+ * Encode terminal control characters before writing user/device supplied trace
+ * fields to an interactive terminal. JSONL persistence remains unchanged and
+ * therefore keeps the original evidence; only the human terminal projection is
+ * neutralised. C0, DEL and C1 bytes, including ESC, are rendered visibly.
+ */
+export function sanitizeUxTraceTerminalText(value: unknown): string {
+  let output = '';
+  for (const char of String(value ?? '')) {
+    const code = char.charCodeAt(0);
+    output += isTerminalControlCode(code)
+      ? `\\u${code.toString(16).padStart(4, '0')}`
+      : char;
+  }
+  return output;
+}
+
 export function uxTracePlugin(): Plugin {
   const logDir = path.resolve(process.cwd(), 'logs');
   const logFile = path.join(logDir, 'ux-trace.jsonl');
@@ -85,63 +112,70 @@ export function uxTracePlugin(): Plugin {
             'system',
             'wheel',
             'tour',
-            'session-manifest',
-            'perf',
-            'friction',
-            'hands',
-          ].includes(record.type)
+            'mode',
+            'dataset',
+            'performance',
+            'interaction-pattern',
+            'ttfr',
+          ].includes(record.type as string)
         ) {
-          const detail =
-            record.type === 'pinch'
-              ? `${record.phase} ${record.hand} d=${record.d} -> ${record.gating}`
-              : record.type === 'selection'
-                ? `${record.hit}${record.target ? ` ${record.target}` : ''}`
-                : record.type === 'gesture'
-                  ? `${record.name} conf=${record.confidence}`
-                  : record.type === 'system'
-                    ? record.kind
-                    : record.type === 'wheel'
-                      ? `${record.state} via ${record.via}`
-                      : record.type === 'session-manifest'
-                        ? `manifest ${record.datasetName || 'no-dataset'} [${record.topology || '-'}]`
-                        : record.type === 'perf'
-                          ? `perf ${record.severity} frameMs=${record.frameMs} budget=${record.budget}`
-                          : record.type === 'friction'
-                            ? `friction ${record.pattern} score=${record.score}`
-                            : record.type === 'hands'
-                              ? `hands ${record.phase} ${record.hand} ttfr=${record.ttfrMs}ms`
-                              : `step ${record.step}/${record.total}`;
-          const ctx = record.ctx || {};
-          const gaze = ctx.gaze?.target ? ` gaze=${ctx.gaze.target}` : '';
-          const drift = ctx.ptr?.driftDeg != null ? ` drift=${ctx.ptr.driftDeg}°` : '';
-          const sid = isShortString(batch.sid, 64) ? batch.sid : '?';
-          // eslint-disable-next-line no-console
-          console.log(
-            `\x1b[33m[UX TRACE ${sid} +${record.t}s] ${record.type}: ${detail}${gaze}${drift}\x1b[0m`
-          );
-        }
-      }
-      if (lines.length > 0) {
-        try {
-          fs.appendFileSync(logFile, lines.join('\n') + '\n', 'utf-8');
-          if (manifestLines.length > 0) {
-            fs.appendFileSync(manifestFile, manifestLines.join('\n') + '\n', 'utf-8');
+          const parts: string[] = [];
+          if (record.phase) parts.push(String(record.phase));
+          if (record.hand != null) parts.push(`hand:${String(record.hand)}`);
+          if (record.d != null) parts.push(`d:${String(record.d)}`);
+          if (record.gating) parts.push(`gate:${String(record.gating)}`);
+          if (record.hit) parts.push(`hit:${String(record.hit)}`);
+          if (record.target) parts.push(`target:${String(record.target)}`);
+          if (record.name) parts.push(`name:${String(record.name)}`);
+          if (record.confidence != null) parts.push(`conf:${String(record.confidence)}`);
+          if (record.kind) parts.push(`kind:${String(record.kind)}`);
+          if (record.state) parts.push(`state:${String(record.state)}`);
+          if (record.via) parts.push(`via:${String(record.via)}`);
+          if (record.datasetName) parts.push(`dataset:${String(record.datasetName)}`);
+          if (record.topology) parts.push(`topology:${String(record.topology)}`);
+          if (record.severity) parts.push(`severity:${String(record.severity)}`);
+          if (record.frameMs != null) parts.push(`frame:${String(record.frameMs)}ms`);
+          if (record.budget != null) parts.push(`budget:${String(record.budget)}ms`);
+          if (record.pattern) parts.push(`pattern:${String(record.pattern)}`);
+          if (record.score != null) parts.push(`score:${String(record.score)}`);
+          if (record.ttfrMs != null) parts.push(`ttfr:${String(record.ttfrMs)}ms`);
+          if (record.step != null && record.total != null) {
+            parts.push(`step:${String(record.step)}/${String(record.total)}`);
           }
-        } catch (err) {
-          console.error('[ux-trace] failed to append batch:', err);
+          if (record.ctx?.gaze?.target) parts.push(`gaze:${String(record.ctx.gaze.target)}`);
+          if (record.ctx?.ptr?.driftDeg != null) {
+            parts.push(`drift:${String(record.ctx.ptr.driftDeg)}deg`);
+          }
+          const terminalLine = sanitizeUxTraceTerminalText(
+            `[UX] ${String(record.type)} ${parts.join(' ')}`
+          );
+          process.stdout.write(`\u001b[36m${terminalLine}\u001b[0m\n`);
         }
       }
-      jsonOk(response, { status: 'ok', appended });
+      try {
+        if (lines.length) fs.appendFileSync(logFile, `${lines.join('\n')}\n`, 'utf8');
+        if (manifestLines.length) {
+          fs.appendFileSync(manifestFile, `${manifestLines.join('\n')}\n`, 'utf8');
+        }
+      } catch (error) {
+        console.warn('[ux-trace] failed to persist records:', error);
+        jsonError(response, 500, 'failed to persist UX trace records');
+        return;
+      }
+      jsonOk(response, { ok: true, appended });
+    });
+  }
+
+  function configureServer(server: MiddlewareServer): void {
+    server.middlewares.use((req, res, next) => {
+      if (handleUxTrace(req, res)) return;
+      next();
     });
   }
 
   return {
-    name: 'nemosyne-ux-trace',
-    apply: 'serve',
-    configureServer(server: ViteDevServer) {
-      server.middlewares.use((req, res, next) => {
-        if (!handleUxTrace(req, res)) next();
-      });
-    },
+    name: 'ux-trace',
+    configureServer,
+    configurePreviewServer: configureServer,
   };
 }

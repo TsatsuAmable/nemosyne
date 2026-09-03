@@ -20,7 +20,7 @@ describe('RF-062C production World path', () => {
     vi.restoreAllMocks();
   });
 
-  it('routes a real dataset load through LoadDatasetUseCase and RepresentationSurface exactly once', () => {
+  it('routes a real dataset load through LoadDatasetUseCase and RepresentationSurface exactly once', async () => {
     world = new World();
     const bridge = makeKernelMockBridge();
     world.atlas.setKernel(bridge, 0x3c07);
@@ -30,7 +30,7 @@ describe('RF-062C production World path', () => {
     const sample = getSampleDataset('sales-table');
     if (!sample) throw new Error('sales-table sample is required');
 
-    world.loadDataset({
+    await world.loadDataset({
       name: sample.label,
       topology: sample.topology,
       dataset: sample.dataset,
@@ -52,7 +52,7 @@ describe('RF-062C production World path', () => {
 
     const sample = getSampleDataset('sales-table');
     if (!sample) throw new Error('sales-table sample is required');
-    world.loadDataset({
+    await world.loadDataset({
       name: sample.label,
       topology: sample.topology,
       dataset: sample.dataset,

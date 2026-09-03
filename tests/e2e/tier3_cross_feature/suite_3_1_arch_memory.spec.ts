@@ -29,7 +29,7 @@ describe('Tier 3 — Suite 3.1: Architecture Decoupling × Memory Disposal (F1/F
     expect(topology).toBe('GRAPH');
 
     // Step 2: Load into World (F3)
-    world.loadDataset({ name: 'DatasetA', topology, dataset: datasetA });
+    await world.loadDataset({ name: 'DatasetA', topology, dataset: datasetA });
     expect(world.currentEntry?.name).toBe('DatasetA');
 
     // Step 3: Verify VRTopologyTranslator synthesis (F2)
@@ -43,7 +43,7 @@ describe('Tier 3 — Suite 3.1: Architecture Decoupling × Memory Disposal (F1/F
 
     // Step 4: Swap dataset and dispose old meshes (F4)
     const datasetB = new Dataset('DatasetB', [{ name: 'val', type: 'NUMERIC' }], [{ val: 100 }]);
-    world.loadDataset({ name: 'DatasetB', topology: 'TABULAR', dataset: datasetB });
+    await world.loadDataset({ name: 'DatasetB', topology: 'TABULAR', dataset: datasetB });
 
     disposeObject(artifact.group);
 

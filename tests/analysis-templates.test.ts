@@ -53,12 +53,15 @@ describe('World.loadTemplate integration', () => {
     await new Promise((r) => setTimeout(r, 50));
   });
 
-  it('loads a valid template and changes dataset/theme', () => {
+  it('loads a valid template and changes dataset/theme', async () => {
     const template = ANALYSIS_TEMPLATES[0];
     const beforeName = world.currentEntry?.name;
     const result = world.loadTemplate(template.id);
 
     expect(result).toBe(true);
+    // loadTemplate preserves its boolean command API while World.loadDataset
+    // deliberately yields one task before rebuilding the heavy scene graph.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(world.currentEntry?.name).not.toBe(beforeName);
     expect(world.currentEntry?.topology).toBeDefined();
     expect(world.engine.theme.currentPreset).toBe(template.theme);

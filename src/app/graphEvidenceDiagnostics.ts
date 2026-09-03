@@ -37,7 +37,7 @@ interface GraphEvidenceWorld {
   };
   dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
-  loadDataset(entry: DatasetLoadEntry): void;
+  loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
     entry: DatasetLoadEntry,
     options: { preserveAnalyticalState?: boolean; preserveAuxiliaryPresentation?: boolean }
@@ -289,7 +289,7 @@ function entry(dataset: Dataset, key: string): DatasetLoadEntry {
 }
 
 async function settleInitialLoad(world: GraphEvidenceWorld, loadEntry: DatasetLoadEntry): Promise<void> {
-  world.loadDataset(loadEntry);
+  await world.loadDataset(loadEntry);
   const promise = (world.dracoNode?.dataInput as SemanticGraphInput | undefined)
     ?.semanticEmbodimentPromise;
   if (promise) await promise;

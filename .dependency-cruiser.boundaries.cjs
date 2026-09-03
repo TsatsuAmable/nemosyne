@@ -32,6 +32,20 @@ const boundaryRules = [
     },
   },
   {
+    name: 'signed-ticket-authority-is-server-only',
+    comment:
+      'Signed-ticket and signalling-server authority depend on Node crypto/server primitives and must never enter browser-reachable src graphs.',
+    severity: 'error',
+    from: {
+      path: '^src/',
+      pathNot:
+        '^src/network/(?:(?:SignedTicket|SignallingServerCore|server)\\.(?:ts|js)|SignallingServer\\.mjs)$',
+    },
+    to: {
+      path: '^src/network/(?:(?:SignedTicket|SignallingServerCore|server)\\.(?:ts|js)|SignallingServer\\.mjs)$',
+    },
+  },
+  {
     name: 'world-is-composition-root',
     comment:
       'RF-062: World may compose the runtime, but feature/domain modules must not depend back on World.',

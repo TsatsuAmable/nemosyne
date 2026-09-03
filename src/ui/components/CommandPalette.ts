@@ -192,15 +192,20 @@ export class CommandPalette extends BaseComponent {
     const command = this._filteredCommands[this._selectedIndex];
     if (!command || command.disabled) return;
 
-    // Tear down the modal palette before launching the selected command. This
-    // prevents its full-screen overlay/focus owner from competing with a modal
-    // opened synchronously by the command (for example replay investigation).
+    // Tear down the modal palette before launching the selected command. Invoke
+    // the action in the same user-activation turn so commands that legitimately
+    // open browser UI (for example a local .nemosyne file chooser) do not lose
+    // their transient activation before `input.click()` runs. Promise-returning
+    // commands are still observed asynchronously for failures.
     this.hide();
-    void Promise.resolve()
-      .then(() => command.action())
-      .catch((error: unknown) => {
+    try {
+      const result = command.action();
+      void Promise.resolve(result).catch((error: unknown) => {
         console.error('[CommandPalette] command failed:', error);
       });
+    } catch (error: unknown) {
+      console.error('[CommandPalette] command failed:', error);
+    }
   }
 
   private renderList(): void {

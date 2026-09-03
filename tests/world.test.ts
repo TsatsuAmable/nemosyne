@@ -18,6 +18,17 @@ function wireKernel(w) {
   // Wave 4/6: AtlasCore is the analytical authority; bind the kernel there.
   // FileLoader/TDA/sample-load all reach the kernel through AtlasCore.
   w.atlas?.setKernel?.(bridge, 0x3c07);
+  // World stages the logical default pre-kernel and deliberately avoids a
+  // placeholder scene build. This synchronous integration harness opts into an
+  // authoritative initial build after installing its mock kernel.
+  w._rebuildPalaceWithKernelFacts();
+  // Production loadDataset yields a task to protect XR frames. These legacy
+  // jsdom integration assertions target orchestration rather than scheduling,
+  // so keep loads immediate only on this test instance. Browser evidence suites
+  // continue to exercise and await the real deferred production boundary.
+  w.loadDataset = async (entry) => {
+    w._doLoadDataset(entry);
+  };
 }
 
 const CONNECTING = 0;

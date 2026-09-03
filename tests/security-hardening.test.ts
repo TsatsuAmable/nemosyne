@@ -10,7 +10,7 @@ import {
   SignedTicketReplayGuard,
   SIGNED_TICKET_VERSION,
   type TicketClaims,
-} from '../src/network/index.ts';
+} from '../src/network/server.ts';
 import * as networkBarrel from '../src/network/index.ts';
 import { TelemetryConsentManager } from '../src/study/index.ts';
 

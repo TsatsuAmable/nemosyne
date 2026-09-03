@@ -3,6 +3,11 @@
   "version": "1.0.0-alpha.1",
   "description": "An experimental research instrument for inspectable, reproducible data investigation across desktop and WebXR.",
   "type": "module",
+  "packageManager": "npm@11.6.0",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
   "scripts": {
     "setup": "bash scripts/setup.sh",
     "setup:mac": "bash scripts/setup-mac.sh",
@@ -11,8 +16,10 @@
     "wasm": "node scripts/build-wasm.mjs",
     "wasm:dev": "node scripts/build-wasm.mjs --dev",
     "build:wasm": "node scripts/build-wasm.mjs",
-    "dev": "vite --host",
-    "dev:wasm": "npm run wasm:dev && vite --host",
+    "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0",
+    "dev:wasm": "npm run wasm:dev && vite",
+    "dev:wasm:lan": "npm run wasm:dev && vite --host 0.0.0.0",
     "dev:quest": "node scripts/quest-validation.mjs quest",
     "dev:quest:perf": "node scripts/quest-validation.mjs quest-perf",
     "dev:quest:ux": "node scripts/quest-validation.mjs quest-ux",

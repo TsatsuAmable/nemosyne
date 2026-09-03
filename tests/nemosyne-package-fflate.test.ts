@@ -61,14 +61,25 @@ describe('Nemosyne Portable Package Engine (fflate + valibot)', () => {
     expect(unpackedNotes).toBe('Special investigation notes');
   });
 
-  it('rejects path traversal attacks including percent-encoded variations', () => {
+  it('rejects path traversal attacks including deeply percent-encoded variations', () => {
     expect(() => sanitizeEntryPath('../evil.txt')).toThrow();
     expect(() => sanitizeEntryPath('foo/../../bar')).toThrow();
     expect(() => sanitizeEntryPath('%2e%2e%2fevil.txt')).toThrow();
     expect(() => sanitizeEntryPath('%2e%2e/test')).toThrow();
+    expect(() => sanitizeEntryPath('%252e%252e%252fevil.txt')).toThrow();
+    // Four decode layers: the previous three-pass implementation left these
+    // path metacharacters encoded and therefore failed to detect traversal.
+    expect(() => sanitizeEntryPath('%2525252e%2525252e%2525252fevil.txt')).toThrow();
+    expect(() => sanitizeEntryPath('%2525252fetc%2525252fpasswd')).toThrow();
+    expect(() => sanitizeEntryPath('C%2525253a%2525255cWindows')).toThrow();
     expect(() => sanitizeEntryPath('/etc/passwd')).toThrow();
     expect(() => sanitizeEntryPath('C:\\Windows\\System32')).toThrow();
     expect(() => sanitizeEntryPath('evil\0.txt')).toThrow();
+  });
+
+  it('canonicalizes deeply encoded safe path metacharacters consistently', () => {
+    expect(sanitizeEntryPath('notes%2525252etxt')).toBe('notes.txt');
+    expect(sanitizeEntryPath('folder%2525252fnotes.txt')).toBe('folder/notes.txt');
   });
 
   it('rejects an invalid archive missing manifest.json', () => {

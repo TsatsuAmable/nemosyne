@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createRoomRegistry, WS_MAX_PAYLOAD_BYTES, type SignallingSocket } from '../src/network/SignallingServerCore.ts';
 import { createSignedTicket } from '../src/network/SignedTicket.ts';
 import * as networkBarrel from '../src/network/index.ts';
+import * as serverNetworkBarrel from '../src/network/server.ts';
 
 interface MockSocketWithState extends SignallingSocket {
   listeners: Record<string, ((...args: any[]) => void)[]>;
@@ -645,15 +646,24 @@ describe('Collaboration Gateway Security & Abuse Protection', () => {
       expect(registry.getTotalPeers()).toBe(0);
     });
 
-    it('exposes exactly one canonical ticket authority from the barrel (no competing verifier)', () => {
-      expect(typeof networkBarrel.createSignedTicket).toBe('function');
-      expect(typeof networkBarrel.verifySignedTicket).toBe('function');
-      expect(typeof networkBarrel.SignedTicketReplayGuard).toBe('function');
-      // The obsolete duplicate authority must not be reachable from production exports.
+    it('keeps the canonical ticket authority server-only with no competing browser verifier', () => {
+      expect((networkBarrel as any).createSignedTicket).toBeUndefined();
+      expect((networkBarrel as any).verifySignedTicket).toBeUndefined();
+      expect((networkBarrel as any).SignedTicketReplayGuard).toBeUndefined();
+
+      expect(typeof serverNetworkBarrel.createSignedTicket).toBe('function');
+      expect(typeof serverNetworkBarrel.verifySignedTicket).toBe('function');
+      expect(typeof serverNetworkBarrel.SignedTicketReplayGuard).toBe('function');
+
+      // The obsolete duplicate authority must not be reachable from either public surface.
       expect((networkBarrel as any).SignedTicketVerifier).toBeUndefined();
       expect((networkBarrel as any).SignedRoomTicket).toBeUndefined();
       expect((networkBarrel as any).CryptoCapabilityError).toBeUndefined();
       expect((networkBarrel as any).timingSafeEqualBytes).toBeUndefined();
+      expect((serverNetworkBarrel as any).SignedTicketVerifier).toBeUndefined();
+      expect((serverNetworkBarrel as any).SignedRoomTicket).toBeUndefined();
+      expect((serverNetworkBarrel as any).CryptoCapabilityError).toBeUndefined();
+      expect((serverNetworkBarrel as any).timingSafeEqualBytes).toBeUndefined();
     });
   });
 

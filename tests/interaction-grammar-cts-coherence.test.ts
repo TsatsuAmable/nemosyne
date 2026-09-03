@@ -8,8 +8,6 @@ import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 function wireKernel(w) {
   const bridge = makeKernelMockBridge();
   w.atlas?.setKernel?.(bridge, 0x3c07);
-  w._wasmRuntime = bridge;
-  w._wasmUnavailable = false;
 }
 
 describe('Stream B-U1 selection context coherence (real-wasm lane)', () => {
@@ -56,7 +54,7 @@ describe('Stream B-U1 selection context coherence (real-wasm lane)', () => {
     vi.restoreAllMocks();
   });
 
-  it('hides the contextual task surface on dataset load and on Compare', () => {
+  it('hides the contextual task surface on dataset load and on Compare', async () => {
     world = new World(); wireKernel(world);
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
     mesh.userData.row = { id: 'X', value: 99 };
@@ -65,7 +63,7 @@ describe('Stream B-U1 selection context coherence (real-wasm lane)', () => {
     expect(world.uiManager.contextualTaskSurface.visible).toBe(true);
 
     const sales = getSampleDataset('sales-table');
-    world.loadDataset({
+    await world.loadDataset({
       name: sales.label,
       ...sales,
       maxDepth: sales.depth,
