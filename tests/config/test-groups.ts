@@ -9,6 +9,7 @@ export const FAST_NODE_TESTS = [
   'tests/moneta-scoring-ownership.test.ts',
   'tests/pt3b-governed-event-contracts.test.ts',
   'tests/pt4b-consent-capture-authority.test.ts',
+  'tests/pt4b-data-plane-auth.test.ts',
   'tests/q2-dataset-identity-cross-language-golden.test.ts',
   'tests/q2-dataset-identity-parity.test.ts',
   'tests/q2-dataset-identity-properties.test.ts',
