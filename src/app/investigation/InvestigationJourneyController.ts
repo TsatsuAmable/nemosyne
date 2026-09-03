@@ -129,13 +129,14 @@ export class InvestigationJourneyController {
       (entry) => entry.discoveryId === input.discoveryId,
     );
     if (!episode) throw new Error(`Investigation not found: ${input.discoveryId}`);
-    const observationIds = episode.evidenceIds.filter((id) => id.startsWith('obs-') || id.startsWith('observation-'));
+    const noticeId = episode.evidenceIds[0];
+    if (!noticeId) throw new Error('The investigation has no originating notice evidence.');
     await this.executor.execute(
       this.command('CONCLUDE', [input.discoveryId], {
         title: requiredText(input.title, 'Understanding title'),
         description: requiredText(input.description, 'Understanding'),
         confidence: input.confidence ?? 'preliminary',
-        observationIds,
+        observationIds: [noticeId],
         resultIds: [requiredText(input.resultId, 'Analytical evidence')],
         discoveryId: input.discoveryId,
       }),
