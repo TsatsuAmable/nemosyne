@@ -7,11 +7,13 @@ export const NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION = '2.2' as const;
 const MAX_CATALOG_BYTES = 1024 * 1024;
 const DEFAULT_MAX_ARTIFACT_BYTES = 256 * 1024 * 1024;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const CONTENT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 const COMMIT_RE = /^[0-9a-f]{40}$/;
-const DATASET_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const DATASET_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+const DATASET_VERSION_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 
 export type RemoteDatasetFormat = 'csv' | 'json';
-export type RemoteDatasetGovernanceState = 'governed' | 'pending' | 'rejected';
+export type RemoteDatasetGovernanceState = 'candidate' | 'governed' | 'retired';
 
 export interface RemoteDatasetArtifact {
   tier: string;
@@ -26,15 +28,22 @@ export interface RemoteDatasetArtifact {
 
 export interface RemoteMeasurementField {
   name: string;
-  storageType: string;
-  measurementScale: string;
-  semanticType: string;
+  storageType: 'integer' | 'number' | 'string' | 'boolean' | 'timestamp';
+  measurementScale: 'none' | 'nominal' | 'ordinal' | 'interval' | 'ratio';
+  semanticType:
+    | 'identifier'
+    | 'categorical'
+    | 'quantitative'
+    | 'temporal'
+    | 'circular'
+    | 'compositional-part'
+    | 'geospatial-coordinate';
   nullable: boolean;
   unit?: string;
 }
 
 export interface RemoteMeasurementSchema {
-  status: string;
+  status: 'declared' | 'pending-review';
   fields: RemoteMeasurementField[];
 }
 
@@ -42,12 +51,12 @@ export interface RemoteDatasetCatalogEntry {
   id: string;
   datasetVersion: string;
   label: string;
-  kind: string;
+  kind: 'synthetic' | 'real';
   description: string;
   topology: string;
   governanceState: RemoteDatasetGovernanceState;
-  contentDigest?: string;
-  privacy: string;
+  contentDigest?: string | null;
+  privacy: 'synthetic' | 'public' | 'restricted' | 'unknown';
   license: Record<string, unknown>;
   provenance: Record<string, unknown>;
   intendedUses: string[];
@@ -95,6 +104,18 @@ export interface NemosyneDataCatalogClientOptions {
   digestImpl?: (bytes: Uint8Array) => Promise<string>;
 }
 
+const STORAGE_TYPES = new Set(['integer', 'number', 'string', 'boolean', 'timestamp']);
+const MEASUREMENT_SCALES = new Set(['none', 'nominal', 'ordinal', 'interval', 'ratio']);
+const SEMANTIC_TYPES = new Set([
+  'identifier',
+  'categorical',
+  'quantitative',
+  'temporal',
+  'circular',
+  'compositional-part',
+  'geospatial-coordinate',
+]);
+
 function assertSafePath(path: string): void {
   if (
     path.length === 0 ||
@@ -136,8 +157,13 @@ function assertArtifact(value: unknown): asserts value is RemoteDatasetArtifact 
 function assertMeasurementSchema(value: unknown): asserts value is RemoteMeasurementSchema {
   if (!value || typeof value !== 'object') throw new Error('Invalid corpus measurement schema');
   const schema = value as Record<string, unknown>;
-  assertNonEmptyString(schema.status, 'corpus measurement schema status');
+  if (schema.status !== 'declared' && schema.status !== 'pending-review') {
+    throw new Error('Invalid corpus measurement schema status');
+  }
   if (!Array.isArray(schema.fields)) throw new Error('Invalid corpus measurement fields');
+  if (schema.status === 'declared' && schema.fields.length === 0) {
+    throw new Error('Declared corpus measurement schema must contain fields');
+  }
   const names = new Set<string>();
   for (const rawField of schema.fields) {
     if (!rawField || typeof rawField !== 'object') throw new Error('Invalid corpus measurement field');
@@ -145,11 +171,19 @@ function assertMeasurementSchema(value: unknown): asserts value is RemoteMeasure
     assertNonEmptyString(field.name, 'corpus measurement field name');
     if (names.has(field.name)) throw new Error(`Duplicate corpus measurement field: ${field.name}`);
     names.add(field.name);
-    assertNonEmptyString(field.storageType, 'corpus measurement storage type');
-    assertNonEmptyString(field.measurementScale, 'corpus measurement scale');
-    assertNonEmptyString(field.semanticType, 'corpus semantic type');
+    if (typeof field.storageType !== 'string' || !STORAGE_TYPES.has(field.storageType)) {
+      throw new Error('Invalid corpus measurement storage type');
+    }
+    if (typeof field.measurementScale !== 'string' || !MEASUREMENT_SCALES.has(field.measurementScale)) {
+      throw new Error('Invalid corpus measurement scale');
+    }
+    if (typeof field.semanticType !== 'string' || !SEMANTIC_TYPES.has(field.semanticType)) {
+      throw new Error('Invalid corpus semantic type');
+    }
     if (typeof field.nullable !== 'boolean') throw new Error('Invalid corpus measurement nullability');
-    if (field.unit !== undefined && typeof field.unit !== 'string') throw new Error('Invalid corpus measurement unit');
+    if (field.unit !== undefined && (typeof field.unit !== 'string' || field.unit.length === 0)) {
+      throw new Error('Invalid corpus measurement unit');
+    }
   }
 }
 
@@ -176,24 +210,41 @@ function validateCatalog(value: unknown): RemoteDatasetCatalog {
     if (typeof dataset.id !== 'string' || !DATASET_ID_RE.test(dataset.id)) throw new Error('Invalid corpus dataset id');
     if (ids.has(dataset.id)) throw new Error(`Duplicate corpus dataset id: ${dataset.id}`);
     ids.add(dataset.id);
-    assertNonEmptyString(dataset.datasetVersion, 'corpus dataset version');
+    if (typeof dataset.datasetVersion !== 'string' || !DATASET_VERSION_RE.test(dataset.datasetVersion)) {
+      throw new Error('Invalid corpus dataset version');
+    }
     if (typeof dataset.label !== 'string') throw new Error('Invalid corpus dataset label');
     assertSafeLabel(dataset.label);
-    assertNonEmptyString(dataset.kind, 'corpus dataset kind');
-    if (typeof dataset.description !== 'string') throw new Error('Invalid corpus dataset description');
+    if (dataset.kind !== 'synthetic' && dataset.kind !== 'real') throw new Error('Invalid corpus dataset kind');
+    if (typeof dataset.description !== 'string' || dataset.description.length === 0) throw new Error('Invalid corpus dataset description');
     assertNonEmptyString(dataset.topology, 'corpus dataset topology');
-    if (dataset.governanceState !== 'governed' && dataset.governanceState !== 'pending' && dataset.governanceState !== 'rejected') {
+    if (dataset.governanceState !== 'candidate' && dataset.governanceState !== 'governed' && dataset.governanceState !== 'retired') {
       throw new Error('Invalid corpus governance state');
     }
-    assertNonEmptyString(dataset.privacy, 'corpus privacy declaration');
+    if (dataset.governanceState === 'governed') {
+      if (typeof dataset.contentDigest !== 'string' || !CONTENT_DIGEST_RE.test(dataset.contentDigest)) {
+        throw new Error('Governed corpus dataset is missing a valid content digest');
+      }
+    } else if (dataset.governanceState === 'candidate' && dataset.contentDigest !== null && dataset.contentDigest !== undefined) {
+      throw new Error('Candidate corpus dataset must not claim a content digest');
+    }
+    if (!['synthetic', 'public', 'restricted', 'unknown'].includes(String(dataset.privacy))) {
+      throw new Error('Invalid corpus privacy declaration');
+    }
     if (!dataset.license || typeof dataset.license !== 'object' || Array.isArray(dataset.license)) throw new Error('Invalid corpus license declaration');
     if (!dataset.provenance || typeof dataset.provenance !== 'object' || Array.isArray(dataset.provenance)) throw new Error('Invalid corpus provenance declaration');
-    if (!Array.isArray(dataset.intendedUses) || !dataset.intendedUses.every((item) => typeof item === 'string' && item.length > 0)) {
+    if (!Array.isArray(dataset.intendedUses) || dataset.intendedUses.length === 0 || !dataset.intendedUses.every((item) => typeof item === 'string' && item.length > 0)) {
       throw new Error('Invalid corpus intended uses');
     }
     assertMeasurementSchema(dataset.measurementSchema);
-    if (!Array.isArray(dataset.plannedTiers) || !dataset.plannedTiers.every((tier) => typeof tier === 'string' && tier.length > 0)) {
+    if (dataset.governanceState === 'governed' && dataset.measurementSchema.status !== 'declared') {
+      throw new Error('Governed corpus dataset requires a declared measurement schema');
+    }
+    if (!Array.isArray(dataset.plannedTiers) || dataset.plannedTiers.length === 0 || !dataset.plannedTiers.every((tier) => typeof tier === 'string' && tier.length > 0)) {
       throw new Error('Invalid corpus planned tiers');
+    }
+    if (new Set(dataset.plannedTiers as string[]).size !== dataset.plannedTiers.length) {
+      throw new Error('Duplicate corpus planned tier');
     }
     if (!Array.isArray(dataset.artifacts)) throw new Error('Invalid corpus artifact list');
     for (const artifact of dataset.artifacts) assertArtifact(artifact);
