@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Plugin, ViteDevServer } from 'vite';
+import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   handleBoundedJsonPost,
@@ -43,6 +43,12 @@ interface UXRecord {
 interface UXBatch {
   records?: unknown;
   sid?: unknown;
+}
+
+interface MiddlewareServer {
+  middlewares: {
+    use(handler: (req: IncomingMessage, res: ServerResponse, next: () => void) => void): unknown;
+  };
 }
 
 function isTerminalControlCode(code: number): boolean {
@@ -160,7 +166,7 @@ export function uxTracePlugin(): Plugin {
     });
   }
 
-  function configureServer(server: ViteDevServer): void {
+  function configureServer(server: MiddlewareServer): void {
     server.middlewares.use((req, res, next) => {
       if (handleUxTrace(req, res)) return;
       next();
