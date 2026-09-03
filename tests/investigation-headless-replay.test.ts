@@ -199,7 +199,7 @@ describe('Gate 5 InvestigationReplayRunner', () => {
     expect(result.provenanceEventsVerified).toBeLessThan(2);
     expect(
       result.discrepancies.some(
-        (entry) => entry.includes('Analysis drift') && entry.includes('inputFingerprint')
+        (entry) => entry.includes('Provenance drift') && entry.includes('inputFingerprint')
       )
     ).toBe(true);
   });
