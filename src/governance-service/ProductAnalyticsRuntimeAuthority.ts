@@ -1,8 +1,16 @@
 import {
+  PRODUCT_GOVERNED_EVENT_REGISTRY_V1,
   canonicalGovernedJsonV1,
+  validateGovernedEventEnvelopeV1,
   type GovernedEventEnvelopeV1,
   type RuntimeComponentReferenceV1,
 } from '../governance/index.ts';
+import {
+  SqliteProductAnalyticsEventIngestion,
+  type ProductAnalyticsEventIngestionOptions,
+  type ProductEventDispositionV1,
+} from './ProductAnalyticsEventIngestion.ts';
+import type { AuthenticatedPrincipalV1 } from './ProductAnalyticsConsentAuthority.ts';
 
 export interface ProductAnalyticsDeploymentManifestV1 {
   readonly schemaVersion: '1';
@@ -50,5 +58,38 @@ export class ReviewedProductAnalyticsRuntimeAuthority implements ProductAnalytic
     const platform = components.platformRuntime;
     if (!platform) return false;
     return this.allowedPlatforms.has(`${platform.componentId}\n${platform.version}`);
+  }
+}
+
+export interface RuntimePinnedProductAnalyticsEventIngestionOptions
+  extends ProductAnalyticsEventIngestionOptions {
+  readonly runtimeAuthority: ProductAnalyticsRuntimeAuthorityV1;
+}
+
+/**
+ * Production PT4 ingestion seam. Runtime policy is checked independently from
+ * the hostile envelope before consent/replay/storage authority is consulted.
+ */
+export class RuntimePinnedProductAnalyticsEventIngestion extends SqliteProductAnalyticsEventIngestion {
+  private readonly runtimeAuthority: ProductAnalyticsRuntimeAuthorityV1;
+
+  constructor(options: RuntimePinnedProductAnalyticsEventIngestionOptions) {
+    super(options);
+    this.runtimeAuthority = options.runtimeAuthority;
+  }
+
+  override async ingestLine(
+    principal: AuthenticatedPrincipalV1,
+    jsonText: string,
+  ): Promise<ProductEventDispositionV1> {
+    const structural = validateGovernedEventEnvelopeV1(jsonText, PRODUCT_GOVERNED_EVENT_REGISTRY_V1);
+    if (!structural.ok || !this.runtimeAuthority.accepts(structural.envelope)) {
+      return Object.freeze({
+        eventId: structural.ok ? structural.envelope.eventId : null,
+        status: 'REFUSED_GOVERNANCE',
+        reasonCode: structural.ok ? 'RUNTIME_MANIFEST_MISMATCH' : (structural.issues[0]?.code ?? 'REFUSED_GOVERNANCE'),
+      });
+    }
+    return super.ingestLine(principal, jsonText);
   }
 }
