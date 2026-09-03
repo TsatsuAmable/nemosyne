@@ -10,11 +10,13 @@ Quest Browser does not expose headset temperature. The report therefore records 
 
 1. Build the current Rust/WASM package with `npm run wasm:dev`.
 2. Generate the local HTTPS certificates described in `AGENTS.md` if they are absent.
-3. Start the LAN-reachable dev server with a build identifier:
+3. Start the explicitly LAN-reachable dev server with a build identifier:
 
    ```bash
-   VITE_NEMOSYNE_BUILD_ID=<commit-sha> npm run dev
+   VITE_NEMOSYNE_BUILD_ID=<commit-sha> npm run dev:lan
    ```
+
+   `npm run dev` is intentionally loopback-only. `dev:lan` exposes development-only signalling, remote-log, load-test and UX-trace endpoints to other devices on the local network. Those endpoints are not an authenticated production service. Use LAN mode only on a trusted, controlled network for the duration of the headset run, never on public/untrusted Wi-Fi or an Internet-routed host, then stop the server when the run is complete.
 
 4. In Quest Browser, open the HTTPS LAN URL with an investigator run label and the headset firmware recorded from Settings:
 
