@@ -13,55 +13,81 @@ async function ensureKernelAfterModuleReset() {
 }
 
 /**
- * Minimal in-memory IndexedDB stub for unit testing.
+ * Minimal transaction-correct in-memory IndexedDB stub for unit testing.
+ * Requests settle before the transaction completion callback, matching the
+ * ordering relied on by production persistence.
  */
 function makeStubIndexedDB() {
   const stores = new Map();
 
   class FakeRequest {
-    constructor(result = null, error = null) {
+    constructor(result = null, error = null, transaction = null) {
       this.result = result;
       this.error = error;
+      this.transaction = transaction;
     }
     _dispatch() {
       if (this.error && this.onerror) this.onerror({ target: this });
-      if (this.onsuccess) this.onsuccess({ target: this });
+      else if (this.onsuccess) this.onsuccess({ target: this });
+      this.transaction?._requestSettled();
     }
   }
 
   class FakeObjectStore {
-    constructor(data) {
+    constructor(data, transaction) {
       this.data = data;
+      this.transaction = transaction;
     }
-    put(record) {
-      this.data.set(record.id, record);
-      const req = new FakeRequest();
+    _request(result = null, error = null) {
+      this.transaction._requestStarted();
+      const req = new FakeRequest(result, error, this.transaction);
       Promise.resolve().then(() => req._dispatch());
       return req;
+    }
+    put(record, explicitKey) {
+      const key = explicitKey ?? record?.id;
+      this.data.set(key, record);
+      return this._request();
     }
     get(id) {
-      const req = new FakeRequest(this.data.get(id) ?? undefined);
-      Promise.resolve().then(() => req._dispatch());
-      return req;
+      return this._request(this.data.get(id) ?? undefined);
     }
     getAll() {
-      const req = new FakeRequest([...this.data.values()]);
-      Promise.resolve().then(() => req._dispatch());
-      return req;
+      return this._request([...this.data.values()]);
+    }
+    getAllKeys() {
+      return this._request([...this.data.keys()]);
     }
     getKey(id) {
-      const req = new FakeRequest(this.data.has(id) ? id : undefined);
-      Promise.resolve().then(() => req._dispatch());
-      return req;
+      return this._request(this.data.has(id) ? id : undefined);
+    }
+    delete(id) {
+      this.data.delete(id);
+      return this._request();
     }
   }
 
   class FakeTransaction {
     constructor(data) {
-      this.store = new FakeObjectStore(data);
+      this.store = new FakeObjectStore(data, this);
+      this.pending = 0;
+      this.completed = false;
+      Promise.resolve().then(() => this._maybeComplete());
     }
     objectStore() {
       return this.store;
+    }
+    _requestStarted() {
+      this.pending += 1;
+    }
+    _requestSettled() {
+      this.pending -= 1;
+      this._maybeComplete();
+    }
+    _maybeComplete() {
+      if (this.pending !== 0 || this.completed) return;
+      this.completed = true;
+      Promise.resolve().then(() => this.oncomplete?.({ target: this }));
     }
   }
 
@@ -73,6 +99,7 @@ function makeStubIndexedDB() {
     transaction() {
       return new FakeTransaction(this._data);
     }
+    close() {}
   }
 
   return {

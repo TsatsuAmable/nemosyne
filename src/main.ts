@@ -1,13 +1,16 @@
 import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
 import { bootstrapApp } from './app/index.ts';
 import { installConfiguredProductAnalyticsClient } from './app/governance/installProductAnalyticsClient.ts';
+import {
+  initializeClientPersistence,
+  installClientPersistenceStorageBridge,
+} from './persistence/ClientPersistence.ts';
 import { injectCssVariables } from './vr/ui-system/tokens.ts';
 
 if (import.meta.env.DEV) {
   remoteDebugStreamer.init();
 }
 
-// Inject design token CSS variables for DOM terminal surfaces
 injectCssVariables();
 
 function handleFatalError(err: unknown): void {
@@ -29,6 +32,11 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
 });
 
 async function start(): Promise<void> {
+  await initializeClientPersistence().catch((error) => {
+    console.warn('[Nemosyne] client persistence unavailable; continuing without durable local state', error);
+  });
+  installClientPersistenceStorageBridge();
+
   const app = await bootstrapApp();
   const productAnalytics = await installConfiguredProductAnalyticsClient(app.world.eventBus);
   if (!productAnalytics) return;

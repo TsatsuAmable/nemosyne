@@ -19,14 +19,43 @@ import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 /**
- * Minimal in-memory IndexedDB fake. Implements just the surface the
- * SessionStore touches: open() with onupgradeneeded/onsuccess, and a single
- * object store supporting put/get/getAll/delete/getKey. Every request fires
- * its onsuccess on a microtask, mirroring the real async IDB request model.
+ * Minimal transaction-correct in-memory IndexedDB fake. The production store
+ * resolves writes and reads on transaction completion, not merely request
+ * success, so the fake must preserve that ordering too.
  */
 function createFakeIndexedDB() {
   const records = new Map<string, { id: string; snapshot?: any; value?: any; savedAt: number }>();
   let storeCreated = false;
+
+  class FakeTransaction {
+    oncomplete: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    onabort: (() => void) | null = null;
+    error: Error | null = null;
+    private pending = 0;
+    private settled = false;
+
+    request(result: any) {
+      this.pending += 1;
+      const r: any = { onerror: null, onsuccess: null, error: null, result };
+      Promise.resolve().then(() => {
+        if (r.onsuccess) r.onsuccess({ target: r });
+        this.pending -= 1;
+        this.maybeComplete();
+      });
+      return r;
+    }
+
+    armCompletion(): void {
+      Promise.resolve().then(() => this.maybeComplete());
+    }
+
+    private maybeComplete(): void {
+      if (this.settled || this.pending !== 0 || !this.oncomplete) return;
+      this.settled = true;
+      this.oncomplete();
+    }
+  }
 
   const db: any = {
     objectStoreNames: { contains: () => storeCreated },
@@ -35,25 +64,46 @@ function createFakeIndexedDB() {
       return {};
     },
     transaction: () => {
-      const req = (result: any) => {
-        const r: any = { onerror: null, onsuccess: null, error: null, result };
-        Promise.resolve().then(() => r.onsuccess && r.onsuccess({ target: r }));
-        return r;
-      };
+      const tx = new FakeTransaction();
       const storeApi = {
         put: (val: any) => {
           records.set(val.id, val);
-          return req(undefined);
+          return tx.request(undefined);
         },
-        get: (id: string) => req(records.get(id)),
-        getAll: () => req([...records.values()]),
+        get: (id: string) => tx.request(records.get(id)),
+        getAll: () => tx.request([...records.values()]),
         delete: (id: string) => {
           records.delete(id);
-          return req(undefined);
+          return tx.request(undefined);
         },
-        getKey: (id: string) => req(records.has(id) ? id : undefined),
+        getKey: (id: string) => tx.request(records.has(id) ? id : undefined),
       };
-      return { objectStore: () => storeApi };
+      const result: any = {
+        objectStore: () => storeApi,
+        get oncomplete() {
+          return tx.oncomplete;
+        },
+        set oncomplete(handler) {
+          tx.oncomplete = handler;
+          tx.armCompletion();
+        },
+        get onerror() {
+          return tx.onerror;
+        },
+        set onerror(handler) {
+          tx.onerror = handler;
+        },
+        get onabort() {
+          return tx.onabort;
+        },
+        set onabort(handler) {
+          tx.onabort = handler;
+        },
+        get error() {
+          return tx.error;
+        },
+      };
+      return result;
     },
   };
 

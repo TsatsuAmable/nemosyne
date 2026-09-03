@@ -1,60 +1,37 @@
 /**
- * Persistence layer for @nemosyne/gesture-intelligence: IndexedDB-backed gesture
- * profile storage with an explicit, visible in-memory fallback.
+ * Persistence layer for @nemosyne/gesture-intelligence.
  *
- * v2 rewrite of the buggy v1 store. Behavioral contract:
- * - ONE shared database connection per persistence instance, opened lazily on the
- *   first operation and cached as a promise — never one connection per operation.
- * - Every read/write resolves on TRANSACTION completion (`tx.oncomplete`), not on
- *   request success; rejects with the underlying error on `tx.onerror`/`tx.onabort`.
- * - Schema version 2: `onupgradeneeded` creates the object store if absent.
- *   `loadProfile` is the v1 -> v2 migration hook: records that do not carry
- *   `schemaVersion === 2` plus a numeric `calibration.moveThreshold` yield `null`
- *   with a once-per-key `console.warn` — never a throw. A real v1 migration would
- *   be implemented at exactly this guard (currently a stub by design).
- * - If IndexedDB is unavailable (`globalThis.indexedDB` undefined, or `open`
- *   failing with InvalidStateError / SecurityError / TypeError), the instance
- *   degrades to a Map-backed backend and reports `backend: 'memory'` — the
- *   fallback is always visible in the backend field, never silent.
- * - `saveProfile` stamps nothing (the caller owns `StoredProfile` contents) but
- *   clones the profile up front, so stored bytes are guaranteed to round-trip
- *   through structured clone (function properties reject with DataCloneError).
- * - `close()` closes the shared connection if open, resets the cached promise,
- *   is idempotent, and safe when the connection was never opened; the next
- *   operation after `close()` lazily reopens the connection.
+ * The Nemosyne application default is the shared `nemosyne-client` database
+ * and its `gesture-profiles` object store. Standalone consumers may override
+ * the database/store names for isolation, but the production default no longer
+ * creates a second Nemosyne database.
  */
 
 import type { GesturePersistence, StoredProfile } from './contracts.ts';
 
-const SCHEMA_VERSION = 2;
-const DEFAULT_DB_NAME = 'nemosyne_gesture_ai';
-const DEFAULT_STORE_NAME = 'profiles';
+const PROFILE_SCHEMA_VERSION = 2;
+const SHARED_DATABASE_SCHEMA_VERSION = 1;
+const STANDALONE_DATABASE_SCHEMA_VERSION = 2;
+const DEFAULT_DB_NAME = 'nemosyne-client';
+const DEFAULT_STORE_NAME = 'gesture-profiles';
 
 export interface PersistenceOptions {
   dbName?: string;
   storeName?: string;
 }
 
-/**
- * Creates a {@link GesturePersistence} instance over IndexedDB, or over an
- * explicit Map-backed memory backend when IndexedDB is unavailable. The active
- * backend is always reported via the `backend` field.
- */
 export function createPersistence(options: PersistenceOptions = {}): GesturePersistence {
   const dbName = options.dbName ?? DEFAULT_DB_NAME;
   const storeName = options.storeName ?? DEFAULT_STORE_NAME;
+  const databaseVersion = dbName === DEFAULT_DB_NAME
+    ? SHARED_DATABASE_SCHEMA_VERSION
+    : STANDALONE_DATABASE_SCHEMA_VERSION;
   if (typeof globalThis.indexedDB === 'undefined') {
     return createMemoryPersistence();
   }
-  return createIndexedDbPersistence(dbName, storeName);
+  return createIndexedDbPersistence(dbName, storeName, databaseVersion);
 }
 
-/**
- * Deletes a gesture-intelligence database by name. Test helper used to reset
- * fake-indexeddb state between suites; resolves immediately (no-op) when
- * IndexedDB is unavailable. Standalone on purpose — not part of
- * {@link GesturePersistence}.
- */
 export function deleteDatabase(name: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (typeof globalThis.indexedDB === 'undefined') {
@@ -83,7 +60,7 @@ const isIndexedDbUnavailableError = (error: unknown): boolean => {
 const isValidStoredProfile = (value: unknown): value is StoredProfile => {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as { schemaVersion?: unknown; calibration?: { moveThreshold?: unknown } };
-  if (candidate.schemaVersion !== SCHEMA_VERSION) return false;
+  if (candidate.schemaVersion !== PROFILE_SCHEMA_VERSION) return false;
   return typeof candidate.calibration?.moveThreshold === 'number';
 };
 
@@ -98,8 +75,7 @@ const validateLoadedProfile = (
     warnedKeys.add(profileId);
     console.warn(
       `[gesture-intelligence] stored profile '${profileId}' failed schema validation ` +
-        `(expected schemaVersion ${SCHEMA_VERSION}); returning null. ` +
-        `This is the v1 -> v2 migration hook: a real migration would run here.`
+        `(expected schemaVersion ${PROFILE_SCHEMA_VERSION}); returning null.`
     );
   }
   return null;
@@ -178,7 +154,11 @@ const deleteInTransaction = (
     transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB transaction aborted'));
   });
 
-const createIndexedDbPersistence = (dbName: string, storeName: string): GesturePersistence => {
+const createIndexedDbPersistence = (
+  dbName: string,
+  storeName: string,
+  databaseVersion: number
+): GesturePersistence => {
   let memoryFallback: GesturePersistence | null = null;
   let openPromise: Promise<IDBDatabase> | null = null;
   let databaseHandle: IDBDatabase | null = null;
@@ -189,7 +169,7 @@ const createIndexedDbPersistence = (dbName: string, storeName: string): GestureP
     openPromise = new Promise<IDBDatabase>((resolve, reject) => {
       let request: IDBOpenDBRequest;
       try {
-        request = globalThis.indexedDB.open(dbName, SCHEMA_VERSION);
+        request = globalThis.indexedDB.open(dbName, databaseVersion);
       } catch (error) {
         reject(error);
         return;
@@ -203,6 +183,13 @@ const createIndexedDbPersistence = (dbName: string, storeName: string): GestureP
       request.onsuccess = () => {
         const database = request.result;
         databaseHandle = database;
+        if (!database.objectStoreNames.contains(storeName)) {
+          database.close();
+          databaseHandle = null;
+          openPromise = null;
+          reject(new Error(`IndexedDB store '${storeName}' is missing; initialize the Nemosyne client schema before gesture persistence`));
+          return;
+        }
         database.onversionchange = () => {
           database.close();
           databaseHandle = null;
@@ -246,9 +233,7 @@ const createIndexedDbPersistence = (dbName: string, storeName: string): GestureP
       } catch (error) {
         return delegateToMemory(error, (fallback) => fallback.loadProfile(profileId));
       }
-      const raw = await runTransaction(database, storeName, 'readonly', (store) =>
-        store.get(profileId)
-      );
+      const raw = await runTransaction(database, storeName, 'readonly', (store) => store.get(profileId));
       return validateLoadedProfile(profileId, raw, warnedKeys);
     },
     saveProfile: async (profileId, profile) => {
