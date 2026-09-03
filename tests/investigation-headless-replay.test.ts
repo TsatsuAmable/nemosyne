@@ -175,6 +175,10 @@ describe('Gate 5 InvestigationReplayRunner', () => {
     expect(result.success).toBe(false);
     expect(result.provenanceEventsVerified).toBe(0);
     expect(result.discrepancies.some((entry) => entry.includes('Kernel version mismatch'))).toBe(true);
-    expect(result.discrepancies.some((entry) => entry.includes('Provenance drift'))).toBe(true);
+    expect(
+      result.discrepancies.some(
+        (entry) => entry.includes('Analysis drift') && entry.includes('kernelVersion')
+      )
+    ).toBe(true);
   });
 });
