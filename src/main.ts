@@ -2,6 +2,7 @@ import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
 import { bootstrapApp } from './app/index.ts';
 import { installConfiguredProductAnalyticsClient } from './app/governance/installProductAnalyticsClient.ts';
 import { installInvestigationJourney } from './app/investigation/installInvestigationJourney.ts';
+import { installInvestigationContinuity } from './app/investigation/installInvestigationContinuity.ts';
 import {
   initializeClientPersistence,
   installClientPersistenceStorageBridge,
@@ -40,6 +41,7 @@ async function start(): Promise<void> {
 
   const app = await bootstrapApp();
   installInvestigationJourney(app);
+  installInvestigationContinuity(app);
 
   const productAnalytics = await installConfiguredProductAnalyticsClient(app.world.eventBus);
   if (!productAnalytics) return;
