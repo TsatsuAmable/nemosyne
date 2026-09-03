@@ -14,7 +14,17 @@ type Capability = {
   reason?: string;
   forbiddenPublicExports?: ForbiddenPublicExport[];
 };
-type Registry = { schemaVersion: number; policy: string; capabilities: Capability[] };
+type RootException = {
+  root: string;
+  classification: 'development-only' | 'compatibility-only';
+  reason: string;
+};
+type Registry = {
+  schemaVersion: number;
+  policy: string;
+  rootExceptions: RootException[];
+  capabilities: Capability[];
+};
 
 const root = process.cwd();
 const registry = JSON.parse(
@@ -29,6 +39,14 @@ function read(repoPath: string): string {
   return fs.readFileSync(path.join(root, repoPath), 'utf8');
 }
 
+function topLevelSourceRoot(source: string): string | null {
+  if (!source.startsWith('src/')) return null;
+  const relative = source.slice('src/'.length);
+  const first = relative.split('/')[0];
+  if (!first || first.includes('.')) return null;
+  return first;
+}
+
 describe('P1-W production capability registry', () => {
   it('has one explicit classification for every inventoried capability', () => {
     expect(registry.schemaVersion).toBe(1);
@@ -36,7 +54,7 @@ describe('P1-W production capability registry', () => {
 
     const ids = registry.capabilities.map((capability) => capability.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(registry.capabilities.length).toBeGreaterThanOrEqual(15);
+    expect(registry.capabilities.length).toBeGreaterThanOrEqual(20);
 
     for (const capability of registry.capabilities) {
       expect(['production', 'experimental-production', 'development-only']).toContain(
@@ -71,6 +89,43 @@ describe('P1-W production capability registry', () => {
       for (const evidence of capability.evidence ?? []) {
         expect(exists(evidence), `${capability.id}: ${evidence}`).toBe(true);
       }
+    }
+  });
+
+  it('covers every top-level src domain with a production capability or an explicit root exception', () => {
+    const sourceRoots = fs
+      .readdirSync(path.join(root, 'src'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== '.agent')
+      .map((entry) => entry.name)
+      .sort();
+
+    const productRoots = new Set<string>();
+    for (const capability of registry.capabilities) {
+      if (capability.classification === 'development-only') continue;
+      for (const source of capability.sources) {
+        const sourceRoot = topLevelSourceRoot(source);
+        if (sourceRoot) productRoots.add(sourceRoot);
+      }
+    }
+
+    const exceptionRoots = registry.rootExceptions.map(({ root: exceptionRoot }) => exceptionRoot);
+    expect(new Set(exceptionRoots).size).toBe(exceptionRoots.length);
+
+    for (const exception of registry.rootExceptions) {
+      expect(['development-only', 'compatibility-only']).toContain(exception.classification);
+      expect(exception.reason.trim().length, exception.root).toBeGreaterThan(20);
+      expect(exists(`src/${exception.root}`), exception.root).toBe(true);
+      expect(productRoots.has(exception.root), `${exception.root} is both production-covered and excepted`).toBe(
+        false
+      );
+    }
+
+    const exceptions = new Set(exceptionRoots);
+    for (const sourceRoot of sourceRoots) {
+      expect(
+        productRoots.has(sourceRoot) || exceptions.has(sourceRoot),
+        `unclassified top-level src domain: ${sourceRoot}`
+      ).toBe(true);
     }
   });
 
