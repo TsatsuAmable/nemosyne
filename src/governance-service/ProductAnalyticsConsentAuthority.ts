@@ -9,7 +9,6 @@ import {
   PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
   PRODUCT_OPERATION_FAMILY_ID,
   type ImmutableReferenceV1,
-  type ProductOperationValue,
 } from '../governance/index.ts';
 import type { AuthorizationEvidenceV1 } from '../governance/GovernedEventContracts.ts';
 
@@ -129,6 +128,20 @@ interface IdempotencyRow {
   readonly response_json: string;
 }
 
+interface CaptureAuthorizationRow {
+  readonly consent_revision: number;
+  readonly invalidated_at: string | null;
+  readonly response_json: string;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested);
+  }
+  return value;
+}
+
 function assertExactKeys(value: object, expected: readonly string[], label: string): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
@@ -219,7 +232,7 @@ function deriveDeletionHandleV1(principal: AuthenticatedPrincipalV1, secret: Ver
 }
 
 function parseReceipt(json: string | null): AuthorizationEvidenceV1 | null {
-  return json ? (JSON.parse(json) as AuthorizationEvidenceV1) : null;
+  return json ? deepFreeze(JSON.parse(json) as AuthorizationEvidenceV1) : null;
 }
 
 export class SqliteProductAnalyticsConsentAuthority {
@@ -252,8 +265,7 @@ export class SqliteProductAnalyticsConsentAuthority {
 
     mkdirSync(options.dataDirectory, { recursive: true, mode: 0o700 });
     chmodSync(options.dataDirectory, 0o700);
-    const directoryMode = statSync(options.dataDirectory).mode & 0o777;
-    if (directoryMode !== 0o700) {
+    if ((statSync(options.dataDirectory).mode & 0o777) !== 0o700) {
       throw new ProductAnalyticsAuthorityError('STORAGE_CONFIGURATION_INVALID', 'governance data directory must be mode 0700');
     }
 
@@ -287,8 +299,7 @@ export class SqliteProductAnalyticsConsentAuthority {
   getCurrent(principal: AuthenticatedPrincipalV1): ProductAnalyticsConsentStateV1 {
     assertPrincipal(principal);
     const handle = deriveDeletionHandleV1(principal, this.deletionHandleKey);
-    const row = this.currentRow(handle);
-    return this.toPublicState(row);
+    return this.toPublicState(this.currentRow(handle));
   }
 
   grant(
@@ -307,13 +318,17 @@ export class SqliteProductAnalyticsConsentAuthority {
       const current = this.currentRow(handle);
       const currentRevision = current ? String(current.revision) : null;
       if (request.expectedPriorRevision !== currentRevision) {
-        throw new ProductAnalyticsAuthorityError('CONSENT_REVISION_CONFLICT', 'expected prior consent revision does not match current state');
+        throw new ProductAnalyticsAuthorityError(
+          'CONSENT_REVISION_CONFLICT',
+          'expected prior consent revision does not match current state'
+        );
       }
 
       const revision = (current?.revision ?? 0) + 1;
-      const effectiveAt = this.now().toISOString();
+      const effectiveAt = this.serverNow();
       const profilePseudonymId = derivePurposePseudonymV1(principal, PURPOSE, this.purposePseudonymKey);
       const receipt = this.createReceipt(revision, request.actionId, profilePseudonymId, effectiveAt);
+      const receiptJson = canonicalJsonStringify(receipt);
       this.db
         .prepare(
           `INSERT INTO product_analytics_consent_revisions
@@ -325,14 +340,20 @@ export class SqliteProductAnalyticsConsentAuthority {
           PURPOSE,
           revision,
           PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE.digest.value,
-          canonicalJsonStringify(receipt),
+          receiptJson,
           profilePseudonymId,
           effectiveAt,
           request.actionId
         );
 
-      const result: ProductAnalyticsGrantResultV1 = Object.freeze({
-        ...this.toPublicState({ revision, status: 'GRANTED', receipt_json: canonicalJsonStringify(receipt), profile_pseudonym_id: profilePseudonymId, effective_at: effectiveAt }),
+      const result = deepFreeze<ProductAnalyticsGrantResultV1>({
+        ...this.toPublicState({
+          revision,
+          status: 'GRANTED',
+          receipt_json: receiptJson,
+          profile_pseudonym_id: profilePseudonymId,
+          effective_at: effectiveAt,
+        }),
         actionId: request.actionId,
       });
       this.putIdempotency(handle, 'GRANT', request.actionId, requestDigest, result);
@@ -350,23 +371,38 @@ export class SqliteProductAnalyticsConsentAuthority {
     const requestDigest = sha256Hex(canonicalJsonStringify(request));
 
     return this.transaction(() => {
-      const prior = this.getIdempotency<ProductAnalyticsRevocationResultV1>(handle, 'REVOKE', request.actionId, requestDigest);
+      const prior = this.getIdempotency<ProductAnalyticsRevocationResultV1>(
+        handle,
+        'REVOKE',
+        request.actionId,
+        requestDigest
+      );
       if (prior) return prior;
 
       const current = this.currentRow(handle);
       if (!current || current.status !== 'GRANTED' || String(current.revision) !== request.expectedCurrentRevision) {
-        throw new ProductAnalyticsAuthorityError('CONSENT_REVISION_CONFLICT', 'current granted consent revision does not match revocation request');
+        throw new ProductAnalyticsAuthorityError(
+          'CONSENT_REVISION_CONFLICT',
+          'current granted consent revision does not match revocation request'
+        );
       }
 
       const revision = current.revision + 1;
-      const effectiveAt = this.now().toISOString();
+      const effectiveAt = this.serverNow();
       this.db
         .prepare(
           `INSERT INTO product_analytics_consent_revisions
            (principal_handle, purpose, revision, status, notice_digest, receipt_json, profile_pseudonym_id, effective_at, action_id)
            VALUES (?, ?, ?, 'DENIED', ?, NULL, NULL, ?, ?)`
         )
-        .run(handle, PURPOSE, revision, PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE.digest.value, effectiveAt, request.actionId);
+        .run(
+          handle,
+          PURPOSE,
+          revision,
+          PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE.digest.value,
+          effectiveAt,
+          request.actionId
+        );
       this.db
         .prepare(
           `UPDATE product_analytics_capture_authorizations
@@ -375,8 +411,14 @@ export class SqliteProductAnalyticsConsentAuthority {
         )
         .run(effectiveAt, handle);
 
-      const result: ProductAnalyticsRevocationResultV1 = Object.freeze({
-        ...this.toPublicState({ revision, status: 'DENIED', receipt_json: null, profile_pseudonym_id: null, effective_at: effectiveAt }),
+      const result = deepFreeze<ProductAnalyticsRevocationResultV1>({
+        ...this.toPublicState({
+          revision,
+          status: 'DENIED',
+          receipt_json: null,
+          profile_pseudonym_id: null,
+          effective_at: effectiveAt,
+        }),
         actionId: request.actionId,
       });
       this.putIdempotency(handle, 'REVOKE', request.actionId, requestDigest, result);
@@ -396,17 +438,27 @@ export class SqliteProductAnalyticsConsentAuthority {
       const current = this.currentRow(handle);
       const receipt = parseReceipt(current?.receipt_json ?? null);
       if (!current || current.status !== 'GRANTED' || !receipt || !current.profile_pseudonym_id) {
-        throw new ProductAnalyticsAuthorityError('CONSENT_REQUIRED', 'current product-analytics consent is required for capture authorization');
+        throw new ProductAnalyticsAuthorityError(
+          'CONSENT_REQUIRED',
+          'current product-analytics consent is required for capture authorization'
+        );
       }
 
       const existing = this.db
         .prepare(
-          `SELECT response_json FROM product_analytics_capture_authorizations
+          `SELECT consent_revision, invalidated_at, response_json
+           FROM product_analytics_capture_authorizations
            WHERE principal_handle = ? AND event_id = ?`
         )
-        .get(handle, request.eventId) as { response_json: string } | undefined;
+        .get(handle, request.eventId) as CaptureAuthorizationRow | undefined;
       if (existing) {
-        const prior = JSON.parse(existing.response_json) as ProductAnalyticsCaptureAuthorizationV1;
+        if (existing.invalidated_at !== null || existing.consent_revision !== current.revision) {
+          throw new ProductAnalyticsAuthorityError(
+            'ACTION_ID_CONFLICT',
+            'event ID belongs to an invalidated or superseded capture authorization'
+          );
+        }
+        const prior = deepFreeze(JSON.parse(existing.response_json) as ProductAnalyticsCaptureAuthorizationV1);
         if (
           prior.producerInstanceId === request.producerInstanceId &&
           prior.streamId === request.streamId &&
@@ -415,14 +467,20 @@ export class SqliteProductAnalyticsConsentAuthority {
         ) {
           return prior;
         }
-        throw new ProductAnalyticsAuthorityError('ACTION_ID_CONFLICT', 'event ID is already bound to different capture coordinates');
+        throw new ProductAnalyticsAuthorityError(
+          'ACTION_ID_CONFLICT',
+          'event ID is already bound to different capture coordinates'
+        );
       }
 
       const authorizedAtDate = this.now();
+      if (!Number.isFinite(authorizedAtDate.getTime())) {
+        throw new ProductAnalyticsAuthorityError('STORAGE_CONFIGURATION_INVALID', 'server clock returned an invalid time');
+      }
       const authorizedAt = authorizedAtDate.toISOString();
       const expiresAt = new Date(authorizedAtDate.getTime() + this.captureAuthorizationTtlMs).toISOString();
       const authorizationId = `cav1_${this.uuid()}`;
-      const result: ProductAnalyticsCaptureAuthorizationV1 = Object.freeze({
+      const result = deepFreeze<ProductAnalyticsCaptureAuthorizationV1>({
         schemaVersion: SCHEMA_VERSION,
         authorizationId,
         eventId: request.eventId,
@@ -521,17 +579,17 @@ export class SqliteProductAnalyticsConsentAuthority {
 
   private toPublicState(row: ConsentRevisionRow | null): ProductAnalyticsConsentStateV1 {
     if (!row) {
-      return Object.freeze({
+      return deepFreeze({
         schemaVersion: SCHEMA_VERSION,
         purpose: PURPOSE,
-        status: 'DENIED',
+        status: 'DENIED' as const,
         revision: null,
         receipt: null,
         profilePseudonymId: null,
         effectiveAt: null,
       });
     }
-    return Object.freeze({
+    return deepFreeze({
       schemaVersion: SCHEMA_VERSION,
       purpose: PURPOSE,
       status: row.status,
@@ -557,29 +615,51 @@ export class SqliteProductAnalyticsConsentAuthority {
       effectiveAt,
       actionId,
     };
-    return Object.freeze({
+    return deepFreeze({
       id: `crv1_${this.uuid()}`,
       revision: String(revision),
-      digest: Object.freeze({ algorithm: 'SHA256' as const, value: sha256Hex(canonicalJsonStringify(evidence)) }),
+      digest: { algorithm: 'SHA256' as const, value: sha256Hex(canonicalJsonStringify(evidence)) },
     });
   }
 
   private validateGrantRequest(request: ProductAnalyticsGrantRequestV1): void {
-    assertExactKeys(request, ['schemaVersion', 'purpose', 'notice', 'confirmed', 'actionId', 'expectedPriorRevision'], 'grant request');
+    assertExactKeys(
+      request,
+      ['schemaVersion', 'purpose', 'notice', 'confirmed', 'actionId', 'expectedPriorRevision'],
+      'grant request'
+    );
     if (request.schemaVersion !== SCHEMA_VERSION || request.purpose !== PURPOSE || request.confirmed !== true) {
-      throw new ProductAnalyticsAuthorityError('INVALID_REQUEST', 'grant request schema, purpose and explicit confirmation must match');
+      throw new ProductAnalyticsAuthorityError(
+        'INVALID_REQUEST',
+        'grant request schema, purpose and explicit confirmation must match'
+      );
     }
-    if (canonicalJsonStringify(request.notice) !== canonicalJsonStringify(PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE)) {
-      throw new ProductAnalyticsAuthorityError('INVALID_REQUEST', 'grant must confirm the exact reviewed notice reference');
+    if (
+      canonicalJsonStringify(request.notice) !==
+      canonicalJsonStringify(PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE)
+    ) {
+      throw new ProductAnalyticsAuthorityError(
+        'INVALID_REQUEST',
+        'grant must confirm the exact reviewed notice reference'
+      );
     }
     assertUuid(request.actionId, 'actionId');
-    if (request.expectedPriorRevision !== null) assertPositiveRevision(request.expectedPriorRevision, 'expectedPriorRevision');
+    if (request.expectedPriorRevision !== null) {
+      assertPositiveRevision(request.expectedPriorRevision, 'expectedPriorRevision');
+    }
   }
 
   private validateRevocationRequest(request: ProductAnalyticsRevocationRequestV1): void {
-    assertExactKeys(request, ['schemaVersion', 'purpose', 'actionId', 'expectedCurrentRevision'], 'revocation request');
+    assertExactKeys(
+      request,
+      ['schemaVersion', 'purpose', 'actionId', 'expectedCurrentRevision'],
+      'revocation request'
+    );
     if (request.schemaVersion !== SCHEMA_VERSION || request.purpose !== PURPOSE) {
-      throw new ProductAnalyticsAuthorityError('INVALID_REQUEST', 'revocation request schema and purpose must match');
+      throw new ProductAnalyticsAuthorityError(
+        'INVALID_REQUEST',
+        'revocation request schema and purpose must match'
+      );
     }
     assertUuid(request.actionId, 'actionId');
     assertPositiveRevision(request.expectedCurrentRevision, 'expectedCurrentRevision');
@@ -592,17 +672,37 @@ export class SqliteProductAnalyticsConsentAuthority {
       'capture authorization request'
     );
     if (request.schemaVersion !== SCHEMA_VERSION || request.familyId !== PRODUCT_OPERATION_FAMILY_ID) {
-      throw new ProductAnalyticsAuthorityError('INVALID_REQUEST', 'capture request schema/family must match the first governed family');
+      throw new ProductAnalyticsAuthorityError(
+        'INVALID_REQUEST',
+        'capture request schema/family must match the first governed family'
+      );
     }
     assertUuid(request.eventId, 'eventId');
-    if (!/^piv1_[0-9a-f-]{36}$/i.test(request.producerInstanceId) || !/^strv1_[0-9a-f-]{36}$/i.test(request.streamId)) {
-      throw new ProductAnalyticsAuthorityError('INVALID_REQUEST', 'producer and stream IDs must use the RFC 0004 prefixed UUID forms');
+    if (
+      !/^piv1_[0-9a-f-]{36}$/i.test(request.producerInstanceId) ||
+      !/^strv1_[0-9a-f-]{36}$/i.test(request.streamId)
+    ) {
+      throw new ProductAnalyticsAuthorityError(
+        'INVALID_REQUEST',
+        'producer and stream IDs must use the RFC 0004 prefixed UUID forms'
+      );
     }
     assertUuid(request.producerInstanceId.slice(5), 'producerInstanceId');
     assertUuid(request.streamId.slice(6), 'streamId');
     if (!Number.isSafeInteger(request.streamSequence) || request.streamSequence < 0) {
-      throw new ProductAnalyticsAuthorityError('INVALID_REQUEST', 'streamSequence must be a non-negative safe integer');
+      throw new ProductAnalyticsAuthorityError(
+        'INVALID_REQUEST',
+        'streamSequence must be a non-negative safe integer'
+      );
     }
+  }
+
+  private serverNow(): string {
+    const value = this.now();
+    if (!Number.isFinite(value.getTime())) {
+      throw new ProductAnalyticsAuthorityError('STORAGE_CONFIGURATION_INVALID', 'server clock returned an invalid time');
+    }
+    return value.toISOString();
   }
 
   private transaction<T>(work: () => T): T {
@@ -617,7 +717,12 @@ export class SqliteProductAnalyticsConsentAuthority {
     }
   }
 
-  private getIdempotency<T>(handle: string, endpoint: string, actionId: string, requestDigest: string): T | null {
+  private getIdempotency<T>(
+    handle: string,
+    endpoint: string,
+    actionId: string,
+    requestDigest: string
+  ): T | null {
     const row = this.db
       .prepare(
         `SELECT request_digest, response_json FROM product_analytics_idempotency
@@ -626,9 +731,12 @@ export class SqliteProductAnalyticsConsentAuthority {
       .get(handle, endpoint, actionId) as IdempotencyRow | undefined;
     if (!row) return null;
     if (row.request_digest !== requestDigest) {
-      throw new ProductAnalyticsAuthorityError('ACTION_ID_CONFLICT', 'action ID was already used with different canonical content');
+      throw new ProductAnalyticsAuthorityError(
+        'ACTION_ID_CONFLICT',
+        'action ID was already used with different canonical content'
+      );
     }
-    return JSON.parse(row.response_json) as T;
+    return deepFreeze(JSON.parse(row.response_json) as T);
   }
 
   private putIdempotency(
@@ -647,6 +755,3 @@ export class SqliteProductAnalyticsConsentAuthority {
       .run(handle, endpoint, actionId, requestDigest, canonicalJsonStringify(response));
   }
 }
-
-// Type-only export keeps the service family vocabulary explicit without adding payload authority here.
-export type { ProductOperationValue };
