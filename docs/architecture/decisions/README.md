@@ -26,3 +26,4 @@ Each ADR contains:
 - [ADR-0002: Runtime-local handles and durable identity](0002-runtime-local-handles-and-durable-identity.md)
 - [ADR-0003: Production-path evidence](0003-production-path-evidence.md)
 - [ADR-0004: Executable configuration is authoritative for machine facts](0004-executable-configuration-authority.md)
+- [ADR-0005: Production persistence authorities](0005-production-persistence-authorities.md)
