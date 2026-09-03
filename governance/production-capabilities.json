@@ -45,7 +45,7 @@
       "sources": ["src/app", "src/events", "src/types", "src/ui", "src/vr"],
       "entrypoints": ["src/main.ts"],
       "discovery": [{ "path": "src/main.ts", "contains": "bootstrapApp" }],
-      "evidence": ["playwright.config.ts"]
+      "evidence": ["tests/smoke/load.spec.ts"]
     },
     {
       "id": "analytical-runtime",
@@ -102,7 +102,7 @@
       "sources": ["src/governance", "src/app/governance/installProductAnalyticsClient.ts"],
       "entrypoints": ["src/main.ts"],
       "discovery": [{ "path": "src/main.ts", "contains": "installConfiguredProductAnalyticsClient" }],
-      "evidence": ["tests/pt4b-governance-composition-client-config.test.ts"],
+      "evidence": ["tests/pt4b-governance-composition-client-config.test.ts", "tests/pt4b-browser-pkce-producer.test.ts"],
       "note": "The browser client fails closed when configuration is absent. The server substrate remains an explicit root exception until a runnable/deployed governance service exists."
     },
     {
@@ -127,7 +127,7 @@
       "sources": ["src/network/NetworkManager.ts", "src/vr/coordinators/CollaborationCoordinator.ts"],
       "entrypoints": ["src/vr/World.ts"],
       "discovery": [{ "path": "src/vr/World.ts", "contains": "CollaborationCoordinator" }],
-      "evidence": ["tests/smoke/collaboration-harness.ts"],
+      "evidence": ["tests/collaboration-browser/recovery.spec.ts"],
       "note": "Client path is production-composed; deployed signalling-service qualification remains RF-054/P1-W service work."
     },
     {
