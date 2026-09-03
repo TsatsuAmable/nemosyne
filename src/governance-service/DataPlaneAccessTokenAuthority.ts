@@ -1,4 +1,4 @@
-import { createHmac, createPublicKey, verify as verifySignature, type JsonWebKey, type KeyObject } from 'node:crypto';
+import { createHmac, createPublicKey, verify as verifySignature, type KeyObject } from 'node:crypto';
 import { chmodSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
