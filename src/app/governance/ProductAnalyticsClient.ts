@@ -270,7 +270,7 @@ export class ProductAnalyticsOperationProducer {
     this.runtime = options.runtime;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
-    this.uuid = options.uuid ?? crypto.randomUUID;
+    this.uuid = options.uuid ?? (() => crypto.randomUUID());
     this.onOverflow = options.onOverflow ?? (() => {});
   }
 
@@ -303,7 +303,7 @@ export class ProductAnalyticsOperationProducer {
       return;
     }
     const authorization = await captureResponse.json() as Record<string, unknown>;
-    const envelope = this.buildEnvelope(payload, authorization);
+    const envelope = this.buildEnvelope(eventId, payload, authorization);
     if (!envelope) {
       this.resetStreamAndDiscard();
       return;
@@ -379,6 +379,7 @@ export class ProductAnalyticsOperationProducer {
   }
 
   private buildEnvelope(
+    expectedEventId: string,
     payload: Readonly<{ operation: string }>,
     authorization: Record<string, unknown>,
   ): GovernedEventEnvelopeV1 | null {
@@ -389,10 +390,13 @@ export class ProductAnalyticsOperationProducer {
     if (!authorizedAt || !expiresAt || !profilePseudonymId || !receipt || typeof receipt !== 'object') return null;
     const now = this.now();
     if (!Number.isFinite(now.getTime())) return null;
-    const capturedAt = now.toISOString();
-    if (capturedAt < authorizedAt || capturedAt > expiresAt) return null;
+    const nowMs = now.getTime();
+    const authorizedMs = Date.parse(authorizedAt);
+    const expiresMs = Date.parse(expiresAt);
+    if (!Number.isFinite(authorizedMs) || !Number.isFinite(expiresMs) || nowMs > expiresMs) return null;
+    const capturedAt = new Date(Math.max(nowMs, authorizedMs)).toISOString();
     if (
-      authorization.eventId !== this.uuidValueFromCapture(authorization, 'eventId') ||
+      authorization.eventId !== expectedEventId ||
       authorization.producerInstanceId !== this.producerInstanceId ||
       authorization.streamId !== this.streamId ||
       authorization.streamSequence !== this.sequence ||
@@ -403,7 +407,7 @@ export class ProductAnalyticsOperationProducer {
       schemaVersion: '1',
       eventFamilyId: PRODUCT_OPERATION_FAMILY_ID,
       payloadSchemaVersion: '1',
-      eventId: String(authorization.eventId),
+      eventId: expectedEventId,
       streamId: this.streamId,
       producerInstanceId: this.producerInstanceId,
       streamSequence: this.sequence,
@@ -454,11 +458,6 @@ export class ProductAnalyticsOperationProducer {
     };
     const structural = validateGovernedEventEnvelopeV1(JSON.stringify(envelope), PRODUCT_GOVERNED_EVENT_REGISTRY_V1);
     return structural.ok ? envelope : null;
-  }
-
-  private uuidValueFromCapture(authorization: Record<string, unknown>, key: string): string | null {
-    const value = authorization[key];
-    return typeof value === 'string' ? value : null;
   }
 
   private resetStreamAndDiscard(): void {
