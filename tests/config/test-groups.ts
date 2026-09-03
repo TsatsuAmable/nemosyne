@@ -11,6 +11,7 @@ export const FAST_NODE_TESTS = [
   'tests/pt4b-browser-pkce-producer.test.ts',
   'tests/pt4b-consent-capture-authority.test.ts',
   'tests/pt4b-data-plane-auth.test.ts',
+  'tests/pt4b-governance-composition-client-config.test.ts',
   'tests/pt4b-governance-http-surface.test.ts',
   'tests/pt4b-governed-event-ingestion.test.ts',
   'tests/pt4b-http-resource-budgets.test.ts',
