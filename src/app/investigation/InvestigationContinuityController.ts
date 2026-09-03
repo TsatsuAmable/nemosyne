@@ -173,14 +173,29 @@ export class InvestigationContinuityController {
     return created;
   }
 
+  async restoreCheckpoint(archiveId: string): Promise<ArchiveEntry> {
+    const archives = await this.sessions.archiveStore.listArchives();
+    const entry = archives.find((candidate) => candidate.archiveId === archiveId);
+    if (!entry) throw new Error('The selected checkpoint is no longer listed in the Evidence Vault.');
+    const raw = await this.sessions.archiveStore.loadArchive(archiveId);
+    if (!raw) throw new Error('The selected checkpoint is missing from local storage.');
+    await this.restoreWithRollback(asSnapshot(raw), 'checkpoint');
+    return entry;
+  }
+
   async restoreLatestCheckpoint(): Promise<ArchiveEntry> {
     const archives = await this.sessions.archiveStore.listArchives();
     const latest = archives.at(-1);
     if (!latest) throw new Error('No saved checkpoint is available to restore.');
-    const raw = await this.sessions.archiveStore.loadArchive(latest.archiveId);
-    if (!raw) throw new Error('The latest checkpoint is missing from local storage.');
-    await this.restoreWithRollback(asSnapshot(raw), 'checkpoint');
-    return latest;
+    return this.restoreCheckpoint(latest.archiveId);
+  }
+
+  async deleteCheckpoint(archiveId: string): Promise<void> {
+    const archives = await this.sessions.archiveStore.listArchives();
+    if (!archives.some((entry) => entry.archiveId === archiveId)) {
+      throw new Error('The selected checkpoint is no longer listed in the Evidence Vault.');
+    }
+    await this.sessions.archiveStore.deleteArchive(archiveId);
   }
 
   async recoverAutosave(): Promise<boolean> {
