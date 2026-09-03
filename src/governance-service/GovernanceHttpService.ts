@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 import {
@@ -8,6 +9,7 @@ import {
   type DataPlaneScope,
 } from './DataPlaneAccessTokenAuthority.ts';
 import { OidcJwksAuthority, OidcJwksError } from './OidcJwksAuthority.ts';
+import { SqliteProductAnalyticsEventIngestion } from './ProductAnalyticsEventIngestion.ts';
 import {
   ProductAnalyticsAuthorityError,
   SqliteProductAnalyticsConsentAuthority,
@@ -18,6 +20,9 @@ import {
 } from './ProductAnalyticsConsentAuthority.ts';
 
 const MAX_JSON_BODY_BYTES = 16 * 1024;
+const MAX_EVENT_BATCH_BYTES = 2_000_000;
+const MAX_EVENT_LINE_BYTES = 1_250_000;
+const MAX_EVENT_LINES = 16;
 const MAX_HEADER_BYTES = 16 * 1024;
 const HEADER_TIMEOUT_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -42,7 +47,7 @@ export interface GovernanceHttpRequestV1 {
   readonly contentType: string | null;
   readonly contentEncoding: string | null;
   readonly sourceId: string;
-  readonly readBody: () => Promise<Uint8Array>;
+  readonly readBody: (maxBytes?: number) => Promise<Uint8Array>;
 }
 
 export interface GovernanceAuthenticatorV1 {
@@ -53,14 +58,16 @@ export interface GovernanceHttpServiceOptions {
   readonly allowedOrigins: readonly string[];
   readonly authenticator: GovernanceAuthenticatorV1;
   readonly consentAuthority: SqliteProductAnalyticsConsentAuthority;
+  readonly eventIngestion?: SqliteProductAnalyticsEventIngestion;
   readonly now?: () => number;
+  readonly requestId?: () => string;
 }
 
 interface RouteDefinition {
   readonly method: 'GET' | 'POST';
   readonly path: string;
   readonly scope: DataPlaneScope;
-  readonly action: 'current' | 'grant' | 'revoke' | 'capture';
+  readonly action: 'current' | 'grant' | 'revoke' | 'capture' | 'ingest';
 }
 
 const ROUTES: readonly RouteDefinition[] = [
@@ -68,6 +75,7 @@ const ROUTES: readonly RouteDefinition[] = [
   { method: 'POST', path: '/v1/governance/consents/product-analytics/grants', scope: 'consent:write', action: 'grant' },
   { method: 'POST', path: '/v1/governance/consents/product-analytics/revocations', scope: 'consent:write', action: 'revoke' },
   { method: 'POST', path: '/v1/governance/consents/product-analytics/capture-authorizations', scope: 'events:capture', action: 'capture' },
+  { method: 'POST', path: '/v1/governed-events/batches', scope: 'events:write', action: 'ingest' },
 ] as const;
 
 function jsonResponse(status: number, body: unknown, origin: string | null): GovernanceHttpResponseV1 {
@@ -170,7 +178,9 @@ export class GovernanceHttpService {
   private readonly origins: ReadonlySet<string>;
   private readonly authenticator: GovernanceAuthenticatorV1;
   private readonly consentAuthority: SqliteProductAnalyticsConsentAuthority;
+  private readonly eventIngestion: SqliteProductAnalyticsEventIngestion | null;
   private readonly limiter: FixedWindowLimiter;
+  private readonly requestId: () => string;
   private authenticatedInFlight = 0;
 
   constructor(options: GovernanceHttpServiceOptions) {
@@ -180,7 +190,9 @@ export class GovernanceHttpService {
     this.origins = new Set(origins);
     this.authenticator = options.authenticator;
     this.consentAuthority = options.consentAuthority;
+    this.eventIngestion = options.eventIngestion ?? null;
     this.limiter = new FixedWindowLimiter(options.now ?? Date.now);
+    this.requestId = options.requestId ?? randomUUID;
   }
 
   async dispatch(request: GovernanceHttpRequestV1): Promise<GovernanceHttpResponseV1> {
@@ -209,11 +221,12 @@ export class GovernanceHttpService {
         return errorResponse(503, 'AUTHORITY_UNAVAILABLE', origin);
       }
 
+      const principal: AuthenticatedPrincipalV1 = Object.freeze({ issuer: authenticated.issuer, subject: authenticated.subject });
+      if (route.action === 'ingest') return this.ingestBatch(request, principal, origin);
       if (route.action === 'capture' && !this.limiter.take(`capture:${authenticated.issuer}\n${authenticated.subject}`, PRINCIPAL_CAPTURE_WINDOW_LIMIT)) {
         return errorResponse(429, 'RATE_LIMITED', origin);
       }
 
-      const principal: AuthenticatedPrincipalV1 = Object.freeze({ issuer: authenticated.issuer, subject: authenticated.subject });
       try {
         if (route.action === 'current') return jsonResponse(200, this.consentAuthority.getCurrent(principal), origin);
         if (request.contentEncoding !== null && request.contentEncoding !== 'identity') {
@@ -223,12 +236,8 @@ export class GovernanceHttpService {
           return errorResponse(415, 'MEDIA_TYPE_REFUSED', origin);
         }
         const body = await this.readJson(request);
-        if (route.action === 'grant') {
-          return jsonResponse(200, this.consentAuthority.grant(principal, body as ProductAnalyticsGrantRequestV1), origin);
-        }
-        if (route.action === 'revoke') {
-          return jsonResponse(200, this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
-        }
+        if (route.action === 'grant') return jsonResponse(200, this.consentAuthority.grant(principal, body as ProductAnalyticsGrantRequestV1), origin);
+        if (route.action === 'revoke') return jsonResponse(200, this.consentAuthority.revoke(principal, body as ProductAnalyticsRevocationRequestV1), origin);
         return jsonResponse(200, this.consentAuthority.authorizeCapture(principal, body as ProductAnalyticsCaptureAuthorizationRequestV1), origin);
       } catch (error) {
         if (error instanceof ProductAnalyticsAuthorityError) {
@@ -243,14 +252,44 @@ export class GovernanceHttpService {
     }
   }
 
+  private async ingestBatch(
+    request: GovernanceHttpRequestV1,
+    principal: AuthenticatedPrincipalV1,
+    origin: string | null
+  ): Promise<GovernanceHttpResponseV1> {
+    if (!this.eventIngestion) return errorResponse(503, 'INGESTION_UNAVAILABLE', origin);
+    if (request.contentEncoding !== null && request.contentEncoding !== 'identity') return errorResponse(415, 'CONTENT_ENCODING_REFUSED', origin);
+    if (request.contentType?.split(';', 1)[0].trim().toLowerCase() !== 'application/x-ndjson') return errorResponse(415, 'MEDIA_TYPE_REFUSED', origin);
+
+    let lines: readonly string[];
+    try {
+      lines = await this.frameNdjson(request);
+    } catch (error) {
+      return errorResponse(error instanceof TypeError && error.message === 'UTF8_REFUSED' ? 400 : 413, 'BATCH_FRAMING_REFUSED', origin);
+    }
+
+    const dispositions = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const disposition = await this.eventIngestion.ingestLine(principal, lines[index]);
+      dispositions.push(Object.freeze({
+        index,
+        eventId: disposition.eventId,
+        status: disposition.status,
+        reasonCode: disposition.reasonCode,
+      }));
+    }
+    const allAccepted = dispositions.every((item) => item.status === 'STORED' || item.status === 'EXACT_DUPLICATE');
+    return jsonResponse(allAccepted ? 200 : 207, Object.freeze({
+      schemaVersion: '1',
+      requestId: `gerqv1_${this.requestId()}`,
+      dispositions: Object.freeze(dispositions),
+    }), origin);
+  }
+
   private authorizeOrigin(origin: string | null): string | null {
     if (origin === null) return null;
     let normalized: string;
-    try {
-      normalized = normalizeOrigin(origin);
-    } catch {
-      throw new GovernanceTransportError(403, 'ORIGIN_REFUSED');
-    }
+    try { normalized = normalizeOrigin(origin); } catch { throw new GovernanceTransportError(403, 'ORIGIN_REFUSED'); }
     if (!this.origins.has(normalized) || normalized !== origin) throw new GovernanceTransportError(403, 'ORIGIN_REFUSED');
     return normalized;
   }
@@ -274,31 +313,36 @@ export class GovernanceHttpService {
   }
 
   private async readJson(request: GovernanceHttpRequestV1): Promise<unknown> {
-    const bytes = await request.readBody();
+    const bytes = await request.readBody(MAX_JSON_BODY_BYTES);
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_JSON_BODY_BYTES) throw new TypeError('request body size refused');
     let text: string;
-    try {
-      text = UTF8.decode(bytes);
-    } catch {
-      throw new TypeError('request body must be valid UTF-8');
-    }
+    try { text = UTF8.decode(bytes); } catch { throw new TypeError('request body must be valid UTF-8'); }
     return JSON.parse(text) as unknown;
+  }
+
+  private async frameNdjson(request: GovernanceHttpRequestV1): Promise<readonly string[]> {
+    const bytes = await request.readBody(MAX_EVENT_BATCH_BYTES);
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_EVENT_BATCH_BYTES) throw new TypeError('SIZE_REFUSED');
+    let text: string;
+    try { text = UTF8.decode(bytes); } catch { throw new TypeError('UTF8_REFUSED'); }
+    const lines = text.split('\n').map((line) => line.endsWith('\r') ? line.slice(0, -1) : line).filter((line) => line.length > 0);
+    if (lines.length === 0 || lines.length > MAX_EVENT_LINES) throw new TypeError('COUNT_REFUSED');
+    if (lines.some((line) => Buffer.byteLength(line, 'utf8') > MAX_EVENT_LINE_BYTES)) throw new TypeError('SIZE_REFUSED');
+    return Object.freeze(lines);
   }
 }
 
 class GovernanceTransportError extends Error {
-  constructor(readonly status: number, readonly code: string) {
-    super(code);
-  }
+  constructor(readonly status: number, readonly code: string) { super(code); }
 }
 
-async function readIncomingBody(request: IncomingMessage): Promise<Uint8Array> {
+async function readIncomingBody(request: IncomingMessage, maxBytes = MAX_JSON_BODY_BYTES): Promise<Uint8Array> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of request) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += bytes.byteLength;
-    if (total > MAX_JSON_BODY_BYTES) throw new TypeError('request body size refused');
+    if (total > maxBytes) throw new TypeError('request body size refused');
     chunks.push(bytes);
   }
   return Buffer.concat(chunks);
@@ -329,7 +373,7 @@ export function createGovernanceHttpServer(service: GovernanceHttpService): Serv
         contentType: typeof request.headers['content-type'] === 'string' ? request.headers['content-type'] : null,
         contentEncoding: typeof request.headers['content-encoding'] === 'string' ? request.headers['content-encoding'] : null,
         sourceId: request.socket.remoteAddress ?? 'unknown',
-        readBody: () => readIncomingBody(request),
+        readBody: (maxBytes) => readIncomingBody(request, maxBytes),
       });
       writeResponse(response, result);
       if (result.status >= 400 && !request.complete) request.resume();
