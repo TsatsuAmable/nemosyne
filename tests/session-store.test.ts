@@ -11,7 +11,7 @@ function makeStubIndexedDB() {
   const stores = new Map();
 
   class FakeRequest {
-    constructor(result = null, error = null, transaction = null) {
+    constructor(result = undefined, error = null, transaction = null) {
       this.result = result;
       this.error = error;
       this.transaction = transaction;
@@ -30,7 +30,7 @@ function makeStubIndexedDB() {
       this.transaction = transaction;
     }
 
-    _request(result = null, error = null) {
+    _request(result = undefined, error = null) {
       this.transaction._requestStarted();
       const req = new FakeRequest(result, error, this.transaction);
       Promise.resolve().then(() => req._dispatch());
