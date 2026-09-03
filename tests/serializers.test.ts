@@ -4,11 +4,13 @@ import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   datasetToArrowIPC,
   arrowIPCToDataset,
-  datasetToFlatBuffer,
-  flatBufferToDataset,
   datasetToMessagePack,
   messagePackToDataset,
 } from '../src/data/serializers/index.ts';
+import {
+  datasetToFlatBuffer,
+  flatBufferToDataset,
+} from '../src/data/serializers/FlatBuffersSerializer.ts';
 
 const TEST_DATASET = new Dataset(
   'Test',
