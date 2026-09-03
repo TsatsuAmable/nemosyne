@@ -77,25 +77,34 @@ export class WorldSessionController {
   }
 
   async saveSession(id: string = 'autosave'): Promise<void> {
-    const generation = this.generation;
-    if (!this.isCurrent(generation)) return;
-    const snapshot = this.snapshotCurrentSession();
-    if (!snapshot) return;
-
     try {
-      await this.getSessionStore().saveSession(
-        id,
-        snapshot as unknown as Parameters<SessionStoreLike['saveSession']>[1]
-      );
-      if (!this.isCurrent(generation)) return;
-      this.log('log', `Session saved: ${id}`);
-      this.recordInteraction('Save session', { result: id });
+      await this.saveSessionChecked(id);
     } catch (error) {
-      if (!this.isCurrent(generation)) return;
+      if (!this.isCurrent(this.generation)) return;
       console.warn('[WorldSessionController] failed to save session:', error);
       this.log('warn', `Session save failed: ${(error as Error).message}`);
-      throw error;
     }
+  }
+
+  /** Save with a success/failure signal for explicit product actions. */
+  async saveSessionChecked(id: string = 'manual'): Promise<boolean> {
+    const generation = this.generation;
+    if (!this.isCurrent(generation)) return false;
+    const snapshot = this.snapshotCurrentSession();
+    if (!snapshot) return false;
+    await this.getSessionStore().saveSession(
+      id,
+      snapshot as unknown as Parameters<SessionStoreLike['saveSession']>[1],
+    );
+    if (!this.isCurrent(generation)) return false;
+    this.log('log', `Session saved: ${id}`);
+    this.recordInteraction('Save session', { result: id });
+    return true;
+  }
+
+  async hasSession(id: string): Promise<boolean> {
+    if (!this.isCurrent(this.generation)) return false;
+    return this.getSessionStore().hasSession(id);
   }
 
   async loadSession(id: string = 'autosave'): Promise<boolean> {
