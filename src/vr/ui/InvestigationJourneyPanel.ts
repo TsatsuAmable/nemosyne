@@ -38,6 +38,15 @@ function terminal(episode: DiscoveryEpisode | null): boolean {
   );
 }
 
+function friendlyStatus(status: DiscoveryEpisode['validationStatus']): string {
+  if (status === 'UNTESTED') return 'Question saved';
+  if (status === 'UNDER_INVESTIGATION') return 'Investigation in progress';
+  if (status === 'SUPPORTED') return 'Hypothesis supported';
+  if (status === 'REFUTED') return 'Hypothesis refuted';
+  if (status === 'INCONCLUSIVE') return 'Evidence inconclusive';
+  return 'Externally validated';
+}
+
 function stageLabel(snapshot: DiscoveryReasoningSnapshot, episode: DiscoveryEpisode | null): string {
   if (!snapshot.latestObservation) return 'Notice something worth investigating';
   if (!episode) return 'Ask a research question';
@@ -302,7 +311,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
 
     if (episode) {
       ctx.fillText(`Question · ${(episode.question ?? 'not set').slice(0, 68)}`, 40, 132, 680);
-      ctx.fillText(`Status · ${episode.validationStatus.replaceAll('_', ' ').toLowerCase()}`, 40, 158, 680);
+      ctx.fillText(`Status · ${friendlyStatus(episode.validationStatus)}`, 40, 158, 680);
     } else if (this.snapshotValue.latestObservation) {
       ctx.fillText(`Notice · ${this.snapshotValue.latestObservation.notes.slice(0, 68)}`, 40, 132, 680);
     }
