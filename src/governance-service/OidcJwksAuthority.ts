@@ -8,6 +8,8 @@ const UTF8 = new TextDecoder('utf-8', { fatal: true });
 const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'] as const;
 const SUPPORTED_JWK_ALGORITHMS = new Set<DataPlaneJwsAlgorithm>(['RS256', 'ES256', 'EdDSA']);
 
+type JwkRecord = JsonWebKey & Record<string, unknown>;
+
 export type OidcJwksErrorCode =
   | 'JWKS_CONFIGURATION_INVALID'
   | 'DISCOVERY_UNAVAILABLE'
@@ -84,12 +86,17 @@ function validateJwksUri(value: unknown): string {
 }
 
 function hasPrivateMaterial(jwk: JsonWebKey): boolean {
-  const record = jwk as JsonWebKey & Record<string, unknown>;
+  const record = jwk as JwkRecord;
   return PRIVATE_JWK_FIELDS.some((field) => record[field] !== undefined);
 }
 
+function jwkKid(jwk: JsonWebKey): string | null {
+  const kid = (jwk as JwkRecord).kid;
+  return typeof kid === 'string' && kid.length > 0 && kid.length <= 256 ? kid : null;
+}
+
 function isSupportedPublicSigningJwk(jwk: JsonWebKey): boolean {
-  if (typeof jwk.kid !== 'string' || jwk.kid.length === 0 || jwk.kid.length > 256) return false;
+  if (!jwkKid(jwk)) return false;
   if (hasPrivateMaterial(jwk)) return false;
   if (jwk.use !== undefined && jwk.use !== 'sig') return false;
   if (jwk.key_ops !== undefined && (!Array.isArray(jwk.key_ops) || !jwk.key_ops.includes('verify'))) return false;
@@ -171,13 +178,14 @@ export class OidcJwksAuthority implements DataPlaneJwkResolver {
         throw new OidcJwksError('JWKS_REFUSED', 'every JWKS key must be an object');
       }
       const jwk = candidate as JsonWebKey;
-      if (!isSupportedPublicSigningJwk(jwk)) {
+      const kid = jwkKid(jwk);
+      if (!kid || !isSupportedPublicSigningJwk(jwk)) {
         throw new OidcJwksError('JWKS_REFUSED', 'JWKS contains private, non-signing or unsupported key material');
       }
-      if (keys.has(jwk.kid!)) {
+      if (keys.has(kid)) {
         throw new OidcJwksError('JWKS_REFUSED', 'duplicate JWKS kid is ambiguous');
       }
-      keys.set(jwk.kid!, Object.freeze({ ...jwk }));
+      keys.set(kid, Object.freeze({ ...jwk }));
     }
 
     this.cache = Object.freeze({ fetchedAt: this.now(), keys });
