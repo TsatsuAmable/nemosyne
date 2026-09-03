@@ -12,6 +12,7 @@ import {
 
 class FakePostgres implements PostgresPoolV1, PostgresClientV1 {
   readonly statements: string[] = [];
+  readonly tables = new Set<string>();
   version: number | null = null;
   released = 0;
   failOnGovernedStreams = false;
@@ -30,13 +31,24 @@ class FakePostgres implements PostgresPoolV1, PostgresClientV1 {
     text: string,
     values: readonly unknown[] = [],
   ): Promise<PostgresQueryResultV1<Row>> {
-    this.statements.push(text.trim());
-    if (this.failOnGovernedStreams && text.includes('CREATE TABLE IF NOT EXISTS nemosyne_governance.governed_product_streams')) {
+    const normalized = text.trim();
+    this.statements.push(normalized);
+    if (this.failOnGovernedStreams && text.includes('CREATE TABLE nemosyne_governance.governed_product_streams')) {
       throw new Error('injected migration failure');
+    }
+    if (text.includes('information_schema.tables')) {
+      const rows = [...this.tables].sort().map((table_name) => ({ table_name }));
+      return { rows: rows as Row[], rowCount: rows.length };
+    }
+    if (text.includes('CREATE TABLE nemosyne_governance.schema_version')) {
+      this.tables.add('schema_version');
     }
     if (text.includes('SELECT version FROM nemosyne_governance.schema_version')) {
       const rows = this.version === null ? [] : [{ version: this.version }];
       return { rows: rows as Row[], rowCount: rows.length };
+    }
+    if (text.includes('CREATE TABLE nemosyne_governance.product_analytics_consent_revisions')) {
+      for (const table of POSTGRES_GOVERNANCE_SCHEMA_V1.managedTables) this.tables.add(table);
     }
     if (text.includes('INSERT INTO nemosyne_governance.schema_version')) {
       this.version = Number(values[0]);
@@ -103,13 +115,14 @@ describe('PT4B9 PostgreSQL schema authority', () => {
     expect(database.statements.some((sql) => sql.includes('governed_product_events'))).toBe(true);
     expect(database.statements.some((sql) => sql.includes('product_analytics_erasure_actions'))).toBe(true);
     expect(database.statements.some((sql) => sql.includes('data_plane_credential_sessions'))).toBe(true);
+    expect([...database.tables].sort()).toEqual([...POSTGRES_GOVERNANCE_SCHEMA_V1.managedTables].sort());
     expect(database.statements.at(-1)).toBe('COMMIT');
     expect(database.released).toBe(1);
 
     const priorStatementCount = database.statements.length;
     await expect(authority.migrate()).resolves.toBe(POSTGRES_GOVERNANCE_SCHEMA_V1.version);
     const secondRun = database.statements.slice(priorStatementCount);
-    expect(secondRun.some((sql) => sql.includes('governed_product_events ('))).toBe(false);
+    expect(secondRun.some((sql) => sql.includes('CREATE TABLE nemosyne_governance.governed_product_events'))).toBe(false);
     expect(database.released).toBe(2);
   });
 
@@ -125,8 +138,18 @@ describe('PT4B9 PostgreSQL schema authority', () => {
     expect(database.released).toBe(1);
   });
 
-  it('refuses newer or missing schema versions instead of silently downgrading', async () => {
+  it('refuses an unversioned partial schema instead of silently adopting it', async () => {
     const database = new FakePostgres();
+    database.tables.add('governed_product_events');
+    const authority = new PostgresGovernanceMigrationAuthorityV1(database);
+
+    await expect(authority.migrate()).rejects.toMatchObject({ code: 'SCHEMA_STATE_INVALID' });
+    expect(database.statements).toContain('ROLLBACK');
+  });
+
+  it('refuses newer, missing, or falsely complete schema versions', async () => {
+    const database = new FakePostgres();
+    database.tables.add('schema_version');
     database.version = POSTGRES_GOVERNANCE_SCHEMA_V1.version + 1;
     const authority = new PostgresGovernanceMigrationAuthorityV1(database);
 
@@ -135,7 +158,11 @@ describe('PT4B9 PostgreSQL schema authority', () => {
 
     database.version = null;
     await expect(authority.assertCurrent()).rejects.toMatchObject({ code: 'SCHEMA_VERSION_UNSUPPORTED' });
+
     database.version = POSTGRES_GOVERNANCE_SCHEMA_V1.version;
+    await expect(authority.assertCurrent()).rejects.toMatchObject({ code: 'SCHEMA_STATE_INVALID' });
+
+    for (const table of POSTGRES_GOVERNANCE_SCHEMA_V1.managedTables) database.tables.add(table);
     await expect(authority.assertCurrent()).resolves.toBeUndefined();
   });
 });
