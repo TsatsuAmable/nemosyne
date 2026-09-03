@@ -14,6 +14,11 @@ afterEach(() => {
 
 describe('PT5B XR dataset library', () => {
   it('fails closed when the governed loader is not attached', async () => {
+    const remove = xrDatasetLibraryBridge.attach({
+      listDatasets: async () => [],
+      openDataset: async () => undefined,
+    });
+    remove();
     await expect(xrDatasetLibraryBridge.listDatasets()).rejects.toThrow(/not ready/i);
     await expect(xrDatasetLibraryBridge.openDataset('example', 'smoke')).rejects.toThrow(/not ready/i);
   });
@@ -42,6 +47,28 @@ describe('PT5B XR dataset library', () => {
     await menu.openLibraryDataset('public.example', 'smoke');
     expect(openDataset).toHaveBeenCalledWith('public.example', 'smoke');
     expect(menu.libraryStatus).toBe('Opened Public Example');
+  });
+
+  it('bounds the catalogue projected into headset UI', async () => {
+    const datasets = Array.from({ length: 40 }, (_, index) => ({
+      id: `public.${index}`,
+      label: `Public ${index}`,
+      version: '1.0.0',
+      description: 'fixture',
+      tiers: Array.from({ length: 8 }, (_unused, tierIndex) => ({
+        id: `tier-${tierIndex}`,
+        label: `Tier ${tierIndex}`,
+        rows: 100 + tierIndex,
+      })),
+    }));
+    detach = xrDatasetLibraryBridge.attach({
+      listDatasets: async () => datasets,
+      openDataset: async () => undefined,
+    });
+
+    const projected = await xrDatasetLibraryBridge.listDatasets();
+    expect(projected).toHaveLength(24);
+    expect(projected.every((entry) => entry.tiers.length <= 4)).toBe(true);
   });
 
   it('surfaces loader refusal in human-readable XR status instead of pretending the dataset opened', async () => {
