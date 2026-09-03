@@ -20,6 +20,16 @@ export interface AtlasNilTarget {
   ): Finding;
 }
 
+export interface AtlasNilBindingOptions {
+  /** Validate cross-domain constraints before Atlas mutates finding state. */
+  beforeRecordFinding?: (
+    command: NilCommand,
+    finding: Omit<Finding, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'>,
+  ) => void;
+  /** Project a successfully recorded Finding into another existing authority. */
+  onFindingRecorded?: (command: NilCommand, finding: Finding) => void;
+}
+
 function requiredString(command: NilCommand, key: string): string {
   const value = command.parameters[key];
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -62,7 +72,11 @@ function findingConfidence(command: NilCommand): Finding['confidence'] {
  * from inventing UI-side semantics for operations that do not yet have an Atlas
  * domain command.
  */
-export function bindAtlasNilHandlers(executor: NilExecutor, atlas: AtlasNilTarget): () => void {
+export function bindAtlasNilHandlers(
+  executor: NilExecutor,
+  atlas: AtlasNilTarget,
+  options: AtlasNilBindingOptions = {},
+): () => void {
   const unregister: Array<() => void> = [];
 
   unregister.push(
@@ -91,13 +105,16 @@ export function bindAtlasNilHandlers(executor: NilExecutor, atlas: AtlasNilTarge
 
   unregister.push(
     executor.register('CONCLUDE', (command) => {
-      atlas.recordFinding({
+      const findingInput = {
         title: requiredString(command, 'title'),
         description: requiredString(command, 'description'),
         confidence: findingConfidence(command),
         observationIds: optionalStringArray(command.parameters.observationIds, 'observationIds'),
         resultIds: optionalStringArray(command.parameters.resultIds, 'resultIds'),
-      });
+      };
+      options.beforeRecordFinding?.(command, findingInput);
+      const finding = atlas.recordFinding(findingInput);
+      options.onFindingRecorded?.(command, finding);
     }),
   );
 
