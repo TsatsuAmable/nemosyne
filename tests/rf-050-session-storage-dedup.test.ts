@@ -51,7 +51,7 @@ describe('RF-050 session persistence dataset deduplication', () => {
     const compact = compactSessionSnapshotForStorage(snapshot);
 
     expect(Object.keys(compact.datasets)).toHaveLength(2);
-    expect(JSON.stringify(compact).match(/\"rows\"/g)).toHaveLength(2);
+    expect(JSON.stringify(compact).match(/"rows"/g)).toHaveLength(2);
     expect(expandSessionSnapshotFromStorage(compact)).toEqual(snapshot);
   });
 
