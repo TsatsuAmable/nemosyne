@@ -81,6 +81,10 @@ export const NemosyneManifestSchema = v.object({
     })
   ),
   environment: v.object({
+    /**
+     * Privacy-sensitive fingerprinting surface. Exporters should omit this
+     * unless a study/diagnostic workflow explicitly needs browser identity.
+     */
     userAgent: v.nullish(v.string()),
     platform: v.nullish(v.string()),
     webxrSupported: v.nullish(v.boolean()),
@@ -133,6 +137,10 @@ export function sanitizeEntryPath(rawPath: string): string {
   }
   if (rawPath.includes('\0')) throw new Error('Invalid archive entry path: null byte detected');
 
+  // Decode repeatedly before validation so single- and multiply-encoded path
+  // separators / dot segments are judged in their effective form. Percent
+  // checks after decoding are both redundant and misleading, so traversal is
+  // validated only on the fully-normalized path below.
   let decoded = rawPath;
   for (let i = 0; i < 3; i++) {
     try {
@@ -154,7 +162,7 @@ export function sanitizeEntryPath(rawPath: string): string {
     );
   }
   for (const part of normalized.split('/')) {
-    if (part === '..' || part === '.' || part.includes('%2e') || part.includes('%2E')) {
+    if (part === '..' || part === '.') {
       throw new Error(`Invalid archive entry path: path traversal detected (${rawPath})`);
     }
   }
