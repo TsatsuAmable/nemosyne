@@ -20,6 +20,7 @@ type IDBFactoryLike = Pick<IDBFactory, 'open' | 'deleteDatabase'>;
 
 let defaultDbPromise: Promise<IDBDatabase> | null = null;
 const bootstrapCache = new Map<string, unknown>();
+let storageBridgeInstalled = false;
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -146,7 +147,6 @@ async function migrateLegacy(db: IDBDatabase, idb: IDBFactoryLike): Promise<void
   tx.objectStore(CLIENT_STORES.migrations).put({ completedAt: Date.now(), schemaVersion: CLIENT_DB_VERSION }, MIGRATION_KEY);
   await transactionDone(tx);
 
-  // Legacy records are retired only after the unified transaction commits.
   try { globalThis.localStorage?.removeItem(SETTINGS_KEY); } catch { /* no-op */ }
   try { globalThis.localStorage?.removeItem(TELEMETRY_KEY); } catch { /* no-op */ }
   for (const name of [LEGACY_SESSION_DB, LEGACY_GESTURE_DB]) {
@@ -177,8 +177,56 @@ export function persistBootstrappedValue(namespace: 'settings' | 'telemetry', ke
     .catch(() => undefined);
 }
 
+/**
+ * Compatibility bridge for the two legacy synchronous callers that still use
+ * the Storage API. Nemosyne's known settings/telemetry keys are never written
+ * back to browser localStorage: reads/writes are served from the bootstrapped
+ * memory mirror and persisted asynchronously to the unified IndexedDB.
+ */
+export function installClientPersistenceStorageBridge(storage: Storage = globalThis.localStorage): void {
+  if (storageBridgeInstalled || !storage) return;
+  storageBridgeInstalled = true;
+  const originalGetItem = storage.getItem.bind(storage);
+  const originalSetItem = storage.setItem.bind(storage);
+  const originalRemoveItem = storage.removeItem.bind(storage);
+
+  storage.getItem = ((key: string): string | null => {
+    if (key === SETTINGS_KEY) {
+      const value = readBootstrappedValue('settings', 'vr');
+      return value === undefined ? null : JSON.stringify(value);
+    }
+    if (key === TELEMETRY_KEY) {
+      const value = readBootstrappedValue('telemetry', 'consent');
+      return value === undefined ? null : JSON.stringify(value);
+    }
+    return originalGetItem(key);
+  }) as Storage['getItem'];
+
+  storage.setItem = ((key: string, value: string): void => {
+    if (key === SETTINGS_KEY || key === TELEMETRY_KEY) {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        persistBootstrappedValue(key === SETTINGS_KEY ? 'settings' : 'telemetry', key === SETTINGS_KEY ? 'vr' : 'consent', parsed);
+      } catch {
+        return;
+      }
+      return;
+    }
+    originalSetItem(key, value);
+  }) as Storage['setItem'];
+
+  storage.removeItem = ((key: string): void => {
+    if (key === SETTINGS_KEY || key === TELEMETRY_KEY) {
+      bootstrapCache.delete(key === SETTINGS_KEY ? 'settings:vr' : 'telemetry:consent');
+      return;
+    }
+    originalRemoveItem(key);
+  }) as Storage['removeItem'];
+}
+
 export function resetClientPersistenceForTests(): void {
   defaultDbPromise?.then((db) => db.close()).catch(() => undefined);
   defaultDbPromise = null;
   bootstrapCache.clear();
+  storageBridgeInstalled = false;
 }
