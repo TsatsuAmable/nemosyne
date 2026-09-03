@@ -1,11 +1,48 @@
 {
   "schemaVersion": 1,
-  "policy": "Every non-development capability must have a production runtime entry point, a user/service discovery marker, and product-path evidence. Development-only exceptions must be explicit and may not leak misleading public production exports.",
+  "policy": "Every non-development capability must have a production runtime entry point, a user/service discovery marker, and product-path evidence. Every top-level src domain must be covered by at least one non-development capability or an explicit root exception. Development-only exceptions must be explicit and may not leak misleading public production exports.",
+  "rootExceptions": [
+    {
+      "root": "draco",
+      "classification": "compatibility-only",
+      "reason": "Compatibility facade retained for migration only; production imports are required to resolve through Moneta."
+    },
+    {
+      "root": "fitness",
+      "classification": "development-only",
+      "reason": "Learned-fitness training, evaluation and promotion machinery is research-only until an intentionally promoted artifact workflow is product-composed."
+    },
+    {
+      "root": "governance-service",
+      "classification": "development-only",
+      "reason": "Product-intended server substrate with PostgreSQL/OIDC composition but no runnable repository service entrypoint or deployed service evidence yet; P1-W service wiring must promote it deliberately."
+    },
+    {
+      "root": "judgement",
+      "classification": "development-only",
+      "reason": "Pairwise representation judgement capture and dataset construction currently serve learned-fitness research rather than the ordinary investigator runtime."
+    },
+    {
+      "root": "performance",
+      "classification": "development-only",
+      "reason": "Benchmarking and performance-evidence infrastructure qualifies product behavior but is not itself an investigator-facing production subsystem."
+    },
+    {
+      "root": "study",
+      "classification": "development-only",
+      "reason": "Research protocol, crossover-study and statistical evaluation instrumentation is intentionally separate from the ordinary investigator runtime."
+    },
+    {
+      "root": "validation",
+      "classification": "development-only",
+      "reason": "Quest and release validation manifests/sessions are qualification infrastructure and may not masquerade as shipped investigator capabilities."
+    }
+  ],
   "capabilities": [
     {
-      "id": "webxr-runtime",
+      "id": "application-spatial-runtime",
       "classification": "production",
-      "sources": ["src/vr/Engine.ts", "src/vr/World.ts"],
+      "sources": ["src/app", "src/events", "src/types", "src/ui", "src/vr"],
       "entrypoints": ["src/main.ts"],
       "discovery": [{ "path": "src/main.ts", "contains": "bootstrapApp" }],
       "evidence": ["playwright.config.ts"]
@@ -13,7 +50,7 @@
     {
       "id": "analytical-runtime",
       "classification": "production",
-      "sources": ["src/atlas/AtlasCore.ts", "src/vr/runtime/AnalyticalRuntimeOwner.ts", "src/wasm/RuntimeBridge.ts"],
+      "sources": ["src/atlas", "src/data", "src/security/CryptoHash.ts", "src/wasm"],
       "entrypoints": ["src/vr/World.ts"],
       "discovery": [{ "path": "src/vr/World.ts", "contains": "new AnalyticalRuntimeOwner" }],
       "evidence": ["tests/production-runtime-wiring.test.ts"]
@@ -21,7 +58,7 @@
     {
       "id": "moneta-representation",
       "classification": "production",
-      "sources": ["src/moneta", "src/vr/presentation/representation/RepresentationSurface.ts"],
+      "sources": ["src/moneta", "src/interaction", "src/vr/presentation/representation/RepresentationSurface.ts"],
       "entrypoints": ["src/vr/World.ts"],
       "discovery": [{ "path": "src/vr/World.ts", "contains": "RepresentationSurface" }],
       "evidence": ["tests/representation-topology-node.test.ts"]
@@ -29,7 +66,7 @@
     {
       "id": "investigation-session-replay",
       "classification": "production",
-      "sources": ["src/session/NemosyneSession.ts", "src/session/InvestigationReplayRunner.ts", "src/session/NemosynePackage.ts"],
+      "sources": ["src/investigation", "src/session"],
       "entrypoints": ["src/vr/World.ts"],
       "discovery": [{ "path": "src/vr/World.ts", "contains": "InvestigationReplayRunner" }],
       "evidence": ["tests/production-runtime-wiring.test.ts"]
@@ -41,6 +78,32 @@
       "entrypoints": ["src/vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts"],
       "discovery": [{ "path": "src/vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts", "contains": "MemoryPalaceWorldView" }],
       "evidence": ["tests/smoke/p1uv-c1-functional-world-objects.spec.ts"]
+    },
+    {
+      "id": "client-persistence",
+      "classification": "production",
+      "sources": ["src/persistence"],
+      "entrypoints": ["src/main.ts"],
+      "discovery": [{ "path": "src/main.ts", "contains": "initializeClientPersistence" }],
+      "evidence": ["tests/pt4b9c-client-persistence-convergence.test.ts"]
+    },
+    {
+      "id": "local-observability",
+      "classification": "production",
+      "sources": ["src/observability", "src/utils"],
+      "entrypoints": ["src/vr/World.ts"],
+      "discovery": [{ "path": "src/vr/World.ts", "contains": "new TelemetryCollector" }],
+      "evidence": ["tests/telemetry.test.ts"],
+      "note": "RemoteDebugStreamer remains DEV-gated and is not evidence for this production classification."
+    },
+    {
+      "id": "product-analytics-browser-client",
+      "classification": "experimental-production",
+      "sources": ["src/governance", "src/app/governance/installProductAnalyticsClient.ts"],
+      "entrypoints": ["src/main.ts"],
+      "discovery": [{ "path": "src/main.ts", "contains": "installConfiguredProductAnalyticsClient" }],
+      "evidence": ["tests/pt4b-governance-composition-client-config.test.ts"],
+      "note": "The browser client fails closed when configuration is absent. The server substrate remains an explicit root exception until a runnable/deployed governance service exists."
     },
     {
       "id": "gesture-intelligence",
@@ -75,12 +138,6 @@
       "discovery": [{ "path": "src/vr/World.ts", "contains": "LiveStreamCoordinator" }],
       "evidence": ["tests/rf062f-feature-ports-production-path.test.ts"],
       "note": "Configured live sources are product paths; bundled demo-stream deployment remains RF-054/P1-W service work."
-    },
-    {
-      "id": "study-harness",
-      "classification": "development-only",
-      "sources": ["src/study"],
-      "reason": "Research protocol and validation instrumentation, not part of the ordinary investigator runtime. Its dedicated barrel is intentionally non-product."
     },
     {
       "id": "multimodal-perception-engine",
@@ -133,8 +190,20 @@
     {
       "id": "learned-fitness-training",
       "classification": "development-only",
-      "sources": ["src/fitness/FitnessModelRegistry.ts", "src/fitness/PairwiseLearning.ts", "src/app/JudgementFeatureTransaction.ts"],
-      "reason": "Empirical training/promotion machinery is research-only until a promoted artifact and operator workflow are intentionally activated in the product composition root."
+      "sources": ["src/fitness", "src/judgement", "src/app/JudgementFeatureTransaction.ts"],
+      "reason": "Empirical training, judgement and promotion machinery is research-only until a promoted artifact and operator workflow are intentionally activated in the product composition root."
+    },
+    {
+      "id": "study-harness",
+      "classification": "development-only",
+      "sources": ["src/study"],
+      "reason": "Research protocol and validation instrumentation, not part of the ordinary investigator runtime. Its dedicated barrel is intentionally non-product."
+    },
+    {
+      "id": "validation-infrastructure",
+      "classification": "development-only",
+      "sources": ["src/performance", "src/validation"],
+      "reason": "Performance benchmarks, Quest manifests and validation sessions produce promotion evidence but are not investigator-facing production capabilities."
     }
   ]
 }
