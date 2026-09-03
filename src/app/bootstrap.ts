@@ -537,10 +537,11 @@ export async function bootstrapApp(): Promise<AppInstance> {
 
   const telemetry = document.getElementById('telemetry');
   if (telemetry) {
+    // World owns the healthy per-frame telemetry text. Bootstrap only overrides
+    // that surface for a terminal kernel-unavailable state; a second healthy
+    // writer can strand the throttled World cache on a stale boot message.
     if (world.bootState === 'KERNEL_UNAVAILABLE') {
       telemetry.textContent = 'analytical kernel unavailable — run npm run wasm:dev';
-    } else {
-      telemetry.textContent = 'ready — point and select to inspect';
     }
     telemetry.hidden = import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1';
   }

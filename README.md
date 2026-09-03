@@ -65,13 +65,21 @@ npm install
 mkdir certs
 openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -subj "/CN=localhost" -nodes
 
-# Start the dev server (WASM is lazy-loaded at runtime)
+# Loopback-only desktop development. Dev middleware is not exposed to the LAN.
 npm run dev
-# Or: full WASM dev build + dev server
+# Or: full WASM dev build + loopback-only dev server
 npm run dev:wasm
 ```
 
-Then open `https://YOUR-IP:5173` in Meta Quest Browser, or use ADB port forwarding and open `https://localhost:5173`.
+For a physical Quest that must connect over the LAN, opt in explicitly:
+
+```bash
+npm run dev:lan
+# Or with a fresh WASM dev build:
+npm run dev:wasm:lan
+```
+
+LAN mode exposes development-only signalling, remote-log, load-test and UX-trace endpoints. These are not authenticated production services. Run LAN mode only on a trusted, controlled network, never on public/untrusted Wi-Fi or an Internet-routed host, and stop it after the headset session. Then open `https://YOUR-IP:5173` in Meta Quest Browser. ADB port forwarding can keep the safer loopback-only mode and use `https://localhost:5173` instead.
 
 ### Build and test
 
@@ -100,7 +108,7 @@ nemosyne/
 │   ├── data/               # Dataset (typed projection over kernel DatasetJSON), encodings, connectors, session store
 │   ├── draco/              # Governed compatibility facade only
 │   ├── moneta/             # Representation hypotheses, bounded selection, provenance and embodiment adapters
-│   ├── network/            # Authenticated transport & WebRTC/WebSocket collaboration
+│   ├── network/            # Browser-safe collaboration surface; server.ts is the Node-only signalling authority barrel
 │   ├── session/            # NemosyneSession — authoritative logical-session & .nemosyne package substrate
 │   ├── study/              # Controlled-experiment research harness (treatment configs, counterbalancing, trials)
 │   ├── types/              # Shared TypeScript types
@@ -147,6 +155,7 @@ nemosyne/
 
 - **Website:** GitHub Pages serves `docs/index.html` at https://nemosyne.world.
 - **Live app:** Netlify builds and serves the three.js/WebXR app from `dist/` (private demo deployment).
+- **Signalling replay scope:** `SignedTicketReplayGuard` is intentionally instance-local. One signalling replica has nonce replay protection. Multiple replicas behind a load balancer must share nonce-consumption state before the deployment can claim cross-instance replay protection; sharing only the HMAC secret is insufficient. Until that shared store exists, multi-replica signalling is a documented security residual, not a supported replay-safe topology.
 
 ---
 

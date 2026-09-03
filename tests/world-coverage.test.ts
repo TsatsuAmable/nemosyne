@@ -16,6 +16,17 @@ function wireKernel(w) {
   // Wave 4/6: AtlasCore is the analytical authority; bind the kernel there.
   // FileLoader/TDA/sample-load all reach the kernel through AtlasCore.
   w.atlas?.setKernel?.(bridge, 0x3c07);
+  // World now stages the default dataset without constructing placeholder
+  // pre-kernel geometry. This synchronous coverage harness explicitly builds
+  // the authoritative initial palace after installing its mock authority.
+  w._rebuildPalaceWithKernelFacts();
+  // Production loadDataset deliberately yields a task to protect XR frames.
+  // These unit-style coverage tests are about orchestration, not scheduling,
+  // so retain their historical immediate assertions through a harness-local
+  // adapter while browser/evidence suites exercise the real async boundary.
+  w.loadDataset = async (entry) => {
+    w._doLoadDataset(entry);
+  };
 }
 
 const CONNECTING = 0;

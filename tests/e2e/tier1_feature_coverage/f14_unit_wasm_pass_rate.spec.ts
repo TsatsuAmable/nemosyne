@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.js';
-import { ConstraintEngine, TopologyTypes } from '../../../src/moneta/ConstraintEngine.js';
+import {
+  ConstraintEngine,
+  TopologyTypes,
+  isNoFeasibleConstraintResult,
+} from '../../../src/moneta/ConstraintEngine.js';
 import { disposeObject } from '../../../src/utils/Dispose.js';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
@@ -22,7 +26,10 @@ describe('Feature 14: Unit & WASM Test Suite Quality', () => {
 
   it('F14-TC2: disposeObject handles complex Three.js object trees without throwing errors', () => {
     const root = new THREE.Group();
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
     root.add(mesh);
 
     expect(() => disposeObject(root)).not.toThrow();
@@ -30,11 +37,20 @@ describe('Feature 14: Unit & WASM Test Suite Quality', () => {
 
   it('F14-TC3: ConstraintEngine solves symbolic specs for TABULAR, GRAPH, HIERARCHY, GEO, TIME_SERIES', () => {
     const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
-    const topologies = [TopologyTypes.TABULAR, TopologyTypes.GRAPH, TopologyTypes.HIERARCHY, TopologyTypes.GEO, TopologyTypes.TIME_SERIES];
+    const topologies = [
+      TopologyTypes.TABULAR,
+      TopologyTypes.GRAPH,
+      TopologyTypes.HIERARCHY,
+      TopologyTypes.GEO,
+      TopologyTypes.TIME_SERIES,
+    ];
 
     topologies.forEach((topology) => {
       const res = engine.solve({ topology, rows: [{ a: 1 }] });
-      expect(res.spec).toBeDefined();
+      expect(isNoFeasibleConstraintResult(res)).toBe(false);
+      if (isNoFeasibleConstraintResult(res)) {
+        throw new Error(`expected feasible representation for ${topology}`);
+      }
       expect(res.spec.layout).toBeDefined();
     });
   });
@@ -48,7 +64,11 @@ describe('Feature 14: Unit & WASM Test Suite Quality', () => {
   });
 
   it('F14-TC5: Core data operations execute cleanly with zero uncaught exceptions', () => {
-    const ds = new Dataset('Test', [{ name: 'val', type: 'NUMERIC' }], [{ val: 10 }, { val: 20 }, { val: 30 }]);
+    const ds = new Dataset(
+      'Test',
+      [{ name: 'val', type: 'NUMERIC' }],
+      [{ val: 10 }, { val: 20 }, { val: 30 }]
+    );
     expect(ds.rangeOf('val')).toEqual({ min: 10, max: 30 });
   });
 });

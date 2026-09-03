@@ -65,15 +65,19 @@ describe('Canonical Vertical Slice Invariant — End-to-End Investigation Lifecy
     });
     expect(filterResult.dataset?.rows?.length).toBe(9); // TX-008 filtered out
     expect(atlas.aggregate.analytical.datasetVersion).toBe(2);
+    const filteredFingerprint = atlas.datasetFingerprint;
+    if (!filteredFingerprint) throw new Error('filtered dataset fingerprint is required');
 
-    // Perform Operation 2: Group Aggregation
+    // Perform Operation 2: Group Aggregation. The synchronous Atlas contract
+    // now fences every operation against the current dataset identity, just as
+    // the async path does, so the second operation must target the filtered data.
     const aggResult = atlas.applyAnalysis({
       operation: {
         op: 'aggregate',
         groupBy: 'region',
         aggregations: [{ column: 'amount', function: 'sum' }],
       },
-      datasetFingerprint: initialFingerprint,
+      datasetFingerprint: filteredFingerprint,
       datasetVersion: 2,
       algorithmVersion: '1.0.0',
       label: 'Aggregate by Region',

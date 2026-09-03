@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { ConstraintEngine, TopologyTypes } from '../../../src/moneta/ConstraintEngine.js';
+import {
+  ConstraintEngine,
+  TopologyTypes,
+  isNoFeasibleConstraintResult,
+} from '../../../src/moneta/ConstraintEngine.js';
 import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.js';
 import { MonetaTopologyNode } from '../../../src/moneta/MonetaTopologyNode.js';
 import { Dataset } from '../../../src/data/Dataset.js';
@@ -26,6 +30,10 @@ describe('Feature 2: Moneta -> VR Upstream Imports Decoupling', () => {
     const engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataInput = { dataset: ds, topology: TopologyTypes.TABULAR };
     const solverResult = engine.solve(dataInput);
+    expect(isNoFeasibleConstraintResult(solverResult)).toBe(false);
+    if (isNoFeasibleConstraintResult(solverResult)) {
+      throw new Error('expected a feasible tabular representation');
+    }
 
     const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, dataInput);
     expect(artifact).toBeDefined();
@@ -37,7 +45,13 @@ describe('Feature 2: Moneta -> VR Upstream Imports Decoupling', () => {
     const scene = new THREE.Scene();
     const csv = generateGraphCSV(5);
     const ds = datasetFromCsv('GraphDS', csv);
-    const node = new MonetaTopologyNode(scene, { dataset: ds, topology: TopologyTypes.GRAPH }, undefined, undefined, makeFactProvider());
+    const node = new MonetaTopologyNode(
+      scene,
+      { dataset: ds, topology: TopologyTypes.GRAPH },
+      undefined,
+      undefined,
+      makeFactProvider()
+    );
 
     expect(node.solverResult).toBeDefined();
     expect(node.artifact).toBeDefined();
@@ -48,7 +62,13 @@ describe('Feature 2: Moneta -> VR Upstream Imports Decoupling', () => {
     const scene = new THREE.Scene();
     const csv = generateTabularCSV(8, 3);
     const ds = datasetFromCsv('TabularDS2', csv);
-    const node = new MonetaTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
+    const node = new MonetaTopologyNode(
+      scene,
+      { dataset: ds, topology: TopologyTypes.TABULAR },
+      undefined,
+      undefined,
+      makeFactProvider()
+    );
 
     node.adjustWeight('prefer_grid_for_tabular', 50);
 
@@ -61,7 +81,10 @@ describe('Feature 2: Moneta -> VR Upstream Imports Decoupling', () => {
     const result = engine.solve({ topology: TopologyTypes.TABULAR, rows: [{ a: 1 }, { a: 2 }] });
 
     expect(result.facts).toBeDefined();
-    expect(result.spec).toBeDefined();
+    expect(isNoFeasibleConstraintResult(result)).toBe(false);
+    if (isNoFeasibleConstraintResult(result)) {
+      throw new Error('expected a feasible tabular representation');
+    }
     expect(result.spec.layout).toBeDefined();
     expect(result.spec.geometry).toBeDefined();
   });
@@ -70,7 +93,13 @@ describe('Feature 2: Moneta -> VR Upstream Imports Decoupling', () => {
     const scene = new THREE.Scene();
     const csv = generateTabularCSV(5, 3);
     const ds = datasetFromCsv('TabularDS3', csv);
-    const node = new MonetaTopologyNode(scene, { dataset: ds, topology: TopologyTypes.TABULAR }, undefined, undefined, makeFactProvider());
+    const node = new MonetaTopologyNode(
+      scene,
+      { dataset: ds, topology: TopologyTypes.TABULAR },
+      undefined,
+      undefined,
+      makeFactProvider()
+    );
 
     const newRows = [{ dim_1: 10, dim_2: 20, dim_3: 30 }];
     const appended = node.appendRows(newRows);

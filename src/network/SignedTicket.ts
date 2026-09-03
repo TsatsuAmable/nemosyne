@@ -1,4 +1,17 @@
-import * as crypto from 'crypto';
+/**
+ * SERVER-ONLY MODULE. Do not import from browser-reachable application code.
+ *
+ * The canonical ticket authority depends on Node `crypto`. Browser-safe network
+ * consumers must use `src/network/index.ts`; signalling/server code imports this
+ * module through `src/network/server.ts`. Dependency-cruiser enforces that
+ * boundary on every architecture check.
+ *
+ * Replay scope is deliberately per signalling-registry instance. A deployment
+ * with multiple signalling replicas MUST use a shared nonce store before it can
+ * claim replay protection across replicas. Sharing only the HMAC secret is not
+ * sufficient.
+ */
+import * as crypto from 'node:crypto';
 
 /**
  * Canonical Signed Room Ticket — signalling admission authority (Stream C / C1).
@@ -68,7 +81,11 @@ const HMAC_SHA256_HEX_LEN = 64;
 const HEX_RE = /^[0-9a-fA-F]{64}$/;
 const FUTURE_ISSUE_SKEW_MS = 60_000;
 
-/** Constant-time comparison backed by Node's native crypto implementation. */
+/**
+ * Constant-time comparison backed by Node's native crypto implementation.
+ * The temporary buffers are acceptable on the admission path; do not move this
+ * helper into per-message verification without first profiling allocation cost.
+ */
 export function timingSafeEqualString(a: string, b: string): boolean {
   const aBytes = Buffer.from(a, 'utf8');
   const bBytes = Buffer.from(b, 'utf8');
@@ -156,7 +173,11 @@ export function verifySignedTicket(
 
   const parts = ticket.split('.');
   if (parts.length !== 2) {
-    return { valid: false, errorKind: 'malformed', error: 'malformed ticket structure (signature missing)' };
+    return {
+      valid: false,
+      errorKind: 'malformed',
+      error: 'malformed ticket structure (signature missing)',
+    };
   }
 
   const [payloadB64, signature] = parts;
@@ -180,7 +201,11 @@ export function verifySignedTicket(
   const expectedSig = hmac.digest('hex');
 
   if (!timingSafeEqualString(signature, expectedSig)) {
-    return { valid: false, errorKind: 'invalid_signature', error: 'invalid ticket cryptographic signature' };
+    return {
+      valid: false,
+      errorKind: 'invalid_signature',
+      error: 'invalid ticket cryptographic signature',
+    };
   }
 
   let parsed: unknown;
@@ -222,10 +247,18 @@ function validateClaims(value: unknown): TicketVerificationResult | null {
   }
   const claims = value as Record<string, unknown>;
   if (typeof claims.version !== 'number') {
-    return { valid: false, errorKind: 'malformed', error: 'corrupt ticket claims schema: version missing' };
+    return {
+      valid: false,
+      errorKind: 'malformed',
+      error: 'corrupt ticket claims schema: version missing',
+    };
   }
   if (typeof claims.room !== 'string' || claims.room.length === 0) {
-    return { valid: false, errorKind: 'malformed', error: 'corrupt ticket claims schema: room missing' };
+    return {
+      valid: false,
+      errorKind: 'malformed',
+      error: 'corrupt ticket claims schema: room missing',
+    };
   }
   if (!isValidTicketRole(claims.role)) {
     return {
@@ -235,10 +268,18 @@ function validateClaims(value: unknown): TicketVerificationResult | null {
     };
   }
   if (typeof claims.issuedAt !== 'number' || !Number.isFinite(claims.issuedAt)) {
-    return { valid: false, errorKind: 'malformed', error: 'corrupt ticket claims schema: issuedAt missing' };
+    return {
+      valid: false,
+      errorKind: 'malformed',
+      error: 'corrupt ticket claims schema: issuedAt missing',
+    };
   }
   if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp)) {
-    return { valid: false, errorKind: 'malformed', error: 'corrupt ticket claims schema: exp missing' };
+    return {
+      valid: false,
+      errorKind: 'malformed',
+      error: 'corrupt ticket claims schema: exp missing',
+    };
   }
   if (typeof claims.nonce !== 'string' || claims.nonce.length === 0) {
     return { valid: false, errorKind: 'missing_nonce', error: 'ticket missing required nonce' };
@@ -251,11 +292,11 @@ function validateClaims(value: unknown): TicketVerificationResult | null {
  * once their ticket expiration has passed, bounding the replay window to the
  * ticket lifetime and bounding memory growth to active tickets.
  *
- * Deployment semantics: this store is owned by one registry instance. Replay
- * protection therefore holds within a single running instance. Cross-instance
- * replay (two servers sharing an `authToken`) requires a shared nonce store,
- * which is deliberately out of scope for this checkpoint and must not be
- * claimed as covered.
+ * DEPLOYMENT BOUNDARY: this store is owned by one registry instance. Replay
+ * protection therefore holds only within one running instance. Multiple
+ * signalling replicas sharing an HMAC secret MUST also share nonce-consumption
+ * state. Until a shared nonce store exists, a multi-replica deployment must be
+ * recorded as replay-protection degraded rather than described as replay-safe.
  */
 export class SignedTicketReplayGuard {
   private readonly _usedNonces = new Map<string, number>();

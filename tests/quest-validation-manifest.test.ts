@@ -372,10 +372,12 @@ describe('QV1 evidence directory isolation', () => {
 });
 
 describe('QV1 npm script surface', () => {
-  it('keeps ordinary dev and dev:wasm script strings byte-identical', () => {
+  it('keeps ordinary dev scripts loopback-only and requires explicit LAN opt-in', () => {
     const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
-    expect(pkg.scripts.dev).toBe('vite --host');
-    expect(pkg.scripts['dev:wasm']).toBe('npm run wasm:dev && vite --host');
+    expect(pkg.scripts.dev).toBe('vite');
+    expect(pkg.scripts['dev:wasm']).toBe('npm run wasm:dev && vite');
+    expect(pkg.scripts['dev:lan']).toBe('vite --host 0.0.0.0');
+    expect(pkg.scripts['dev:wasm:lan']).toBe('npm run wasm:dev && vite --host 0.0.0.0');
   });
 
   it('exposes the validation run modes', () => {

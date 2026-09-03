@@ -36,16 +36,15 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     }
   });
 
-  it('rebuilds the presentation-only palace with an authoritative decision after kernel readiness', async () => {
+  it('constructs the initial palace once, with an authoritative decision after kernel readiness', async () => {
     const { World } = await import('../src/vr/World.ts');
     const world = new World();
-    const presentationNode = requireValue(world.dracoNode, 'presentation representation node');
     const versionBefore = world.atlas.datasetVersion;
     const ledgerBefore = [...world.atlas.ledger];
     const historyBefore = world.atlas.analysisHistory.length;
 
     expect(world.atlas.isReady()).toBe(false);
-    expect(presentationNode.representationDecision).toBeNull();
+    expect(world.dracoNode).toBeNull();
 
     try {
       await world.start();
@@ -53,7 +52,6 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       expect(world.bootState).toBe('READY');
       expect(world.atlas.isReady()).toBe(true);
       const authoritativeNode = requireValue(world.dracoNode, 'authoritative representation node');
-      expect(authoritativeNode).not.toBe(presentationNode);
       const decision = requireValue(
         authoritativeNode.representationDecision,
         'authoritative representation decision'
@@ -122,7 +120,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
   });
 
   it('wires SceneGraphController and WorkspaceManager onto World instance', async () => {
-    // Dynamically import World to ensure full constructor execution
+    // Dynamically import World to ensure full constructor execution.
     const { World } = await import('../src/vr/World.ts');
     const world = new World();
 
@@ -130,7 +128,9 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     expect(world.workspaceManager).toBeDefined();
     expect(world.datasetSpace).toBeDefined();
     expect(world.datasetSpace?.datumIds.length).toBeGreaterThan(0);
-    expect(requireValue(world.dracoNode, 'presentation representation node').representationDecision).toBeNull();
+    // The logical dataset is staged pre-kernel, but no placeholder geometry is
+    // constructed. The first palace is the authoritative one built at start().
+    expect(world.dracoNode).toBeNull();
     expect(world.sceneGraphController.scene).toBeInstanceOf(THREE.Scene);
 
     const disposeSpy = vi.spyOn(world.sceneGraphController, 'dispose');

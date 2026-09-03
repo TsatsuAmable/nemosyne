@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { MonetaTopologyNode as DracoTopologyNode } from '../../../src/moneta/MonetaTopologyNode.ts';
-import { ConstraintEngine } from '../../../src/moneta/ConstraintEngine.ts';
+import {
+  ConstraintEngine,
+  isNoFeasibleConstraintResult,
+} from '../../../src/moneta/ConstraintEngine.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { WorldEventBus } from '../../../src/utils/EventBus.ts';
 import { computeFacts, makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
@@ -68,13 +71,17 @@ describe('Tier 2 — Feature 2: Draco -> VR Upstream Imports Decoupling (Boundar
 
     const result = engine.solve({ dataset: cyclicDataset });
     expect(result).toBeDefined();
+    expect(isNoFeasibleConstraintResult(result)).toBe(false);
+    if (isNoFeasibleConstraintResult(result)) {
+      throw new Error('expected a feasible cyclic graph representation');
+    }
     expect(result.spec.layout).toBeDefined();
   });
 
   it('F2-BC5: Unregistering event listeners from eventBus cleans up references completely', () => {
     const bus = new WorldEventBus();
     const handler = vi.fn();
-    
+
     const unsubscribe = bus.onDynamic('DRACO_RECOMMENDATION', handler);
     bus.emitDynamic('DRACO_RECOMMENDATION', { layout: 'GRID_3D' });
     expect(handler).toHaveBeenCalledTimes(1);

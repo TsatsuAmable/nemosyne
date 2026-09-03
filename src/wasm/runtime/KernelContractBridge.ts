@@ -57,7 +57,11 @@ export function kernelVersion(): string | null {
 
 export function kernelProvenance(): Provenance | null {
   const wasm = getRuntimeExports();
-  const json = readStringExport((ptr, len) => wasm.kernel_provenance(ptr, len));
+  const sequence = wasm.kernel_provenance_sequence();
+  if (!Number.isSafeInteger(sequence) || sequence <= 0) return null;
+  const json = readStringExport((ptr, len) =>
+    wasm.kernel_provenance_by_sequence(sequence, ptr, len)
+  );
   if (!json) return null;
   return JSON.parse(json) as Provenance;
 }

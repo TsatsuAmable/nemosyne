@@ -14,7 +14,7 @@ interface AggregateEvidenceWorld {
   };
   dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
-  loadDataset(entry: DatasetLoadEntry): void;
+  loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
     entry: DatasetLoadEntry,
     options: { preserveAnalyticalState?: boolean; preserveAuxiliaryPresentation?: boolean }
@@ -152,7 +152,7 @@ export async function runAggregateEvidenceScenario(
     encodings: { color: 'group', size: 'value' },
   };
 
-  world.loadDataset(entry);
+  await world.loadDataset(entry);
   const initialPromise = (world.dracoNode?.dataInput as SemanticAggregateInput | undefined)
     ?.semanticEmbodimentPromise;
   if (initialPromise) await initialPromise;

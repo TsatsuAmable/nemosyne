@@ -67,7 +67,7 @@ describe('RF-062E production session path', () => {
     world.atlas.setKernel(bridge, 0x3c07);
     const sample = getSampleDataset('sales-table');
     if (!sample) throw new Error('sales-table sample is required');
-    world.loadDataset({
+    await world.loadDataset({
       name: sample.label,
       topology: sample.topology,
       dataset: sample.dataset,

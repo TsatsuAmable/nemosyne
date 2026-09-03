@@ -33,7 +33,7 @@ interface ClusterEvidenceWorld {
   };
   dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
-  loadDataset(entry: DatasetLoadEntry): void;
+  loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
     entry: DatasetLoadEntry,
     options: { preserveAnalyticalState?: boolean; preserveAuxiliaryPresentation?: boolean }
@@ -296,7 +296,7 @@ export async function runClusterEvidenceScenario(
 
   const totalStartedAt = performance.now();
   const loadStartedAt = performance.now();
-  world.loadDataset(entry);
+  await world.loadDataset(entry);
   const initialSemanticPromise = (
     world.dracoNode?.dataInput as SemanticClusterInput | undefined
   )?.semanticEmbodimentPromise;

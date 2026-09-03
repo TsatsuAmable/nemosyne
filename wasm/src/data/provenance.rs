@@ -2,16 +2,17 @@
 //!
 //! Every research-relevant analytical transformation must emit a provenance
 //! envelope so results are reproducible and attributable to a specific kernel
-//! build. The envelope is recorded in a side-channel (`LAST_PROVENANCE`) and
-//! read back by the JS host via `kernel_provenance` — this keeps the
-//! `(ptr, len)` + integer-handle ABI intact while satisfying the governance
-//! rule that the kernel emits provenance on every result.
+//! build. Envelopes are retained in a small sequence-addressable side-channel
+//! and read back by the JS host by sequence id. Keeping recent records instead
+//! of a single mutable "last" slot makes the two-call ABI robust to interleaved
+//! host reads without embedding timestamp-bearing provenance in size probes.
 //!
 //! `kernelVersion` is bumped whenever an analytical algorithm changes; saved
 //! sessions break across a version bump (pre-alpha pivot, accepted).
 
-use std::cell::RefCell;
 use serde::Serialize;
+use std::cell::RefCell;
+use std::collections::VecDeque;
 
 /// Canonical kernel identifier carried on every provenance envelope.
 pub const KERNEL_NAME: &str = "nemosyne-wasm";
@@ -20,6 +21,11 @@ pub const KERNEL_NAME: &str = "nemosyne-wasm";
 /// versioned ABI: provenance envelope, canonical FNV-1a fingerprint, full
 /// predicate/aggregator parity, exported topology/TDA/arrow/encodings.
 pub const KERNEL_VERSION: &str = "0.2.0";
+
+/// Recent envelopes retained for sequence-addressable host reads. The host reads
+/// immediately after a result-bearing call, so this is intentionally small and
+/// bounded while still tolerating realistic interleaving.
+const PROVENANCE_HISTORY_LIMIT: usize = 64;
 
 /// Provenance envelope attached to every kernel result.
 ///
@@ -55,19 +61,43 @@ pub struct Provenance {
     pub outcome: Option<String>,
 }
 
-thread_local! {
-    static LAST_PROVENANCE: RefCell<Option<String>> = const { RefCell::new(None) };
+#[derive(Default)]
+struct ProvenanceStore {
+    next_sequence: u32,
+    records: VecDeque<(u32, String)>,
 }
 
-/// Record the provenance envelope for the most recent kernel call. The JS host
-/// reads it via `kernel_provenance` immediately after a result-bearing call.
+thread_local! {
+    static PROVENANCE_STORE: RefCell<ProvenanceStore> = RefCell::new(ProvenanceStore::default());
+}
+
+fn retain_json(json: String) -> u32 {
+    PROVENANCE_STORE.with(|slot| {
+        let mut store = slot.borrow_mut();
+        let mut sequence = store.next_sequence.wrapping_add(1);
+        if sequence == 0 {
+            sequence = 1;
+        }
+        store.next_sequence = sequence;
+        if store.records.len() >= PROVENANCE_HISTORY_LIMIT {
+            store.records.pop_front();
+        }
+        store.records.push_back((sequence, json));
+        sequence
+    })
+}
+
+/// Record the provenance envelope for a kernel call and return its sequence id.
+/// Existing callers may ignore the id; the host bridge reads the most recent
+/// sequence then resolves the exact record by id so a later call cannot replace
+/// the envelope it is about to consume.
 pub fn record(
     operation: &str,
     parameters: serde_json::Value,
     input_fingerprint: &str,
     output_fingerprint: &str,
-) {
-    record_with_ingest(operation, parameters, input_fingerprint, output_fingerprint, None);
+) -> u32 {
+    record_with_ingest(operation, parameters, input_fingerprint, output_fingerprint, None)
 }
 
 /// Record a provenance envelope that also names the ingest substrate. TDA
@@ -79,7 +109,7 @@ pub fn record_with_ingest(
     input_fingerprint: &str,
     output_fingerprint: &str,
     ingest_mode: Option<&str>,
-) {
+) -> u32 {
     let envelope = Provenance {
         kernel: KERNEL_NAME,
         kernel_version: KERNEL_VERSION,
@@ -92,21 +122,14 @@ pub fn record_with_ingest(
         outcome: None,
     };
     let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
-    LAST_PROVENANCE.with(|slot| {
-        *slot.borrow_mut() = Some(json);
-    });
+    retain_json(json)
 }
 
 /// Record a refusal provenance envelope: `outcome = "refused"`,
 /// `output_fingerprint = ""`, `ingest_mode = None`. Used by the kernel-inline
 /// TDA resource guard so a refusal carries the same authority as a successful
-/// result. Stores the envelope in `LAST_PROVENANCE` and returns it so the
-/// caller can embed it in the in-band refusal envelope.
-///
-/// Side-channel safety: success-path `last_json()` reads in the host all happen
-/// after a successful call returns; on a refusal the TS `_call` throws before
-/// any success-path read, so a refusal envelope cannot contaminate a success
-/// consumer. The next successful call overwrites it.
+/// result. Stores the envelope in the sequence-addressable side-channel and
+/// returns it so the caller can embed it in the in-band refusal envelope.
 pub fn record_refusal(
     operation: &str,
     parameters: serde_json::Value,
@@ -124,24 +147,56 @@ pub fn record_refusal(
         outcome: Some("refused".to_string()),
     };
     let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
-    LAST_PROVENANCE.with(|slot| {
-        *slot.borrow_mut() = Some(json);
-    });
+    retain_json(json);
     envelope
 }
 
-/// Return the last recorded provenance envelope as a JSON string (or `""` if
-/// no kernel call has been made yet).
-pub fn last_json() -> String {
-    LAST_PROVENANCE.with(|slot| {
-        slot.borrow().clone().unwrap_or_default()
+/// Return the sequence id of the most recently recorded envelope, or zero when
+/// no provenance has been emitted in this runtime generation.
+pub fn last_sequence() -> u32 {
+    PROVENANCE_STORE.with(|slot| slot.borrow().records.back().map(|(seq, _)| *seq).unwrap_or(0))
+}
+
+/// Resolve one retained provenance envelope by sequence id.
+pub fn json_for_sequence(sequence: u32) -> String {
+    if sequence == 0 {
+        return String::new();
+    }
+    PROVENANCE_STORE.with(|slot| {
+        slot.borrow()
+            .records
+            .iter()
+            .find_map(|(seq, json)| (*seq == sequence).then(|| json.clone()))
+            .unwrap_or_default()
     })
+}
+
+/// Compatibility read for legacy hosts. New hosts use `last_sequence` followed
+/// by `json_for_sequence` so an interleaved call cannot misattribute provenance.
+pub fn last_json() -> String {
+    json_for_sequence(last_sequence())
+}
+
+/// wasm-bindgen sequence read used by the TypeScript host.
+#[wasm_bindgen::prelude::wasm_bindgen(js_name = kernel_provenance_sequence)]
+pub fn kernel_provenance_sequence_export() -> u32 {
+    last_sequence()
+}
+
+/// wasm-bindgen sequence-addressable provenance read used by the TypeScript host.
+#[wasm_bindgen::prelude::wasm_bindgen(js_name = kernel_provenance_by_sequence)]
+pub fn kernel_provenance_by_sequence_export(
+    sequence: u32,
+    out_ptr: u32,
+    out_len: u32,
+) -> u32 {
+    crate::write_str_out(&json_for_sequence(sequence), out_ptr, out_len)
 }
 
 /// Clear the side-channel. Used by tests for deterministic isolation.
 pub fn clear() {
-    LAST_PROVENANCE.with(|slot| {
-        *slot.borrow_mut() = None;
+    PROVENANCE_STORE.with(|slot| {
+        *slot.borrow_mut() = ProvenanceStore::default();
     });
 }
 
@@ -193,13 +248,13 @@ mod tests {
     #[test]
     fn record_then_read_round_trips_fields() {
         clear();
-        record(
+        let sequence = record(
             "sort",
             serde_json::json!({"column": "age", "ascending": true}),
             "deadbeef",
             "cafebabe",
         );
-        let json = last_json();
+        let json = json_for_sequence(sequence);
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(v["kernel"], "nemosyne-wasm");
         assert_eq!(v["kernelVersion"], KERNEL_VERSION);
@@ -212,24 +267,64 @@ mod tests {
     }
 
     #[test]
+    fn interleaved_sequences_retain_their_own_provenance() {
+        clear();
+        let first = record(
+            "filter",
+            serde_json::json!({"column": "x", "value": 1}),
+            "fp-a",
+            "fp-b",
+        );
+        let second = record(
+            "sort",
+            serde_json::json!({"column": "y"}),
+            "fp-b",
+            "fp-c",
+        );
+
+        assert_ne!(first, second);
+        let first_value: serde_json::Value = serde_json::from_str(&json_for_sequence(first)).unwrap();
+        let second_value: serde_json::Value = serde_json::from_str(&json_for_sequence(second)).unwrap();
+        assert_eq!(first_value["operation"], "filter");
+        assert_eq!(first_value["inputFingerprint"], "fp-a");
+        assert_eq!(second_value["operation"], "sort");
+        assert_eq!(second_value["inputFingerprint"], "fp-b");
+        assert_eq!(last_sequence(), second);
+        clear();
+    }
+
+    #[test]
+    fn provenance_history_is_bounded() {
+        clear();
+        let first = record("op-0", serde_json::Value::Null, "a", "b");
+        for i in 1..=PROVENANCE_HISTORY_LIMIT {
+            record(&format!("op-{i}"), serde_json::Value::Null, "a", "b");
+        }
+        assert_eq!(json_for_sequence(first), "");
+        assert_ne!(last_sequence(), 0);
+        clear();
+    }
+
+    #[test]
     fn clear_empties_side_channel() {
         record("ping", serde_json::Value::Null, "a", "b");
         clear();
         assert_eq!(last_json(), "");
+        assert_eq!(last_sequence(), 0);
     }
 
     #[test]
     fn success_envelope_has_no_outcome_key() {
         // Byte-identity guard: adding `outcome` must not change success JSON.
         clear();
-        record_with_ingest(
+        let sequence = record_with_ingest(
             "compute_mapper_graph",
             serde_json::json!({"bins": 4}),
             "fp-in",
             "fp-out",
             Some("columnar_only"),
         );
-        let json = last_json();
+        let json = json_for_sequence(sequence);
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert!(v.get("outcome").is_none(), "success envelope must not carry outcome");
         assert!(v.get("outcome").is_none());

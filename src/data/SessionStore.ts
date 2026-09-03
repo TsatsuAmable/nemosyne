@@ -1,6 +1,8 @@
 import { CLIENT_STORES, openClientDatabase } from '../persistence/ClientPersistence.ts';
 
 const SNAPSHOT_SCHEMA_VERSION = 2;
+const STORAGE_SCHEMA_VERSION = 1;
+const DATASET_REF_KEY = '__nemosyneDatasetRef';
 
 export interface SessionSnapshot {
   schemaVersion?: number;
@@ -27,6 +29,22 @@ export interface SessionStoreLike {
 
 type IDBFactoryLike = Pick<IDBFactory, 'open'>;
 
+type DatasetSnapshot = Record<string, unknown> & {
+  name: string;
+  columns: unknown[];
+  rows: unknown[];
+};
+
+interface DatasetReference {
+  [DATASET_REF_KEY]: string;
+}
+
+interface StoredSessionSnapshotV1 {
+  storageSchemaVersion: typeof STORAGE_SCHEMA_VERSION;
+  snapshot: unknown;
+  datasets: Record<string, DatasetSnapshot>;
+}
+
 function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
@@ -40,6 +58,111 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isDatasetSnapshot(value: unknown): value is DatasetSnapshot {
+  return (
+    isRecord(value) &&
+    typeof value.name === 'string' &&
+    Array.isArray(value.columns) &&
+    Array.isArray(value.rows)
+  );
+}
+
+function isDatasetReference(value: unknown): value is DatasetReference {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === 1 &&
+    typeof value[DATASET_REF_KEY] === 'string'
+  );
+}
+
+function isStoredSessionSnapshotV1(value: unknown): value is StoredSessionSnapshotV1 {
+  return (
+    isRecord(value) &&
+    value.storageSchemaVersion === STORAGE_SCHEMA_VERSION &&
+    'snapshot' in value &&
+    isRecord(value.datasets)
+  );
+}
+
+function datasetStorageIdentity(dataset: DatasetSnapshot): string {
+  // Session snapshots are already JSON-compatible values. Stringifying the
+  // complete DatasetJSON gives an exact persistence identity without creating a
+  // second scientific fingerprint authority. This key never leaves storage.
+  return JSON.stringify(dataset);
+}
+
+/**
+ * RF-050: compact a logical schema-v2 session for IndexedDB without changing
+ * the logical/session/export schema. Every repeated DatasetJSON value is stored
+ * once in a side table and replaced by a storage-only reference.
+ */
+export function compactSessionSnapshotForStorage(snapshot: SessionSnapshot): StoredSessionSnapshotV1 {
+  const datasets: Record<string, DatasetSnapshot> = {};
+  const idsByValue = new Map<string, string>();
+
+  const visit = (value: unknown): unknown => {
+    if (isDatasetSnapshot(value)) {
+      const identity = datasetStorageIdentity(value);
+      let id = idsByValue.get(identity);
+      if (!id) {
+        id = `d${idsByValue.size}`;
+        idsByValue.set(identity, id);
+        datasets[id] = structuredClone(value);
+      }
+      return { [DATASET_REF_KEY]: id } satisfies DatasetReference;
+    }
+    if (Array.isArray(value)) return value.map(visit);
+    if (!isRecord(value)) return value;
+
+    const output: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) output[key] = visit(child);
+    return output;
+  };
+
+  return {
+    storageSchemaVersion: STORAGE_SCHEMA_VERSION,
+    snapshot: visit(snapshot),
+    datasets,
+  };
+}
+
+/**
+ * Restore the exact logical snapshot expected by NemosyneSession. Corrupt or
+ * dangling storage references fail closed instead of producing a partial
+ * investigation.
+ */
+export function expandSessionSnapshotFromStorage(value: unknown): SessionSnapshot {
+  if (!isStoredSessionSnapshotV1(value)) {
+    if (!isRecord(value)) throw new Error('Session storage record is not an object');
+    return structuredClone(value) as SessionSnapshot;
+  }
+
+  const visit = (node: unknown): unknown => {
+    if (isDatasetReference(node)) {
+      const id = node[DATASET_REF_KEY];
+      const dataset = value.datasets[id];
+      if (!isDatasetSnapshot(dataset)) {
+        throw new Error(`Session storage references missing dataset ${id}`);
+      }
+      return structuredClone(dataset);
+    }
+    if (Array.isArray(node)) return node.map(visit);
+    if (!isRecord(node)) return node;
+
+    const output: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(node)) output[key] = visit(child);
+    return output;
+  };
+
+  const expanded = visit(value.snapshot);
+  if (!isRecord(expanded)) throw new Error('Expanded session snapshot is not an object');
+  return expanded as SessionSnapshot;
 }
 
 /** Production session persistence over the single versioned nemosyne-client DB. */
@@ -58,7 +181,12 @@ export class SessionStore {
   async saveSession(id: string, snapshot: SessionSnapshot): Promise<void> {
     const db = await this._db();
     const tx = db.transaction(CLIENT_STORES.sessions, 'readwrite');
-    tx.objectStore(CLIENT_STORES.sessions).put({ id, snapshot: structuredClone(snapshot), savedAt: Date.now() });
+    const storedSnapshot = compactSessionSnapshotForStorage(snapshot);
+    tx.objectStore(CLIENT_STORES.sessions).put({
+      id,
+      snapshot: storedSnapshot,
+      savedAt: Date.now(),
+    });
     await txDone(tx);
   }
 
@@ -67,9 +195,12 @@ export class SessionStore {
     try {
       const db = await this._db();
       const tx = db.transaction(CLIENT_STORES.sessions, 'readonly');
-      const result = await requestResult(tx.objectStore(CLIENT_STORES.sessions).get(id)) as { snapshot?: SessionSnapshot } | undefined;
+      const result = await requestResult(tx.objectStore(CLIENT_STORES.sessions).get(id)) as { snapshot?: unknown } | undefined;
       await txDone(tx);
-      return this._validateSnapshot(result?.snapshot);
+      const expanded = result?.snapshot === undefined
+        ? null
+        : expandSessionSnapshotFromStorage(result.snapshot);
+      return this._validateSnapshot(expanded);
     } catch {
       return null;
     }
