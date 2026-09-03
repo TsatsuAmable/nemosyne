@@ -21,6 +21,10 @@ function expectCode(work: () => Promise<unknown>, code: string): Promise<void> {
   return expect(work()).rejects.toMatchObject({ name: 'OidcJwksError', code });
 }
 
+function kidOf(key: JsonWebKey | null): unknown {
+  return key ? (key as JsonWebKey & Record<string, unknown>).kid : null;
+}
+
 describe('PT4B4 OIDC metadata and JWKS authority', () => {
   it('discovers and resolves a compatible public key, then reuses a fresh cache', async () => {
     const requests: string[] = [];
@@ -33,8 +37,8 @@ describe('PT4B4 OIDC metadata and JWKS authority', () => {
     };
     const authority = new OidcJwksAuthority({ issuer: ISSUER, fetcher, now: () => 1000 });
     const key = await authority.resolveForVerification('rsa-1', 'RS256');
-    expect(key.kid).toBe('rsa-1');
-    expect(authority.resolve(ISSUER, 'rsa-1', 'RS256')?.kid).toBe('rsa-1');
+    expect(kidOf(key)).toBe('rsa-1');
+    expect(kidOf(authority.resolve(ISSUER, 'rsa-1', 'RS256'))).toBe('rsa-1');
     expect(await authority.resolveForVerification('rsa-1', 'RS256')).toBe(key);
     expect(requests).toEqual([DISCOVERY, JWKS_URI]);
   });
@@ -83,6 +87,7 @@ describe('PT4B4 OIDC metadata and JWKS authority', () => {
       { keys: [] },
       { keys: [{ ...RSA_JWK }, { ...RSA_JWK }] },
       { keys: [{ ...RSA_JWK, d: 'private-material' }] },
+      { keys: [{ ...RSA_JWK, p: 'rsa-crt-private-material' }] },
     ];
     for (const jwks of cases) {
       const authority = new OidcJwksAuthority({
