@@ -13,13 +13,13 @@ import {
   type RemoteDatasetCatalogEntry,
   type RemoteDatasetProvenance,
 } from '../data/catalog/NemosyneDataCatalog.ts';
+import {
+  xrDatasetLibraryBridge,
+  type XRDatasetLibraryEntry,
+} from '../data/catalog/XRDatasetLibraryBridge.ts';
 import { TopologyTypes } from '../moneta/ConstraintEngine.ts';
 import type { AtlasCore } from '../atlas/AtlasCore.ts';
 
-/**
- * DOM-based file loader and dataset selector.
- * Provides a small overlay panel for desktop debugging and headset pass-through.
- */
 /**
  * Hard cap on uploaded/remote artifact size, checked BEFORE content is accepted.
  * The same policy applies to local and corpus imports so remote loading cannot
@@ -32,9 +32,7 @@ const MAX_IMPORT_COLUMNS = 1_000;
 /** Maximum length of a dataset label derived from an untrusted source. */
 const MAX_DATASET_NAME_LEN = 128;
 
-/**
- * Neutralize an untrusted upload/catalog label before it becomes a dataset label.
- */
+/** Neutralize an untrusted upload/catalog label before it becomes a dataset label. */
 function sanitizeDatasetName(rawName: string): string | null {
   if (typeof rawName !== 'string') return null;
   const trimmed = rawName.trim();
@@ -45,6 +43,14 @@ function sanitizeDatasetName(rawName: string): string | null {
     if (code === 0 || code < 32 || code === 127 || ch === '/' || ch === '\\') return null;
   }
   return trimmed;
+}
+
+function humanTierName(tier: string): string {
+  if (tier === 'smoke') return 'Quick preview';
+  if (tier === 'small') return 'Small';
+  if (tier === 'medium') return 'Medium';
+  if (tier === 'large') return 'Large';
+  return tier.replace(/[-_]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
 export interface FileLoaderLoadEvent {
@@ -78,6 +84,7 @@ export class FileLoaderUI {
   private _generation = 0;
   private _remoteAbort: AbortController | null = null;
   private _remoteCatalogValue: RemoteDatasetCatalog | null = null;
+  private _detachXRBridge: (() => void) | null = null;
   statusEl!: HTMLDivElement;
   schemaEl!: HTMLDivElement;
   topologySelect!: HTMLSelectElement;
@@ -89,9 +96,18 @@ export class FileLoaderUI {
     this.onLoad = onLoad;
     this.atlas = atlas ?? null;
     this.remoteCatalog =
-      remoteCatalog === undefined ? new NemosyneDataCatalogClient({ maxArtifactBytes: MAX_IMPORT_BYTES }) : remoteCatalog;
+      remoteCatalog === undefined
+        ? new NemosyneDataCatalogClient({ maxArtifactBytes: MAX_IMPORT_BYTES })
+        : remoteCatalog;
     this.container = this._buildUI();
     document.body.appendChild(this.container);
+
+    if (this.remoteCatalog) {
+      this._detachXRBridge = xrDatasetLibraryBridge.attach({
+        listDatasets: () => this.listXRDatasets(),
+        openDataset: (datasetId, tierId) => this.openRemoteDataset(datasetId, tierId),
+      });
+    }
   }
 
   private _buildUI(): HTMLDivElement {
@@ -100,15 +116,15 @@ export class FileLoaderUI {
     container.style.cssText = this._containerStyle();
 
     const title = document.createElement('div');
-    title.textContent = '// NEMOSYNE DATA LOADER';
+    title.textContent = 'DATASET LIBRARY';
     title.style.cssText =
       'font-weight: bold; margin-bottom: 10px; color: #00ffcc; text-shadow: 0 0 5px #00ffcc;';
     container.appendChild(title);
 
-    container.appendChild(this._label('Sample datasets'));
+    container.appendChild(this._label('Built-in examples'));
     const sampleSelect = document.createElement('select');
     sampleSelect.style.cssText = this._inputStyle();
-    sampleSelect.appendChild(new Option('-- select a sample --', ''));
+    sampleSelect.appendChild(new Option('Choose an example…', ''));
     for (const d of allSampleDatasets) sampleSelect.appendChild(new Option(d.label, d.key));
     sampleSelect.addEventListener('change', (e: Event) => {
       const key = (e.target as HTMLSelectElement).value;
@@ -120,11 +136,11 @@ export class FileLoaderUI {
 
     if (this.remoteCatalog) {
       container.appendChild(this._divider());
-      container.appendChild(this._label('Nemosyne corpus'));
+      container.appendChild(this._label('Governed dataset library'));
       const refresh = document.createElement('button');
       refresh.id = 'nemosyne-corpus-refresh';
       refresh.type = 'button';
-      refresh.textContent = 'Load corpus catalogue';
+      refresh.textContent = 'Refresh library';
       refresh.style.cssText = this._inputStyle();
       refresh.addEventListener('click', () => void this._loadRemoteCatalog());
       container.appendChild(refresh);
@@ -133,7 +149,7 @@ export class FileLoaderUI {
       datasetSelect.id = 'nemosyne-corpus-dataset';
       datasetSelect.style.cssText = this._inputStyle();
       datasetSelect.disabled = true;
-      datasetSelect.appendChild(new Option('-- load catalogue first --', ''));
+      datasetSelect.appendChild(new Option('Refresh the library first', ''));
       datasetSelect.addEventListener('change', () => this._populateCorpusTiers());
       container.appendChild(datasetSelect);
 
@@ -141,7 +157,7 @@ export class FileLoaderUI {
       tierSelect.id = 'nemosyne-corpus-tier';
       tierSelect.style.cssText = this._inputStyle();
       tierSelect.disabled = true;
-      tierSelect.appendChild(new Option('-- select a dataset --', ''));
+      tierSelect.appendChild(new Option('Choose a dataset first', ''));
       container.appendChild(tierSelect);
 
       const open = document.createElement('button');
@@ -159,7 +175,7 @@ export class FileLoaderUI {
     }
 
     container.appendChild(this._divider());
-    container.appendChild(this._label('Upload CSV or JSON'));
+    container.appendChild(this._label('Open a CSV or JSON file'));
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -173,8 +189,11 @@ export class FileLoaderUI {
 
     const topologySelect = document.createElement('select');
     topologySelect.style.cssText = this._inputStyle();
-    topologySelect.appendChild(new Option('Auto-detect topology', '', true, true));
-    for (const [k, v] of Object.entries(TopologyTypes)) topologySelect.appendChild(new Option(k, v));
+    topologySelect.appendChild(new Option('Let Nemosyne detect the structure', '', true, true));
+    for (const [k, v] of Object.entries(TopologyTypes)) {
+      const label = k.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase());
+      topologySelect.appendChild(new Option(label, v));
+    }
     container.appendChild(topologySelect);
 
     const schemaPreview = document.createElement('div');
@@ -247,7 +266,7 @@ export class FileLoaderUI {
     if (this._disposed) return;
     this._cancelRemote();
     this._generation += 1;
-    this._status(`Loaded sample: ${entry.label}`);
+    this._status(`Opened example: ${entry.label}`);
     this.onLoad({
       name: entry.label,
       topology: entry.topology,
@@ -257,27 +276,59 @@ export class FileLoaderUI {
     });
   }
 
+  async listXRDatasets(): Promise<XRDatasetLibraryEntry[]> {
+    if (!this.remoteCatalog || this._disposed) throw new Error('Dataset library is unavailable');
+    const catalog = await this.remoteCatalog.loadCatalog();
+    this._remoteCatalogValue = catalog;
+    return catalog.datasets
+      .filter((entry) => entry.governanceState === 'governed')
+      .map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        version: entry.datasetVersion,
+        description: entry.description,
+        tiers: entry.artifacts
+          .filter(
+            (artifact) =>
+              artifact.role === 'primary' &&
+              artifact.bytes <= MAX_IMPORT_BYTES &&
+              artifact.rows <= MAX_IMPORT_ROWS &&
+              (artifact.format === 'csv' || artifact.format === 'json'),
+          )
+          .map((artifact) => ({
+            id: artifact.tier,
+            label: humanTierName(artifact.tier),
+            rows: artifact.rows,
+          })),
+      }))
+      .filter((entry) => entry.tiers.length > 0);
+  }
+
   private async _loadRemoteCatalog(): Promise<void> {
     if (!this.remoteCatalog || this._disposed) return;
     const generation = ++this._generation;
     this._cancelRemote();
     this._remoteAbort = new AbortController();
-    this._status('Loading pinned nemosyne-data catalogue…');
+    this._status('Refreshing the governed dataset library…');
     try {
       const catalog = await this.remoteCatalog.loadCatalog(this._remoteAbort.signal);
       if (!this._isCurrent(generation)) return;
       this._remoteCatalogValue = catalog;
       this.corpusDatasetSelect.innerHTML = '';
-      this.corpusDatasetSelect.appendChild(new Option('-- select corpus dataset --', ''));
+      this.corpusDatasetSelect.appendChild(new Option('Choose a dataset…', ''));
       for (const entry of catalog.datasets) {
-        if (entry.artifacts.length === 0) continue;
-        this.corpusDatasetSelect.appendChild(new Option(entry.label, entry.id));
+        if (entry.governanceState !== 'governed' || entry.artifacts.length === 0) continue;
+        this.corpusDatasetSelect.appendChild(
+          new Option(`${entry.label} · v${entry.datasetVersion}`, entry.id),
+        );
       }
       this.corpusDatasetSelect.disabled = false;
-      this._status(`Corpus ${catalog.corpusVersion} ready (${this.corpusDatasetSelect.options.length - 1} datasets)`);
+      this._status(
+        `Library ready · ${this.corpusDatasetSelect.options.length - 1} governed datasets`,
+      );
     } catch (error: unknown) {
       if (!this._isCurrent(generation) || (error instanceof DOMException && error.name === 'AbortError')) return;
-      this._status(`Corpus error: ${error instanceof Error ? error.message : String(error)}`);
+      this._status(`Could not refresh the library: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -290,67 +341,91 @@ export class FileLoaderUI {
   private _populateCorpusTiers(): void {
     const entry = this._selectedCorpusDataset();
     this.corpusTierSelect.innerHTML = '';
-    this.corpusTierSelect.appendChild(new Option('-- select tier --', ''));
+    this.corpusTierSelect.appendChild(new Option('Choose a size…', ''));
     this.corpusTierSelect.disabled = !entry;
     this.corpusOpenButton.disabled = true;
     if (!entry) return;
 
-    const byTier = new Map(entry.artifacts.filter((artifact) => artifact.role === 'primary').map((artifact) => [artifact.tier, artifact]));
+    const byTier = new Map(
+      entry.artifacts.filter((artifact) => artifact.role === 'primary').map((artifact) => [artifact.tier, artifact]),
+    );
     for (const tier of entry.plannedTiers) {
       const artifact = byTier.get(tier);
       const supported = Boolean(
         artifact &&
           artifact.bytes <= MAX_IMPORT_BYTES &&
           artifact.rows <= MAX_IMPORT_ROWS &&
-          (artifact.format === 'csv' || artifact.format === 'json')
+          (artifact.format === 'csv' || artifact.format === 'json'),
       );
       const label = artifact
-        ? `${tier} — ${artifact.rows.toLocaleString()} rows${supported ? '' : ' (unsupported)'}`
-        : `${tier} — unavailable`;
+        ? `${humanTierName(tier)} · ${artifact.rows.toLocaleString()} rows${supported ? '' : ' · unavailable here'}`
+        : `${humanTierName(tier)} · not available`;
       const option = new Option(label, supported ? tier : '');
       option.disabled = !supported;
       this.corpusTierSelect.appendChild(option);
     }
-    this.corpusTierSelect.addEventListener('change', () => {
-      this.corpusOpenButton.disabled = !this.corpusTierSelect.value;
-    }, { once: true });
+    this.corpusTierSelect.addEventListener(
+      'change',
+      () => {
+        this.corpusOpenButton.disabled = !this.corpusTierSelect.value;
+      },
+      { once: true },
+    );
   }
 
   private async _handleRemoteArtifact(): Promise<void> {
-    if (!this.remoteCatalog || this._disposed) return;
     const entry = this._selectedCorpusDataset();
     const tier = this.corpusTierSelect.value;
     if (!entry || !tier) return;
-    const safeName = sanitizeDatasetName(entry.label);
-    if (!safeName) {
-      this._status('Corpus dataset label rejected.');
-      return;
+    try {
+      await this.openRemoteDataset(entry.id, tier);
+    } catch {
+      // `openRemoteDataset` already rendered a safe user-facing refusal. The
+      // DOM click path consumes it so it cannot escape as an unhandled promise;
+      // XR calls the public method directly and still receives the rejection.
     }
+  }
+
+  async openRemoteDataset(datasetId: string, tier: string): Promise<void> {
+    if (!this.remoteCatalog || this._disposed) return;
+    const catalog = this._remoteCatalogValue ?? (await this.remoteCatalog.loadCatalog());
+    this._remoteCatalogValue = catalog;
+    const entry = catalog.datasets.find((candidate) => candidate.id === datasetId);
+    if (!entry) throw new Error(`Dataset is no longer available: ${datasetId}`);
+    if (entry.governanceState !== 'governed') {
+      throw new Error(`Dataset is not approved for product loading: ${entry.label}`);
+    }
+    const safeName = sanitizeDatasetName(entry.label);
+    if (!safeName) throw new Error('Dataset label was rejected');
 
     const generation = ++this._generation;
     this._cancelRemote();
     this._remoteAbort = new AbortController();
-    this.corpusOpenButton.disabled = true;
-    this._status(`Verifying ${entry.label} / ${tier}…`);
+    if (this.corpusOpenButton) this.corpusOpenButton.disabled = true;
+    this._status(`Checking ${entry.label} · ${humanTierName(tier)}…`);
     try {
       const loaded = await this.remoteCatalog.loadArtifact(entry.id, tier, this._remoteAbort.signal);
       if (!this._isCurrent(generation)) return;
       const parsed = this._parseViaKernel(loaded.bytes, loaded.artifact.format, safeName);
       if (!this._isCurrent(generation)) return;
+      if (parsed.dataset.rowCount !== loaded.provenance.rows) {
+        throw new Error(
+          `Dataset row count changed after verification (${parsed.dataset.rowCount} vs ${loaded.provenance.rows})`,
+        );
+      }
       const validation = validateImport(parsed.dataset, {
         maxRows: MAX_IMPORT_ROWS,
         maxColumns: MAX_IMPORT_COLUMNS,
       });
       const message = formatValidationResult(validation);
       if (!validation.ok) {
-        this._status(message || 'Import failed.');
+        this._status(message || 'This dataset could not be opened.');
         this._clearSchema();
         return;
       }
       this._renderSchema(parsed.dataset, parsed.topology, parsed.encodings, validation.warnings);
       this._status(
-        message ||
-          `Loaded ${parsed.dataset.rowCount} rows from ${entry.label} / ${tier} as ${parsed.topology}`
+        message || `Opened ${entry.label} · ${parsed.dataset.rowCount.toLocaleString()} rows`,
       );
       if (!this._isCurrent(generation)) return;
       this.onLoad({
@@ -362,10 +437,13 @@ export class FileLoaderUI {
       });
     } catch (error: unknown) {
       if (!this._isCurrent(generation) || (error instanceof DOMException && error.name === 'AbortError')) return;
-      this._status(`Corpus error: ${error instanceof Error ? error.message : String(error)}`);
+      this._status(`Could not open dataset: ${error instanceof Error ? error.message : String(error)}`);
       this._clearSchema();
+      throw error;
     } finally {
-      if (this._isCurrent(generation)) this.corpusOpenButton.disabled = !this.corpusTierSelect.value;
+      if (this._isCurrent(generation) && this.corpusOpenButton) {
+        this.corpusOpenButton.disabled = !this.corpusTierSelect?.value;
+      }
     }
   }
 
@@ -425,7 +503,7 @@ export class FileLoaderUI {
 
     if (!this._isCurrent(generation)) return;
     this._renderSchema(dataset, topology, encodings, validation.warnings);
-    this._status(message || `Loaded ${dataset.rowCount} rows from ${safeName} as ${topology}`);
+    this._status(message || `Opened ${safeName} · ${dataset.rowCount.toLocaleString()} rows`);
     if (!this._isCurrent(generation)) return;
     this.onLoad({ name: safeName, topology, dataset, encodings });
   }
@@ -434,7 +512,7 @@ export class FileLoaderUI {
   private _parseViaKernel(
     bytes: Uint8Array,
     ext: string,
-    name: string
+    name: string,
   ): { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> } {
     if (!this.atlas) throw new Error('Analytical kernel unavailable — cannot parse file');
     if (ext !== 'csv' && ext !== 'json') throw new Error('Unsupported file type; use .csv or .json');
@@ -442,7 +520,7 @@ export class FileLoaderUI {
     const { dataset, topology, encodings } = this.atlas.parseBytes(
       bytes,
       ext as 'csv' | 'json',
-      explicitTopology
+      explicitTopology,
     );
     dataset.name = name;
     return { dataset, topology, encodings };
@@ -452,13 +530,19 @@ export class FileLoaderUI {
     dataset: Dataset,
     topology: TopologyType,
     encodings: Record<string, string>,
-    warnings: Array<{ message: string }>
+    warnings: Array<{ message: string }>,
   ): void {
     const typeColor: Record<string, string> = {
       NUMERIC: '#ffaa00',
       CATEGORICAL: '#00ffcc',
       TEMPORAL: '#ff00ff',
       TEXT: '#88aaff',
+    };
+    const typeName: Record<string, string> = {
+      NUMERIC: 'Number',
+      CATEGORICAL: 'Category',
+      TEMPORAL: 'Date & time',
+      TEXT: 'Text',
     };
     this.schemaEl.innerHTML = '';
     this.schemaEl.appendChild(this._schemaHeader(dataset, topology));
@@ -467,7 +551,9 @@ export class FileLoaderUI {
         .filter(([, name]) => name === c.name)
         .map(([channel]) => channel)
         .join(', ');
-      this.schemaEl.appendChild(this._schemaRow(c, usedBy, typeColor[c.type] || '#fff'));
+      this.schemaEl.appendChild(
+        this._schemaRow(c, usedBy, typeColor[c.type] || '#fff', typeName[c.type] ?? c.type),
+      );
     }
     if (warnings.length) {
       const warningEl = document.createElement('div');
@@ -481,11 +567,17 @@ export class FileLoaderUI {
   private _schemaHeader(dataset: Dataset, topology: TopologyType): HTMLDivElement {
     const header = document.createElement('div');
     header.style.cssText = 'font-weight:bold;margin-bottom:4px;';
-    header.textContent = `${dataset.name} — ${topology} (${dataset.rowCount} rows)`;
+    const structure = topology.replace(/_/g, ' ').toLowerCase();
+    header.textContent = `${dataset.name} · ${structure} · ${dataset.rowCount.toLocaleString()} rows`;
     return header;
   }
 
-  private _schemaRow(column: ColumnSchema, usedBy: string, color: string): HTMLDivElement {
+  private _schemaRow(
+    column: ColumnSchema,
+    usedBy: string,
+    color: string,
+    humanType: string,
+  ): HTMLDivElement {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;justify-content:space-between;';
     const name = document.createElement('span');
@@ -493,7 +585,7 @@ export class FileLoaderUI {
     row.appendChild(name);
     const type = document.createElement('span');
     type.style.color = color;
-    type.textContent = `${column.type}${usedBy ? ` → ${usedBy}` : ''}`;
+    type.textContent = `${humanType}${usedBy ? ` · used for ${usedBy}` : ''}`;
     row.appendChild(type);
     return row;
   }
@@ -529,6 +621,8 @@ export class FileLoaderUI {
     this._disposed = true;
     this._generation += 1;
     this._cancelRemote();
+    this._detachXRBridge?.();
+    this._detachXRBridge = null;
     this.atlas = null;
     this.remoteCatalog = null;
     this.container.remove();

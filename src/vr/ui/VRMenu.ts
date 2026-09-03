@@ -6,17 +6,13 @@ import {
   type SampleDatasetEntry,
 } from '../../data/SampleDatasets.ts';
 import { OPEN_DATA_SOURCES, type OpenDataSource } from '../../data/connectors/OpenDataSources.ts';
+import {
+  xrDatasetLibraryBridge,
+  type XRDatasetLibraryEntry,
+} from '../../data/catalog/XRDatasetLibraryBridge.ts';
 import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
 import type { MovablePanelOptions, VRMenuCallbacks, VisualOperation } from '../coordinators/types.ts';
 
-/**
- * Hidden advanced in-VR dataset and live-source selector.
- *
- * Primary navigation lives on the task-oriented HandWheel. This panel remains
- * available because it is currently the only concrete chooser for curated live
- * sources such as USGS/OpenSky/exchange feeds; retiring it requires a wired
- * replacement, not deletion-by-style-pass.
- */
 interface VRMenuOptions extends MovablePanelOptions, VRMenuCallbacks {
   portalsEnabled?: boolean;
 }
@@ -56,6 +52,24 @@ type VRMenuButton =
       y: number;
       w: number;
       h: number;
+    }
+  | {
+      type: 'libraryRefresh';
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }
+  | {
+      type: 'libraryDataset';
+      datasetId: string;
+      tierId: string;
+      label: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
     };
 
 function rgba(token: number, alpha: number): string {
@@ -85,8 +99,11 @@ export class VRMenu extends MovablePanel {
   portalsEnabled: boolean;
   liveConnected: boolean;
   buttons: VRMenuButton[];
+  libraryEntries: XRDatasetLibraryEntry[] = [];
+  libraryStatus = 'Refresh to browse approved datasets';
   private _clickCooldownMs: number;
   private _lastClickAt: number;
+  private _libraryBusy = false;
 
   constructor(cameraGroup: THREE.Group, options: VRMenuOptions = {}) {
     const {
@@ -109,7 +126,7 @@ export class VRMenu extends MovablePanel {
     } = options;
 
     super(cameraGroup, {
-      title: 'VR MENU',
+      title: 'DATA & TOOLS',
       width: 800,
       height: 1200,
       position: [-0.9, 1.5, -1.1],
@@ -153,6 +170,44 @@ export class VRMenu extends MovablePanel {
     this.render();
   }
 
+  async refreshDatasetLibrary(): Promise<void> {
+    if (this._libraryBusy) return;
+    this._libraryBusy = true;
+    this.libraryStatus = 'Refreshing dataset library…';
+    this.render();
+    try {
+      this.libraryEntries = await xrDatasetLibraryBridge.listDatasets();
+      this.libraryStatus = this.libraryEntries.length
+        ? `${this.libraryEntries.length} approved dataset${this.libraryEntries.length === 1 ? '' : 's'} available`
+        : 'No approved datasets are currently available';
+      this._registerButtons();
+    } catch (error: unknown) {
+      this.libraryEntries = [];
+      this.libraryStatus = error instanceof Error ? error.message : String(error);
+      this._registerButtons();
+    } finally {
+      this._libraryBusy = false;
+      this.render();
+    }
+  }
+
+  async openLibraryDataset(datasetId: string, tierId: string): Promise<void> {
+    if (this._libraryBusy) return;
+    this._libraryBusy = true;
+    this.libraryStatus = 'Checking and opening dataset…';
+    this.render();
+    try {
+      await xrDatasetLibraryBridge.openDataset(datasetId, tierId);
+      const entry = this.libraryEntries.find((candidate) => candidate.id === datasetId);
+      this.libraryStatus = entry ? `Opened ${entry.label}` : 'Dataset opened';
+    } catch (error: unknown) {
+      this.libraryStatus = `Could not open dataset: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      this._libraryBusy = false;
+      this.render();
+    }
+  }
+
   _registerButtons(): void {
     this.buttons = [];
     const pad = 18;
@@ -160,16 +215,16 @@ export class VRMenu extends MovablePanel {
     const rowH = 46;
 
     const ops: { type: VisualOperation | 'reset'; label: string }[] = [
-      { type: 'filter', label: 'Filter: value > median' },
+      { type: 'filter', label: 'Filter above the median' },
       { type: 'sort', label: 'Sort by value' },
-      { type: 'aggregate', label: 'Aggregate by category' },
-      { type: 'cluster', label: 'Cluster (k=3)' },
-      { type: 'hierarchical', label: 'Hierarchical cluster' },
-      { type: 'density', label: 'Density cluster (DBSCAN)' },
-      { type: 'anomaly', label: 'Highlight outliers' },
-      { type: 'timeSlice', label: 'Time slice: last 50%' },
-      { type: 'compare', label: 'Compare first two groups' },
-      { type: 'reset', label: 'Reset transforms' },
+      { type: 'aggregate', label: 'Summarise by category' },
+      { type: 'cluster', label: 'Group similar values' },
+      { type: 'hierarchical', label: 'Build a hierarchy' },
+      { type: 'density', label: 'Find dense groups' },
+      { type: 'anomaly', label: 'Highlight unusual values' },
+      { type: 'timeSlice', label: 'Show the latest half' },
+      { type: 'compare', label: 'Compare the first two groups' },
+      { type: 'reset', label: 'Reset changes' },
     ];
     ops.forEach((op, idx) => {
       this.buttons.push({
@@ -185,7 +240,7 @@ export class VRMenu extends MovablePanel {
     const portalY = startY + ops.length * (rowH + 2) + 24;
     this.buttons.push({
       type: 'toggle',
-      label: 'Farcaster Portals',
+      label: 'Collaboration portals',
       x: 40,
       y: portalY,
       w: 720,
@@ -195,7 +250,7 @@ export class VRMenu extends MovablePanel {
     const liveY = portalY + 44 + 34;
     this.buttons.push({
       type: 'connectStream',
-      label: 'Connect Live Stream',
+      label: 'Connect live data',
       x: 40,
       y: liveY,
       w: 340,
@@ -203,7 +258,7 @@ export class VRMenu extends MovablePanel {
     });
     this.buttons.push({
       type: 'disconnectStream',
-      label: 'Disconnect Stream',
+      label: 'Disconnect live data',
       x: 420,
       y: liveY,
       w: 340,
@@ -228,22 +283,49 @@ export class VRMenu extends MovablePanel {
       this.buttons.push({
         type: 'dataset',
         entry,
-        label: entry.label,
+        label: `Example · ${entry.label}`,
         x: 40,
         y: datasetY + idx * rowH,
         w: 720,
         h: 40,
       });
     });
+
+    const libraryY = datasetY + allSampleDatasets.length * rowH + 72;
+    this.buttons.push({
+      type: 'libraryRefresh',
+      label: this._libraryBusy ? 'Refreshing…' : 'Refresh approved datasets',
+      x: 40,
+      y: libraryY,
+      w: 720,
+      h: 44,
+    });
+
+    let row = 1;
+    for (const entry of this.libraryEntries) {
+      for (const tier of entry.tiers) {
+        this.buttons.push({
+          type: 'libraryDataset',
+          datasetId: entry.id,
+          tierId: tier.id,
+          label: `${entry.label} · v${entry.version} · ${tier.label} · ${tier.rows.toLocaleString()} rows`,
+          x: 40,
+          y: libraryY + row * rowH,
+          w: 720,
+          h: 40,
+        });
+        row += 1;
+      }
+    }
   }
 
   renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
     ctx.font = 'bold 20px monospace';
     ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
     ctx.textAlign = 'left';
-    ctx.fillText('OPERATIONS', 40, 38);
-    ctx.fillText('SETTINGS', 40, 410);
-    ctx.fillText('LIVE STREAM', 40, 486);
+    ctx.fillText('ANALYSE', 40, 38);
+    ctx.fillText('WORKSPACE', 40, 410);
+    ctx.fillText('LIVE DATA', 40, 486);
 
     const statusText = this.liveConnected ? 'CONNECTED' : 'OFFLINE';
     const statusColor = this.liveConnected
@@ -256,7 +338,14 @@ export class VRMenu extends MovablePanel {
     const dataSetLabelY = this._datasetLabelY();
     ctx.font = 'bold 20px monospace';
     ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.fillText('DATASETS', 40, dataSetLabelY);
+    ctx.fillText('BUILT-IN EXAMPLES', 40, dataSetLabelY);
+
+    const libraryLabelY =
+      dataSetLabelY + allSampleDatasets.length * 46 + 72;
+    ctx.fillText('APPROVED DATASETS', 40, libraryLabelY);
+    ctx.font = '14px monospace';
+    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
+    ctx.fillText(this.libraryStatus, 40, libraryLabelY + 24, 700);
 
     ctx.font = 'bold 18px monospace';
     for (const btn of this.buttons) {
@@ -284,7 +373,7 @@ export class VRMenu extends MovablePanel {
       ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
       ctx.textAlign = 'left';
       let text = btn.label;
-      if (btn.type === 'toggle') text += ` : ${this.portalsEnabled ? 'ON' : 'OFF'}`;
+      if (btn.type === 'toggle') text += ` · ${this.portalsEnabled ? 'On' : 'Off'}`;
       ctx.fillText(text, btn.x + 16, btn.y + 27, btn.w - 32);
     }
   }
@@ -325,6 +414,14 @@ export class VRMenu extends MovablePanel {
             maxDepth: btn.entry.depth,
             encodings: getDefaultEncodings(btn.entry),
           });
+          return true;
+        }
+        if (btn.type === 'libraryRefresh') {
+          void this.refreshDatasetLibrary();
+          return true;
+        }
+        if (btn.type === 'libraryDataset') {
+          void this.openLibraryDataset(btn.datasetId, btn.tierId);
           return true;
         }
         if (btn.type === 'connectStream') {
@@ -388,7 +485,7 @@ export class VRMenu extends MovablePanel {
     const rowH = 46;
     const pad = 18;
     const startY = 70 + pad;
-    const opsCount = 9;
+    const opsCount = 10;
     const portalY = startY + opsCount * (rowH + 2) + 24;
     const liveY = portalY + 44 + 34;
     const sourceY = liveY + 44 + 44;
