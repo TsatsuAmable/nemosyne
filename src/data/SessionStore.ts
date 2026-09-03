@@ -25,7 +25,7 @@ export interface SessionStoreLike {
   hasSession(id: string): Promise<boolean>;
 }
 
-type IDBFactoryLike = Pick<IDBFactory, 'open' | 'deleteDatabase'>;
+type IDBFactoryLike = Pick<IDBFactory, 'open'>;
 
 function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise<void>((resolve, reject) => {
