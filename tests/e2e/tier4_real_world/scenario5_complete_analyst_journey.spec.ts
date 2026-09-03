@@ -3,7 +3,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { ConstraintEngine } from '../../../src/moneta/ConstraintEngine.ts';
+import {
+  ConstraintEngine,
+  isNoFeasibleConstraintResult,
+} from '../../../src/moneta/ConstraintEngine.ts';
 import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { AtlasCore } from '../../../src/atlas/AtlasCore.ts';
 import { DataOperationController } from '../../../src/vr/coordinators/DataOperationController.ts';
@@ -44,7 +47,10 @@ describe('Tier 4 — Scenario 5: Complete End-to-End Analyst Journey across Thre
     const engine = new ConstraintEngine({ factProvider });
     const solverResult = engine.solve({ dataset });
 
-    expect(solverResult.spec).toBeDefined();
+    expect(isNoFeasibleConstraintResult(solverResult)).toBe(false);
+    if (isNoFeasibleConstraintResult(solverResult)) {
+      throw new Error('expected a feasible analyst-journey representation');
+    }
     expect(solverResult.spec.layout).toBeDefined();
 
     const artifact = VRTopologyTranslator.synthesizeArtifact(solverResult, { dataset });
