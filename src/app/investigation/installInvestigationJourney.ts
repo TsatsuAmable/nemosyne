@@ -30,9 +30,15 @@ export function installInvestigationJourney(app: AppInstance): () => void {
     const refresh = () => queueMicrotask(handler);
     const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
     const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
+    // Session/checkpoint/.nemosyne restoration publishes HISTORY_SEEK only
+    // after the persisted Atlas state has replaced the transient dataset-load
+    // reset. Refresh reasoning surfaces from that authoritative post-restore
+    // event so they cannot remain visually stuck on the intermediate state.
+    const unsubscribeHistory = world.eventBus.on(WorldTopics.HISTORY_SEEK, refresh);
     return () => {
       unsubscribeDataset();
       unsubscribeOperation();
+      unsubscribeHistory();
     };
   };
 

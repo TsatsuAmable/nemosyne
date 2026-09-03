@@ -221,7 +221,8 @@ export class NemosyneSession {
   /** Export a persisted snapshot in isolation from the mutable live Atlas/session. */
   static async exportPortableSnapshot(
     json: NemosyneSessionJSON,
-    environment: PortablePackageEnvironment = {}
+    environment: PortablePackageEnvironment = {},
+    replayKernelVersionOverride?: string,
   ): Promise<Uint8Array> {
     const atlas = new AtlasCore({ kernel: null });
     const session = NemosyneSession.deserialize(json, atlas);
@@ -231,7 +232,10 @@ export class NemosyneSession {
       ?.implementationVersion;
     const archivedKernelVersion =
       json.representationDecision?.kernelVersion ?? lastImplementationVersion ?? 'unknown';
-    return session.exportPortablePackage(environment, archivedKernelVersion);
+    return session.exportPortablePackage(
+      environment,
+      replayKernelVersionOverride ?? archivedKernelVersion,
+    );
   }
 
   loadFromJSON(json: NemosyneSessionJSON): void {

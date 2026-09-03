@@ -77,24 +77,34 @@ export class WorldSessionController {
   }
 
   async saveSession(id: string = 'autosave'): Promise<void> {
-    const generation = this.generation;
-    if (!this.isCurrent(generation)) return;
-    const snapshot = this.snapshotCurrentSession();
-    if (!snapshot) return;
-
     try {
-      await this.getSessionStore().saveSession(
-        id,
-        snapshot as unknown as Parameters<SessionStoreLike['saveSession']>[1]
-      );
-      if (!this.isCurrent(generation)) return;
-      this.log('log', `Session saved: ${id}`);
-      this.recordInteraction('Save session', { result: id });
+      await this.saveSessionChecked(id);
     } catch (error) {
-      if (!this.isCurrent(generation)) return;
+      if (!this.isCurrent(this.generation)) return;
       console.warn('[WorldSessionController] failed to save session:', error);
       this.log('warn', `Session save failed: ${(error as Error).message}`);
     }
+  }
+
+  /** Save with a success/failure signal for explicit product actions. */
+  async saveSessionChecked(id: string = 'manual'): Promise<boolean> {
+    const generation = this.generation;
+    if (!this.isCurrent(generation)) return false;
+    const snapshot = this.snapshotCurrentSession();
+    if (!snapshot) return false;
+    await this.getSessionStore().saveSession(
+      id,
+      snapshot as unknown as Parameters<SessionStoreLike['saveSession']>[1],
+    );
+    if (!this.isCurrent(generation)) return false;
+    this.log('log', `Session saved: ${id}`);
+    this.recordInteraction('Save session', { result: id });
+    return true;
+  }
+
+  async hasSession(id: string): Promise<boolean> {
+    if (!this.isCurrent(this.generation)) return false;
+    return this.getSessionStore().hasSession(id);
   }
 
   async loadSession(id: string = 'autosave'): Promise<boolean> {
@@ -109,16 +119,32 @@ export class WorldSessionController {
       this.log('log', `No saved session: ${id}`);
       return false;
     }
+    return this.restoreSnapshotAtGeneration(snapshot as unknown as NemosyneSessionJSON, generation);
+  }
 
-    const sessionJson = snapshot as unknown as NemosyneSessionJSON;
-    const originalDataset = (snapshot.originalDataset as unknown as DatasetJSON | null) ?? null;
+  /**
+   * Restore an already validated session snapshot through the same production
+   * dataset/session/presentation path used by ordinary local session loading.
+   * PT5D uses this seam for immutable Vault snapshots and verified .nemosyne
+   * continuation instead of inventing a second restore implementation.
+   */
+  async restoreSnapshot(snapshot: NemosyneSessionJSON): Promise<boolean> {
+    return this.restoreSnapshotAtGeneration(snapshot, this.generation);
+  }
+
+  private async restoreSnapshotAtGeneration(
+    sessionJson: NemosyneSessionJSON,
+    generation: number,
+  ): Promise<boolean> {
+    if (!this.isCurrent(generation)) return false;
+    const originalDataset = (sessionJson.originalDataset as unknown as DatasetJSON | null) ?? null;
     if (!originalDataset) {
-      this.log('warn', `Session ${id} has no dataset`);
+      this.log('warn', 'Session snapshot has no dataset');
       return false;
     }
 
     const original = Dataset.fromJSON(originalDataset);
-    const entryData = (snapshot.entry ?? {}) as Record<string, unknown>;
+    const entryData = (sessionJson.entry ?? {}) as Record<string, unknown>;
     const entry: DatasetLoadEntry = {
       name: (entryData.name as string | undefined) ?? original.name,
       topology: (entryData.topology as string | undefined) ?? 'TABULAR',
@@ -148,7 +174,7 @@ export class WorldSessionController {
 
     await this.presentation.restore(this.session.presentation);
     if (!this.isCurrent(generation)) return false;
-    this.log('log', `Session restored: ${id}`);
+    this.log('log', `Session restored: ${sessionJson.sessionId ?? 'snapshot'}`);
     return true;
   }
 
@@ -184,8 +210,9 @@ export class WorldSessionController {
     } catch (error) {
       if (!this.isCurrent(generation)) return;
       console.warn('[WorldSessionController] autosave restore failed:', error);
+      this.log('warn', `Autosave recovery failed: ${(error as Error).message}`);
+      return false;
     }
-    return;
   }
 
   dispose(): void {
