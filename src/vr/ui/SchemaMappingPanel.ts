@@ -14,40 +14,23 @@ const PANEL_WIDTH = 560;
 const PANEL_HEIGHT = 640;
 const PANEL_WORLD_WIDTH = 0.95;
 
-const TYPE_OPTIONS: ColumnTypeValue[] = [
-  ColumnType.NUMERIC,
-  ColumnType.CATEGORICAL,
-  ColumnType.TEMPORAL,
+const TYPE_CHOICES: ReadonlyArray<{ value: ColumnTypeValue; label: string }> = [
+  { value: ColumnType.NUMERIC, label: 'Number' },
+  { value: ColumnType.CATEGORICAL, label: 'Category' },
+  { value: ColumnType.TEMPORAL, label: 'Date & time' },
 ];
 
 export interface SchemaMappingPanelOptions {
   torsoAnchor: THREE.Object3D;
   worldScene: THREE.Object3D;
   dataset: Dataset;
-  /** Fires with the rebuilt `Dataset` once the user explicitly confirms. */
   onApplyMapping?: (updatedDataset: Dataset) => void;
-  /** Live dataset accessor; called on each `show()` to refresh the working
-   * copy so the panel never shows a stale schema after a reload. */
   getDataset?: () => Dataset | null;
   panelBudgetController?: PanelBudgetController;
   position?: [number, number, number];
 }
 
-/**
- * Schema & column-field mapping surface, migrated to the `SpatialPanel` +
- * uikit substrate (P1-U3). Each column is a row of name + `SegmentedControl`
- * (`NUMERIC` / `CATEGORICAL` / `TEMPORAL`); applying is a two-step
- * `ConfirmButton` because the apply reloads the dataset and resets the
- * evidence ledger / analysis history.
- *
- * Migration note: the previous `MovablePanel` / Canvas2D hit-test model is
- * replaced by uikit components. The public data contract — `dataset`,
- * `workingColumns`, `toggleColumnType`, `applyMapping`, `onApplyMapping` — is
- * preserved for downstream consumers. Pointer routing is via `engine.input`
- * (the SpatialPanel fallback path); the panel is NOT registered with the
- * MovablePanel-only `PanelManager`. Workspace coexistence is mediated by the
- * `PanelBudgetController` (`reference` role), mirroring `SettingsPanel`.
- */
+/** In-headset column review and correction surface. */
 export class SchemaMappingPanel extends SpatialPanel {
   dataset: Dataset;
   workingColumns: ColumnSchema[];
@@ -82,15 +65,10 @@ export class SchemaMappingPanel extends SpatialPanel {
 
     const pos = options.position ?? [0, 1.6, -1.1];
     this.position.set(pos[0], pos[1], pos[2]);
-
-    // Hidden until explicitly shown (mirrors HolographicInspector). The budget
-    // controller tracks visibility on show/hide; the SpatialPanel fallback
-    // path only routes to panels present in `engine.input`, and a hidden
-    // panel's component tree is not interactable until `show()`.
     this.visible = false;
 
     this._chrome = new PanelChrome({
-      title: 'SCHEMA & COLUMN MAPPING',
+      title: 'REVIEW COLUMNS',
       onPinToggle: () => this._togglePin(),
       onClose: () => this.hide(),
     });
@@ -100,10 +78,10 @@ export class SchemaMappingPanel extends SpatialPanel {
     this.add(this._rowsContainer);
 
     this._applyButton = new ConfirmButton({
-      label: 'APPLY FIELD MAPPING',
+      label: 'APPLY COLUMN TYPES',
       variant: 'primary',
       confirmMessage:
-        'Apply reloads the dataset from its original rows with the new column types. This discards any current data operation (filter/cluster/etc.) and resets the evidence ledger + analysis history.',
+        'Apply these column types? Nemosyne will reload the original rows, clear current filters or clusters, and restart the analysis history for this dataset.',
       onConfirm: () => this.applyMapping(),
     });
     this.add(this._applyButton);
@@ -111,13 +89,9 @@ export class SchemaMappingPanel extends SpatialPanel {
     this._buildRows();
   }
 
-  // --- Lifecycle ---
-
   show(): void {
     this._budgetController?.open(this, 'reference');
     this.visible = true;
-    // Refresh the working copy from the live dataset on every open so the panel
-    // never shows a stale schema after a reload / schema apply.
     this._refreshFromDataset();
     this.updateMatrixWorld();
   }
@@ -138,13 +112,6 @@ export class SchemaMappingPanel extends SpatialPanel {
     else this._budgetController.unpin(this);
   }
 
-  // --- Schema editing ---
-
-  /**
-   * Cycle a column's type NUMERIC → CATEGORICAL → TEMPORAL → NUMERIC. Kept for
-   * compatibility; the `SegmentedControl` drives edits directly via
-   * `setColumnType`, but programmatic callers (and tests) may still cycle.
-   */
   toggleColumnType(colName: string): void {
     const col = this.workingColumns.find((c) => c.name === colName);
     if (!col) return;
@@ -154,7 +121,6 @@ export class SchemaMappingPanel extends SpatialPanel {
     this._buildRows();
   }
 
-  /** Set a column's type to an explicit value (used by the SegmentedControl). */
   setColumnType(colName: string, type: ColumnTypeValue): void {
     const col = this.workingColumns.find((c) => c.name === colName);
     if (!col) return;
@@ -187,13 +153,22 @@ export class SchemaMappingPanel extends SpatialPanel {
     if (this.workingColumns.length === 0) {
       this._rowsContainer.add(
         new Text({
-          text: 'No columns available. Load a dataset to map its schema.',
+          text: 'Load a dataset to review its columns.',
           fontSize: TYPOGRAPHY_TOKENS.scale.body,
           color: COLOR_TOKENS.text.muted,
         }),
       );
       return;
     }
+
+    this._rowsContainer.add(
+      new Text({
+        text: 'Tell Nemosyne what each column means. Use Number for measured values, Category for groups or labels, and Date & time for timestamps.',
+        fontSize: TYPOGRAPHY_TOKENS.scale.body,
+        color: COLOR_TOKENS.text.secondary,
+        maxWidth: 510,
+      }),
+    );
 
     for (const col of this.workingColumns) {
       const row = new Container({
@@ -211,11 +186,14 @@ export class SchemaMappingPanel extends SpatialPanel {
       });
       row.add(nameLabel);
 
-      const segValue = TYPE_OPTIONS.includes(col.type) ? col.type : TYPE_OPTIONS[0];
+      const selected = TYPE_CHOICES.find((choice) => choice.value === col.type) ?? TYPE_CHOICES[0];
       const segmented = new SegmentedControl({
-        options: TYPE_OPTIONS,
-        value: segValue,
-        onChange: (next) => this.setColumnType(col.name, next as ColumnTypeValue),
+        options: TYPE_CHOICES.map((choice) => choice.label),
+        value: selected.label,
+        onChange: (next) => {
+          const choice = TYPE_CHOICES.find((candidate) => candidate.label === next);
+          if (choice) this.setColumnType(col.name, choice.value);
+        },
       });
       row.add(segmented);
 
