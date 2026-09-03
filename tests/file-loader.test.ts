@@ -67,7 +67,6 @@ describe('FileLoaderUI', () => {
     const file = new File([CSV_CONTENT], 'data.csv', { type: 'text/csv' });
     const input = loader.container.querySelector('input[type="file"]')!;
 
-    // Simulate file selection.
     Object.defineProperty(input, 'files', {
       value: [file],
       writable: false,
@@ -162,8 +161,6 @@ describe('FileLoaderUI', () => {
 
     await new Promise((r) => setTimeout(r, 20));
 
-    // The malicious name is rejected fail-closed before any content is read,
-    // so no dataset ever reaches the consumer with the traversal label.
     expect(onLoad).not.toHaveBeenCalled();
     const statusEl = loader.container.querySelector('#loader-status')!;
     expect(statusEl.textContent).toContain('File name rejected');
@@ -186,7 +183,7 @@ describe('FileLoaderUI', () => {
     expect(statusEl.textContent).toContain('File name rejected');
   });
 
-  it('renders a schema preview after loading', async () => {
+  it('renders a human-readable schema preview after loading', async () => {
     const file = new File(['category,value\nA,10\nB,20'], 'data.csv', { type: 'text/csv' });
     const input = loader.container.querySelector('input[type="file"]')!;
 
@@ -199,7 +196,10 @@ describe('FileLoaderUI', () => {
     expect(schemaEl.style.display).toBe('block');
     expect(schemaEl.innerHTML).toContain('category');
     expect(schemaEl.innerHTML).toContain('value');
-    expect(schemaEl.innerHTML).toContain('TABULAR');
+    expect(schemaEl.textContent).toContain('tabular');
+    expect(schemaEl.textContent).toContain('Category');
+    expect(schemaEl.textContent).toContain('Number');
+    expect(schemaEl.textContent).not.toContain('CATEGORICAL');
   });
 
   it('shows and hides the container', () => {
