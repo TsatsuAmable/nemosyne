@@ -166,6 +166,28 @@ describe('PT5D investigation continuity', () => {
     expect(f.restoreSnapshot).not.toHaveBeenCalled();
   });
 
+  it('refuses an embedded resumable snapshot whose package session identity is missing', async () => {
+    const source = makeSnapshot('session-source', 'theme-source');
+    const current = makeSnapshot('session-current', 'theme-current');
+    const f = fixture(source);
+    const bytes = await f.controller.exportCurrent();
+    const payload = NemosynePackageManager.unpack(bytes);
+    const embedded = payload.extraFiles?.['continuity/session-v2.json'];
+    expect(embedded).toBeTruthy();
+    const tampered = JSON.parse(strFromU8(embedded!)) as NemosyneSessionJSON & { sessionId?: string };
+    delete tampered.sessionId;
+    payload.extraFiles = {
+      ...(payload.extraFiles ?? {}),
+      'continuity/session-v2.json': strToU8(JSON.stringify(tampered)),
+    };
+    const tamperedBytes = NemosynePackageManager.pack(payload);
+    f.setCurrent(current);
+
+    await expect(f.controller.openPortable(tamperedBytes)).rejects.toThrow(/different investigation session/i);
+    expect(f.current().sessionId).toBe('session-current');
+    expect(f.restoreSnapshot).not.toHaveBeenCalled();
+  });
+
   it('keeps older verification-only packages readable without falsely claiming they were reopened', async () => {
     const source = makeSnapshot('legacy-session', 'legacy-theme');
     const current = makeSnapshot('current-session', 'current-theme');

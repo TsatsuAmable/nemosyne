@@ -280,7 +280,7 @@ export class InvestigationContinuityController {
     }
     const snapshot = asSnapshot(parsed);
 
-    if (snapshot.sessionId && snapshot.sessionId !== manifest.sessionId) {
+    if (snapshot.sessionId !== manifest.sessionId) {
       throw new Error('The resumable workspace belongs to a different investigation session.');
     }
     const identity = canonicalDatasetIdentityHex(snapshot.originalDataset!);
