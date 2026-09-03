@@ -110,16 +110,21 @@ function fixture(initial = makeSnapshot('session-a', 'theme-a')): {
 }
 
 describe('PT5D investigation continuity', () => {
-  it('exports a resumable package and reopens the exact presentation + investigation snapshot only after verification', async () => {
+  it('exports a resumable package and reopens the exact investigation while retaining recipient device settings', async () => {
     const source = makeSnapshot('session-source', 'neon-source');
+    source.presentation.settings = { reducedMotion: true, productAnalytics: true };
     const target = makeSnapshot('session-other', 'neon-other');
+    target.presentation.settings = { reducedMotion: false, productAnalytics: false };
     const f = fixture(source);
 
     const bytes = await f.controller.exportCurrent();
     const unpacked = NemosynePackageManager.unpack(bytes);
     const embedded = unpacked.extraFiles?.['continuity/session-v2.json'];
     expect(embedded).toBeInstanceOf(Uint8Array);
-    expect((JSON.parse(strFromU8(embedded!)) as NemosyneSessionJSON).presentation.theme).toBe('neon-source');
+    expect((JSON.parse(strFromU8(embedded!)) as NemosyneSessionJSON).presentation).toMatchObject({
+      theme: 'neon-source',
+      settings: { reducedMotion: true, productAnalytics: true },
+    });
 
     f.setCurrent(target);
     const opened = await f.controller.openPortable(bytes);
@@ -130,7 +135,7 @@ describe('PT5D investigation continuity', () => {
     expect(f.current().presentation).toMatchObject({
       theme: 'neon-source',
       camera: { position: [1, 2, 3], rotationY: 0.5 },
-      settings: { reducedMotion: true },
+      settings: { reducedMotion: false, productAnalytics: false },
     });
     expect(f.restoreSnapshot).toHaveBeenCalledTimes(1);
   });
