@@ -1,5 +1,5 @@
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
-import type { AnalysisResult, Observation } from '../../atlas/types.ts';
+import type { AnalysisResult, Finding, Observation } from '../../atlas/types.ts';
 import type {
   DiscoveryAnalyticalTest,
   DiscoveryEpisode,
@@ -22,17 +22,41 @@ export interface DiscoveryReasoningSnapshot {
   discoveries: readonly DiscoveryEpisode[];
   latestObservation: Observation | null;
   latestResult: AnalysisResult | null;
+  latestFinding: Finding | null;
   activeGraphNodeId: string | null;
   activeGraphNode: InvestigationNode | null;
   branches: readonly DiscoveryBranchSummary[];
 }
 
+export interface AskDiscoveryInput {
+  observationId: string;
+  question: string;
+}
+
+export interface HypothesiseDiscoveryInput {
+  discoveryId: string;
+  hypothesis: string;
+}
+
+export interface RecordDiscoveryUnderstandingInput {
+  discoveryId: string;
+  findingId: string;
+}
+
+export interface ValidateDiscoveryInput {
+  discoveryId: string;
+  resultId: string;
+  outcome: DiscoveryTestOutcome;
+}
+
+/** Compatibility input retained for the C4 combined authoring surface. */
 export interface StartDiscoveryInput {
   observationId: string;
   question: string;
   hypothesis: string;
 }
 
+/** Compatibility input retained for the C4 combined test/conclusion surface. */
 export interface RecordDiscoveryTestInput {
   discoveryId: string;
   resultId: string;
@@ -75,24 +99,28 @@ function graphNodeForDiscoveryRole(
 ): InvestigationNode | null {
   for (let index = nodes.length - 1; index >= 0; index -= 1) {
     const node = nodes[index];
-    if (
-      node.metadata?.discoveryId === discoveryId &&
-      node.metadata?.discoveryRole === role
-    ) {
+    if (node.metadata?.discoveryId === discoveryId && node.metadata?.discoveryRole === role) {
       return node;
     }
   }
   return null;
 }
 
+function sameDatasetFingerprint(
+  episode: DiscoveryEpisode,
+  evidence: { datasetFingerprint: string },
+): boolean {
+  return evidence.datasetFingerprint === episode.provenance.datasetFingerprint;
+}
+
 /**
  * Application-layer authoring seam for explicit researcher reasoning.
  *
- * This service does not calculate analytical truth. It records human-authored
- * question/hypothesis/conclusion text, cites an existing Atlas AnalysisResult
- * for every terminal test outcome, persists the validated lifecycle in the
- * authoritative DiscoveryEpisodeStore, and mirrors only that explicit lineage
- * into InvestigationGraph for Memory Palace presentation.
+ * This service never calculates analytical truth. PT5C makes the lifecycle
+ * progressive while retaining the C4 combined methods for compatibility:
+ *
+ * notice -> question -> hypothesis -> analytical investigation -> explicit
+ * Atlas Finding (understanding) -> evidence-backed validation -> discovery.
  */
 export class DiscoveryReasoningService {
   private readonly atlas: AtlasCore;
@@ -104,14 +132,16 @@ export class DiscoveryReasoningService {
   constructor(atlas: AtlasCore, options: DiscoveryReasoningServiceOptions = {}) {
     this.atlas = atlas;
     this.now = options.now ?? (() => Date.now());
-    this.investigationVersion = options.investigationVersion ?? 'c4-discovery-reasoning/1';
-    this.idFactory = options.idFactory ?? ((prefix) => {
-      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return `${prefix}-${crypto.randomUUID()}`;
-      }
-      this.fallbackCounter += 1;
-      return `${prefix}-${this.now()}-${this.fallbackCounter}`;
-    });
+    this.investigationVersion = options.investigationVersion ?? 'pt5c-investigation-journey/1';
+    this.idFactory =
+      options.idFactory ??
+      ((prefix) => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+          return `${prefix}-${crypto.randomUUID()}`;
+        }
+        this.fallbackCounter += 1;
+        return `${prefix}-${this.now()}-${this.fallbackCounter}`;
+      });
   }
 
   snapshot(): DiscoveryReasoningSnapshot {
@@ -121,6 +151,7 @@ export class DiscoveryReasoningService {
       discoveries: this.atlas.aggregate.discoveries.all(),
       latestObservation: this.atlas.observations.at(-1) ?? null,
       latestResult: this.atlas.results.at(-1) ?? null,
+      latestFinding: this.atlas.findings.at(-1) ?? null,
       activeGraphNodeId,
       activeGraphNode: activeGraphNodeId ? graph.getNode(activeGraphNodeId) ?? null : null,
       branches: graph.nodes
@@ -135,13 +166,15 @@ export class DiscoveryReasoningService {
     };
   }
 
-  start(input: StartDiscoveryInput): DiscoveryEpisode {
+  ask(input: AskDiscoveryInput): DiscoveryEpisode {
     const observation = this.atlas.observations.find((entry) => entry.id === input.observationId);
     if (!observation) throw new Error(`Observation not found: ${input.observationId}`);
     if (!this.atlas.datasetFingerprint) throw new Error('A loaded dataset is required.');
+    if (observation.datasetFingerprint !== this.atlas.datasetFingerprint) {
+      throw new Error('The notice belongs to a different dataset.');
+    }
 
     const question = requiredText(input.question, 'Question');
-    const hypothesis = requiredText(input.hypothesis, 'Hypothesis');
     const discoveryId = this.idFactory('discovery');
     const graph = this.atlas.aggregate.graph;
     const previousActiveId = graph.activeNodeId;
@@ -153,7 +186,7 @@ export class DiscoveryReasoningService {
         parentId: previousActiveId,
         datasetVersion: observation.datasetVersion,
         datasetFingerprint: observation.datasetFingerprint,
-        label: 'Observation',
+        label: 'Notice',
         timestamp: observation.timestamp,
         metadata: {
           epistemicKind: 'notice',
@@ -185,24 +218,6 @@ export class DiscoveryReasoningService {
     });
     graph.connect(observation.id, questionId, 'motivates', this.idFactory('edge'));
 
-    const hypothesisId = this.idFactory('hypothesis');
-    graph.addNode({
-      id: hypothesisId,
-      kind: 'question',
-      parentId: questionId,
-      datasetVersion: this.atlas.datasetVersion,
-      datasetFingerprint: this.atlas.datasetFingerprint,
-      label: 'Hypothesis',
-      timestamp: this.now(),
-      metadata: {
-        epistemicKind: 'hypothesis',
-        description: hypothesis,
-        discoveryId,
-        discoveryRole: 'hypothesis',
-      },
-    });
-    graph.connect(questionId, hypothesisId, 'motivates', this.idFactory('edge'));
-
     const decision = this.atlas.activeRepresentationDecision;
     const episode: DiscoveryEpisode = {
       schemaVersion: DISCOVERY_EPISODE_SCHEMA_VERSION,
@@ -210,11 +225,10 @@ export class DiscoveryReasoningService {
       investigationId: this.atlas.aggregate.sessionId,
       notice: observation.notes,
       question,
-      hypothesis,
-      explorationPath: [observation.id, questionId, hypothesisId],
+      explorationPath: [observation.id, questionId],
       analyticalTests: [],
       evidenceIds: [observation.id],
-      validationStatus: 'UNDER_INVESTIGATION',
+      validationStatus: 'UNTESTED',
       representationContext: decision
         ? {
             representationDecisionId: decision.id,
@@ -237,6 +251,240 @@ export class DiscoveryReasoningService {
     return episode;
   }
 
+  hypothesise(input: HypothesiseDiscoveryInput): DiscoveryEpisode {
+    const episode = this.atlas.aggregate.discoveries.get(input.discoveryId);
+    if (!episode) throw new Error(`Discovery not found: ${input.discoveryId}`);
+    if (episode.validationStatus !== 'UNTESTED') {
+      throw new Error('A hypothesis can only be set before validation begins.');
+    }
+    if (!episode.question?.trim()) throw new Error('Record a research question before a hypothesis.');
+    if (episode.hypothesis?.trim()) throw new Error('This investigation already has a hypothesis.');
+
+    const questionNode = graphNodeForDiscoveryRole(
+      this.atlas.aggregate.graph.nodes,
+      episode.discoveryId,
+      'question',
+    );
+    if (!questionNode) throw new Error('The research question has no authoritative lineage node.');
+
+    const hypothesis = requiredText(input.hypothesis, 'Hypothesis');
+    const hypothesisId = this.idFactory('hypothesis');
+    const graph = this.atlas.aggregate.graph;
+    graph.addNode({
+      id: hypothesisId,
+      kind: 'question',
+      parentId: questionNode.id,
+      datasetVersion: this.atlas.datasetVersion,
+      datasetFingerprint: episode.provenance.datasetFingerprint,
+      label: 'Hypothesis',
+      timestamp: this.now(),
+      metadata: {
+        epistemicKind: 'hypothesis',
+        description: hypothesis,
+        discoveryId: episode.discoveryId,
+        discoveryRole: 'hypothesis',
+      },
+    });
+    graph.connect(questionNode.id, hypothesisId, 'motivates', this.idFactory('edge'));
+
+    const updated: DiscoveryEpisode = {
+      ...episode,
+      hypothesis,
+      validationStatus: 'UNDER_INVESTIGATION',
+      explorationPath: [...episode.explorationPath, hypothesisId],
+    };
+    this.atlas.aggregate.discoveries.replace(updated);
+    return updated;
+  }
+
+  recordUnderstanding(input: RecordDiscoveryUnderstandingInput): DiscoveryEpisode {
+    const episode = this.atlas.aggregate.discoveries.get(input.discoveryId);
+    if (!episode) throw new Error(`Discovery not found: ${input.discoveryId}`);
+    if (episode.validationStatus !== 'UNDER_INVESTIGATION') {
+      throw new Error('Record a hypothesis before recording understanding.');
+    }
+    if (episode.conclusion?.trim()) throw new Error('This investigation already has a recorded understanding.');
+
+    const finding = this.atlas.findings.find((entry) => entry.id === input.findingId);
+    if (!finding) throw new Error(`Finding not found: ${input.findingId}`);
+    if (!sameDatasetFingerprint(episode, finding)) {
+      throw new Error('The understanding belongs to a different dataset.');
+    }
+    if (finding.resultIds.length === 0) {
+      throw new Error('Understanding must cite at least one analytical result.');
+    }
+    const originalNoticeId = episode.evidenceIds[0];
+    if (originalNoticeId && !finding.observationIds.includes(originalNoticeId)) {
+      throw new Error('Understanding must cite the notice that started this investigation.');
+    }
+
+    const results = finding.resultIds.map((resultId) => {
+      const result = this.atlas.results.find((entry) => entry.resultId === resultId);
+      if (!result) throw new Error(`Analytical evidence not found: ${resultId}`);
+      if (!sameDatasetFingerprint(episode, result)) {
+        throw new Error(`Analytical evidence belongs to a different dataset: ${resultId}`);
+      }
+      return result;
+    });
+
+    const hypothesisNode = graphNodeForDiscoveryRole(
+      this.atlas.aggregate.graph.nodes,
+      episode.discoveryId,
+      'hypothesis',
+    );
+    if (!hypothesisNode) throw new Error('The hypothesis has no authoritative lineage node.');
+
+    const graph = this.atlas.aggregate.graph;
+    const evidenceNodeId = this.idFactory('reasoning-evidence');
+    graph.addNode({
+      id: evidenceNodeId,
+      kind: 'operation',
+      parentId: hypothesisNode.id,
+      datasetVersion: finding.datasetVersion,
+      datasetFingerprint: finding.datasetFingerprint,
+      label: `Evidence · ${results[0]!.spec.operation.op}`,
+      timestamp: finding.timestamp,
+      operation: results[0]!.spec.operation.op,
+      metadata: {
+        epistemicKind: 'test',
+        description: `Analytical evidence · ${finding.resultIds.join(', ')}`,
+        discoveryId: episode.discoveryId,
+        discoveryRole: 'test',
+        findingId: finding.id,
+        resultIds: [...finding.resultIds],
+      },
+    });
+    graph.connect(hypothesisNode.id, evidenceNodeId, 'produces', this.idFactory('edge'));
+
+    const understandingNodeId = this.idFactory('understanding');
+    graph.addNode({
+      id: understandingNodeId,
+      kind: 'conclusion',
+      parentId: evidenceNodeId,
+      datasetVersion: finding.datasetVersion,
+      datasetFingerprint: finding.datasetFingerprint,
+      label: 'Understanding',
+      timestamp: finding.timestamp,
+      metadata: {
+        epistemicKind: 'finding',
+        description: finding.description,
+        discoveryId: episode.discoveryId,
+        discoveryRole: 'understanding',
+        findingId: finding.id,
+        humanJudgement: true,
+      },
+    });
+    graph.connect(evidenceNodeId, understandingNodeId, 'produces', this.idFactory('edge'));
+
+    const updated: DiscoveryEpisode = {
+      ...episode,
+      conclusion: finding.description,
+      evidenceIds: Array.from(
+        new Set([
+          ...episode.evidenceIds,
+          finding.id,
+          ...finding.observationIds,
+          ...finding.resultIds,
+        ]),
+      ),
+      explorationPath: [...episode.explorationPath, evidenceNodeId, understandingNodeId],
+    };
+    this.atlas.aggregate.discoveries.replace(updated);
+    return updated;
+  }
+
+  validate(input: ValidateDiscoveryInput): DiscoveryEpisode {
+    const episode = this.atlas.aggregate.discoveries.get(input.discoveryId);
+    if (!episode) throw new Error(`Discovery not found: ${input.discoveryId}`);
+    if (episode.validationStatus !== 'UNDER_INVESTIGATION') {
+      throw new Error(`Discovery ${input.discoveryId} already has a terminal validation outcome.`);
+    }
+    if (!episode.hypothesis?.trim()) throw new Error('Record a hypothesis before validation.');
+    if (!episode.conclusion?.trim()) {
+      throw new Error('Record your understanding before validating the hypothesis.');
+    }
+
+    const result = this.atlas.results.find((entry) => entry.resultId === input.resultId);
+    if (!result) throw new Error(`Analysis evidence not found: ${input.resultId}`);
+    if (!sameDatasetFingerprint(episode, result)) {
+      throw new Error('The analytical evidence belongs to a different dataset.');
+    }
+    if (!episode.evidenceIds.includes(result.resultId)) {
+      throw new Error('Validation must use analytical evidence cited by the recorded understanding.');
+    }
+
+    const test: DiscoveryAnalyticalTest = {
+      id: this.idFactory('test'),
+      method: result.spec.operation.op,
+      evidenceIds: [result.resultId],
+      outcome: input.outcome,
+      note: `Researcher classified the cited analytical result as ${input.outcome}.`,
+    };
+
+    const parent =
+      graphNodeForDiscoveryRole(this.atlas.aggregate.graph.nodes, episode.discoveryId, 'understanding') ??
+      graphNodeForDiscoveryRole(this.atlas.aggregate.graph.nodes, episode.discoveryId, 'conclusion');
+    if (!parent) throw new Error('The recorded understanding has no authoritative lineage node.');
+
+    const graph = this.atlas.aggregate.graph;
+    const validationNodeId = this.idFactory('validation');
+    const status = validationStatus(input.outcome);
+    graph.addNode({
+      id: validationNodeId,
+      kind: 'conclusion',
+      parentId: parent.id,
+      datasetVersion: result.datasetVersion,
+      datasetFingerprint: result.datasetFingerprint,
+      label:
+        input.outcome === 'SUPPORTS'
+          ? 'Supported'
+          : input.outcome === 'REFUTES'
+            ? 'Refuted'
+            : 'Qualified',
+      timestamp: this.now(),
+      metadata: {
+        epistemicKind: input.outcome === 'REFUTES' ? 'contradiction' : 'finding',
+        description: `${status} using ${result.resultId}`,
+        discoveryId: episode.discoveryId,
+        discoveryRole: 'validation',
+        resultId: result.resultId,
+        outcome: input.outcome,
+        humanJudgement: true,
+      },
+    });
+    graph.connect(
+      parent.id,
+      validationNodeId,
+      input.outcome === 'SUPPORTS'
+        ? 'supports'
+        : input.outcome === 'REFUTES'
+          ? 'refutes'
+          : 'produces',
+      this.idFactory('edge'),
+    );
+
+    const updated: DiscoveryEpisode = {
+      ...episode,
+      analyticalTests: [...episode.analyticalTests, test],
+      evidenceIds: Array.from(new Set([...episode.evidenceIds, result.resultId])),
+      validationStatus: status,
+      explorationPath: [...episode.explorationPath, validationNodeId],
+    };
+    this.atlas.aggregate.discoveries.replace(updated);
+    return updated;
+  }
+
+  /** C4 compatibility: ask + hypothesise in one action. */
+  start(input: StartDiscoveryInput): DiscoveryEpisode {
+    const episode = this.ask({ observationId: input.observationId, question: input.question });
+    return this.hypothesise({ discoveryId: episode.discoveryId, hypothesis: input.hypothesis });
+  }
+
+  /**
+   * C4 compatibility: combine understanding and validation in one action.
+   * This path remains for existing tests/UI; PT5C product surfaces use the
+   * progressive NIL journey above.
+   */
   recordTest(input: RecordDiscoveryTestInput): DiscoveryEpisode {
     const episode = this.atlas.aggregate.discoveries.get(input.discoveryId);
     if (!episode) throw new Error(`Discovery not found: ${input.discoveryId}`);
@@ -247,7 +495,6 @@ export class DiscoveryReasoningService {
     const result = this.atlas.results.find((entry) => entry.resultId === input.resultId);
     if (!result) throw new Error(`Analysis evidence not found: ${input.resultId}`);
     if (!result.resultId.trim()) throw new Error('Analytical test evidence requires a stable result id.');
-
     const conclusion = requiredText(input.conclusion, 'Conclusion');
     const hypothesisNode = graphNodeForDiscoveryRole(
       this.atlas.aggregate.graph.nodes,
@@ -331,14 +578,17 @@ export class DiscoveryReasoningService {
     return updated;
   }
 
+  recordUnderstandingFromFinding(discoveryId: string, findingId: string): DiscoveryEpisode {
+    return this.recordUnderstanding({ discoveryId, findingId });
+  }
+
   returnToConclusion(discoveryId: string): InvestigationNode {
     const episode = this.atlas.aggregate.discoveries.get(discoveryId);
     if (!episode) throw new Error(`Discovery not found: ${discoveryId}`);
-    const conclusionNode = graphNodeForDiscoveryRole(
-      this.atlas.aggregate.graph.nodes,
-      discoveryId,
-      'conclusion',
-    );
+    const conclusionNode =
+      graphNodeForDiscoveryRole(this.atlas.aggregate.graph.nodes, discoveryId, 'validation') ??
+      graphNodeForDiscoveryRole(this.atlas.aggregate.graph.nodes, discoveryId, 'understanding') ??
+      graphNodeForDiscoveryRole(this.atlas.aggregate.graph.nodes, discoveryId, 'conclusion');
     if (!conclusionNode) {
       throw new Error(`Discovery ${discoveryId} has no tested conclusion to return to.`);
     }
@@ -352,17 +602,20 @@ export class DiscoveryReasoningService {
     const episode = this.atlas.aggregate.discoveries.get(input.discoveryId);
     if (!episode) throw new Error(`Discovery not found: ${input.discoveryId}`);
     if (!episode.conclusion) {
-      throw new Error('Record a tested conclusion before branching this reasoning path.');
+      throw new Error('Record an understanding before branching this reasoning path.');
     }
 
     const graph = this.atlas.aggregate.graph;
-    const conclusionNode = graphNodeForDiscoveryRole(graph.nodes, episode.discoveryId, 'conclusion');
+    const conclusionNode =
+      graphNodeForDiscoveryRole(graph.nodes, episode.discoveryId, 'validation') ??
+      graphNodeForDiscoveryRole(graph.nodes, episode.discoveryId, 'understanding') ??
+      graphNodeForDiscoveryRole(graph.nodes, episode.discoveryId, 'conclusion');
     if (!conclusionNode) {
       throw new Error(`Discovery ${episode.discoveryId} has no authoritative conclusion lineage node.`);
     }
 
     const branchId = this.idFactory('branch');
-    const label = input.label?.trim() || 'Branch from conclusion';
+    const label = input.label?.trim() || 'Branch from understanding';
     graph.addNode({
       id: branchId,
       kind: 'question',
