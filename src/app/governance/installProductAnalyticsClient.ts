@@ -1,5 +1,4 @@
-import type { EventBus } from '../../utils/EventBus.ts';
-import { WorldTopics } from '../../utils/EventBus.ts';
+import { WorldTopics, type WorldEventBus } from '../../utils/EventBus.ts';
 import type { RuntimeComponentReferenceV1 } from '../../governance/index.ts';
 import {
   ProductAnalyticsOidcClient,
@@ -37,7 +36,7 @@ function runtimeReference(value: unknown, label: string): RuntimeComponentRefere
   ) {
     throw new Error(`${label} runtime reference is invalid`);
   }
-  return value as RuntimeComponentReferenceV1;
+  return value as unknown as RuntimeComponentReferenceV1;
 }
 
 export function readProductAnalyticsBrowserConfig(
@@ -73,7 +72,7 @@ export function readProductAnalyticsBrowserConfig(
 }
 
 export async function installConfiguredProductAnalyticsClient(
-  eventBus: Pick<EventBus, 'on'>,
+  eventBus: Pick<WorldEventBus, 'on'>,
   env: Readonly<Record<string, string | boolean | undefined>> = import.meta.env,
   callbackUrl = window.location.href,
 ): Promise<ProductAnalyticsClientHandle | null> {
