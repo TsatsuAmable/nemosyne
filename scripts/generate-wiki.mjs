@@ -28,6 +28,7 @@ const pageByAuthority = new Map([
   ['architecture-change-process', 'RFC-Process'],
   ['accepted-production-data-contract', 'Production-Data-Lifecycle-RFC'],
   ['accepted-governed-data-plane-contract', 'Governed-Data-Plane-RFC'],
+  ['accepted-persistence-architecture', 'Persistence-Architecture-RFC'],
   ['architecture-decisions-index', 'Architecture-Decisions'],
   ['implementation-sequencing-reference', 'Implementation-Plan'],
   ['implementation-quality-policy', 'Implementation-Quality'],
