@@ -66,6 +66,7 @@ describe('Nemosyne Portable Package Engine (fflate + valibot)', () => {
     expect(() => sanitizeEntryPath('foo/../../bar')).toThrow();
     expect(() => sanitizeEntryPath('%2e%2e%2fevil.txt')).toThrow();
     expect(() => sanitizeEntryPath('%2e%2e/test')).toThrow();
+    expect(() => sanitizeEntryPath('%252e%252e%252fevil.txt')).toThrow();
     expect(() => sanitizeEntryPath('/etc/passwd')).toThrow();
     expect(() => sanitizeEntryPath('C:\\Windows\\System32')).toThrow();
     expect(() => sanitizeEntryPath('evil\0.txt')).toThrow();
