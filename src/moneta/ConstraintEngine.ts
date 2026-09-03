@@ -2,7 +2,11 @@
  * Moneta Constraint Engine.
  *
  * Symbolic, explainable recommender that evaluates layout/geometry/behavior/interaction
- * specifications from data facts and user-tunable soft weights.
+ * specifications from authoritative data facts and user-tunable soft weights.
+ *
+ * Analytical authority boundary: this module never derives facts from raw rows.
+ * Raw-row callers must supply a FactProvider backed by the governed evidence
+ * path, or provide already-computed MonetaFacts directly.
  */
 
 import type {
@@ -65,6 +69,22 @@ export const VRChannels = {
   ] as VRInteraction[],
 };
 
+export interface NoFeasibleConstraintResult {
+  readonly kind: 'NIL';
+  readonly reason: 'NO_FEASIBLE_CANDIDATE';
+  readonly spec: null;
+  readonly facts: MonetaFacts;
+  readonly cost: null;
+}
+
+export type ConstraintSolveResult = SolverResult | NoFeasibleConstraintResult;
+
+export function isNoFeasibleConstraintResult(
+  result: ConstraintSolveResult
+): result is NoFeasibleConstraintResult {
+  return 'kind' in result && result.kind === 'NIL';
+}
+
 export interface ConstraintEngineOptions {
   largeRowThreshold?: number;
   highCardinalityThreshold?: number;
@@ -122,7 +142,11 @@ export class ConstraintEngine {
     });
     this.hardConstraints.push((facts, spec) => {
       if (facts.isLargeDataset) {
-        const scalableGeometries: VRGeometry[] = ['CLUSTER_VOLUME', 'INSTANCED_POINT_CLOUD', 'AGGREGATE_BARS'];
+        const scalableGeometries: VRGeometry[] = [
+          'CLUSTER_VOLUME',
+          'INSTANCED_POINT_CLOUD',
+          'AGGREGATE_BARS',
+        ];
         if (!scalableGeometries.includes(spec.geometry)) return false;
       }
       return true;
@@ -215,7 +239,12 @@ export class ConstraintEngine {
       name: 'prefer_cube_matrix_for_tabular',
       weight: 11,
       eval: (facts, spec) =>
-        facts.topology === TopologyTypes.TABULAR && !facts.isLargeDataset && !facts.hasOutliers && spec.geometry !== 'CUBE_MATRIX' ? 1 : 0,
+        facts.topology === TopologyTypes.TABULAR &&
+        !facts.isLargeDataset &&
+        !facts.hasOutliers &&
+        spec.geometry !== 'CUBE_MATRIX'
+          ? 1
+          : 0,
     });
     this.softConstraints.push({
       name: 'prefer_orb_for_outliers',
@@ -234,7 +263,7 @@ export class ConstraintEngine {
       eval: (facts, spec) => (facts.hasContinuousValues && spec.behavior === 'STATIC' ? 1 : 0),
     });
 
-    // Scale-aware soft constraints
+    // Scale-aware soft constraints.
     this.softConstraints.push({
       name: 'prefer_instanced_for_large_tabular',
       weight: 25,
@@ -273,24 +302,28 @@ export class ConstraintEngine {
       name: 'prefer_spectral_volume_for_frequency',
       weight: 20,
       eval: (facts, spec) => {
-        if (facts.seasonalityHint && spec.layout !== 'SPECTRAL_VOLUME' && spec.layout !== 'TIME_RIBBON') {
+        if (
+          facts.seasonalityHint &&
+          spec.layout !== 'SPECTRAL_VOLUME' &&
+          spec.layout !== 'TIME_RIBBON'
+        ) {
           return 1;
         }
         return 0;
       },
     });
-
     this.softConstraints.push({
       name: 'prefer_beam_for_correlations',
       weight: 12,
       eval: (facts, spec) =>
-        (Object.keys(facts.correlationMatrix || {}).length > 0 || (facts as unknown as { hasCorrelation?: boolean }).hasCorrelation) &&
+        (Object.keys(facts.correlationMatrix || {}).length > 0 ||
+          (facts as unknown as { hasCorrelation?: boolean }).hasCorrelation) &&
         spec.geometry !== 'BEAM'
           ? 1
           : 0,
     });
 
-    // Metaphor interaction soft constraints (default weight 0; activated via weight tuning)
+    // Metaphor interaction soft constraints (default weight 0; activated via weight tuning).
     this.softConstraints.push({
       name: 'prefer_resonance_for_graphs',
       weight: 0,
@@ -349,7 +382,13 @@ export class ConstraintEngine {
   evaluateCandidate(
     arg1: MonetaFacts | MonetaSpec,
     arg2?: MonetaSpec | MonetaFacts
-  ): { isValid: boolean; valid: boolean; cost: number; softConstraintViolations: string[]; violations: string[] } {
+  ): {
+    isValid: boolean;
+    valid: boolean;
+    cost: number;
+    softConstraintViolations: string[];
+    violations: string[];
+  } {
     let facts: MonetaFacts;
     let spec: MonetaSpec;
     if (arg1 && 'layout' in (arg1 as Record<string, unknown>)) {
@@ -390,106 +429,24 @@ export class ConstraintEngine {
     return this.softConstraints.find((c) => c.name === name)?.weight;
   }
 
+  /**
+   * Compatibility seam for callers that still hold MonetaDataInput. This method
+   * is evidence-only: it delegates to the injected authoritative FactProvider
+   * and never inspects rows, columns, edges or encodings in JavaScript.
+   */
   extractFacts(input: MonetaDataInput): MonetaFacts {
-    if (this.factProvider) {
-      const pFacts = this.factProvider.facts(input);
-      if (pFacts) return pFacts;
+    const facts = this.factProvider?.facts(input) ?? null;
+    if (!facts) {
+      throw new Error(
+        'ConstraintEngine.extractFacts: authoritative facts unavailable; raw-row analytical fallback is forbidden'
+      );
     }
-
-    const rows = (input.rows || input.dataset?.rows || []) as Record<string, unknown>[];
-    const edges = input.edges || input.dataset?.edges || [];
-    const encodings = input.encodings || {};
-
-    const rowCount = rows.length;
-    const nodeCount = rowCount;
-    const edgeCount = edges.length;
-
-    let numericColumns = 0;
-    let categoricalColumns = 0;
-    let temporalColumns = 0;
-    let hasTimeSeries = false;
-    let hasContinuousValues = false;
-
-    if (input.dataset?.columns) {
-      for (const col of input.dataset.columns) {
-        if (col.type === 'NUMERIC') numericColumns++;
-        else if (col.type === 'CATEGORICAL') categoricalColumns++;
-        else if (col.type === 'TEMPORAL') {
-          temporalColumns++;
-          hasTimeSeries = true;
-        }
-      }
-    } else if (rows.length > 0) {
-      const first = rows[0];
-      for (const val of Object.values(first)) {
-        if (typeof val === 'number') {
-          numericColumns++;
-          hasContinuousValues = true;
-        } else if (typeof val === 'string') {
-          if (!isNaN(Date.parse(val)) && val.length > 5) {
-            temporalColumns++;
-            hasTimeSeries = true;
-          } else {
-            categoricalColumns++;
-          }
-        }
-      }
-    }
-
-    let topology: TopologyType = input.topology || TopologyTypes.TABULAR;
-    if (!input.topology) {
-      if (edgeCount > 0) topology = TopologyTypes.GRAPH;
-      else if (hasTimeSeries) topology = TopologyTypes.TIME_SERIES;
-    }
-
-    let depth = 0;
-    if (topology === TopologyTypes.HIERARCHY && rows.length > 0) {
-      const levels = rows.map((r) => Number(r.level || 0));
-      depth = Math.max(...levels, 0);
-    }
-
-    const density = nodeCount > 1 ? (2 * edgeCount) / (nodeCount * (nodeCount - 1)) : 0;
-    const isLargeDataset = rowCount > this.largeRowThreshold;
-
-    let cardinalityOfColor = 1;
-    if (encodings.color) {
-      const unique = new Set(rows.map((r) => r[encodings.color!]));
-      cardinalityOfColor = unique.size;
-    }
-    const hasHighCardinality = cardinalityOfColor > this.highCardinalityThreshold;
-
-    return {
-      topology,
-      rowCount,
-      nodeCount,
-      edgeCount,
-      depth,
-      numericColumns,
-      categoricalColumns,
-      temporalColumns,
-      hasTimeSeries,
-      hasContinuousValues,
-      density,
-      estimatedDensity: density,
-      outlierCount: 0,
-      cardinalityOfColor,
-      hasHighCardinality,
-      isLargeDataset,
-      clusterCount: 1,
-      columnStats: {},
-      correlationMatrix: {},
-      categoryDistribution: {},
-      trendDirection: 'flat',
-      seasonalityHint: false,
-      hasOutliers: false,
-      hasHighVariance: false,
-      numericSkew: 0,
-      topCategory: undefined,
-    };
+    return facts;
   }
 
-  solve(input: MonetaDataInput | MonetaFacts): SolverResult {
-    const facts: MonetaFacts = 'rowCount' in input ? (input as MonetaFacts) : this.extractFacts(input as MonetaDataInput);
+  solve(input: MonetaDataInput | MonetaFacts): ConstraintSolveResult {
+    const facts: MonetaFacts =
+      'rowCount' in input ? (input as MonetaFacts) : this.extractFacts(input as MonetaDataInput);
 
     let bestSpec: MonetaSpec | null = null;
     let minCost = Infinity;
@@ -519,13 +476,13 @@ export class ConstraintEngine {
     }
 
     if (!bestSpec) {
-      bestSpec = {
-        layout: 'GRID_3D',
-        geometry: 'CUBE_MATRIX',
-        behavior: 'STATIC',
-        interaction: 'INSPECT_CELL',
+      return {
+        kind: 'NIL',
+        reason: 'NO_FEASIBLE_CANDIDATE',
+        spec: null,
+        facts,
+        cost: null,
       };
-      minCost = 999;
     }
 
     return {
