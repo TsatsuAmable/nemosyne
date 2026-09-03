@@ -33,12 +33,12 @@ function root(): string {
   return value;
 }
 
-function authority(dataDirectory: string): DataPlaneAccessTokenAuthority {
+function authority(dataDirectory: string, keyResolver: DataPlaneJwkResolver = resolver): DataPlaneAccessTokenAuthority {
   return new DataPlaneAccessTokenAuthority({
     issuer: ISSUER,
     audience: AUDIENCE,
     allowedAlgorithms: ['RS256'],
-    keyResolver: resolver,
+    keyResolver,
     dataDirectory,
     credentialSessionKey: new Uint8Array(32).fill(7),
     now: () => new Date(NOW_SECONDS * 1000),
@@ -77,9 +77,9 @@ function token(options: {
   return `${signingInput}.${signature}`;
 }
 
-function expectCode(work: () => unknown, code: string): void {
+async function expectCode(work: () => Promise<unknown>, code: string): Promise<void> {
   try {
-    work();
+    await work();
     throw new Error('expected authentication refusal');
   } catch (error) {
     expect(error).toBeInstanceOf(DataPlaneAuthError);
@@ -88,58 +88,66 @@ function expectCode(work: () => unknown, code: string): void {
 }
 
 describe('PT4B3 data-plane access-token authority', () => {
-  it('accepts only a correctly signed at+jwt with the exact endpoint scope', () => {
+  it('accepts only a correctly signed at+jwt with the exact endpoint scope', async () => {
     const service = authority(root());
-    const principal = service.authenticateBearer(`Bearer ${token()}`, 'events:capture');
+    const principal = await service.authenticateBearer(`Bearer ${token()}`, 'events:capture');
     expect(principal.issuer).toBe(ISSUER);
     expect(principal.subject).toBe(SUBJECT);
     expect(principal.tokenId).toBe(JTI);
     expect(principal.scopes.has('events:capture')).toBe(true);
-    service.close();
+    await service.close();
   });
 
-  it('refuses ID-token typ, symmetric/none algorithms and unknown keys before admission', () => {
+  it('refuses ID-token typ, symmetric/none algorithms and unknown keys before admission', async () => {
     const service = authority(root());
-    expectCode(() => service.authenticateToken(token({ typ: 'JWT' }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
-    expectCode(() => service.authenticateToken(token({ alg: 'HS256' }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
-    expectCode(() => service.authenticateToken(token({ alg: 'none' }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
-    expectCode(() => service.authenticateToken(token({ kid: 'missing' }), 'events:capture'), 'UNKNOWN_KEY');
-    service.close();
+    await expectCode(() => service.authenticateToken(token({ typ: 'JWT' }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
+    await expectCode(() => service.authenticateToken(token({ alg: 'HS256' }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
+    await expectCode(() => service.authenticateToken(token({ alg: 'none' }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
+    await expectCode(() => service.authenticateToken(token({ kid: 'missing' }), 'events:capture'), 'UNKNOWN_KEY');
+    await service.close();
   });
 
-  it('refuses extra audiences, overlong lifetimes, future/expired tokens and absent endpoint scope', () => {
+  it('refuses private JWK CRT material even when a custom resolver bypasses JWKS filtering', async () => {
+    const privateFieldResolver: DataPlaneJwkResolver = {
+      resolve: () => ({ ...publicJwk, p: 'private-field' } as JsonWebKey),
+    };
+    const service = authority(root(), privateFieldResolver);
+    await expectCode(() => service.authenticateToken(token(), 'events:capture'), 'UNKNOWN_KEY');
+    await service.close();
+  });
+
+  it('refuses extra audiences, overlong lifetimes, future/expired tokens and absent endpoint scope', async () => {
     const service = authority(root());
-    expectCode(() => service.authenticateToken(token({ aud: [AUDIENCE, 'other'] }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
-    expectCode(
-      () => service.authenticateToken(token({ iat: NOW_SECONDS - 1, exp: NOW_SECONDS + 301 }), 'events:capture'),
-      'TOKEN_PROFILE_REFUSED'
-    );
-    expectCode(() => service.authenticateToken(token({ iat: NOW_SECONDS + 61, exp: NOW_SECONDS + 120 }), 'events:capture'), 'TOKEN_NOT_YET_VALID');
-    expectCode(() => service.authenticateToken(token({ iat: NOW_SECONDS - 200, exp: NOW_SECONDS - 61 }), 'events:capture'), 'TOKEN_EXPIRED');
-    expectCode(() => service.authenticateToken(token({ scope: 'consent:read events:write' }), 'events:capture'), 'INSUFFICIENT_SCOPE');
-    service.close();
+    await expectCode(() => service.authenticateToken(token({ aud: [AUDIENCE, 'other'] }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
+    await expectCode(() => service.authenticateToken(token({ iat: NOW_SECONDS - 1, exp: NOW_SECONDS + 301 }), 'events:capture'), 'TOKEN_PROFILE_REFUSED');
+    await expectCode(() => service.authenticateToken(token({ iat: NOW_SECONDS + 61, exp: NOW_SECONDS + 120 }), 'events:capture'), 'TOKEN_NOT_YET_VALID');
+    await expectCode(() => service.authenticateToken(token({ iat: NOW_SECONDS - 200, exp: NOW_SECONDS - 61 }), 'events:capture'), 'TOKEN_EXPIRED');
+    await expectCode(() => service.authenticateToken(token({ scope: 'consent:read events:write' }), 'events:capture'), 'INSUFFICIENT_SCOPE');
+    await service.close();
   });
 
-  it('refuses a modified signature', () => {
+  it('refuses a canonically encoded modified signature', async () => {
     const service = authority(root());
     const valid = token();
     const [head, body, signature] = valid.split('.');
-    const changed = `${head}.${body}.${signature.slice(0, -1)}${signature.endsWith('A') ? 'B' : 'A'}`;
-    expectCode(() => service.authenticateToken(changed, 'events:capture'), 'INVALID_SIGNATURE');
-    service.close();
+    const bytes = Buffer.from(signature, 'base64url');
+    bytes[0] ^= 0x01;
+    const changed = `${head}.${body}.${bytes.toString('base64url')}`;
+    await expectCode(() => service.authenticateToken(changed, 'events:capture'), 'INVALID_SIGNATURE');
+    await service.close();
   });
 
-  it('persists local credential revocation across reopen without persisting raw identity or bearer text', () => {
+  it('persists local credential revocation across reopen without persisting raw identity or bearer text', async () => {
     const dataDirectory = root();
     const bearer = token();
     let service = authority(dataDirectory);
-    const principal = service.authenticateToken(bearer, 'events:capture');
-    service.revoke(principal);
-    service.close();
+    const principal = await service.authenticateToken(bearer, 'events:capture');
+    await service.revoke(principal);
+    await service.close();
 
     service = authority(dataDirectory);
-    expectCode(() => service.authenticateToken(bearer, 'events:capture'), 'CREDENTIAL_REVOKED');
-    service.close();
+    await expectCode(() => service.authenticateToken(bearer, 'events:capture'), 'CREDENTIAL_REVOKED');
+    await service.close();
 
     const database = readFileSync(join(dataDirectory, 'governance.sqlite'));
     expect(database.includes(Buffer.from(ISSUER))).toBe(false);
@@ -149,27 +157,7 @@ describe('PT4B3 data-plane access-token authority', () => {
 
   it('rejects weak credential-session secrets and non-HTTPS issuers', () => {
     const dataDirectory = root();
-    expect(
-      () =>
-        new DataPlaneAccessTokenAuthority({
-          issuer: 'http://identity.example.test',
-          audience: AUDIENCE,
-          allowedAlgorithms: ['RS256'],
-          keyResolver: resolver,
-          dataDirectory,
-          credentialSessionKey: new Uint8Array(32),
-        })
-    ).toThrow(DataPlaneAuthError);
-    expect(
-      () =>
-        new DataPlaneAccessTokenAuthority({
-          issuer: ISSUER,
-          audience: AUDIENCE,
-          allowedAlgorithms: ['RS256'],
-          keyResolver: resolver,
-          dataDirectory,
-          credentialSessionKey: new Uint8Array(31),
-        })
-    ).toThrow(DataPlaneAuthError);
+    expect(() => new DataPlaneAccessTokenAuthority({ issuer: 'http://identity.example.test', audience: AUDIENCE, allowedAlgorithms: ['RS256'], keyResolver: resolver, dataDirectory, credentialSessionKey: new Uint8Array(32) })).toThrow(DataPlaneAuthError);
+    expect(() => new DataPlaneAccessTokenAuthority({ issuer: ISSUER, audience: AUDIENCE, allowedAlgorithms: ['RS256'], keyResolver: resolver, dataDirectory, credentialSessionKey: new Uint8Array(31) })).toThrow(DataPlaneAuthError);
   });
 });
