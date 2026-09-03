@@ -18,6 +18,14 @@ class MemoryStorage implements Storage {
   dump(): string { return [...this.values.values()].join('\n'); }
 }
 
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error('condition did not settle');
+}
+
 function runtimeRef(id: string, character: string): RuntimeComponentReferenceV1 {
   return {
     schemaVersion: '1',
@@ -150,18 +158,17 @@ describe('PT4B8 bounded governed operation producer', () => {
       uuid: () => '22222222-2222-4222-8222-222222222222',
     });
     await producer.captureOperation({ operation: 'filter', rowCount: 123, datasetBefore: { secret: 'never-forward' } });
-    await producer.flush();
+    await waitUntil(() => producer.queuedCount() === 0);
 
     const capture = calls.find((call) => call.url.endsWith('/capture-authorizations'))!;
     expect(capture.init?.headers).toMatchObject({ authorization: 'Bearer access-token' });
     const batch = calls.find((call) => call.url.endsWith('/v1/governed-events/batches'))!;
     const line = String(batch.init?.body).trim();
-    const envelope = JSON.parse(line) as Record<string, any>;
+    const envelope = JSON.parse(line) as Record<string, unknown>;
     expect(envelope.payload).toEqual({ operation: 'filter' });
     expect(line).not.toContain('never-forward');
     expect(line).not.toContain('rowCount');
     expect(envelope.dataset).toBeNull();
-    expect(producer.queuedCount()).toBe(0);
   });
 
   it('keeps retryable storage work in memory but discards governance conflicts and starts a new stream', async () => {
@@ -196,13 +203,12 @@ describe('PT4B8 bounded governed operation producer', () => {
     });
 
     await producer.captureOperation({ operation: 'sort' });
-    await producer.flush();
-    expect(producer.queuedCount()).toBe(1);
+    await waitUntil(() => producer.queuedCount() === 1);
     const firstStream = captureRequests[0].streamId;
 
     batchStatus = 207;
     await producer.flush();
-    expect(producer.queuedCount()).toBe(0);
+    await waitUntil(() => producer.queuedCount() === 0);
     await producer.captureOperation({ operation: 'aggregate' });
     expect(captureRequests.at(-1)?.streamId).not.toBe(firstStream);
     expect(captureRequests.at(-1)?.streamSequence).toBe(0);
