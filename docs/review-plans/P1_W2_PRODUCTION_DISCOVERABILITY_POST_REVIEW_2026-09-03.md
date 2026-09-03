@@ -17,6 +17,7 @@
 2. Study and multimodal-perception code remain explicit development/research exceptions rather than being falsely certified by the generic architectural barrel test.
 3. Collaboration client composition and live-ingest composition remain `experimental-production`; RF-054 service deployment is deliberately not closed by this tranche.
 4. The registry is stronger than the previous import-existence check but is not treated as end-to-end proof. It establishes a minimum mechanical contract; RF-056 still owns clean-artifact journey verification.
+5. Diff review found one legacy `tests/serializers.test.ts` consumer still importing the quarantined hand-rolled FlatBuffers functions through `src/data/serializers/index.ts`. That would have made quarantine break the legacy safety suite. The test now imports `FlatBuffersSerializer.ts` directly; repository search confirms the other FlatBuffers tests already use direct prototype imports. The production barrel remains clean.
 
 ## Disposition
 
