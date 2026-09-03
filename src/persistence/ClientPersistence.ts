@@ -16,7 +16,8 @@ const SETTINGS_KEY = 'nemosyne-vr-settings';
 const TELEMETRY_KEY = 'nemosyne-telemetry-consent';
 const MIGRATION_KEY = 'legacy-v1';
 
-type IDBFactoryLike = Pick<IDBFactory, 'open' | 'deleteDatabase'>;
+type IDBOpenFactoryLike = Pick<IDBFactory, 'open'>;
+type IDBMigrationFactoryLike = IDBOpenFactoryLike & Partial<Pick<IDBFactory, 'deleteDatabase'>>;
 
 let defaultDbPromise: Promise<IDBDatabase> | null = null;
 const bootstrapCache = new Map<string, unknown>();
@@ -37,7 +38,7 @@ function transactionDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
-export function openClientDatabase(idb: IDBFactoryLike = globalThis.indexedDB): Promise<IDBDatabase> {
+export function openClientDatabase(idb: IDBOpenFactoryLike = globalThis.indexedDB): Promise<IDBDatabase> {
   if (!idb) return Promise.reject(new Error('IndexedDB is not available in this environment'));
   if (idb === globalThis.indexedDB && defaultDbPromise) return defaultDbPromise;
   const promise = new Promise<IDBDatabase>((resolve, reject) => {
@@ -86,7 +87,7 @@ async function putValue(db: IDBDatabase, storeName: string, key: IDBValidKey, va
   await transactionDone(tx);
 }
 
-async function readAllLegacy(idb: IDBFactoryLike, dbName: string, storeName: string): Promise<Array<{ key: IDBValidKey; value: unknown }>> {
+async function readAllLegacy(idb: IDBMigrationFactoryLike, dbName: string, storeName: string): Promise<Array<{ key: IDBValidKey; value: unknown }>> {
   return new Promise((resolve) => {
     let request: IDBOpenDBRequest;
     try { request = idb.open(dbName); } catch { resolve([]); return; }
@@ -97,7 +98,7 @@ async function readAllLegacy(idb: IDBFactoryLike, dbName: string, storeName: str
       const db = request.result;
       if (created || !db.objectStoreNames.contains(storeName)) {
         db.close();
-        if (created) { try { idb.deleteDatabase(dbName); } catch { /* no-op */ } }
+        if (created) { try { idb.deleteDatabase?.(dbName); } catch { /* no-op */ } }
         resolve([]);
         return;
       }
@@ -126,7 +127,7 @@ function readLocalJson(key: string): unknown {
   }
 }
 
-async function migrateLegacy(db: IDBDatabase, idb: IDBFactoryLike): Promise<void> {
+async function migrateLegacy(db: IDBDatabase, idb: IDBMigrationFactoryLike): Promise<void> {
   if (await getValue(db, CLIENT_STORES.migrations, MIGRATION_KEY)) return;
 
   const legacySessions = await readAllLegacy(idb, LEGACY_SESSION_DB, LEGACY_SESSION_STORE);
@@ -150,11 +151,11 @@ async function migrateLegacy(db: IDBDatabase, idb: IDBFactoryLike): Promise<void
   try { globalThis.localStorage?.removeItem(SETTINGS_KEY); } catch { /* no-op */ }
   try { globalThis.localStorage?.removeItem(TELEMETRY_KEY); } catch { /* no-op */ }
   for (const name of [LEGACY_SESSION_DB, LEGACY_GESTURE_DB]) {
-    try { idb.deleteDatabase(name); } catch { /* no-op */ }
+    try { idb.deleteDatabase?.(name); } catch { /* no-op */ }
   }
 }
 
-export async function initializeClientPersistence(idb: IDBFactoryLike = globalThis.indexedDB): Promise<void> {
+export async function initializeClientPersistence(idb: IDBMigrationFactoryLike = globalThis.indexedDB): Promise<void> {
   if (!idb) return;
   const db = await openClientDatabase(idb);
   await migrateLegacy(db, idb);
