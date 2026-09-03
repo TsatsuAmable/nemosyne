@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { AtlasCore, InvestigationAggregate, type WasmRuntimeBridgeFull } from '../src/atlas/index.ts';
 import { Dataset, ColumnType, AnalysisHistory } from '../src/data/index.ts';
 import { NemosyneSession, InvestigationBranchManager } from '../src/session/index.ts';
-import { ConstraintEngine, VRTopologyTranslator, PositionSemanticsEngine } from '../src/moneta/index.ts';
+import { VRTopologyTranslator, PositionSemanticsEngine } from '../src/moneta/index.ts';
+import { ConstraintEngine } from '../src/moneta/ConstraintEngine.ts';
 import { NetworkManager, Room, BinaryPoseSerializer } from '../src/network/index.ts';
 import { StudyHarness, Counterbalancer, StudyStatisticalAnalyzer } from '../src/study/index.ts';
 import { KernelUnavailableError, getKernelState } from '../src/wasm/index.ts';
@@ -27,7 +28,7 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
   };
 
   describe('Invariant 1: Subsystem Barrel Completeness', () => {
-    it('exports all core domain classes cleanly via public barrel interfaces', () => {
+    it('exports core public domain classes while local analytical helpers stay explicit', () => {
       // Atlas Subsystem
       expect(AtlasCore).toBeDefined();
       expect(InvestigationAggregate).toBeDefined();
@@ -40,7 +41,7 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
       expect(NemosyneSession).toBeDefined();
       expect(InvestigationBranchManager).toBeDefined();
 
-      // Draco Subsystem
+      // Moneta public surface + explicitly imported local solver.
       expect(ConstraintEngine).toBeDefined();
       expect(VRTopologyTranslator).toBeDefined();
       expect(PositionSemanticsEngine).toBeDefined();
@@ -181,9 +182,7 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
       const fs = await import('node:fs');
       const path = await import('node:path');
 
-      const domainDirs = [
-        path.resolve(process.cwd(), 'src/atlas/domain'),
-      ];
+      const domainDirs = [path.resolve(process.cwd(), 'src/atlas/domain')];
 
       for (const dir of domainDirs) {
         if (fs.existsSync(dir)) {
