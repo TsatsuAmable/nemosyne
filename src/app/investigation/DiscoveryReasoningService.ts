@@ -476,6 +476,8 @@ export class DiscoveryReasoningService {
 
   /** C4 compatibility: ask + hypothesise in one action. */
   start(input: StartDiscoveryInput): DiscoveryEpisode {
+    requiredText(input.question, 'Question');
+    requiredText(input.hypothesis, 'Hypothesis');
     const episode = this.ask({ observationId: input.observationId, question: input.question });
     return this.hypothesise({ discoveryId: episode.discoveryId, hypothesis: input.hypothesis });
   }
