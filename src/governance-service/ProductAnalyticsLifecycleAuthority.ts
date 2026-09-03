@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { canonicalJsonStringify, sha256Hex } from '../security/CryptoHash.ts';
-import { PRODUCT_OPERATION_FAMILY_ID } from '../governance/index.ts';
+import {
+  PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE,
+  PRODUCT_OPERATION_FAMILY_ID,
+} from '../governance/index.ts';
 import type { AuthenticatedPrincipalV1, VersionedSecretKeyV1 } from './ProductAnalyticsConsentAuthority.ts';
 
 const PURPOSE = 'product-analytics' as const;
@@ -265,7 +268,7 @@ export class SqliteProductAnalyticsLifecycleAuthority {
       const candidates = this.db.prepare(
         `SELECT DISTINCT principal_handle FROM product_analytics_erasure_actions
          WHERE purge_after <= ?`
-      ).all(now) as { principal_handle: string }[];
+      ).all(now) as unknown as { principal_handle: string }[];
       for (const candidate of candidates) {
         const current = currentConsent(this.db, candidate.principal_handle);
         if (current?.status === 'GRANTED') continue;
@@ -300,7 +303,7 @@ export class SqliteProductAnalyticsLifecycleAuthority {
          WHERE principal_handle = ? AND server_received_at >= ? AND server_received_at < ? AND retention_delete_after > ?
          ORDER BY server_received_at ASC, event_id ASC
          LIMIT ?`
-      ).all(handle, request.from, request.to, now, MAX_EXPORT_RECORDS + 1) as ExportRow[];
+      ).all(handle, request.from, request.to, now, MAX_EXPORT_RECORDS + 1) as unknown as ExportRow[];
       if (rows.length > MAX_EXPORT_RECORDS) {
         this.db.exec('ROLLBACK');
         throw new ProductAnalyticsLifecycleError('EXPORT_LIMIT_REFUSED', 'export exceeds record limit');
@@ -313,16 +316,14 @@ export class SqliteProductAnalyticsLifecycleAuthority {
       }));
       const canonicalWrappers = canonicalJsonStringify(wrappers);
       const digest = sha256Hex(`${EXPORT_DOMAIN}${canonicalWrappers}`);
-      const generatedAt = now;
-      const exportId = `gexv1_${this.uuid()}`;
       const manifest = Object.freeze({
         schemaVersion: SCHEMA_VERSION,
         kind: 'MANIFEST' as const,
-        exportId,
+        exportId: `gexv1_${this.uuid()}`,
         actionId: request.actionId,
         from: request.from,
         to: request.to,
-        generatedAt,
+        generatedAt: now,
         purpose: PURPOSE,
         familyId: PRODUCT_OPERATION_FAMILY_ID,
         recordCount: wrappers.length,
@@ -371,15 +372,22 @@ export class SqliteProductAnalyticsLifecycleAuthority {
       this.db.prepare(
         `INSERT INTO product_analytics_consent_revisions
          (principal_handle, purpose, revision, status, notice_digest, receipt_json, profile_pseudonym_id, effective_at, action_id)
-         VALUES (?, ?, ?, 'DENIED', '', NULL, NULL, ?, ?)`
-      ).run(handle, PURPOSE, revision, now, request.actionId);
+         VALUES (?, ?, ?, 'DENIED', ?, NULL, NULL, ?, ?)`
+      ).run(
+        handle,
+        PURPOSE,
+        revision,
+        PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE.digest.value,
+        now,
+        request.actionId
+      );
       this.db.prepare(
         `UPDATE product_analytics_capture_authorizations SET invalidated_at = ?
          WHERE principal_handle = ? AND consumed_at IS NULL AND invalidated_at IS NULL`
       ).run(now, handle);
-      const events = this.db.prepare('DELETE FROM governed_product_events WHERE principal_handle = ?').run(handle);
-      const streams = this.db.prepare('DELETE FROM governed_product_streams WHERE principal_handle = ?').run(handle);
-      const captures = this.db.prepare('DELETE FROM product_analytics_capture_authorizations WHERE principal_handle = ?').run(handle);
+      this.db.prepare('DELETE FROM governed_product_events WHERE principal_handle = ?').run(handle);
+      this.db.prepare('DELETE FROM governed_product_streams WHERE principal_handle = ?').run(handle);
+      this.db.prepare('DELETE FROM product_analytics_capture_authorizations WHERE principal_handle = ?').run(handle);
 
       preliminary = Object.freeze({
         schemaVersion: SCHEMA_VERSION,
@@ -388,9 +396,9 @@ export class SqliteProductAnalyticsLifecycleAuthority {
         purpose: PURPOSE,
         result: 'PARTIAL' as const,
         dispositions: Object.freeze([
-          Object.freeze({ artifact: 'GOVERNED_PRODUCT_EVENTS', disposition: 'LOGICAL_DELETE_COMPLETED' as const, deleted: Number(events.changes) }),
-          Object.freeze({ artifact: 'GOVERNED_PRODUCT_STREAMS', disposition: 'LOGICAL_DELETE_COMPLETED' as const, deleted: Number(streams.changes) }),
-          Object.freeze({ artifact: 'CAPTURE_AUTHORIZATIONS', disposition: 'LOGICAL_DELETE_COMPLETED' as const, deleted: Number(captures.changes) }),
+          Object.freeze({ artifact: 'GOVERNED_PRODUCT_EVENTS', disposition: 'LOGICAL_DELETE_COMPLETED' as const }),
+          Object.freeze({ artifact: 'GOVERNED_PRODUCT_STREAMS', disposition: 'LOGICAL_DELETE_COMPLETED' as const }),
+          Object.freeze({ artifact: 'CAPTURE_AUTHORIZATIONS', disposition: 'LOGICAL_DELETE_COMPLETED' as const }),
           Object.freeze({ artifact: 'CONSENT_REVISIONS', disposition: 'POLICY_GOVERNED_RETENTION' as const }),
           Object.freeze({ artifact: 'CONSENT_IDEMPOTENCY', disposition: 'POLICY_GOVERNED_RETENTION' as const }),
           Object.freeze({ artifact: 'PROTECTED_DELETION_MAPPING', disposition: 'POLICY_GOVERNED_RETENTION' as const }),
@@ -399,7 +407,7 @@ export class SqliteProductAnalyticsLifecycleAuthority {
           Object.freeze({ artifact: 'SQLITE_TEMP', disposition: 'NOT_PRESENT' as const }),
           Object.freeze({ artifact: 'LOCAL_OFFLINE_ARTIFACTS', disposition: 'OUTSIDE_SERVICE_CONTROL' as const }),
           Object.freeze({ artifact: 'DOWNLOADED_EXPORTS', disposition: 'OUTSIDE_SERVICE_CONTROL' as const }),
-        ]) as unknown as readonly ProductAnalyticsErasureArtifactDispositionV1[],
+        ]),
       });
       const purgeAfter = new Date(Date.parse(now) + THIRTY_DAYS_MS + PHYSICAL_DELETE_GRACE_MS).toISOString();
       this.db.prepare(
