@@ -322,11 +322,13 @@ export class InvestigationContinuityController {
       if (previous) {
         try {
           const rolledBack = await this.sessions.restoreSnapshot(previous);
-          if (!rolledBack) throw new Error('rollback returned false');
+          if (!rolledBack) {
+            throw new Error('rollback returned false', { cause: error });
+          }
         } catch (rollbackError) {
           throw new Error(
-            `The ${sourceLabel} restore failed and the previous investigation could not be recovered: ${String(rollbackError)}`,
-            { cause: error },
+            `The ${sourceLabel} restore failed (${String(error)}) and the previous investigation could not be recovered: ${String(rollbackError)}`,
+            { cause: rollbackError },
           );
         }
       }
