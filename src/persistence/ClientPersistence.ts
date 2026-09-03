@@ -127,32 +127,40 @@ function readLocalJson(key: string): unknown {
   }
 }
 
-async function migrateLegacy(db: IDBDatabase, idb: IDBMigrationFactoryLike): Promise<void> {
-  if (await getValue(db, CLIENT_STORES.migrations, MIGRATION_KEY)) return;
-
-  const legacySessions = await readAllLegacy(idb, LEGACY_SESSION_DB, LEGACY_SESSION_STORE);
-  const legacyGestures = await readAllLegacy(idb, LEGACY_GESTURE_DB, LEGACY_GESTURE_STORE);
-  const legacySettings = readLocalJson(SETTINGS_KEY);
-  const legacyTelemetry = readLocalJson(TELEMETRY_KEY);
-
-  const stores = [CLIENT_STORES.sessions, CLIENT_STORES.settings, CLIENT_STORES.telemetry, CLIENT_STORES.gestureProfiles, CLIENT_STORES.migrations];
-  const tx = db.transaction(stores, 'readwrite');
-  const sessions = tx.objectStore(CLIENT_STORES.sessions);
-  for (const { value } of legacySessions) {
-    if (value && typeof value === 'object' && 'id' in (value as Record<string, unknown>)) sessions.put(value);
-  }
-  const gestures = tx.objectStore(CLIENT_STORES.gestureProfiles);
-  for (const { key, value } of legacyGestures) gestures.put(value, key);
-  if (legacySettings !== undefined) tx.objectStore(CLIENT_STORES.settings).put(legacySettings, 'vr');
-  if (legacyTelemetry !== undefined) tx.objectStore(CLIENT_STORES.telemetry).put(legacyTelemetry, 'consent');
-  tx.objectStore(CLIENT_STORES.migrations).put({ completedAt: Date.now(), schemaVersion: CLIENT_DB_VERSION }, MIGRATION_KEY);
-  await transactionDone(tx);
-
+function retireLegacy(idb: IDBMigrationFactoryLike): void {
   try { globalThis.localStorage?.removeItem(SETTINGS_KEY); } catch { /* no-op */ }
   try { globalThis.localStorage?.removeItem(TELEMETRY_KEY); } catch { /* no-op */ }
   for (const name of [LEGACY_SESSION_DB, LEGACY_GESTURE_DB]) {
-    try { idb.deleteDatabase?.(name); } catch { /* no-op */ }
+    try { idb.deleteDatabase?.(name); } catch { /* retry on next startup */ }
   }
+}
+
+async function migrateLegacy(db: IDBDatabase, idb: IDBMigrationFactoryLike): Promise<void> {
+  const migrated = await getValue(db, CLIENT_STORES.migrations, MIGRATION_KEY);
+  if (!migrated) {
+    const legacySessions = await readAllLegacy(idb, LEGACY_SESSION_DB, LEGACY_SESSION_STORE);
+    const legacyGestures = await readAllLegacy(idb, LEGACY_GESTURE_DB, LEGACY_GESTURE_STORE);
+    const legacySettings = readLocalJson(SETTINGS_KEY);
+    const legacyTelemetry = readLocalJson(TELEMETRY_KEY);
+
+    const stores = [CLIENT_STORES.sessions, CLIENT_STORES.settings, CLIENT_STORES.telemetry, CLIENT_STORES.gestureProfiles, CLIENT_STORES.migrations];
+    const tx = db.transaction(stores, 'readwrite');
+    const sessions = tx.objectStore(CLIENT_STORES.sessions);
+    for (const { value } of legacySessions) {
+      if (value && typeof value === 'object' && 'id' in (value as Record<string, unknown>)) sessions.put(value);
+    }
+    const gestures = tx.objectStore(CLIENT_STORES.gestureProfiles);
+    for (const { key, value } of legacyGestures) gestures.put(value, key);
+    if (legacySettings !== undefined) tx.objectStore(CLIENT_STORES.settings).put(legacySettings, 'vr');
+    if (legacyTelemetry !== undefined) tx.objectStore(CLIENT_STORES.telemetry).put(legacyTelemetry, 'consent');
+    tx.objectStore(CLIENT_STORES.migrations).put({ completedAt: Date.now(), schemaVersion: CLIENT_DB_VERSION }, MIGRATION_KEY);
+    await transactionDone(tx);
+  }
+
+  // Import and its durable marker are already committed at this point. Cleanup
+  // is intentionally idempotent and retried on every startup so a previously
+  // blocked database deletion cannot strand a legacy authority indefinitely.
+  retireLegacy(idb);
 }
 
 export async function initializeClientPersistence(idb: IDBMigrationFactoryLike = globalThis.indexedDB): Promise<void> {
