@@ -131,16 +131,29 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
   }
 }
 
+function decodeNestedPathMetacharacters(value: string): string {
+  return value.replace(/%(?:25)*(00|2e|2f|3a|5c)/gi, (_match, code: string) => {
+    switch (code.toLowerCase()) {
+      case '00': return '\0';
+      case '2e': return '.';
+      case '2f': return '/';
+      case '3a': return ':';
+      case '5c': return '\\';
+      default: return _match;
+    }
+  });
+}
+
 export function sanitizeEntryPath(rawPath: string): string {
   if (!rawPath || typeof rawPath !== 'string') {
     throw new Error('Invalid archive entry path: path must be a non-empty string');
   }
   if (rawPath.includes('\0')) throw new Error('Invalid archive entry path: null byte detected');
 
-  // Decode repeatedly before validation so single- and multiply-encoded path
-  // separators / dot segments are judged in their effective form. Percent
-  // checks after decoding are both redundant and misleading, so traversal is
-  // validated only on the fully-normalized path below.
+  // Decode ordinary percent-encoding repeatedly for canonical duplicate-path
+  // detection. The bounded decode loop is supplemented by a path-security
+  // projection below that collapses arbitrarily nested encodings of path
+  // metacharacters, so additional %25 wrapping cannot hide traversal syntax.
   let decoded = rawPath;
   for (let i = 0; i < 3; i++) {
     try {
@@ -152,10 +165,11 @@ export function sanitizeEntryPath(rawPath: string): string {
     }
   }
 
-  if (decoded.includes('\0')) {
+  const pathCanonical = decodeNestedPathMetacharacters(decoded);
+  if (pathCanonical.includes('\0')) {
     throw new Error('Invalid archive entry path: decoded null byte detected');
   }
-  const normalized = decoded.replace(/\\/g, '/');
+  const normalized = pathCanonical.replace(/\\/g, '/');
   if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized) || normalized.startsWith('//')) {
     throw new Error(
       `Invalid archive entry path: absolute or drive-relative paths are forbidden (${rawPath})`
