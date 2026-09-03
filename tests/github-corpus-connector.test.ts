@@ -101,7 +101,7 @@ describe('GitHubCorpusConnector', () => {
   });
 
   it('fails closed on the obsolete catalogue schema', async () => {
-    const doc = catalog() as CorpusCatalog & { schemaVersion: string };
+    const doc = catalog() as unknown as { schemaVersion: string };
     doc.schemaVersion = '1.0';
     const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(doc as CorpusCatalog) });
     await expect(connector.fetchCatalog()).rejects.toThrow(/Unsupported corpus catalog schema: 1\.0/);
