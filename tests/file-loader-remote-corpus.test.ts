@@ -97,6 +97,17 @@ function settle(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+async function selectSmokeTier(loader: FileLoaderUI): Promise<void> {
+  loader.container.querySelector<HTMLButtonElement>('#nemosyne-corpus-refresh')!.click();
+  await settle();
+  const datasetSelect = loader.container.querySelector<HTMLSelectElement>('#nemosyne-corpus-dataset')!;
+  datasetSelect.value = 'synthetic.remote';
+  datasetSelect.dispatchEvent(new Event('change'));
+  const tierSelect = loader.container.querySelector<HTMLSelectElement>('#nemosyne-corpus-tier')!;
+  tierSelect.value = 'smoke';
+  tierSelect.dispatchEvent(new Event('change'));
+}
+
 describe('FileLoaderUI remote nemosyne-data corpus', () => {
   let loader: FileLoaderUI;
   let onLoad: ReturnType<typeof vi.fn>;
@@ -122,8 +133,7 @@ describe('FileLoaderUI remote nemosyne-data corpus', () => {
   afterEach(() => loader.dispose());
 
   it('loads verified remote bytes through Atlas/Rust semantics and carries provenance', async () => {
-    const refresh = loader.container.querySelector<HTMLButtonElement>('#nemosyne-corpus-refresh')!;
-    refresh.click();
+    loader.container.querySelector<HTMLButtonElement>('#nemosyne-corpus-refresh')!.click();
     await settle();
 
     const datasetSelect = loader.container.querySelector<HTMLSelectElement>('#nemosyne-corpus-dataset')!;
@@ -162,6 +172,31 @@ describe('FileLoaderUI remote nemosyne-data corpus', () => {
     const listed = await loader.listXRDatasets();
     expect(listed.map((entry) => entry.id)).toEqual(['synthetic.remote']);
     expect(listed[0].tiers[0].label).toBe('Quick preview');
+  });
+
+  it('refuses catalogue/Rust row-count drift before publishing the dataset', async () => {
+    loadArtifact.mockResolvedValueOnce({
+      dataset: catalog.datasets[0],
+      artifact: catalog.datasets[0].artifacts[0],
+      bytes,
+      provenance: { ...provenance, rows: 3 },
+    });
+
+    await expect(loader.openRemoteDataset('synthetic.remote', 'smoke')).rejects.toThrow(/row count changed/i);
+    expect(onLoad).not.toHaveBeenCalled();
+    expect(loader.statusEl.textContent).toMatch(/could not open dataset/i);
+  });
+
+  it('contains desktop click refusals while preserving the public rejection for XR', async () => {
+    loadArtifact.mockRejectedValue(new Error('network refused fixture'));
+    await selectSmokeTier(loader);
+
+    await expect(loader.openRemoteDataset('synthetic.remote', 'smoke')).rejects.toThrow(/network refused fixture/);
+    expect(loader.statusEl.textContent).toMatch(/could not open dataset/i);
+
+    await selectSmokeTier(loader);
+    await expect(loader._handleRemoteArtifact()).resolves.toBeUndefined();
+    expect(loader.statusEl.textContent).toMatch(/could not open dataset/i);
   });
 
   it('does not fetch the remote catalogue merely by constructing the loader', () => {
