@@ -1,14 +1,19 @@
 export const NEMOSYNE_DATA_REPOSITORY = 'TsatsuAmable/nemosyne-data';
-export const NEMOSYNE_DATA_PINNED_REVISION = '4c69c13dfc10da8d59d88ae5cae5a4d4dfa5779a';
+export const NEMOSYNE_DATA_PINNED_REVISION = '8e6b2dfc74ea1c60283790668cc93030c61423f8';
 export const NEMOSYNE_DATA_RAW_ORIGIN = 'https://raw.githubusercontent.com';
 export const NEMOSYNE_DATA_CATALOG_PATH = 'manifests/catalog.json';
+export const NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION = '2.2' as const;
 
 const MAX_CATALOG_BYTES = 1024 * 1024;
 const DEFAULT_MAX_ARTIFACT_BYTES = 256 * 1024 * 1024;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const CONTENT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 const COMMIT_RE = /^[0-9a-f]{40}$/;
+const DATASET_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+const DATASET_VERSION_RE = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 
 export type RemoteDatasetFormat = 'csv' | 'json';
+export type RemoteDatasetGovernanceState = 'candidate' | 'governed' | 'retired';
 
 export interface RemoteDatasetArtifact {
   tier: string;
@@ -21,18 +26,48 @@ export interface RemoteDatasetArtifact {
   compression: 'none';
 }
 
+export interface RemoteMeasurementField {
+  name: string;
+  storageType: 'integer' | 'number' | 'string' | 'boolean' | 'timestamp';
+  measurementScale: 'none' | 'nominal' | 'ordinal' | 'interval' | 'ratio';
+  semanticType:
+    | 'identifier'
+    | 'categorical'
+    | 'quantitative'
+    | 'temporal'
+    | 'circular'
+    | 'compositional-part'
+    | 'geospatial-coordinate';
+  nullable: boolean;
+  unit?: string;
+}
+
+export interface RemoteMeasurementSchema {
+  status: 'declared' | 'pending-review';
+  fields: RemoteMeasurementField[];
+}
+
 export interface RemoteDatasetCatalogEntry {
   id: string;
+  datasetVersion: string;
   label: string;
-  kind: string;
+  kind: 'synthetic' | 'real';
   description: string;
-  topology?: string;
+  topology: string;
+  governanceState: RemoteDatasetGovernanceState;
+  contentDigest?: string | null;
+  privacy: 'synthetic' | 'public' | 'restricted' | 'unknown';
+  license: Record<string, unknown>;
+  provenance: Record<string, unknown>;
+  intendedUses: string[];
+  measurementSchema: RemoteMeasurementSchema;
   plannedTiers: string[];
   artifacts: RemoteDatasetArtifact[];
+  [key: string]: unknown;
 }
 
 export interface RemoteDatasetCatalog {
-  schemaVersion: '1.0';
+  schemaVersion: typeof NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION;
   corpusVersion: string;
   repository: string;
   tierRows: Record<string, number>;
@@ -42,18 +77,21 @@ export interface RemoteDatasetCatalog {
 export interface RemoteDatasetProvenance {
   repository: string;
   revision: string;
+  schemaVersion: typeof NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION;
   corpusVersion: string;
   datasetId: string;
+  datasetVersion: string;
   tier: string;
   artifactPath: string;
   artifactSha256: string;
   rows: number;
   bytes: number;
   format: RemoteDatasetFormat;
+  governanceState: 'governed';
 }
 
 export interface LoadedRemoteDatasetArtifact {
-  dataset: RemoteDatasetCatalogEntry;
+  dataset: RemoteDatasetCatalogEntry & { governanceState: 'governed' };
   artifact: RemoteDatasetArtifact;
   bytes: Uint8Array;
   provenance: RemoteDatasetProvenance;
@@ -65,6 +103,18 @@ export interface NemosyneDataCatalogClientOptions {
   fetchImpl?: typeof fetch;
   digestImpl?: (bytes: Uint8Array) => Promise<string>;
 }
+
+const STORAGE_TYPES = new Set(['integer', 'number', 'string', 'boolean', 'timestamp']);
+const MEASUREMENT_SCALES = new Set(['none', 'nominal', 'ordinal', 'interval', 'ratio']);
+const SEMANTIC_TYPES = new Set([
+  'identifier',
+  'categorical',
+  'quantitative',
+  'temporal',
+  'circular',
+  'compositional-part',
+  'geospatial-coordinate',
+]);
 
 function assertSafePath(path: string): void {
   if (
@@ -86,11 +136,15 @@ function assertSafeLabel(label: string): void {
   }
 }
 
+function assertNonEmptyString(value: unknown, label: string): asserts value is string {
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`Invalid ${label}`);
+}
+
 function assertArtifact(value: unknown): asserts value is RemoteDatasetArtifact {
   if (!value || typeof value !== 'object') throw new Error('Invalid corpus artifact');
   const artifact = value as Record<string, unknown>;
-  if (typeof artifact.tier !== 'string' || artifact.tier.length === 0) throw new Error('Invalid corpus artifact tier');
-  if (typeof artifact.role !== 'string' || artifact.role.length === 0) throw new Error('Invalid corpus artifact role');
+  assertNonEmptyString(artifact.tier, 'corpus artifact tier');
+  assertNonEmptyString(artifact.role, 'corpus artifact role');
   if (artifact.format !== 'csv' && artifact.format !== 'json') throw new Error('Unsupported corpus artifact format');
   if (typeof artifact.path !== 'string') throw new Error('Invalid corpus artifact path');
   assertSafePath(artifact.path);
@@ -100,23 +154,98 @@ function assertArtifact(value: unknown): asserts value is RemoteDatasetArtifact 
   if (artifact.compression !== 'none') throw new Error('Unsupported corpus artifact compression');
 }
 
+function assertMeasurementSchema(value: unknown): asserts value is RemoteMeasurementSchema {
+  if (!value || typeof value !== 'object') throw new Error('Invalid corpus measurement schema');
+  const schema = value as Record<string, unknown>;
+  if (schema.status !== 'declared' && schema.status !== 'pending-review') {
+    throw new Error('Invalid corpus measurement schema status');
+  }
+  if (!Array.isArray(schema.fields)) throw new Error('Invalid corpus measurement fields');
+  if (schema.status === 'declared' && schema.fields.length === 0) {
+    throw new Error('Declared corpus measurement schema must contain fields');
+  }
+  const names = new Set<string>();
+  for (const rawField of schema.fields) {
+    if (!rawField || typeof rawField !== 'object') throw new Error('Invalid corpus measurement field');
+    const field = rawField as Record<string, unknown>;
+    assertNonEmptyString(field.name, 'corpus measurement field name');
+    if (names.has(field.name)) throw new Error(`Duplicate corpus measurement field: ${field.name}`);
+    names.add(field.name);
+    if (typeof field.storageType !== 'string' || !STORAGE_TYPES.has(field.storageType)) {
+      throw new Error('Invalid corpus measurement storage type');
+    }
+    if (typeof field.measurementScale !== 'string' || !MEASUREMENT_SCALES.has(field.measurementScale)) {
+      throw new Error('Invalid corpus measurement scale');
+    }
+    if (typeof field.semanticType !== 'string' || !SEMANTIC_TYPES.has(field.semanticType)) {
+      throw new Error('Invalid corpus semantic type');
+    }
+    if (typeof field.nullable !== 'boolean') throw new Error('Invalid corpus measurement nullability');
+    if (field.unit !== undefined && (typeof field.unit !== 'string' || field.unit.length === 0)) {
+      throw new Error('Invalid corpus measurement unit');
+    }
+  }
+}
+
 function validateCatalog(value: unknown): RemoteDatasetCatalog {
   if (!value || typeof value !== 'object') throw new Error('Invalid nemosyne-data catalog');
   const catalog = value as Record<string, unknown>;
-  if (catalog.schemaVersion !== '1.0') throw new Error('Unsupported nemosyne-data catalog schema');
+  if (catalog.schemaVersion !== NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION) {
+    throw new Error(`Unsupported nemosyne-data catalog schema: ${String(catalog.schemaVersion)}`);
+  }
   if (catalog.repository !== NEMOSYNE_DATA_REPOSITORY) throw new Error('Unexpected nemosyne-data repository identity');
-  if (typeof catalog.corpusVersion !== 'string' || catalog.corpusVersion.length === 0) throw new Error('Invalid nemosyne-data corpus version');
-  if (!catalog.tierRows || typeof catalog.tierRows !== 'object') throw new Error('Invalid nemosyne-data tier map');
+  assertNonEmptyString(catalog.corpusVersion, 'nemosyne-data corpus version');
+  if (!catalog.tierRows || typeof catalog.tierRows !== 'object' || Array.isArray(catalog.tierRows)) {
+    throw new Error('Invalid nemosyne-data tier map');
+  }
+  for (const [tier, rows] of Object.entries(catalog.tierRows as Record<string, unknown>)) {
+    if (!tier || !Number.isSafeInteger(rows) || (rows as number) < 0) throw new Error('Invalid nemosyne-data tier map');
+  }
   if (!Array.isArray(catalog.datasets)) throw new Error('Invalid nemosyne-data dataset list');
 
+  const ids = new Set<string>();
   for (const value of catalog.datasets) {
     if (!value || typeof value !== 'object') throw new Error('Invalid corpus dataset entry');
     const dataset = value as Record<string, unknown>;
-    if (typeof dataset.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(dataset.id)) throw new Error('Invalid corpus dataset id');
+    if (typeof dataset.id !== 'string' || !DATASET_ID_RE.test(dataset.id)) throw new Error('Invalid corpus dataset id');
+    if (ids.has(dataset.id)) throw new Error(`Duplicate corpus dataset id: ${dataset.id}`);
+    ids.add(dataset.id);
+    if (typeof dataset.datasetVersion !== 'string' || !DATASET_VERSION_RE.test(dataset.datasetVersion)) {
+      throw new Error('Invalid corpus dataset version');
+    }
     if (typeof dataset.label !== 'string') throw new Error('Invalid corpus dataset label');
     assertSafeLabel(dataset.label);
-    if (typeof dataset.kind !== 'string' || typeof dataset.description !== 'string') throw new Error('Invalid corpus dataset metadata');
-    if (!Array.isArray(dataset.plannedTiers) || !dataset.plannedTiers.every((tier) => typeof tier === 'string')) throw new Error('Invalid corpus planned tiers');
+    if (dataset.kind !== 'synthetic' && dataset.kind !== 'real') throw new Error('Invalid corpus dataset kind');
+    if (typeof dataset.description !== 'string' || dataset.description.length === 0) throw new Error('Invalid corpus dataset description');
+    assertNonEmptyString(dataset.topology, 'corpus dataset topology');
+    if (dataset.governanceState !== 'candidate' && dataset.governanceState !== 'governed' && dataset.governanceState !== 'retired') {
+      throw new Error('Invalid corpus governance state');
+    }
+    if (dataset.governanceState === 'governed') {
+      if (typeof dataset.contentDigest !== 'string' || !CONTENT_DIGEST_RE.test(dataset.contentDigest)) {
+        throw new Error('Governed corpus dataset is missing a valid content digest');
+      }
+    } else if (dataset.governanceState === 'candidate' && dataset.contentDigest !== null && dataset.contentDigest !== undefined) {
+      throw new Error('Candidate corpus dataset must not claim a content digest');
+    }
+    if (!['synthetic', 'public', 'restricted', 'unknown'].includes(String(dataset.privacy))) {
+      throw new Error('Invalid corpus privacy declaration');
+    }
+    if (!dataset.license || typeof dataset.license !== 'object' || Array.isArray(dataset.license)) throw new Error('Invalid corpus license declaration');
+    if (!dataset.provenance || typeof dataset.provenance !== 'object' || Array.isArray(dataset.provenance)) throw new Error('Invalid corpus provenance declaration');
+    if (!Array.isArray(dataset.intendedUses) || dataset.intendedUses.length === 0 || !dataset.intendedUses.every((item) => typeof item === 'string' && item.length > 0)) {
+      throw new Error('Invalid corpus intended uses');
+    }
+    assertMeasurementSchema(dataset.measurementSchema);
+    if (dataset.governanceState === 'governed' && dataset.measurementSchema.status !== 'declared') {
+      throw new Error('Governed corpus dataset requires a declared measurement schema');
+    }
+    if (!Array.isArray(dataset.plannedTiers) || dataset.plannedTiers.length === 0 || !dataset.plannedTiers.every((tier) => typeof tier === 'string' && tier.length > 0)) {
+      throw new Error('Invalid corpus planned tiers');
+    }
+    if (new Set(dataset.plannedTiers as string[]).size !== dataset.plannedTiers.length) {
+      throw new Error('Duplicate corpus planned tier');
+    }
     if (!Array.isArray(dataset.artifacts)) throw new Error('Invalid corpus artifact list');
     for (const artifact of dataset.artifacts) assertArtifact(artifact);
   }
@@ -145,6 +274,9 @@ export class NemosyneDataCatalogClient {
     this.revision = options.revision ?? NEMOSYNE_DATA_PINNED_REVISION;
     if (!COMMIT_RE.test(this.revision)) throw new Error('nemosyne-data revision must be an immutable 40-character commit SHA');
     this.maxArtifactBytes = options.maxArtifactBytes ?? DEFAULT_MAX_ARTIFACT_BYTES;
+    if (!Number.isSafeInteger(this.maxArtifactBytes) || this.maxArtifactBytes <= 0) {
+      throw new Error('maxArtifactBytes must be a positive safe integer');
+    }
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.digestImpl = options.digestImpl ?? sha256Hex;
   }
@@ -173,8 +305,12 @@ export class NemosyneDataCatalogClient {
     const catalog = await this.loadCatalog(signal);
     const dataset = catalog.datasets.find((entry) => entry.id === datasetId);
     if (!dataset) throw new Error(`Unknown nemosyne-data dataset: ${datasetId}`);
+    if (dataset.governanceState !== 'governed') {
+      throw new Error(`Dataset is not governed for product loading: ${datasetId} (${dataset.governanceState})`);
+    }
     const artifact = dataset.artifacts.find((candidate) => candidate.tier === tier && candidate.role === 'primary');
     if (!artifact) throw new Error(`Dataset tier is unavailable: ${datasetId}/${tier}`);
+    if (!dataset.plannedTiers.includes(tier)) throw new Error(`Dataset artifact tier is not declared: ${datasetId}/${tier}`);
     if (artifact.bytes > this.maxArtifactBytes) throw new Error('Corpus artifact exceeds import byte limit');
 
     const url = this.urlForPath(artifact.path);
@@ -185,21 +321,25 @@ export class NemosyneDataCatalogClient {
     const digest = await this.digestImpl(bytes);
     if (digest !== artifact.sha256) throw new Error('Corpus artifact SHA-256 mismatch');
 
+    const governedDataset = dataset as RemoteDatasetCatalogEntry & { governanceState: 'governed' };
     return {
-      dataset,
+      dataset: governedDataset,
       artifact,
       bytes,
       provenance: {
         repository: NEMOSYNE_DATA_REPOSITORY,
         revision: this.revision,
+        schemaVersion: catalog.schemaVersion,
         corpusVersion: catalog.corpusVersion,
         datasetId: dataset.id,
+        datasetVersion: dataset.datasetVersion,
         tier: artifact.tier,
         artifactPath: artifact.path,
         artifactSha256: artifact.sha256,
         rows: artifact.rows,
         bytes: artifact.bytes,
         format: artifact.format,
+        governanceState: 'governed',
       },
     };
   }

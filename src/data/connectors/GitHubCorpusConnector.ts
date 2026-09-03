@@ -1,4 +1,8 @@
 import type { AnalyticalKernelPort } from '../../atlas/adapters/AnalyticalKernelPort.ts';
+import {
+  NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION,
+  NEMOSYNE_DATA_PINNED_REVISION,
+} from '../catalog/NemosyneDataCatalog.ts';
 
 export type CorpusTier = 'smoke' | 'small' | 'medium' | 'large' | 'xlarge';
 export type CorpusFormat = 'csv' | 'json' | 'ntc1';
@@ -17,17 +21,25 @@ export interface CorpusArtifact {
 
 export interface CorpusDatasetManifest {
   id: string;
+  datasetVersion: string;
   label: string;
   kind: 'synthetic' | 'real';
   description: string;
   topology: string;
+  governanceState: 'candidate' | 'governed' | 'retired';
+  contentDigest?: string | null;
+  privacy: 'synthetic' | 'public' | 'restricted' | 'unknown';
+  license: Record<string, unknown>;
+  provenance: Record<string, unknown>;
+  intendedUses: string[];
+  measurementSchema: Record<string, unknown>;
   plannedTiers: CorpusTier[];
   artifacts: CorpusArtifact[];
   [key: string]: unknown;
 }
 
 export interface CorpusCatalog {
-  schemaVersion: '1.0';
+  schemaVersion: typeof NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION;
   corpusVersion: string;
   repository: string;
   datasets: CorpusDatasetManifest[];
@@ -56,18 +68,19 @@ export interface CorpusLoadRequest {
 }
 
 export interface CorpusArtifactSelection {
-  dataset: CorpusDatasetManifest;
+  dataset: CorpusDatasetManifest & { governanceState: 'governed' };
   artifact: CorpusArtifact;
   url: string;
 }
 
 const DEFAULT_OWNER = 'TsatsuAmable';
 const DEFAULT_REPO = 'nemosyne-data';
-const DEFAULT_REF = 'main';
+const DEFAULT_REF = NEMOSYNE_DATA_PINNED_REVISION;
 const DEFAULT_CATALOG_PATH = 'manifests/catalog.json';
 const DEFAULT_MAX_ARTIFACT_BYTES = 512 * 1024 * 1024;
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const CONTENT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 
 function assertSafeRef(ref: string): void {
   if (!ref || ref.includes('..') || ref.includes('\\') || ref.startsWith('/')) {
@@ -144,7 +157,9 @@ function assertAllowedFinalResponseUrl(urlText: string, owner: string, repo: str
 function parseCatalog(value: unknown, expectedRepository: string): CorpusCatalog {
   if (!value || typeof value !== 'object') throw new Error('Corpus catalog must be an object');
   const doc = value as Partial<CorpusCatalog>;
-  if (doc.schemaVersion !== '1.0') throw new Error(`Unsupported corpus catalog schema: ${String(doc.schemaVersion)}`);
+  if (doc.schemaVersion !== NEMOSYNE_DATA_CATALOG_SCHEMA_VERSION) {
+    throw new Error(`Unsupported corpus catalog schema: ${String(doc.schemaVersion)}`);
+  }
   if (doc.repository !== expectedRepository) {
     throw new Error(`Corpus catalog repository mismatch: ${String(doc.repository)}`);
   }
@@ -158,6 +173,16 @@ function parseCatalog(value: unknown, expectedRepository: string): CorpusCatalog
     if (typeof dataset.id !== 'string' || !dataset.id) throw new Error('Corpus dataset is missing id');
     if (ids.has(dataset.id)) throw new Error(`Duplicate corpus dataset id: ${dataset.id}`);
     ids.add(dataset.id);
+    if (typeof dataset.datasetVersion !== 'string' || !dataset.datasetVersion) throw new Error(`Corpus dataset ${dataset.id} is missing datasetVersion`);
+    if (dataset.governanceState !== 'candidate' && dataset.governanceState !== 'governed' && dataset.governanceState !== 'retired') {
+      throw new Error(`Corpus dataset ${dataset.id} has invalid governanceState`);
+    }
+    if (dataset.governanceState === 'governed' && (typeof dataset.contentDigest !== 'string' || !CONTENT_DIGEST_RE.test(dataset.contentDigest))) {
+      throw new Error(`Governed corpus dataset ${dataset.id} is missing contentDigest`);
+    }
+    if (!dataset.measurementSchema || typeof dataset.measurementSchema !== 'object') {
+      throw new Error(`Corpus dataset ${dataset.id} is missing measurementSchema`);
+    }
     if (!Array.isArray(dataset.artifacts)) throw new Error(`Corpus dataset ${dataset.id} is missing artifacts`);
     for (const artifact of dataset.artifacts) {
       if (!artifact || typeof artifact !== 'object') throw new Error(`Malformed artifact for ${dataset.id}`);
@@ -223,10 +248,10 @@ async function responseBytes(response: Response, maxBytes: number): Promise<Uint
 /**
  * Read-only acquisition connector for the public nemosyne-data qualification corpus.
  *
- * This class intentionally does not extend DataConnector: qualification artifacts are
- * static, potentially very large inputs rather than row-normalized live updates. It
- * validates catalog and artifact identity, then hands raw bytes straight to the
- * existing Rust/WASM analytical loaders.
+ * Production catalogue browsing uses NemosyneDataCatalogClient. This compatibility
+ * connector remains for qualification tools that load verified bytes directly into
+ * the Rust/WASM kernel; it shares the same pinned corpus revision and v2.2 governance
+ * contract so the two paths cannot silently qualify different corpora.
  */
 export class GitHubCorpusConnector {
   readonly owner: string;
@@ -295,12 +320,19 @@ export class GitHubCorpusConnector {
     role = 'primary',
   ): CorpusArtifactSelection {
     const dataset = this.findDataset(catalog, datasetId);
+    if (dataset.governanceState !== 'governed') {
+      throw new Error(`Corpus dataset is not governed: ${datasetId} (${dataset.governanceState})`);
+    }
     const artifact = dataset.artifacts.find((item) => item.tier === tier && item.role === role);
     if (!artifact) {
       const planned = dataset.plannedTiers?.includes(tier) ? ' (tier is planned but not materialized)' : '';
       throw new Error(`No corpus artifact for ${datasetId}/${tier}/${role}${planned}`);
     }
-    return { dataset, artifact, url: this.resolveArtifactUrl(artifact) };
+    return {
+      dataset: dataset as CorpusDatasetManifest & { governanceState: 'governed' },
+      artifact,
+      url: this.resolveArtifactUrl(artifact),
+    };
   }
 
   resolveArtifactUrl(artifact: CorpusArtifact): string {

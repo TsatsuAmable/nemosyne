@@ -4,22 +4,39 @@ import {
   GitHubCorpusConnector,
   type CorpusCatalog,
 } from '../src/data/connectors/GitHubCorpusConnector.ts';
+import { NEMOSYNE_DATA_PINNED_REVISION } from '../src/data/catalog/NemosyneDataCatalog.ts';
 
 const CSV = new TextEncoder().encode('id,x\n1,2\n');
 const CSV_SHA = 'bd478b7a29bb9458e5409ec846358dee6e300a0ec98509dafc6e3b1f06555963';
 
 function catalog(overrides: Partial<CorpusCatalog> = {}): CorpusCatalog {
   return {
-    schemaVersion: '1.0',
-    corpusVersion: 'test-v1',
+    schemaVersion: '2.2',
+    corpusVersion: 'test-v2',
     repository: 'TsatsuAmable/nemosyne-data',
     datasets: [
       {
         id: 'synthetic.test',
+        datasetVersion: '0.1.0',
         label: 'Test corpus',
         kind: 'synthetic',
         description: 'test',
         topology: 'POINT_CLOUD',
+        governanceState: 'governed',
+        contentDigest: `sha256:${'1'.repeat(64)}`,
+        privacy: 'synthetic',
+        license: { status: 'declared', name: 'test' },
+        provenance: { origin: 'test', transformations: [] },
+        intendedUses: ['test'],
+        measurementSchema: {
+          status: 'declared',
+          fields: [
+            {
+              name: 'x', storageType: 'integer', measurementScale: 'interval',
+              semanticType: 'quantitative', nullable: false,
+            },
+          ],
+        },
         plannedTiers: ['smoke'],
         artifacts: [
           {
@@ -56,13 +73,14 @@ function fetchFor(doc: CorpusCatalog, artifact = CSV): typeof fetch {
 }
 
 describe('GitHubCorpusConnector', () => {
-  it('discovers the configured public catalog without a GitHub token', async () => {
+  it('discovers the immutable governed catalogue without a GitHub token', async () => {
     const fetchImpl = fetchFor(catalog());
     const connector = new GitHubCorpusConnector({ fetchImpl });
     const doc = await connector.fetchCatalog();
-    expect(doc.corpusVersion).toBe('test-v1');
+    expect(doc.corpusVersion).toBe('test-v2');
+    expect(connector.ref).toBe(NEMOSYNE_DATA_PINNED_REVISION);
     expect(connector.catalogUrl()).toBe(
-      'https://raw.githubusercontent.com/TsatsuAmable/nemosyne-data/main/manifests/catalog.json',
+      `https://raw.githubusercontent.com/TsatsuAmable/nemosyne-data/${NEMOSYNE_DATA_PINNED_REVISION}/manifests/catalog.json`,
     );
   });
 
@@ -80,6 +98,24 @@ describe('GitHubCorpusConnector', () => {
     const fetchImpl = fetchFor(catalog({ repository: 'someone/else' }));
     const connector = new GitHubCorpusConnector({ fetchImpl });
     await expect(connector.fetchCatalog()).rejects.toThrow(/repository mismatch/);
+  });
+
+  it('fails closed on the obsolete catalogue schema', async () => {
+    const doc = catalog() as unknown as { schemaVersion: string };
+    doc.schemaVersion = '1.0';
+    const connector = new GitHubCorpusConnector({ fetchImpl: fetchFor(doc as CorpusCatalog) });
+    await expect(connector.fetchCatalog()).rejects.toThrow(/Unsupported corpus catalog schema: 1\.0/);
+  });
+
+  it('refuses candidate datasets before selecting or downloading an artifact', async () => {
+    const doc = catalog();
+    doc.datasets[0].governanceState = 'candidate';
+    doc.datasets[0].contentDigest = null;
+    const fetchImpl = fetchFor(doc);
+    const connector = new GitHubCorpusConnector({ fetchImpl });
+    const loaded = await connector.fetchCatalog();
+    expect(() => connector.selectArtifact(loaded, 'synthetic.test', 'smoke')).toThrow(/not governed/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed on malformed numeric artifact metadata', async () => {
