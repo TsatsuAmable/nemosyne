@@ -1,13 +1,13 @@
 import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
 import { bootstrapApp } from './app/index.ts';
 import { installConfiguredProductAnalyticsClient } from './app/governance/installProductAnalyticsClient.ts';
+import { initializeClientPersistence } from './persistence/ClientPersistence.ts';
 import { injectCssVariables } from './vr/ui-system/tokens.ts';
 
 if (import.meta.env.DEV) {
   remoteDebugStreamer.init();
 }
 
-// Inject design token CSS variables for DOM terminal surfaces
 injectCssVariables();
 
 function handleFatalError(err: unknown): void {
@@ -29,6 +29,13 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
 });
 
 async function start(): Promise<void> {
+  // Complete the single-database migration before constructors consume cached
+  // settings/telemetry state. IndexedDB unavailability remains a visible
+  // client-local degradation; it never enables persistence elsewhere.
+  await initializeClientPersistence().catch((error) => {
+    console.warn('[Nemosyne] client persistence unavailable; continuing without durable local state', error);
+  });
+
   const app = await bootstrapApp();
   const productAnalytics = await installConfiguredProductAnalyticsClient(app.world.eventBus);
   if (!productAnalytics) return;
