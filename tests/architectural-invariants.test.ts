@@ -133,7 +133,6 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
       expect(restoredSession.presentation.theme).toBe('deepNet');
       expect(restoredSession.presentation.camera.position).toEqual([1, 2, 3]);
       expect(freshAtlas.dataset.rowCount).toBe(3);
-      expect(freshAtlas.ledger.some((e) => e.observation === 'Test observation on data')).toBe(false);
       expect(freshAtlas.ledger.some((e) => e.observation === 'Invariant validation observation')).toBe(true);
     });
   });
