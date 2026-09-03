@@ -16,6 +16,7 @@ import {
   type GovernedEventEnvelopeV1,
   type RuntimeComponentReferenceV1,
 } from '../src/governance/index.ts';
+import { SqliteProductAnalyticsConsentAuthority } from '../src/governance-service/ProductAnalyticsConsentAuthority.ts';
 import {
   ReviewedProductAnalyticsRuntimeAuthority,
   RuntimePinnedProductAnalyticsEventIngestion,
@@ -116,11 +117,19 @@ describe('PT4B8 reviewed deployment runtime authority', () => {
   it('refuses a runtime mismatch before consent/storage authority and admits a matching runtime to the next authority', async () => {
     const dataDirectory = mkdtempSync(join(tmpdir(), 'nemosyne-pt4b8-runtime-'));
     directories.push(dataDirectory);
+    const now = () => new Date('2026-09-03T05:00:00.000Z');
+    const deletionHandleKey = { version: 'd1', key: new Uint8Array(32).fill(9) };
+    const consent = new SqliteProductAnalyticsConsentAuthority({
+      dataDirectory,
+      purposePseudonymKey: { version: 'p1', key: new Uint8Array(32).fill(7) },
+      deletionHandleKey,
+      now,
+    });
     const ingestion = new RuntimePinnedProductAnalyticsEventIngestion({
       dataDirectory,
-      deletionHandleKey: { version: 'd1', key: new Uint8Array(32).fill(9) },
+      deletionHandleKey,
       runtimeAuthority: authority(),
-      now: () => new Date('2026-09-03T05:00:00.000Z'),
+      now,
     });
     const principal = { issuer: 'https://issuer.example', subject: 'subject-123' };
 
@@ -131,5 +140,6 @@ describe('PT4B8 reviewed deployment runtime authority', () => {
     const matchingResult = await ingestion.ingestLine(principal, JSON.stringify(envelope()));
     expect(matchingResult).toMatchObject({ status: 'REFUSED_GOVERNANCE', reasonCode: 'CONSENT_REQUIRED' });
     ingestion.close();
+    consent.close();
   });
 });
