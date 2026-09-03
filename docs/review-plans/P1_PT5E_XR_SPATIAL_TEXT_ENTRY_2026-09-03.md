@@ -41,11 +41,13 @@ The spatial keyboard owns only an ephemeral bounded string buffer and rendering/
 6. Controller hit regions do not align with rendered keyboard controls because content coordinates ignore the panel title-bar transform.
 7. XR gains modality-specific domain commands instead of delegating to `InvestigationJourneyController`.
 8. Existing human-facing discovery language regresses into internal enum/status vocabulary.
+9. The spatial character set is too weak for ordinary scientific authoring, for example numerical thresholds or comparison expressions.
 
 ## Bounded design
 
 - one in-panel QWERTY-style keyboard rendered by the existing canvas panel;
-- letters plus a small punctuation set, space, one-shot shift, backspace, clear, cancel and explicit submit;
+- letters, digits and a compact scientific/punctuation set, plus space, one-shot shift, backspace, clear, cancel and explicit submit;
+- enough analytical symbols for ordinary threshold/comparison statements without attempting a full equation editor;
 - per-field character caps: Notice/Question/Hypothesis 500, Understanding title 120, Understanding description 1000;
 - no persistence of unfinished text;
 - no speech, handwriting, predictive text or platform keyboard integration in this tranche;
@@ -60,6 +62,7 @@ Focused tests must prove:
 - cancel causes no controller mutation;
 - empty submit is refused while the spatial entry remains active;
 - character limits are enforced before semantic dispatch;
+- numeric thresholds/comparison symbols survive spatial entry into the existing hypothesis controller call;
 - Understanding title and description are gathered in presentation state and dispatched atomically as one existing `recordUnderstanding` call;
 - ordinary validation language remains human-facing;
 - the panel still delegates all domain actions to the shared journey controller.
@@ -68,4 +71,4 @@ Repository exact-head CI, Chromium production smoke, UV0, CodeQL, architecture p
 
 ## Claim boundary
 
-A successful tranche may claim that the normal browser/IWER XR investigation authoring path no longer depends on browser-modal text prompts. It may not claim comfortable high-volume typing on physical headsets, voice dictation, accessibility completeness, or live-human UX fitness. Those require later device/human evidence and repeated PT5 product-learning sessions.
+A successful tranche may claim that the normal browser/IWER XR investigation authoring path no longer depends on browser-modal text prompts. It may not claim comfortable high-volume typing on physical headsets, voice dictation, accessibility completeness, a full mathematical equation editor, or live-human UX fitness. Those require later device/human evidence and repeated PT5 product-learning sessions.
