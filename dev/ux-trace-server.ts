@@ -45,6 +45,19 @@ interface UXBatch {
   sid?: unknown;
 }
 
+/**
+ * Encode terminal control characters before writing user/device supplied trace
+ * fields to an interactive terminal. JSONL persistence remains unchanged and
+ * therefore keeps the original evidence; only the human terminal projection is
+ * neutralised. C0, DEL and C1 bytes, including ESC, are rendered visibly.
+ */
+export function sanitizeUxTraceTerminalText(value: unknown): string {
+  return String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, (char) => {
+    const code = char.charCodeAt(0).toString(16).padStart(4, '0');
+    return `\\u${code}`;
+  });
+}
+
 export function uxTracePlugin(): Plugin {
   const logDir = path.resolve(process.cwd(), 'logs');
   const logFile = path.join(logDir, 'ux-trace.jsonl');
@@ -115,10 +128,11 @@ export function uxTracePlugin(): Plugin {
           const gaze = ctx.gaze?.target ? ` gaze=${ctx.gaze.target}` : '';
           const drift = ctx.ptr?.driftDeg != null ? ` drift=${ctx.ptr.driftDeg}°` : '';
           const sid = isShortString(batch.sid, 64) ? batch.sid : '?';
-          // eslint-disable-next-line no-console
-          console.log(
-            `\x1b[33m[UX TRACE ${sid} +${record.t}s] ${record.type}: ${detail}${gaze}${drift}\x1b[0m`
+          const terminalLine = sanitizeUxTraceTerminalText(
+            `[UX TRACE ${sid} +${record.t}s] ${record.type}: ${detail}${gaze}${drift}`
           );
+          // eslint-disable-next-line no-console
+          console.log(`\x1b[33m${terminalLine}\x1b[0m`);
         }
       }
       if (lines.length > 0) {
