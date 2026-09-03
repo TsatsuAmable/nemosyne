@@ -91,7 +91,11 @@ function fixture(initial = makeSnapshot('session-a', 'theme-a')): {
         const value = archiveSnapshots.get(archiveId);
         return value ? structuredClone(value) as unknown as Record<string, unknown> : null;
       }),
-      deleteArchive: vi.fn(async () => {}),
+      deleteArchive: vi.fn(async (archiveId) => {
+        archiveSnapshots.delete(archiveId);
+        const index = archives.findIndex((entry) => entry.archiveId === archiveId);
+        if (index >= 0) archives.splice(index, 1);
+      }),
     },
   };
   return {
@@ -212,5 +216,31 @@ describe('PT5D investigation continuity', () => {
     expect(checkpoint.datasetName).toBe('dataset-checkpoint-source');
     expect(checkpoint.investigationDigest).toMatch(/^[0-9a-f]{64}$/);
     expect(checkpoint.eventCount).toBe(source.eventLedger.length);
+  });
+
+  it('restores, exports and deletes the selected immutable checkpoint rather than substituting live state', async () => {
+    const first = makeSnapshot('checkpoint-first', 'theme-first');
+    const second = makeSnapshot('checkpoint-second', 'theme-second');
+    const live = makeSnapshot('live-after-checkpoints', 'theme-live');
+    const f = fixture(first);
+    const firstEntry = await f.controller.createCheckpoint('First checkpoint');
+    f.setCurrent(second);
+    const secondEntry = await f.controller.createCheckpoint('Second checkpoint');
+    f.setCurrent(live);
+
+    await f.controller.restoreCheckpoint(firstEntry.archiveId);
+    expect(f.current().sessionId).toBe('checkpoint-first');
+
+    f.setCurrent(live);
+    const secondBytes = await f.controller.exportCheckpoint(secondEntry.archiveId);
+    const secondPayload = NemosynePackageManager.unpack(secondBytes);
+    const secondEmbedded = secondPayload.extraFiles?.['continuity/session-v2.json'];
+    expect(secondEmbedded).toBeTruthy();
+    expect((JSON.parse(strFromU8(secondEmbedded!)) as NemosyneSessionJSON).sessionId).toBe('checkpoint-second');
+    expect(f.current().sessionId).toBe('live-after-checkpoints');
+
+    await f.controller.deleteCheckpoint(firstEntry.archiveId);
+    expect((await f.controller.summary()).checkpointCount).toBe(1);
+    await expect(f.controller.restoreCheckpoint(firstEntry.archiveId)).rejects.toThrow(/no longer listed/i);
   });
 });
