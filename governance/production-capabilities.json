@@ -90,11 +90,11 @@
     {
       "id": "local-observability",
       "classification": "production",
-      "sources": ["src/observability", "src/utils"],
+      "sources": ["src/observability", "src/utils/Telemetry.ts"],
       "entrypoints": ["src/vr/World.ts"],
       "discovery": [{ "path": "src/vr/World.ts", "contains": "new TelemetryCollector" }],
       "evidence": ["tests/telemetry.test.ts"],
-      "note": "RemoteDebugStreamer remains DEV-gated and is not evidence for this production classification."
+      "note": "RemoteDebugStreamer is separately classified as DEV-only and is not evidence for this production classification."
     },
     {
       "id": "product-analytics-browser-client",
@@ -138,6 +138,13 @@
       "discovery": [{ "path": "src/vr/World.ts", "contains": "LiveStreamCoordinator" }],
       "evidence": ["tests/rf062f-feature-ports-production-path.test.ts"],
       "note": "Configured live sources are product paths; bundled demo-stream deployment remains RF-054/P1-W service work."
+    },
+    {
+      "id": "remote-debug-streamer",
+      "classification": "development-only",
+      "sources": ["src/utils/RemoteDebugStreamer.ts"],
+      "reason": "Remote logging is explicitly DEV-gated and may be direct-imported by the development composition, but it is not a production observability authority.",
+      "forbiddenPublicExports": [{ "path": "src/observability/index.ts", "symbols": ["remoteDebugStreamer"] }]
     },
     {
       "id": "multimodal-perception-engine",
