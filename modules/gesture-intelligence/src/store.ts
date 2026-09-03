@@ -10,7 +10,8 @@
 import type { GesturePersistence, StoredProfile } from './contracts.ts';
 
 const PROFILE_SCHEMA_VERSION = 2;
-const DATABASE_SCHEMA_VERSION = 1;
+const SHARED_DATABASE_SCHEMA_VERSION = 1;
+const STANDALONE_DATABASE_SCHEMA_VERSION = 2;
 const DEFAULT_DB_NAME = 'nemosyne-client';
 const DEFAULT_STORE_NAME = 'gesture-profiles';
 
@@ -22,10 +23,13 @@ export interface PersistenceOptions {
 export function createPersistence(options: PersistenceOptions = {}): GesturePersistence {
   const dbName = options.dbName ?? DEFAULT_DB_NAME;
   const storeName = options.storeName ?? DEFAULT_STORE_NAME;
+  const databaseVersion = dbName === DEFAULT_DB_NAME
+    ? SHARED_DATABASE_SCHEMA_VERSION
+    : STANDALONE_DATABASE_SCHEMA_VERSION;
   if (typeof globalThis.indexedDB === 'undefined') {
     return createMemoryPersistence();
   }
-  return createIndexedDbPersistence(dbName, storeName);
+  return createIndexedDbPersistence(dbName, storeName, databaseVersion);
 }
 
 export function deleteDatabase(name: string): Promise<void> {
@@ -150,7 +154,11 @@ const deleteInTransaction = (
     transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB transaction aborted'));
   });
 
-const createIndexedDbPersistence = (dbName: string, storeName: string): GesturePersistence => {
+const createIndexedDbPersistence = (
+  dbName: string,
+  storeName: string,
+  databaseVersion: number
+): GesturePersistence => {
   let memoryFallback: GesturePersistence | null = null;
   let openPromise: Promise<IDBDatabase> | null = null;
   let databaseHandle: IDBDatabase | null = null;
@@ -161,7 +169,7 @@ const createIndexedDbPersistence = (dbName: string, storeName: string): GestureP
     openPromise = new Promise<IDBDatabase>((resolve, reject) => {
       let request: IDBOpenDBRequest;
       try {
-        request = globalThis.indexedDB.open(dbName, DATABASE_SCHEMA_VERSION);
+        request = globalThis.indexedDB.open(dbName, databaseVersion);
       } catch (error) {
         reject(error);
         return;
