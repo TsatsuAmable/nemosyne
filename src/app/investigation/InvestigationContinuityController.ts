@@ -156,13 +156,17 @@ export class InvestigationContinuityController {
   async createCheckpoint(label = 'Investigation checkpoint'): Promise<ArchiveEntry> {
     const snapshot = this.captureCurrent();
     const digest = await investigationDigestForSnapshot(snapshot);
-    const archiveId = await this.sessions.archiveStore.freezeInvestigation(label, snapshot, {
-      datasetFingerprint: canonicalDatasetIdentityHex(snapshot.originalDataset!),
-      datasetName: datasetName(snapshot),
-      investigationDigest: digest,
-      eventCount: snapshot.eventLedger.length,
-      discoveryCount: discoveryCount(snapshot),
-    });
+    const archiveId = await this.sessions.archiveStore.freezeInvestigation(
+      label,
+      snapshot as unknown as Record<string, unknown>,
+      {
+        datasetFingerprint: canonicalDatasetIdentityHex(snapshot.originalDataset!),
+        datasetName: datasetName(snapshot),
+        investigationDigest: digest,
+        eventCount: snapshot.eventLedger.length,
+        discoveryCount: discoveryCount(snapshot),
+      },
+    );
     const archives = await this.sessions.archiveStore.listArchives();
     const created = archives.find((entry) => entry.archiveId === archiveId);
     if (!created) throw new Error('The checkpoint was saved but its Vault index entry is unavailable.');
