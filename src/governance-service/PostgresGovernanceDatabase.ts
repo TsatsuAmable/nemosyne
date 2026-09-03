@@ -2,13 +2,13 @@ const GOVERNANCE_SCHEMA = 'nemosyne_governance';
 const CURRENT_SCHEMA_VERSION = 1;
 const MIGRATION_LOCK_KEY = 0x4e454d4f53594e45n; // "NEMOSYNE" as a stable advisory-lock namespace.
 
-export interface PostgresQueryResultV1<Row extends Record<string, unknown> = Record<string, unknown>> {
+export interface PostgresQueryResultV1<Row = Record<string, unknown>> {
   readonly rows: readonly Row[];
   readonly rowCount: number | null;
 }
 
 export interface PostgresQueryableV1 {
-  query<Row extends Record<string, unknown> = Record<string, unknown>>(
+  query<Row = Record<string, unknown>>(
     text: string,
     values?: readonly unknown[],
   ): Promise<PostgresQueryResultV1<Row>>;
