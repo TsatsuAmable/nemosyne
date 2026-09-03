@@ -1,7 +1,9 @@
 import { createHmac, createPublicKey, verify as verifySignature, type KeyObject } from 'node:crypto';
-import { chmodSync, mkdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+
+import {
+  SqliteDataPlaneCredentialSessionStoreV1,
+  type DataPlaneCredentialSessionStoreV1,
+} from './DataPlaneCredentialSessionStore.ts';
 
 const MAX_TOKEN_LIFETIME_SECONDS = 300;
 const MAX_CLOCK_SKEW_SECONDS = 60;
@@ -11,6 +13,7 @@ const MAX_JTI_BYTES = 256;
 const MAX_SCOPE_BYTES = 2048;
 const CREDENTIAL_SESSION_DOMAIN = 'nemosyne:credential-session:v1\n';
 const UTF8 = new TextEncoder();
+const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'] as const;
 
 export const DATA_PLANE_SCOPES = [
   'consent:read',
@@ -42,8 +45,10 @@ export interface DataPlaneAccessTokenAuthorityOptions {
   readonly audience: string;
   readonly allowedAlgorithms: readonly DataPlaneJwsAlgorithm[];
   readonly keyResolver: DataPlaneJwkResolver;
-  readonly dataDirectory: string;
   readonly credentialSessionKey: Uint8Array;
+  readonly credentialSessionStore?: DataPlaneCredentialSessionStoreV1;
+  /** Compatibility-only. Production should inject the PostgreSQL session store. */
+  readonly dataDirectory?: string;
   readonly now?: () => Date;
   readonly clockSkewSeconds?: number;
 }
@@ -96,9 +101,7 @@ function decodeBase64Url(segment: string): Uint8Array {
   }
   try {
     const decoded = Buffer.from(segment, 'base64url');
-    if (decoded.toString('base64url') !== segment) {
-      throw new Error('non-canonical encoding');
-    }
+    if (decoded.toString('base64url') !== segment) throw new Error('non-canonical encoding');
     return decoded;
   } catch {
     throw new DataPlaneAuthError('INVALID_TOKEN', 'JWT segment cannot be decoded canonically');
@@ -115,9 +118,7 @@ function parseJsonSegment<T>(segment: string, label: string): T {
   }
   try {
     const parsed = JSON.parse(text) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('not object');
-    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not object');
     return parsed as T;
   } catch {
     throw new DataPlaneAuthError('INVALID_TOKEN', `${label} is not a JSON object`);
@@ -140,34 +141,20 @@ function requireNumericDate(value: unknown, label: string): number {
 
 function assertHttpsIssuer(issuer: string): void {
   let url: URL;
-  try {
-    url = new URL(issuer);
-  } catch {
-    throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'issuer must be an absolute HTTPS URL');
-  }
+  try { url = new URL(issuer); } catch { throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'issuer must be an absolute HTTPS URL'); }
   if (url.protocol !== 'https:' || url.username || url.password || url.hash) {
     throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'issuer must be an HTTPS authority without credentials or fragment');
   }
-  if (utf8Length(issuer) > MAX_ISSUER_BYTES) {
-    throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'issuer exceeds the RFC 0004 bound');
-  }
+  if (utf8Length(issuer) > MAX_ISSUER_BYTES) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'issuer exceeds the RFC 0004 bound');
 }
 
 function parseScopes(scopeClaim: unknown): ReadonlySet<DataPlaneScope> {
   const scope = requireBoundedString(scopeClaim, 'scope', MAX_SCOPE_BYTES);
-  if (/\s{2,}|^\s|\s$/.test(scope)) {
-    throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'scope must be single-space-delimited');
-  }
+  if (/\s{2,}|^\s|\s$/.test(scope)) throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'scope must be single-space-delimited');
   const tokens = scope.split(' ');
-  if (new Set(tokens).size !== tokens.length) {
-    throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'scope contains duplicates');
-  }
+  if (new Set(tokens).size !== tokens.length) throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'scope contains duplicates');
   const allowed = new Set<string>(DATA_PLANE_SCOPES);
-  for (const token of tokens) {
-    if (!allowed.has(token)) {
-      throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'scope contains an unapproved data-plane scope');
-    }
-  }
+  for (const token of tokens) if (!allowed.has(token)) throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'scope contains an unapproved data-plane scope');
   return new Set(tokens as DataPlaneScope[]);
 }
 
@@ -181,7 +168,8 @@ function assertAudience(aud: unknown, expected: string): void {
 }
 
 function createVerificationKey(jwk: JsonWebKey): KeyObject {
-  if ('d' in jwk && jwk.d) {
+  const record = jwk as Record<string, unknown>;
+  if (PRIVATE_JWK_FIELDS.some((field) => field in record && record[field] !== undefined)) {
     throw new DataPlaneAuthError('UNKNOWN_KEY', 'private JWK material is not accepted');
   }
   try {
@@ -191,21 +179,12 @@ function createVerificationKey(jwk: JsonWebKey): KeyObject {
   }
 }
 
-function verifyJws(
-  algorithm: DataPlaneJwsAlgorithm,
-  key: KeyObject,
-  signingInput: Uint8Array,
-  signature: Uint8Array
-): boolean {
+function verifyJws(algorithm: DataPlaneJwsAlgorithm, key: KeyObject, signingInput: Uint8Array, signature: Uint8Array): boolean {
   try {
     if (algorithm === 'RS256') return verifySignature('RSA-SHA256', signingInput, key, signature);
-    if (algorithm === 'ES256') {
-      return verifySignature('sha256', signingInput, { key, dsaEncoding: 'ieee-p1363' }, signature);
-    }
+    if (algorithm === 'ES256') return verifySignature('sha256', signingInput, { key, dsaEncoding: 'ieee-p1363' }, signature);
     return verifySignature(null, signingInput, key, signature);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function lengthFrame(values: readonly string[]): Buffer {
@@ -227,23 +206,17 @@ export class DataPlaneAccessTokenAuthority {
   private readonly now: () => Date;
   private readonly clockSkewSeconds: number;
   private readonly credentialSessionKey: Uint8Array;
-  private readonly db: DatabaseSync;
+  private readonly credentialSessionStore: DataPlaneCredentialSessionStoreV1;
 
   constructor(options: DataPlaneAccessTokenAuthorityOptions) {
     assertHttpsIssuer(options.issuer);
-    if (!options.audience || utf8Length(options.audience) > 256) {
-      throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'audience must be a non-empty bounded string');
-    }
-    if (options.allowedAlgorithms.length === 0 || new Set(options.allowedAlgorithms).size !== options.allowedAlgorithms.length) {
-      throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'at least one unique asymmetric JWS algorithm is required');
-    }
-    if (options.credentialSessionKey.byteLength < 32) {
-      throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'credential-session key must contain at least 256 bits');
-    }
+    if (!options.audience || utf8Length(options.audience) > 256) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'audience must be a non-empty bounded string');
+    if (options.allowedAlgorithms.length === 0 || new Set(options.allowedAlgorithms).size !== options.allowedAlgorithms.length) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'at least one unique asymmetric JWS algorithm is required');
+    if (options.credentialSessionKey.byteLength < 32) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'credential-session key must contain at least 256 bits');
+    if (options.credentialSessionStore && options.dataDirectory) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'configure exactly one credential-session persistence authority');
+    if (!options.credentialSessionStore && !options.dataDirectory) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'credential-session persistence authority is required');
     const skew = options.clockSkewSeconds ?? MAX_CLOCK_SKEW_SECONDS;
-    if (!Number.isInteger(skew) || skew < 0 || skew > MAX_CLOCK_SKEW_SECONDS) {
-      throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'clock skew must be between 0 and 60 seconds');
-    }
+    if (!Number.isInteger(skew) || skew < 0 || skew > MAX_CLOCK_SKEW_SECONDS) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'clock skew must be between 0 and 60 seconds');
 
     this.issuer = options.issuer;
     this.audience = options.audience;
@@ -252,123 +225,60 @@ export class DataPlaneAccessTokenAuthority {
     this.now = options.now ?? (() => new Date());
     this.clockSkewSeconds = skew;
     this.credentialSessionKey = options.credentialSessionKey;
-
-    mkdirSync(options.dataDirectory, { recursive: true, mode: 0o700 });
-    chmodSync(options.dataDirectory, 0o700);
-    if ((statSync(options.dataDirectory).mode & 0o777) !== 0o700) {
-      throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'governance data directory must be mode 0700');
-    }
-    const databasePath = join(options.dataDirectory, 'governance.sqlite');
-    this.db = new DatabaseSync(databasePath);
-    chmodSync(databasePath, 0o600);
-    this.db.exec('PRAGMA foreign_keys = ON');
-    this.db.exec('PRAGMA journal_mode = WAL');
-    this.db.exec('PRAGMA synchronous = FULL');
-    this.db.exec('PRAGMA secure_delete = ON');
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS data_plane_credential_sessions (
-        session_handle TEXT PRIMARY KEY,
-        first_seen_at TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
-        revoked_at TEXT
-      );
-    `);
+    this.credentialSessionStore = options.credentialSessionStore ?? new SqliteDataPlaneCredentialSessionStoreV1(options.dataDirectory as string);
   }
 
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    await this.credentialSessionStore.close();
   }
 
-  authenticateBearer(authorizationHeader: string, requiredScope: DataPlaneScope): DataPlaneAuthenticatedPrincipalV1 {
-    if (!authorizationHeader.startsWith('Bearer ') || authorizationHeader.length <= 7 || authorizationHeader.includes('\n')) {
-      throw new DataPlaneAuthError('INVALID_AUTHORIZATION', 'Authorization must contain one Bearer token');
-    }
+  async authenticateBearer(authorizationHeader: string, requiredScope: DataPlaneScope): Promise<DataPlaneAuthenticatedPrincipalV1> {
+    if (!authorizationHeader.startsWith('Bearer ') || authorizationHeader.length <= 7 || authorizationHeader.includes('\n')) throw new DataPlaneAuthError('INVALID_AUTHORIZATION', 'Authorization must contain one Bearer token');
     return this.authenticateToken(authorizationHeader.slice(7), requiredScope);
   }
 
-  authenticateToken(token: string, requiredScope: DataPlaneScope): DataPlaneAuthenticatedPrincipalV1 {
+  async authenticateToken(token: string, requiredScope: DataPlaneScope): Promise<DataPlaneAuthenticatedPrincipalV1> {
     const parts = token.split('.');
-    if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
-      throw new DataPlaneAuthError('INVALID_TOKEN', 'access token must use compact JWS serialization');
-    }
+    if (parts.length !== 3 || parts.some((part) => part.length === 0)) throw new DataPlaneAuthError('INVALID_TOKEN', 'access token must use compact JWS serialization');
     const [headerPart, payloadPart, signaturePart] = parts;
     const header = parseJsonSegment<JwtHeader>(headerPart, 'JWT header');
     const claims = parseJsonSegment<JwtClaims>(payloadPart, 'JWT claims');
 
-    if (header.typ !== 'at+jwt') {
-      throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'typ must be at+jwt');
-    }
-    if (header.alg !== 'RS256' && header.alg !== 'ES256' && header.alg !== 'EdDSA') {
-      throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'JWS algorithm is not in the RFC 0004 asymmetric set');
-    }
-    if (!this.allowedAlgorithms.has(header.alg)) {
-      throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'JWS algorithm is not enabled for this deployment');
-    }
+    if (header.typ !== 'at+jwt') throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'typ must be at+jwt');
+    if (header.alg !== 'RS256' && header.alg !== 'ES256' && header.alg !== 'EdDSA') throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'JWS algorithm is not in the RFC 0004 asymmetric set');
+    if (!this.allowedAlgorithms.has(header.alg)) throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'JWS algorithm is not enabled for this deployment');
     const kid = requireBoundedString(header.kid, 'kid', 256);
     const issuer = requireBoundedString(claims.iss, 'iss', MAX_ISSUER_BYTES);
     const subject = requireBoundedString(claims.sub, 'sub', MAX_SUBJECT_BYTES);
     const tokenId = requireBoundedString(claims.jti, 'jti', MAX_JTI_BYTES);
-    if (issuer !== this.issuer) {
-      throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'issuer does not match configured authority');
-    }
+    if (issuer !== this.issuer) throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'issuer does not match configured authority');
     assertAudience(claims.aud, this.audience);
     const issuedAt = requireNumericDate(claims.iat, 'iat');
     const expiresAt = requireNumericDate(claims.exp, 'exp');
-    if (expiresAt <= issuedAt || expiresAt - issuedAt > MAX_TOKEN_LIFETIME_SECONDS) {
-      throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'token lifetime must be positive and no more than five minutes');
-    }
+    if (expiresAt <= issuedAt || expiresAt - issuedAt > MAX_TOKEN_LIFETIME_SECONDS) throw new DataPlaneAuthError('TOKEN_PROFILE_REFUSED', 'token lifetime must be positive and no more than five minutes');
     const nowSeconds = Math.floor(this.now().getTime() / 1000);
-    if (!Number.isSafeInteger(nowSeconds)) {
-      throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'server clock is invalid');
-    }
-    if (issuedAt - this.clockSkewSeconds > nowSeconds) {
-      throw new DataPlaneAuthError('TOKEN_NOT_YET_VALID', 'token issued-at time is in the future');
-    }
-    if (expiresAt + this.clockSkewSeconds < nowSeconds) {
-      throw new DataPlaneAuthError('TOKEN_EXPIRED', 'access token has expired');
-    }
+    if (!Number.isSafeInteger(nowSeconds)) throw new DataPlaneAuthError('AUTH_CONFIGURATION_INVALID', 'server clock is invalid');
+    if (issuedAt - this.clockSkewSeconds > nowSeconds) throw new DataPlaneAuthError('TOKEN_NOT_YET_VALID', 'token issued-at time is in the future');
+    if (expiresAt + this.clockSkewSeconds < nowSeconds) throw new DataPlaneAuthError('TOKEN_EXPIRED', 'access token has expired');
     const scopes = parseScopes(claims.scope);
-    if (!scopes.has(requiredScope)) {
-      throw new DataPlaneAuthError('INSUFFICIENT_SCOPE', 'required endpoint scope is absent');
-    }
+    if (!scopes.has(requiredScope)) throw new DataPlaneAuthError('INSUFFICIENT_SCOPE', 'required endpoint scope is absent');
 
     const jwk = this.keyResolver.resolve(issuer, kid, header.alg);
     if (!jwk) throw new DataPlaneAuthError('UNKNOWN_KEY', 'verification key is unavailable');
     const key = createVerificationKey(jwk);
     const signingInput = Buffer.from(`${headerPart}.${payloadPart}`, 'ascii');
     const signature = decodeBase64Url(signaturePart);
-    if (!verifyJws(header.alg, key, signingInput, signature)) {
-      throw new DataPlaneAuthError('INVALID_SIGNATURE', 'access-token signature is invalid');
-    }
+    if (!verifyJws(header.alg, key, signingInput, signature)) throw new DataPlaneAuthError('INVALID_SIGNATURE', 'access-token signature is invalid');
 
     const sessionHandle = this.sessionHandle(issuer, subject, tokenId);
-    const row = this.db
-      .prepare('SELECT revoked_at FROM data_plane_credential_sessions WHERE session_handle = ?')
-      .get(sessionHandle) as { revoked_at: string | null } | undefined;
-    if (row?.revoked_at) {
-      throw new DataPlaneAuthError('CREDENTIAL_REVOKED', 'credential session has been locally revoked');
-    }
     const seenAt = this.now().toISOString();
-    this.db
-      .prepare(
-        `INSERT INTO data_plane_credential_sessions (session_handle, first_seen_at, last_seen_at, revoked_at)
-         VALUES (?, ?, ?, NULL)
-         ON CONFLICT(session_handle) DO UPDATE SET last_seen_at = excluded.last_seen_at`
-      )
-      .run(sessionHandle, seenAt, seenAt);
-
+    if (await this.credentialSessionStore.touch(sessionHandle, seenAt) === 'REVOKED') throw new DataPlaneAuthError('CREDENTIAL_REVOKED', 'credential session has been revoked');
     return Object.freeze({ issuer, subject, tokenId, scopes, issuedAt, expiresAt });
   }
 
-  revoke(principal: Pick<DataPlaneAuthenticatedPrincipalV1, 'issuer' | 'subject' | 'tokenId'>): void {
+  async revoke(principal: Pick<DataPlaneAuthenticatedPrincipalV1, 'issuer' | 'subject' | 'tokenId'>): Promise<void> {
     const sessionHandle = this.sessionHandle(principal.issuer, principal.subject, principal.tokenId);
-    const revokedAt = this.now().toISOString();
-    const result = this.db
-      .prepare('UPDATE data_plane_credential_sessions SET revoked_at = ? WHERE session_handle = ?')
-      .run(revokedAt, sessionHandle);
-    if (Number(result.changes) !== 1) {
-      throw new DataPlaneAuthError('INVALID_TOKEN', 'credential session is not known to this service');
-    }
+    if (!(await this.credentialSessionStore.revoke(sessionHandle, this.now().toISOString()))) throw new DataPlaneAuthError('INVALID_TOKEN', 'credential session is not known to this service');
   }
 
   private sessionHandle(issuer: string, subject: string, tokenId: string): string {
