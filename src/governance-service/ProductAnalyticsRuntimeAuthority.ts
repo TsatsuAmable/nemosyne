@@ -6,12 +6,9 @@ import {
   type JsonValue,
   type RuntimeComponentReferenceV1,
 } from '../governance/index.ts';
-import {
-  SqliteProductAnalyticsEventIngestion,
-  type ProductAnalyticsEventIngestionOptions,
-  type ProductEventDispositionV1,
-} from './ProductAnalyticsEventIngestion.ts';
+import type { ProductAnalyticsEventIngestionPortV1 } from './GovernanceAuthorityPorts.ts';
 import type { AuthenticatedPrincipalV1 } from './ProductAnalyticsConsentAuthority.ts';
+import type { ProductEventDispositionV1 } from './ProductAnalyticsEventIngestion.ts';
 
 export interface ProductAnalyticsDeploymentManifestV1 {
   readonly schemaVersion: '1';
@@ -64,24 +61,26 @@ export class ReviewedProductAnalyticsRuntimeAuthority implements ProductAnalytic
   }
 }
 
-export interface RuntimePinnedProductAnalyticsEventIngestionOptions
-  extends ProductAnalyticsEventIngestionOptions {
+export interface RuntimePinnedProductAnalyticsEventIngestionOptions {
   readonly runtimeAuthority: ProductAnalyticsRuntimeAuthorityV1;
+  readonly delegate: ProductAnalyticsEventIngestionPortV1;
 }
 
 /**
  * Production PT4 ingestion seam. Runtime policy is checked independently from
- * the hostile envelope before consent/replay/storage authority is consulted.
+ * the hostile envelope before the persistence-backed consent/replay/storage
+ * authority is consulted. The decorator deliberately has no database type.
  */
-export class RuntimePinnedProductAnalyticsEventIngestion extends SqliteProductAnalyticsEventIngestion {
+export class RuntimePinnedProductAnalyticsEventIngestion implements ProductAnalyticsEventIngestionPortV1 {
   private readonly runtimeAuthority: ProductAnalyticsRuntimeAuthorityV1;
+  private readonly delegate: ProductAnalyticsEventIngestionPortV1;
 
   constructor(options: RuntimePinnedProductAnalyticsEventIngestionOptions) {
-    super(options);
     this.runtimeAuthority = options.runtimeAuthority;
+    this.delegate = options.delegate;
   }
 
-  override async ingestLine(
+  async ingestLine(
     principal: AuthenticatedPrincipalV1,
     jsonText: string,
   ): Promise<ProductEventDispositionV1> {
@@ -93,6 +92,6 @@ export class RuntimePinnedProductAnalyticsEventIngestion extends SqliteProductAn
         reasonCode: structural.ok ? 'RUNTIME_MANIFEST_MISMATCH' : (structural.issues[0]?.code ?? 'REFUSED_GOVERNANCE'),
       });
     }
-    return super.ingestLine(principal, jsonText);
+    return this.delegate.ingestLine(principal, jsonText);
   }
 }
