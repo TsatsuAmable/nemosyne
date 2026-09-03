@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE, type RuntimeComponentReferenceV1 } from '../src/governance/index.ts';
 import { PostgresDataPlaneCredentialSessionStoreV1 } from '../src/governance-service/DataPlaneCredentialSessionStore.ts';
+import { OidcJwksAuthority } from '../src/governance-service/OidcJwksAuthority.ts';
 import type { PostgresClientV1, PostgresPoolV1, PostgresQueryResultV1 } from '../src/governance-service/PostgresGovernanceDatabase.ts';
 import { POSTGRES_GOVERNANCE_SCHEMA_V1 } from '../src/governance-service/PostgresGovernanceDatabase.ts';
 import { PostgresProductAnalyticsPersistenceV1 } from '../src/governance-service/PostgresProductAnalyticsPersistence.ts';
@@ -146,13 +147,18 @@ describe('PT4B9B PostgreSQL production persistence', () => {
     expect(await store.touch('csv1_deadbeef', '2026-09-03T08:02:00.000Z')).toBe('REVOKED');
   });
 
-  it('makes PostgreSQL the canonical composition while runtime pinning remains database-neutral', async () => {
+  it('forces canonical OIDC credential sessions onto the same PostgreSQL pool', async () => {
     const pool = new StatefulPostgresFake();
+    const jwks = new OidcJwksAuthority({ issuer: 'https://issuer.example' });
     const composition = await createPostgresProductAnalyticsGovernanceCompositionV1({
       pool,
       ...keys,
       allowedOrigins: ['https://app.example'],
-      authenticator: { async authenticate() { throw new Error('not exercised'); } },
+      oidcIssuer: 'https://issuer.example',
+      oidcAudience: 'nemosyne-data-plane',
+      oidcJwksAuthority: jwks,
+      allowedAlgorithms: ['RS256'],
+      credentialSessionKey: new Uint8Array(32).fill(5),
       deploymentManifest: { schemaVersion: '1', applicationBuild: APP, deploymentConfiguration: DEPLOYMENT, uiTreatment: UI, allowedPlatformRuntimes: [{ componentId: PLATFORM.componentId, version: PLATFORM.version }] },
       now: () => new Date('2026-09-03T08:00:00.000Z'),
     });
