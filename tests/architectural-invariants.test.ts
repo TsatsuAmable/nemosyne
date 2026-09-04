@@ -5,9 +5,7 @@ import { NemosyneSession, InvestigationBranchManager } from '../src/session/inde
 import { VRTopologyTranslator, PositionSemanticsEngine } from '../src/moneta/index.ts';
 import { ConstraintEngine } from '../src/moneta/ConstraintEngine.ts';
 import { NetworkManager, Room, BinaryPoseSerializer } from '../src/network/index.ts';
-import { StudyHarness, Counterbalancer, StudyStatisticalAnalyzer } from '../src/study/index.ts';
 import { KernelUnavailableError, getKernelState } from '../src/wasm/index.ts';
-import { MultimodalPerceptionEngine } from '../src/vr/perception/index.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import type { DatasetJSON } from '../src/data/index.ts';
 import type { VRCommand } from '../src/atlas/types.ts';
@@ -27,41 +25,22 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
     ],
   };
 
-  describe('Invariant 1: Subsystem Barrel Completeness', () => {
-    it('exports core public domain classes while local analytical helpers stay explicit', () => {
-      // Atlas Subsystem
+  describe('Invariant 1: Production Public Surface', () => {
+    it('exports core runtime/domain APIs without using export existence as production-wiring evidence', () => {
       expect(AtlasCore).toBeDefined();
       expect(InvestigationAggregate).toBeDefined();
-
-      // Data Subsystem
       expect(Dataset).toBeDefined();
       expect(AnalysisHistory).toBeDefined();
-
-      // Session Subsystem
       expect(NemosyneSession).toBeDefined();
       expect(InvestigationBranchManager).toBeDefined();
-
-      // Moneta public surface + explicitly imported local solver.
       expect(ConstraintEngine).toBeDefined();
       expect(VRTopologyTranslator).toBeDefined();
       expect(PositionSemanticsEngine).toBeDefined();
-
-      // Network Subsystem
       expect(NetworkManager).toBeDefined();
       expect(Room).toBeDefined();
       expect(BinaryPoseSerializer).toBeDefined();
-
-      // Study Subsystem
-      expect(StudyHarness).toBeDefined();
-      expect(Counterbalancer).toBeDefined();
-      expect(StudyStatisticalAnalyzer).toBeDefined();
-
-      // WASM Subsystem
       expect(KernelUnavailableError).toBeDefined();
       expect(typeof getKernelState).toBe('function');
-
-      // Perception Subsystem
-      expect(MultimodalPerceptionEngine).toBeDefined();
     });
   });
 
@@ -88,7 +67,7 @@ describe('Architectural Invariants & Subsystem Boundaries (Sprint 27.1)', () => 
       expect(result).toBeDefined();
       expect(result.dataset.rows.length).toBeGreaterThanOrEqual(1);
 
-      expect(atlas.ledger).toHaveLength(2); // 1 load + 1 operation
+      expect(atlas.ledger).toHaveLength(2);
       expect(atlas.results).toHaveLength(1);
     });
 

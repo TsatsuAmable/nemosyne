@@ -1,5 +1,5 @@
 /**
- * Session Subsystem — Barrel Export
+ * Session Subsystem — production barrel export.
  */
 
 export { NemosyneSession } from './NemosyneSession.ts';
@@ -10,9 +10,6 @@ export type {
   InvestigationBranch,
   BranchComparisonResult,
 } from './InvestigationBranchManager.ts';
-
-export { ShareableSessionURL } from './ShareableSessionURL.ts';
-export type { ShareableSessionPayload } from './ShareableSessionURL.ts';
 
 export { NemosynePackageManager, NemosyneManifestSchema } from './NemosynePackage.ts';
 export type { NemosynePackageManifest, NemosynePackagePayload } from './NemosynePackage.ts';
