@@ -15,6 +15,7 @@ export interface SignallingMessage {
 
 const RECONNECT_BASE_DELAY_MS = 250;
 const RECONNECT_MAX_DELAY_MS = 5000;
+export const SIGNALLING_CONNECT_TIMEOUT_MS = 8000;
 
 export class SignallingChannel extends EventTarget {
   url: string;
@@ -78,6 +79,7 @@ export class SignallingChannel extends EventTarget {
       let opened = false;
       let settled = false;
       let ws: WebSocket;
+      let connectTimeout: ReturnType<typeof setTimeout> | null = null;
       try {
         const params = `room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}&role=${this.role}`;
         // Credentials are never placed in the URL query string to prevent access-log exposure.
@@ -88,16 +90,33 @@ export class SignallingChannel extends EventTarget {
         return;
       }
 
+      const clearConnectTimeout = () => {
+        if (!connectTimeout) return;
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+      };
       const resolveOnce = () => {
         if (settled) return;
         settled = true;
+        clearConnectTimeout();
         resolve();
       };
       const rejectOnce = (error: unknown) => {
         if (settled) return;
         settled = true;
+        clearConnectTimeout();
         reject(error instanceof Error ? error : new Error('signalling connection failed'));
       };
+
+      connectTimeout = setTimeout(() => {
+        if (settled || opened || this._ws !== ws) return;
+        rejectOnce(new Error('signalling connection timed out'));
+        try {
+          ws.close();
+        } catch {
+          // The timeout rejection is authoritative even if transport teardown fails.
+        }
+      }, SIGNALLING_CONNECT_TIMEOUT_MS);
 
       ws.addEventListener('open', async () => {
         if (this._ws !== ws || this._manualDisconnect) return;
@@ -171,6 +190,7 @@ export class SignallingChannel extends EventTarget {
 
       ws.addEventListener('close', () => {
         if (this._ws !== ws) return;
+        clearConnectTimeout();
         this._connected = false;
         this._ws = null;
         this.dispatchEvent(new Event('close'));
