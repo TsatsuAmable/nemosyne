@@ -13,6 +13,7 @@ const HEALTH_PATH = '/healthz';
 const READY_PATH = '/readyz';
 const SECURITY_PROFILES = new Set(['Development', 'ResearchPreview', 'Production']);
 const ROUTING_BASE_URL = 'http://localhost';
+const SIGNED_TICKET_WIRE_RE = /^[A-Za-z0-9_-]+\.[0-9a-fA-F]{64}$/;
 
 function optionValue(args, name) {
   const prefix = `--${name}=`;
@@ -102,6 +103,30 @@ function rejectUpgrade(socket, statusCode, reason) {
 }
 
 /**
+ * Recognize only the canonical signed-ticket auth message shape. This is not an
+ * authorization decision: SignallingServerCore's listener is registered first
+ * and remains the sole admission authority. The transport calls this only to
+ * decide whether a still-open socket is eligible for a post-admission ack.
+ */
+function signedAdmissionToken(raw) {
+  const rawStr = typeof raw === 'string' ? raw : (raw?.toString?.() ?? String(raw));
+  if (Buffer.byteLength(rawStr, 'utf8') > WS_MAX_PAYLOAD_BYTES) return null;
+  let message;
+  try {
+    message = JSON.parse(rawStr);
+  } catch {
+    return null;
+  }
+  if (!message || typeof message !== 'object' || Array.isArray(message)) return null;
+  if (message.to !== undefined && message.to !== '*' && typeof message.to !== 'string') return null;
+  if (message.from !== undefined && typeof message.from !== 'string') return null;
+  const data = message.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  if (data.type !== 'auth' || typeof data.token !== 'string') return null;
+  return SIGNED_TICKET_WIRE_RE.test(data.token) ? data.token : null;
+}
+
+/**
  * Create the production-capable signalling service without starting it.
  * Tests can bind port 0 and exercise the real health/readiness HTTP surface.
  */
@@ -178,6 +203,21 @@ export function createSignallingService(config) {
         : (url.searchParams.get('token') || undefined);
     const role = url.searchParams.get('role') === 'observer' ? 'observer' : 'participant';
     registry.handleConnection(socket, roomId, peerId, token, role, request);
+
+    // SignallingServerCore registered its synchronous message listener above.
+    // Therefore a canonical signed auth message reaches this second listener
+    // with readyState OPEN only if the core did not reject/close it. This ack is
+    // transport evidence of admission, not a second token verifier or replay
+    // authority. One ack per socket generation prevents forged repeat auth
+    // messages from manufacturing additional lifecycle events.
+    let signedAdmissionAcknowledged = false;
+    socket.on('message', (raw) => {
+      if (signedAdmissionAcknowledged || socket.readyState !== 1) return;
+      if (!signedAdmissionToken(raw)) return;
+      if (socket.readyState !== 1) return;
+      signedAdmissionAcknowledged = true;
+      socket.send(JSON.stringify({ type: 'admitted', roomId }));
+    });
   });
 
   async function start() {
