@@ -241,8 +241,9 @@ describe('coordinator consumer contracts', () => {
       /buildAnalysisStory\(world: AnalysisStoryHost\)/
     );
     expect(source('CollaborationCoordinator.ts')).toMatch(
-      /constructor\(\{ presence, presentation \}: CollaborationCoordinatorOptions\)/
+      /constructor\(\{ presence, presentation, signallingConfig \}: CollaborationCoordinatorOptions\)/
     );
+    expect(source('CollaborationCoordinator.ts')).toMatch(/readStoredCollaborationRoom\(\)/);
     expect(source('GuidedTourController.ts')).toMatch(/constructor\(world: GuidedTourHost\)/);
     expect(source('LiveStreamCoordinator.ts')).toMatch(
       /constructor\(\{ dataset, status \}: LiveStreamCoordinatorOptions\)/
