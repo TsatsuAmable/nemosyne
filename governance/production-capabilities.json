@@ -125,20 +125,20 @@
     {
       "id": "collaboration-client",
       "classification": "experimental-production",
-      "sources": ["src/network/NetworkManager.ts", "src/network/SignallingRuntimeConfig.ts", "src/vr/coordinators/CollaborationCoordinator.ts"],
-      "entrypoints": ["src/vr/World.ts"],
-      "discovery": [{ "path": "src/vr/coordinators/CollaborationCoordinator.ts", "contains": "readSignallingBrowserConfig" }],
-      "evidence": ["tests/collaboration-browser/recovery.spec.ts", "tests/p1w1-signalling-runtime-config.test.ts"],
-      "note": "Production collaboration requires an explicit secure signalling endpoint and fails visibly unavailable when it is absent; final RF-054 closure still requires a clean journey against the actually deployed service URL."
+      "sources": ["src/network/NetworkManager.ts", "src/network/SignallingChannel.ts", "src/network/SignallingRuntimeConfig.ts", "src/network/CollaborationInvite.ts", "src/vr/coordinators/CollaborationCoordinator.ts"],
+      "entrypoints": ["src/vr/World.ts", "src/main.ts"],
+      "discovery": [{ "path": "src/vr/coordinators/CollaborationCoordinator.ts", "contains": "readSignallingBrowserConfig" }, { "path": "src/main.ts", "contains": "consumeCollaborationInvite" }],
+      "evidence": ["tests/collaboration-browser/recovery.spec.ts", "tests/p1w1-signalling-runtime-config.test.ts", "tests/p1w1-collaboration-invite.test.ts", "tests/signalling-reconnect-ticket.test.ts"],
+      "note": "Production collaboration requires an explicit secure signalling endpoint. Private-preview participant admission is provisioned by an operator-issued, fragment-delivered one-use signed ticket; the browser never contains the HMAC authority and reports signed-ticket connection only after service admission. Final RF-054 closure still requires a clean journey against the actually deployed service URL."
     },
     {
       "id": "collaboration-signalling-service",
       "classification": "experimental-production",
-      "sources": ["src/network/SignallingServer.mjs", "src/network/SignallingServerCore.ts", "src/network/SignedTicket.ts"],
+      "sources": ["src/network/SignallingServer.mjs", "src/network/SignallingServerCore.ts", "src/network/SignedTicket.ts", "src/network/server.ts"],
       "entrypoints": ["src/network/SignallingServer.mjs"],
-      "discovery": [{ "path": "package.json", "contains": "start:signalling" }],
-      "evidence": ["tests/p1w1-signalling-service-runtime.test.ts"],
-      "note": "The repository owns a fail-closed Production service runtime, health/readiness surface and container contract. Actual deployed-service evidence remains required before RF-054 is VERIFIED COMPLETE."
+      "discovery": [{ "path": "package.json", "contains": "start:signalling" }, { "path": "package.json", "contains": "collaboration:invite" }],
+      "evidence": ["tests/p1w1-signalling-service-runtime.test.ts", "tests/p1w1-collaboration-invite.test.ts"],
+      "note": "The repository owns a fail-closed Production service runtime, health/readiness surface, container contract and operator-side signed invite command. Real tests admit two signed-ticket peers, relay with server-bound peer identity and reject replay. Actual deployed-service evidence remains required before RF-054 is VERIFIED COMPLETE."
     },
     {
       "id": "live-ingest",
