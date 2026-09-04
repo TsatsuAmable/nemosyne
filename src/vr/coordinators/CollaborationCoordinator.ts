@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { NetworkManager } from '../../network/NetworkManager.ts';
 import { PeerAvatarManager } from '../../network/PeerAvatarManager.ts';
+import { readStoredCollaborationRoom } from '../../network/CollaborationInvite.ts';
 import {
   readSignallingBrowserConfig,
   type BrowserSignallingRuntimeConfig,
@@ -137,7 +138,9 @@ export class CollaborationCoordinator {
     }
     const generation = ++this.generation;
     const settings = this.presentation.getSettings();
+    const inviteRoom = readStoredCollaborationRoom();
     const targetRoom = (roomId ??
+      inviteRoom ??
       (settings.collabRoom as string | undefined) ??
       'default') as string;
     const networkManager = new NetworkManager({
