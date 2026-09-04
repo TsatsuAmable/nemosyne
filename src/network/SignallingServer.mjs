@@ -12,6 +12,7 @@ const SIGNAL_PATH = '/__signal';
 const HEALTH_PATH = '/healthz';
 const READY_PATH = '/readyz';
 const SECURITY_PROFILES = new Set(['Development', 'ResearchPreview', 'Production']);
+const ROUTING_BASE_URL = 'http://localhost';
 
 function optionValue(args, name) {
   const prefix = `--${name}=`;
@@ -120,7 +121,7 @@ export function createSignallingService(config) {
   }
 
   const httpServer = createServer((request, response) => {
-    const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+    const url = new URL(request.url || '/', ROUTING_BASE_URL);
     if (request.method === 'GET' && url.pathname === HEALTH_PATH) {
       writeJson(response, 200, { status: 'ok' });
       return;
@@ -146,7 +147,7 @@ export function createSignallingService(config) {
   httpServer.on('upgrade', (request, socket, head) => {
     let url;
     try {
-      url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+      url = new URL(request.url || '/', ROUTING_BASE_URL);
     } catch {
       rejectUpgrade(socket, 400, 'Bad Request');
       return;
@@ -166,7 +167,7 @@ export function createSignallingService(config) {
       socket.isAlive = true;
     });
 
-    const url = new URL(request.url || SIGNAL_PATH, `http://${request.headers.host || 'localhost'}`);
+    const url = new URL(request.url || SIGNAL_PATH, ROUTING_BASE_URL);
     const roomId = url.searchParams.get('room') || 'default';
     const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
     // Production never consumes URL credentials. Authentication must arrive
