@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from 'vitest';
-// @ts-ignore -- the production signalling executable is intentionally an ESM .mjs runtime.
 import {
   createSignallingService,
   readSignallingServiceConfig,
