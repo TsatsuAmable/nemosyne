@@ -125,11 +125,20 @@
     {
       "id": "collaboration-client",
       "classification": "experimental-production",
-      "sources": ["src/network/NetworkManager.ts", "src/vr/coordinators/CollaborationCoordinator.ts"],
+      "sources": ["src/network/NetworkManager.ts", "src/network/SignallingRuntimeConfig.ts", "src/vr/coordinators/CollaborationCoordinator.ts"],
       "entrypoints": ["src/vr/World.ts"],
-      "discovery": [{ "path": "src/vr/World.ts", "contains": "CollaborationCoordinator" }],
-      "evidence": ["tests/collaboration-browser/recovery.spec.ts"],
-      "note": "Client path is production-composed; deployed signalling-service qualification remains RF-054/P1-W service work."
+      "discovery": [{ "path": "src/vr/coordinators/CollaborationCoordinator.ts", "contains": "readSignallingBrowserConfig" }],
+      "evidence": ["tests/collaboration-browser/recovery.spec.ts", "tests/p1w1-signalling-runtime-config.test.ts"],
+      "note": "Production collaboration requires an explicit secure signalling endpoint and fails visibly unavailable when it is absent; final RF-054 closure still requires a clean journey against the actually deployed service URL."
+    },
+    {
+      "id": "collaboration-signalling-service",
+      "classification": "experimental-production",
+      "sources": ["src/network/SignallingServer.mjs", "src/network/SignallingServerCore.ts", "src/network/SignedTicket.ts"],
+      "entrypoints": ["src/network/SignallingServer.mjs"],
+      "discovery": [{ "path": "package.json", "contains": "start:signalling" }],
+      "evidence": ["tests/p1w1-signalling-service-runtime.test.ts"],
+      "note": "The repository owns a fail-closed Production service runtime, health/readiness surface and container contract. Actual deployed-service evidence remains required before RF-054 is VERIFIED COMPLETE."
     },
     {
       "id": "live-ingest",
