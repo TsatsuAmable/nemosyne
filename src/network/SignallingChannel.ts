@@ -153,8 +153,9 @@ export class SignallingChannel extends EventTarget {
               this.dispatchEvent(
                 new CustomEvent('reconnect-failed', { detail: { reason: 'no-fresh-ticket' } })
               );
-              ws.close();
+              this._manualDisconnect = true;
               rejectOnce(new Error('reconnect failed: no fresh ticket'));
+              ws.close();
               return;
             }
             activeAuthToken = freshTicket;
@@ -162,8 +163,9 @@ export class SignallingChannel extends EventTarget {
             this.dispatchEvent(
               new CustomEvent('reconnect-failed', { detail: { reason: 'ticket-callback-error' } })
             );
-            ws.close();
+            this._manualDisconnect = true;
             rejectOnce(new Error('reconnect failed: ticket callback error'));
+            ws.close();
             return;
           }
         } else if (this._hasConnectedOnce && this.token?.includes('.')) {
@@ -178,8 +180,8 @@ export class SignallingChannel extends EventTarget {
             new CustomEvent('reconnect-failed', { detail: { reason: 'fresh-ticket-required' } })
           );
           this._manualDisconnect = true;
-          ws.close();
           rejectOnce(new Error('reconnect failed: fresh signed ticket required'));
+          ws.close();
           return;
         }
         if (activeAuthToken) {
