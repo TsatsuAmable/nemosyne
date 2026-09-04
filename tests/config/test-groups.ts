@@ -7,6 +7,7 @@ export const FAST_NODE_TESTS = [
   'tests/moneta-gate0-authority.test.ts',
   'tests/moneta-layout-authority.test.ts',
   'tests/moneta-scoring-ownership.test.ts',
+  'tests/p1w1-collaboration-invite.test.ts',
   'tests/p1w1-signalling-runtime-config.test.ts',
   'tests/p1w1-signalling-service-runtime.test.ts',
   'tests/production-capability-registry.test.ts',
