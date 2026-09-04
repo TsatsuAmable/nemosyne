@@ -81,6 +81,7 @@
     "eslint-import-resolver-typescript": "^4.4.5",
     "fast-check": "4.9.0",
     "globals": "^17.11.0",
+    "iwer": "^2.3.0",
     "jsdom": "^30.0.1",
     "prettier": "^3.5.0",
     "typescript": "^6.0.3",
