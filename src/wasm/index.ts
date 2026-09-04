@@ -1,5 +1,8 @@
 /**
- * WASM Subsystem — Barrel Export
+ * WASM Subsystem — production barrel export.
+ *
+ * Experimental scene-command-buffer code intentionally stays out of this
+ * surface until headset evidence warrants CAP_SCENE_RUST/CAP_COMMAND_BUFFER.
  */
 
 export { CapabilityFlags } from './capabilities.ts';
@@ -48,9 +51,6 @@ export {
 } from './ColumnarBoundary.ts';
 
 export type { KernelState } from './RuntimeBridge.ts';
-
-export { CommandApplier, COMMAND_MAGIC, COMMAND_VERSION } from './CommandApplier.ts';
-export type { ParsedCommand } from './CommandApplier.ts';
 
 export { encodeTypedColumnsPayload } from './TypedColumnsCodec.ts';
 export type {
