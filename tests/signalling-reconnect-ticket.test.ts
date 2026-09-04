@@ -19,14 +19,18 @@ class MockWebSocket extends EventTarget {
     this.lastSent = data;
   }
 
-  close(): void {
+  close(code = 1000): void {
     this.readyState = MockWebSocket.CLOSED;
-    this.dispatchEvent(new Event('close'));
+    this.dispatchEvent(new CloseEvent('close', { code }));
   }
 
   open(): void {
     this.readyState = MockWebSocket.OPEN;
     this.dispatchEvent(new Event('open'));
+  }
+
+  message(payload: unknown): void {
+    this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(payload) }));
   }
 }
 
@@ -45,7 +49,7 @@ describe('signed-ticket signalling reconnect', () => {
     globalThis.WebSocket = originalWebSocket;
   });
 
-  it('fails closed instead of replaying a consumed signed ticket when no renewal authority exists', async () => {
+  it('does not report a signed-ticket connection before admission and fails closed on reconnect without renewal', async () => {
     const channel = new SignallingChannel(
       'ws://test',
       'room1',
@@ -54,12 +58,21 @@ describe('signed-ticket signalling reconnect', () => {
     );
     channels.push(channel);
 
-    const initialConnect = channel.connect();
+    let resolved = false;
+    const initialConnect = channel.connect().then(() => {
+      resolved = true;
+    });
     let socket = channel._ws as unknown as MockWebSocket;
     socket.open();
-    await initialConnect;
+    await Promise.resolve();
 
     expect(JSON.parse(socket.lastSent ?? '{}').data?.token).toBe('payload.signature');
+    expect(resolved).toBe(false);
+    expect(channel.isOpen).toBe(false);
+
+    socket.message({ type: 'admitted', roomId: 'room1' });
+    await initialConnect;
+    expect(channel.isOpen).toBe(true);
 
     const failures: string[] = [];
     const reconnecting: number[] = [];
@@ -85,6 +98,24 @@ describe('signed-ticket signalling reconnect', () => {
     // reconnect schedule. A later explicit connect() may still retry after a
     // renewal provider has been installed.
     expect(reconnecting).toHaveLength(1);
+  });
+
+  it('does not auto-retry a signed ticket rejected after the transport opens', async () => {
+    const channel = new SignallingChannel('ws://test', 'room1', 'peerA', 'payload.signature');
+    channels.push(channel);
+    const reconnecting: number[] = [];
+    channel.addEventListener('reconnecting', (event: Event) => {
+      reconnecting.push((event as CustomEvent<{ attempt: number }>).detail.attempt);
+    });
+
+    const connect = channel.connect();
+    const socket = channel._ws as unknown as MockWebSocket;
+    socket.open();
+    socket.close(4001);
+
+    await expect(connect).rejects.toThrow('signalling admission rejected');
+    expect(channel.isOpen).toBe(false);
+    expect(reconnecting).toHaveLength(0);
   });
 
   it('allows reusable non-ticket development credentials to reconnect without a renewal callback', async () => {
