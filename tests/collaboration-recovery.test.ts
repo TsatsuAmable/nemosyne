@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NetworkManager } from '../src/network/NetworkManager.ts';
+import { SIGNALLING_CONNECT_TIMEOUT_MS } from '../src/network/SignallingChannel.ts';
 
 class PartitionableWebSocket extends EventTarget {
   static CONNECTING = 0;
@@ -112,6 +113,26 @@ describe('collaboration partition recovery', () => {
     first.dispatchEvent(new Event('close'));
     expect(manager.isConnected).toBe(true);
     expect(disconnected).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails a stalled initial signalling handshake within a bounded time and schedules retry', async () => {
+    manager = new NetworkManager({
+      signallingUrl: 'ws://unreachable.test',
+      roomId: 'timeout-room',
+      peerId: 'participant-timeout',
+    });
+
+    const connectPromise = manager.connect();
+    const rejection = expect(connectPromise).rejects.toThrow(/signalling connection timed out/u);
+    expect(PartitionableWebSocket.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(SIGNALLING_CONNECT_TIMEOUT_MS);
+    await rejection;
+    expect(PartitionableWebSocket.instances[0].readyState).toBe(PartitionableWebSocket.CLOSED);
+    expect(manager.isConnected).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(250);
+    expect(PartitionableWebSocket.instances).toHaveLength(2);
   });
 
   it('does not reconnect after an explicit leave', async () => {
