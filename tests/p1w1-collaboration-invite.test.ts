@@ -8,7 +8,7 @@ import {
   readStoredCollaborationRoom,
   type CollaborationStorageLike,
 } from '../src/network/CollaborationInvite.ts';
-import { buildCollaborationInviteUrl } from '../src/network/CollaborationInviteIssuer.ts';
+import { buildCollaborationInviteUrl } from '../scripts/create-collaboration-invite.mjs';
 import { verifySignedTicket } from '../src/network/SignedTicket.ts';
 
 class MemoryStorage implements CollaborationStorageLike {
