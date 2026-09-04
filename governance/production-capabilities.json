@@ -116,10 +116,11 @@
     {
       "id": "nemosyne-data-corpus",
       "classification": "production",
-      "sources": ["src/data/connectors/GitHubCorpusConnector.ts"],
+      "sources": ["src/data/catalog/NemosyneDataCatalog.ts", "src/ui/FileLoader.ts"],
       "entrypoints": ["src/ui/FileLoader.ts"],
-      "discovery": [{ "path": "src/ui/FileLoader.ts", "contains": "GitHubCorpusConnector" }],
-      "evidence": ["tests/github-corpus-connector.test.ts"]
+      "discovery": [{ "path": "src/ui/FileLoader.ts", "contains": "new NemosyneDataCatalogClient" }],
+      "evidence": ["tests/nemosyne-data-catalog.test.ts", "tests/file-loader-remote-corpus.test.ts"],
+      "note": "Production corpus loading uses the governed NemosyneDataCatalogClient through FileLoaderUI and Atlas/Rust. GitHubCorpusConnector is a qualification-only acquisition boundary and is not production-wiring evidence."
     },
     {
       "id": "collaboration-client",
