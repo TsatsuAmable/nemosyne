@@ -21,7 +21,9 @@ class MockWebSocket extends EventTarget {
 
   close(code = 1000): void {
     this.readyState = MockWebSocket.CLOSED;
-    this.dispatchEvent(new CloseEvent('close', { code }));
+    const event = new Event('close');
+    Object.defineProperty(event, 'code', { value: code });
+    this.dispatchEvent(event);
   }
 
   open(): void {
