@@ -1,4 +1,5 @@
 export * from './BoundedJson.ts';
+export * from './GestureLearningFamilies.ts';
 export * from './GovernedEventAdmission.ts';
 export * from './GovernedEventContracts.ts';
 export * from './GovernedEventDigest.ts';
