@@ -15,6 +15,7 @@ export type HardConstraintCode =
   | 'identity-loss'
   | 'exact-metric-loss'
   | 'cluster-separation-loss'
+  | 'analytical-dimensions-required'
   | 'cluster-authority-required'
   | 'graph-authority-required'
   | 'graph-resource-envelope'
