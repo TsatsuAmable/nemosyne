@@ -21,7 +21,10 @@ import {
   VALIDATION_SESSION_LABEL_HEADER,
   readValidationSessionEnv,
 } from '../validation/validation-session.ts';
-import { readBrowserValidationContext } from '../validation/browser-validation-session.ts';
+import {
+  readBrowserValidationContext,
+  validationManifestConfirmationIssue,
+} from '../validation/browser-validation-session.ts';
 import {
   VALIDATION_RECEIPT_VERSION,
   VALIDATION_RECEIPT_VERSION_HEADER,
@@ -257,11 +260,16 @@ export function installDevEvidence({
     const status = await fetchValidationStatus();
     if (
       status.sessionId !== validationContext.session.id ||
-      status.sessionLabel !== validationContext.session.label ||
-      status.manifest.sessionId !== validationContext.session.id ||
-      status.manifest.sessionLabel !== validationContext.session.label
+      status.sessionLabel !== validationContext.session.label
     ) {
       throw new Error('server validation status does not match the active browser session');
+    }
+    const confirmationIssue = validationManifestConfirmationIssue(
+      validationContext,
+      status.manifest
+    );
+    if (confirmationIssue) {
+      throw new Error(`server validation manifest rejected: ${confirmationIssue}`);
     }
     validationPanel.setServerStatus(status);
   };
