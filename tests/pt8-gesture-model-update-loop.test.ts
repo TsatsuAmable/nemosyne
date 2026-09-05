@@ -198,7 +198,7 @@ function trainingManifest(
 }
 
 function executorFor(modelArtifact: ImmutableReferenceV1): GestureTrainingExecutorV1 {
-  return Object.freeze({
+  return Object.freeze<GestureTrainingExecutorV1>({
     async execute(manifest, trainingSnapshot) {
       const validationReport = evaluationReport(trainingSnapshot, 'validation', modelArtifact, manifest.jobVersion);
       const testReport = evaluationReport(trainingSnapshot, 'test', modelArtifact, manifest.jobVersion);
