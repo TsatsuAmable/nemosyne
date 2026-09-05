@@ -192,8 +192,22 @@ function validatePerfStep(
     return null;
   }
 
+  // Grade-signal parity with the device collector (`LoadTestCollector.endStep`
+  // grades XR frame cadence when present, else app frame times). The previous
+  // frames-only recompute deterministically disagreed with the device on
+  // cadence-graded steps (observed: app-green vs cadence-yellow dispute).
+  const cadence = objectAt(value, 'frameCadence');
+  const graded =
+    cadence &&
+    finiteNumber(cadence.frameCount) &&
+    cadence.frameCount > 0 &&
+    finiteNumber(cadence.p95Ms) &&
+    finiteNumber(cadence.p99Ms) &&
+    finiteNumber(cadence.droppedPct)
+      ? cadence
+      : frames;
   const recomputed = computeVerdict({
-    frames: frames as unknown as Parameters<typeof computeVerdict>[0]['frames'],
+    frames: graded as unknown as Parameters<typeof computeVerdict>[0]['frames'],
     criticalViolations: value.criticalViolations,
   });
   if (value.grade !== recomputed.grade) {
@@ -229,7 +243,15 @@ export function validateQuestPerformanceReport(
     errors.push('reported thresholds do not match the governed fixed threshold authority');
   }
 
-  const steps = Array.isArray(value.steps) ? value.steps : [];
+  const allSteps = Array.isArray(value.steps) ? value.steps : [];
+  // Flagged warmup steps are measured and recorded but excluded from
+  // positional policy alignment and grading — the same exclusion the device
+  // verdict applies. Runs without flags validate exactly as before.
+  const steps = allSteps.filter((step) => {
+    if (!isRecord(step)) return true;
+    const spec = objectAt(step, 'spec');
+    return spec?.warmup !== true;
+  });
   if (!Array.isArray(value.steps) || steps.length === 0) errors.push('steps must be non-empty');
   if (!aborted && steps.length !== QUEST_PERF_STEP_POLICY.length) {
     errors.push(`completed performance report must contain exactly ${QUEST_PERF_STEP_POLICY.length} steps`);
