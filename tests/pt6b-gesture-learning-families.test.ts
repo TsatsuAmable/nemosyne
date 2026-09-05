@@ -150,16 +150,18 @@ describe('PT6B governed gesture-learning event families', () => {
 
   it('rejects Product Analytics authority and missing protocol as L2/L3 authorization', () => {
     const l2Issues: { code: string; path: string; message: string }[] = [];
+    const registeredL2 = GESTURE_LEARNING_GOVERNED_EVENT_REGISTRY_V1.get(DERIVED_GESTURE_OBSERVATION_FAMILY_ID)!;
     validateAuthorization([
       auth('CONSENT_RECEIPT', 'derived-gesture-learning', PRODUCT_ANALYTICS_DATA_SERVICE_AUTHORITY_REFERENCE, PRODUCT_ANALYTICS_OPERATION_NOTICE_REFERENCE),
-    ] as unknown as JsonValue, DERIVED_GESTURE_OBSERVATION_FAMILY_DEFINITION_V1, l2Issues);
+    ] as unknown as JsonValue, registeredL2, l2Issues);
     expect(l2Issues.some((issue) => issue.code === 'AUTHORIZATION_AUTHORITY_MISMATCH')).toBe(true);
     expect(l2Issues.some((issue) => issue.code === 'AUTHORIZATION_POLICY_MISMATCH')).toBe(true);
 
     const l3Issues: { code: string; path: string; message: string }[] = [];
+    const registeredL3 = GESTURE_LEARNING_GOVERNED_EVENT_REGISTRY_V1.get(RAW_GESTURE_TRAJECTORY_FAMILY_ID)!;
     validateAuthorization([
       auth('CONSENT_RECEIPT', 'raw-trajectory-research', RAW_GESTURE_CONSENT_AUTHORITY_REFERENCE, RAW_GESTURE_NOTICE_REFERENCE),
-    ] as unknown as JsonValue, RAW_GESTURE_TRAJECTORY_FAMILY_DEFINITION_V1, l3Issues);
+    ] as unknown as JsonValue, registeredL3, l3Issues);
     expect(l3Issues.some((issue) => issue.code === 'AUTHORIZATION_COMBINATION_MISMATCH')).toBe(true);
     expect(l3Issues.some((issue) => issue.code === 'MISSING_AUTHORIZATION_BASIS')).toBe(true);
   });
