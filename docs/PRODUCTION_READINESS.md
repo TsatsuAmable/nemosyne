@@ -84,3 +84,4 @@ PT6/PT7 now provide governed user-disjoint snapshots, held-out evaluation artifa
 - `DEFERRED_BY_POLICY` means closure requires a production/external boundary that the owner has intentionally deferred. It is not a pass.
 - `NOT_REQUIRED_YET` means the service boundary is planned but deployment is not yet a selected product requirement.
 - Repository evidence, simulator evidence, physical-device evidence and deployed-service evidence remain distinct evidence classes.
+
