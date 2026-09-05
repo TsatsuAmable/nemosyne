@@ -180,6 +180,28 @@ describe('UXTraceRecorder', () => {
     const selections = buffer.filter((r) => r.type === 'selection');
     expect(selections.map((s) => s.hit)).toEqual(['scene', 'hud', 'none']);
     expect(String(selections[0].target)).toContain('node-42');
+    // Legacy infos without rayValid map to null; explicit values pass through.
+    expect(selections.map((s) => s.rayValid)).toEqual([null, null, null]);
+
+    recorder.recordSelection({
+      hudConsumed: false,
+      sceneMesh: null,
+      hadCallback: false,
+      pointer: null,
+      rayValid: false,
+    });
+    recorder.recordSelection({
+      hudConsumed: false,
+      sceneMesh: null,
+      hadCallback: false,
+      pointer: null,
+      rayValid: true,
+    });
+    const tails = (recorder as unknown as { _buffer: Array<Record<string, unknown>> })._buffer
+      .filter((r) => r.type === 'selection')
+      .slice(-2);
+    expect(tails.map((s) => s.hit)).toEqual(['none', 'none']);
+    expect(tails.map((s) => s.rayValid)).toEqual([false, true]);
   });
 
   it('raycasts head gaze against panels and interactables and prefers data labels', () => {

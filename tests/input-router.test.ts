@@ -168,4 +168,37 @@ describe('InputRouter controller system toggle', () => {
 
     expect(selectCb).toHaveBeenCalled();
   });
+
+  it('keeps dispatcher hadCallback truthful as the global callback is set and cleared', () => {
+    const seen: boolean[] = [];
+    router.dispatcher.onDispatch = (info: { hadCallback: boolean }) => {
+      seen.push(info.hadCallback);
+    };
+    const pointer = {
+      getRay: (ray: THREE.Ray) => {
+        ray.origin.set(0, 1.6, 0);
+        ray.direction.set(0, 0, -1);
+        return ray;
+      },
+    };
+
+    // No global callback installed (production default): misses must not
+    // report callback-only.
+    expect(router.onSelectCallback).toBeNull();
+    router.dispatcher.triggerSelect(pointer as never);
+    expect(seen).toEqual([false]);
+
+    // Installing a real callback flips hadCallback to true...
+    const selectCb = vi.fn();
+    router.onSelectCallback = selectCb;
+    router.dispatcher.triggerSelect(pointer as never);
+    expect(seen).toEqual([false, true]);
+    expect(selectCb).toHaveBeenCalledTimes(1);
+
+    // ...and clearing it restores the falsy report (no stale closure).
+    router.onSelectCallback = null;
+    router.dispatcher.triggerSelect(pointer as never);
+    expect(seen).toEqual([false, true, false]);
+    expect(selectCb).toHaveBeenCalledTimes(1);
+  });
 });

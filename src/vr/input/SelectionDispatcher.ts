@@ -18,6 +18,12 @@ export interface SelectionDispatchInfo {
   sceneData?: unknown;
   hadCallback: boolean;
   pointer: PointerLike | null;
+  /**
+   * Whether the selecting pointer produced a finite, non-degenerate ray.
+   * Lets traces separate tracking-loss misses (no ray) from aimed misses
+   * (valid ray, no hovered target).
+   */
+  rayValid: boolean;
 }
 
 export class SelectionDispatcher {
@@ -86,6 +92,9 @@ export class SelectionDispatcher {
     if (!activePointer) return;
     const ray = activePointer.getRay(new THREE.Ray());
     this.registry.raycaster.ray.copy(ray);
+    // Mirror PointerRegistry.getBestPointerRay validity so traces can tell
+    // tracking-loss misses apart from aimed misses.
+    const rayValid = Number.isFinite(ray.origin.x) && ray.direction.lengthSq() > 0;
 
     this.feedback.playSelect();
     this.feedback.flashPointer(activePointer);
@@ -104,6 +113,7 @@ export class SelectionDispatcher {
         sceneData: hudConsumed ? undefined : effectiveHovered?.data,
         hadCallback: !!effectiveHovered?.onSelect || !!this.onSelectCallback,
         pointer: activePointer,
+        rayValid,
       });
     }
     if (hudConsumed) return;
