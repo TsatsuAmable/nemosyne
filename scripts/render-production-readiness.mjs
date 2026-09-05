@@ -4,6 +4,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+const READINESS_PATH = 'governance/production-readiness.json';
+const REPORT_PATH = 'docs/PRODUCTION_READINESS.md';
+
 function readJson(root, repoPath) {
   return JSON.parse(readFileSync(resolve(root, repoPath), 'utf8'));
 }
@@ -21,10 +24,8 @@ function evidenceLabel(obligation) {
 }
 
 export function renderProductionReadiness(root = process.cwd()) {
-  const capabilities = readJson(root, 'governance/production-capabilities.json');
-  const readinessPath = capabilities.readiness?.path;
-  if (!readinessPath) throw new Error('production capability registry does not declare readiness.path');
-  const readiness = readJson(root, readinessPath);
+  readJson(root, 'governance/production-capabilities.json');
+  const readiness = readJson(root, READINESS_PATH);
 
   const lines = [
     '# Production readiness',
@@ -89,22 +90,19 @@ export function renderProductionReadiness(root = process.cwd()) {
 
 function main() {
   const root = process.cwd();
-  const capabilities = readJson(root, 'governance/production-capabilities.json');
-  const reportPath = capabilities.readiness?.report;
-  if (!reportPath) throw new Error('production capability registry does not declare readiness.report');
   const rendered = renderProductionReadiness(root);
   const mode = process.argv[2] ?? '--write';
 
   if (mode === '--write') {
-    writeFileSync(resolve(root, reportPath), rendered);
-    console.log(`WROTE ${reportPath}`);
+    writeFileSync(resolve(root, REPORT_PATH), rendered);
+    console.log(`WROTE ${REPORT_PATH}`);
     return;
   }
 
   if (mode === '--check') {
-    const current = readFileSync(resolve(root, reportPath), 'utf8');
+    const current = readFileSync(resolve(root, REPORT_PATH), 'utf8');
     if (current !== rendered) {
-      console.error(`PRODUCTION READINESS REPORT STALE: run node scripts/render-production-readiness.mjs --write`);
+      console.error('PRODUCTION READINESS REPORT STALE: run node scripts/render-production-readiness.mjs --write');
       process.exit(1);
     }
     console.log('PRODUCTION READINESS REPORT CURRENT');
