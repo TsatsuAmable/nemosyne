@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { WorldSessionController } from '../src/vr/coordinators/WorldSessionController.ts';
 
@@ -67,5 +68,22 @@ describe('local persistence unavailable product state', () => {
       'Local recovery unavailable',
       expect.objectContaining({ result: expect.stringContaining('Investigation save failed') }),
     );
+  });
+
+  it('proves the production composition routes controller interactions into the Interaction Coach', () => {
+    const worldSource = readFileSync(new URL('../src/vr/World.ts', import.meta.url), 'utf8');
+    const bindingSource = readFileSync(
+      new URL('../src/vr/presentation/bindings/bindInteractionProjection.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(worldSource).toContain(
+      'recordInteraction: (action, options) => this._logInteraction(action, options)',
+    );
+    expect(worldSource).toContain(
+      'logInteraction: (event) => this.uiManager.interactionCoach?.log?.(event)',
+    );
+    expect(bindingSource).toContain('eventBus.on(WorldTopics.INTERACTION_LOG');
+    expect(bindingSource).toContain('logInteraction(payload as InteractionEvent)');
   });
 });
