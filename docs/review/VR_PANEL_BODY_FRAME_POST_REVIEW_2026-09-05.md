@@ -20,8 +20,8 @@ repository/browser evidence from physical Quest ergonomics and human usability e
 2. **Physical HMD X/Z lean no longer owns workspace translation.** The body frame stays
    rig-relative and inherits actual locomotion through its `cameraGroup` parent.
 3. **Raw gaze yaw no longer continuously swims the workspace.** Heading now requires an 18°
-   departure held for 0.2 s, follows with delta-time-independent damping, and exits tracking
-   inside an 8° hysteresis band.
+   departure sustained in one direction for 0.2 s, follows with delta-time-independent
+   damping, and exits tracking inside an 8° hysteresis band.
 4. **Current XR pose is preferred.** The composer consumes `XRFrame.getViewerPose()` when
    available before falling back to the camera state.
 5. **Panel-distance offset rotates with accepted body heading.** It is no longer applied on a
@@ -45,8 +45,8 @@ repository/browser evidence from physical Quest ergonomics and human usability e
 
 ## CI / adversarial fix-forward findings
 
-The first two exact-head CI cycles were intentionally treated as adversarial evidence rather
-than rerun noise. They found four concrete issues:
+The CI and independent review cycles were intentionally treated as adversarial evidence rather
+than rerun noise. They found five concrete issues:
 
 1. **Structural Group test doubles lacked `userData`.** `BodyFrameState` initially assumed a
    concrete Three.js `Object3D`; long-standing tests pass lightweight Group-like doubles.
@@ -62,6 +62,11 @@ than rerun noise. They found four concrete issues:
    reported that PR #658 lacked a post-implementation adversarial disposition. This record
    and the matching PR section provide that disposition; the gate must still rerun green on
    the final exact head.
+5. **The sustained-turn gate initially accumulated magnitude across opposing gaze excursions.**
+   Alternating left/right yaw beyond the 18° entry threshold could satisfy the 0.2 s timer even
+   though no heading change persisted in one direction. The gate now resets its timer when the
+   shortest-path yaw-error direction changes, with a regression test that alternates ±20°
+   excursions and requires the body frame to remain fixed.
 
 No finding was waived by lowering type, lint, architecture, coverage, or treatment-freeze
 requirements.
