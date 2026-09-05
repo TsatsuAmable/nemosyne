@@ -205,7 +205,11 @@ export const SYNTHETIC_FIXTURES: SyntheticFixture[] = [
       topCategory: null,
     },
     spectralFacts: null,
-    requirements: createDefaultRequirements('identify-outliers'),
+    // This fixture asserts a distribution hypothesis, so its analytical measure
+    // is part of the test intent rather than inferred from numeric-column count.
+    // Synthetic facts have no resident schema; Rust validates real field names
+    // on the production execution path.
+    requirements: createDefaultRequirements('identify-outliers', ['value']),
     expectedFamily: 'DISTRIBUTION',
     minConfidence: 0.55,
   },
