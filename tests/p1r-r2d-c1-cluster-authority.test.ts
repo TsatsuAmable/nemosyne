@@ -130,7 +130,7 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
       clusterCandidates.some((candidate) => candidate.disqualificationCode === 'cluster-authority-required')
     ).toBe(false);
     expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v5');
-    expect(decision.provenance.version).toBe('2.1.0-v5-bootstrap');
+    expect(decision.provenance.version).toBe('2.1.1-v5-bootstrap');
   });
 
   it('fails the cluster candidate closed when the dataset signature cannot support the declaration', () => {
