@@ -201,6 +201,9 @@ describe('P1-W production capability registry', () => {
     const obligationById = new Map(
       readiness.verificationObligations.map((obligation) => [obligation.id, obligation])
     );
+    const referencedObligations = readiness.services.flatMap(({ obligationRefs }) => obligationRefs);
+    expect(new Set(referencedObligations).size).toBe(referencedObligations.length);
+    expect(new Set(referencedObligations)).toEqual(new Set(obligationIds));
 
     for (const service of readiness.services) {
       expect(service.planes.length, service.id).toBeGreaterThan(0);
@@ -227,6 +230,26 @@ describe('P1-W production capability registry', () => {
     }
   });
 
+  it('forces service-like capability surfaces into the readiness inventory', () => {
+    const readinessCapabilityRefs = new Set(
+      readiness.services.flatMap(({ capabilityRefs }) => capabilityRefs)
+    );
+    for (const capability of registry.capabilities.filter(({ id }) => id.endsWith('-service'))) {
+      expect(
+        readinessCapabilityRefs.has(capability.id),
+        `${capability.id} is service-like but absent from production-readiness.json`
+      ).toBe(true);
+    }
+
+    const readinessSources = new Set(readiness.services.flatMap(({ sources }) => sources));
+    for (const exception of registry.rootExceptions.filter(({ root }) => root.endsWith('-service'))) {
+      expect(
+        readinessSources.has(`src/${exception.root}`),
+        `${exception.root} is a service-like root exception but absent from production-readiness.json`
+      ).toBe(true);
+    }
+  });
+
   it('does not allow missing or deferred verification work to masquerade as green evidence', () => {
     const serviceIds = new Set(readiness.services.map(({ id }) => id));
 
@@ -243,6 +266,12 @@ describe('P1-W production capability registry', () => {
         expect(obligation.expectedEvidence, obligation.id).toBeUndefined();
         for (const evidence of obligation.evidence ?? []) {
           expect(exists(evidence), `${obligation.id}: missing green evidence ${evidence}`).toBe(true);
+          if (obligation.kind === 'AUTOMATED') {
+            expect(evidence.startsWith('tests/'), `${obligation.id}: automated evidence must be a test`).toBe(
+              true
+            );
+            expect(/\.(test|spec)\.[cm]?[jt]sx?$/.test(evidence), `${obligation.id}: ${evidence}`).toBe(true);
+          }
         }
       }
 
@@ -251,6 +280,7 @@ describe('P1-W production capability registry', () => {
         if (obligation.kind === 'AUTOMATED') {
           expect(obligation.expectedEvidence?.length, obligation.id).toBeGreaterThan(0);
           for (const expected of obligation.expectedEvidence ?? []) {
+            expect(expected.startsWith('tests/'), `${obligation.id}: expected automated evidence`).toBe(true);
             expect(exists(expected), `${obligation.id}: expected evidence already exists; reclassify state`).toBe(
               false
             );
