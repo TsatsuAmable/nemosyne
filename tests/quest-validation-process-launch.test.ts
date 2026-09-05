@@ -73,12 +73,18 @@ describe('Quest validation process launch portability', () => {
   });
 
   it('bounds WASM toolchain probes and records null instead of throwing on probe failure', () => {
-    const probeMock = vi.fn((command: string) => {
-      if (command === 'cargo') {
-        return { status: null, stdout: '', error: new Error('probe timed out') };
+    const probeMock = vi.fn(
+      (
+        command: string,
+        _args: string[],
+        _options: Parameters<WasmDiagnosticProbeFn>[2]
+      ) => {
+        if (command === 'cargo') {
+          return { status: null, stdout: '', error: new Error('probe timed out') };
+        }
+        return { status: 0, stdout: `${command} 1.0.0\n`, error: undefined };
       }
-      return { status: 0, stdout: `${command} 1.0.0\n`, error: undefined };
-    });
+    );
 
     const diagnostics = collectWasmBuildDiagnostics({
       root: tempRoot(),
@@ -98,7 +104,13 @@ describe('Quest validation process launch portability', () => {
   });
 
   it('caps an excessive diagnostic-probe timeout so failure evidence stays bounded', () => {
-    const probeMock = vi.fn(() => ({ status: 0, stdout: 'ok\n', error: undefined }));
+    const probeMock = vi.fn(
+      (_command: string, _args: string[], _options: Parameters<WasmDiagnosticProbeFn>[2]) => ({
+        status: 0,
+        stdout: 'ok\n',
+        error: undefined,
+      })
+    );
 
     collectWasmBuildDiagnostics({
       root: tempRoot(),
@@ -119,11 +131,13 @@ describe('Quest validation process launch portability', () => {
     writeFileSync(join(wasmPkg, 'nemosyne_wasm.js'), 'export default {};\n');
     writeFileSync(join(wasmPkg, 'nemosyne_wasm_bg.wasm'), 'wasm-bytes');
 
-    const probeMock = vi.fn((command: string) => ({
-      status: 0,
-      stdout: `${command} 1.0.0\n`,
-      error: undefined,
-    }));
+    const probeMock = vi.fn(
+      (command: string, _args: string[], _options: Parameters<WasmDiagnosticProbeFn>[2]) => ({
+        status: 0,
+        stdout: `${command} 1.0.0\n`,
+        error: undefined,
+      })
+    );
     const diagnostics = collectWasmBuildDiagnostics({
       root,
       wasm: { status: 1 },
