@@ -121,7 +121,9 @@ export class SystemGestureDetector {
         y0: origin0.y,
         y1: origin1.y,
       });
-      this.onSuppressedHint?.('Both-pinch: Align hands horizontally to scale palace');
+      this.onSuppressedHint?.(
+        'Both-pinch unavailable in the upper reach zone. Lower both hands and pinch again.'
+      );
     }
     this._lastSuppressedBothPinched = rawBothPinched && systemGestureZoneSuppressed;
 
