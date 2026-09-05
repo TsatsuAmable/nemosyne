@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import type { PanelLike, PanelManagerLike, PointerLike } from '../coordinators/types.ts';
 import type { InteractableRegistry } from './InteractableRegistry.ts';
+import { isUsablePointerRay } from './pointerRayValidity.ts';
 
 type PointerState = 'idle' | 'down' | 'drag';
 
@@ -42,10 +43,13 @@ export class PointerEventMachine {
   }
 
   /**
-   * Press the pointer. Returns true if the press was consumed by UI or scene.
+   * Press the pointer. Returns true only when a usable pointer ray is consumed
+   * by launcher, panel, HUD or scene selection. Tracking-loss rays fail closed
+   * before any interaction side effect or pointer-state transition.
    */
   press(pointer: PointerLike): boolean {
     const ray = pointer.getRay(new THREE.Ray());
+    if (!isUsablePointerRay(ray)) return false;
     this.registry.raycaster.ray.copy(ray);
 
     // Launcher ring takes precedence when visible.
@@ -88,19 +92,23 @@ export class PointerEventMachine {
       this.downPointer === pointer
     ) {
       const ray = pointer.getRay(new THREE.Ray());
+      if (!isUsablePointerRay(ray)) return;
       this.registry.raycaster.ray.copy(ray);
       this.capturedPanel.handlePointerMove?.(this.registry.raycaster, pointer);
     }
   }
 
   /**
-   * Release the pointer, ending any drag or down state.
+   * Release the pointer, ending any drag or down state. An invalid release ray
+   * must still clear capture state, but it is not forwarded to panel geometry.
    */
   release(pointer: PointerLike) {
     if (this.capturedPanel) {
       const ray = pointer.getRay(new THREE.Ray());
-      this.registry.raycaster.ray.copy(ray);
-      this.capturedPanel.handlePointerUp?.(this.registry.raycaster, pointer);
+      if (isUsablePointerRay(ray)) {
+        this.registry.raycaster.ray.copy(ray);
+        this.capturedPanel.handlePointerUp?.(this.registry.raycaster, pointer);
+      }
     }
 
     if (this.downPointer === pointer || this.capturedPanel) {

@@ -8,13 +8,13 @@
 //      revokes and requires re-verification);
 //   2. required checks are green on that exact SHA;
 //   3. no unresolved CHANGES_REQUESTED review is open on the exact head;
-//   4. the promotion-evidence marker / adversarial disposition is present in
-//      the PR body or as a label.
+//   4. the PR contains a structurally complete risk classification and, for
+//      high/standard-risk work, a terminal PASS post-review bound to that SHA.
 //
 // The controller can optionally wait for required checks that are missing or
 // still running. Completed non-success checks fail immediately. A non-required
 // audit may also accept an already-merged PR, but it still verifies the exact
-// head, required checks, review disposition and promotion marker. The required
+// head, required checks, review disposition and promotion evidence. The required
 // approval gate never uses that merged-PR allowance.
 //
 // This controller NEVER manufactures an approval. It reports promotion
@@ -23,6 +23,7 @@
 // workflow / review policy (see governance/promotion-policy.json and RF-052).
 
 import { execFileSync } from 'node:child_process';
+import { validatePromotionEvidence } from './lib/promotion-evidence.mjs';
 
 const owner = process.env.GITHUB_REPOSITORY_OWNER || 'TsatsuAmable';
 const repo = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'nemosyne';
@@ -84,7 +85,7 @@ function readPull() {
   return gh([
     `repos/${owner}/${repo}/pulls/${prNumber}`,
     '--jq',
-    '{head:{sha:.head.sha}, state, merged, merged_at, body, labels:[.labels[].name]}',
+    '{head:{sha:.head.sha}, state, merged, merged_at, body, changed_files, labels:[.labels[].name]}',
   ]);
 }
 
@@ -94,7 +95,6 @@ function verifyPullState() {
     `[Q9 controller] PR #${prNumber} head=${pull.head.sha} expected=${expectedSha} state=${pull.state} merged=${pull.merged}`
   );
 
-  // Exact-head: any head movement revokes promotion evidence.
   if (pull.head.sha !== expectedSha) {
     fail(
       `HEAD MOVEMENT DETECTED: PR head ${pull.head.sha} does not match expected promotion head ${expectedSha}. Promotion evidence revoked; re-verify on the exact new head.`
@@ -132,7 +132,6 @@ function readRequiredChecks() {
   return byName;
 }
 
-// 1 + 2. Remain exact-head/open while boundedly waiting for required checks.
 const deadline = Date.now() + waitSeconds * 1000;
 let pull = verifyPullState();
 while (true) {
@@ -170,11 +169,8 @@ while (true) {
   pull = verifyPullState();
 }
 
-// Refresh after the wait so body/labels/state are evaluated on the same exact
-// head immediately before the remaining promotion checks.
 pull = verifyPullState();
 
-// 3. No unresolved CHANGES_REQUESTED review on the exact head.
 const reviews = gh(
   [
     `repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
@@ -189,25 +185,18 @@ const openRequests = reviews.filter(
 );
 if (openRequests.length > 0) {
   const latest = openRequests[openRequests.length - 1];
-  fail(`Unresolved CHANGES_REQUESTED review on exact head ${expectedSha} by ${latest.user} at ${latest.submitted_at}.`);
+  fail(
+    `Unresolved CHANGES_REQUESTED review on exact head ${expectedSha} by ${latest.user} at ${latest.submitted_at}.`
+  );
 }
 
-// 4. Promotion-evidence marker / adversarial disposition present.
-// The disposition is the requirement, not a specific heading level: accept the
-// post-implementation adversarial review section (any heading level), the
-// adversarial-contract section with a high-risk/low-risk disposition, or a
-// promotion-evidence/adversarial label.
-const body = pull.body ?? '';
-const hasPostReviewSection = /^#{1,6}\s*post-implementation adversarial review/im.test(body);
-const hasContractSection = /^#{1,6}\s*adversarial implementation contract/im.test(body);
-const hasDisposition =
-  hasContractSection &&
-  (/High-risk change/i.test(body) || /Low-risk exemption/i.test(body));
-const hasAdversarialLabel = (pull.labels ?? []).some(
-  (label) => /promotion-evidence|adversarial/i.test(label)
-);
-if (!hasPostReviewSection && !hasAdversarialLabel && !hasDisposition) {
-  fail(`Promotion-evidence marker and adversarial disposition missing on PR #${prNumber}.`);
+const evidence = validatePromotionEvidence({
+  body: pull.body ?? '',
+  expectedSha,
+  changedFiles: pull.changed_files,
+});
+if (!evidence.ok) {
+  fail(`Promotion evidence invalid on PR #${prNumber}: ${evidence.errors.join(' | ')}`);
 }
 
 console.log(
@@ -220,7 +209,8 @@ console.log(
       merged: pull.merged === true,
       requiredChecksGreen: requiredChecks,
       reviewThreadState: openRequests.length === 0 ? 'clean' : 'blocked',
-      markerPresent: hasPostReviewSection || hasAdversarialLabel || hasDisposition,
+      promotionEvidenceValid: true,
+      riskClassification: evidence.classification,
       note: 'Promotion evidence only; this verdict is not an approval.',
     },
     null,
