@@ -229,4 +229,27 @@ describe('PT6A gesture-learning evidence contracts', () => {
     expect(issues.some((issue) => issue.code === 'SNAPSHOT_DIGEST_MISMATCH')).toBe(false);
     expect(issues.some((issue) => issue.code === 'SPLIT_POLICY_MISMATCH')).toBe(true);
   });
+
+  it('rejects re-digested snapshots that use empty declared profiles to manipulate split policy', () => {
+    const original = build();
+    const forged = JSON.parse(JSON.stringify(original)) as {
+      snapshotDigest: { algorithm: 'SHA256'; value: string };
+      splits: Record<'train' | 'validation' | 'test', {
+        profilePseudonymIds: string[];
+        samples: GestureLearningSampleRefV1[];
+      }>;
+      [key: string]: unknown;
+    };
+
+    forged.splits.train.profilePseudonymIds.push('learn-profile-ghost');
+    const { snapshotDigest: _oldDigest, ...content } = forged;
+    forged.snapshotDigest = {
+      algorithm: 'SHA256',
+      value: canonicalSha256Hex(content),
+    };
+
+    const issues = validateGestureTrainingSnapshotV1(forged as never);
+    expect(issues.some((issue) => issue.code === 'SNAPSHOT_DIGEST_MISMATCH')).toBe(false);
+    expect(issues.some((issue) => issue.code === 'EMPTY_PROFILE_GROUP')).toBe(true);
+  });
 });
