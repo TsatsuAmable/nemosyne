@@ -82,7 +82,6 @@ export class WorldSessionController {
     } catch (error) {
       if (!this.isCurrent(this.generation)) return;
       console.warn('[WorldSessionController] failed to save session:', error);
-      this.log('warn', `Session save failed: ${(error as Error).message}`);
     }
   }
 
@@ -92,10 +91,18 @@ export class WorldSessionController {
     if (!this.isCurrent(generation)) return false;
     const snapshot = this.snapshotCurrentSession();
     if (!snapshot) return false;
-    await this.getSessionStore().saveSession(
-      id,
-      snapshot as unknown as Parameters<SessionStoreLike['saveSession']>[1],
-    );
+    try {
+      await this.getSessionStore().saveSession(
+        id,
+        snapshot as unknown as Parameters<SessionStoreLike['saveSession']>[1],
+      );
+    } catch (error) {
+      if (this.isCurrent(generation)) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.reportPersistenceUnavailable(`Investigation save failed: ${message}`);
+      }
+      throw error;
+    }
     if (!this.isCurrent(generation)) return false;
     this.log('log', `Session saved: ${id}`);
     this.recordInteraction('Save session', { result: id });
@@ -210,7 +217,8 @@ export class WorldSessionController {
     } catch (error) {
       if (!this.isCurrent(generation)) return;
       console.warn('[WorldSessionController] autosave restore failed:', error);
-      this.log('warn', `Autosave recovery failed: ${(error as Error).message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.reportPersistenceUnavailable(`Autosave recovery failed: ${message}`);
       return false;
     }
   }
@@ -223,6 +231,14 @@ export class WorldSessionController {
       clearTimeout(this.sessionAutoSaveTimer);
       this.sessionAutoSaveTimer = null;
     }
+  }
+
+  private reportPersistenceUnavailable(message: string): void {
+    this.log('warn', `Local recovery unavailable: ${message}`);
+    // World wires recordInteraction into the visible Interaction Coach. Keep the
+    // condition conspicuous in ordinary desktop/XR product UI rather than
+    // relying on a console-only warning.
+    this.recordInteraction('Local recovery unavailable', { result: message });
   }
 
   private isCurrent(generation: number): boolean {

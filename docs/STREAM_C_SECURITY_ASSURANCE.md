@@ -62,22 +62,22 @@ Use an independent reviewer/agent when available. An unresolved blocker discover
 
 ## Active Stream C findings
 
-These findings are promoted into the repository-wide RF sequence after RF-036.
+These findings were promoted into the repository-wide RF sequence after RF-036. Where a finding is now closed, the historical problem statement is retained below but the current disposition is stated first so this document cannot contradict the live implementation.
 
 ### RF-037 - Duplicate signalling ticket authorities and replay protection off the live path
 
 **Severity:** Critical  
-**Status:** `IMPLEMENTATION LANDED` (C1) — awaiting independent Stream B re-review
+**Status:** `VERIFIED COMPLETE` for the single-replica live admission boundary; multi-replica replay safety is an explicit deferred deployment obligation
 
-The live signalling server imports `verifySignedTicket` from `src/network/SignedTicket.ts`. That verifier checks HMAC integrity, expiry, room scope, and role, but does not consume the optional nonce. A valid captured ticket can therefore be replayed until expiry.
+**Current disposition (5 Sep 2026):** the original finding is no longer true on the live path. `src/network/SignedTicket.ts` is the single server-only signing/verifying authority, nonce is mandatory, and `SignallingServerCore` consumes the nonce atomically through `SignedTicketReplayGuard` during successful admission. The browser cannot sign or cryptographically validate room tickets. Production signalling service work subsequently added operator-issued one-use invites and real service admission/replay tests. Multi-replica replay protection is intentionally **not** claimed: `governance/production-readiness.json` records the required shared atomic nonce-store proof before more than one signalling replica may be enabled.
 
-`src/network/SignedTicketVerifier.ts` does implement nonce consumption and replay rejection, but it is not the production signalling authority. More importantly, the two implementations are not interchangeable: they define different ticket schemas and different role ontologies.
+The original defect was that the live signalling server imported a verifier that checked HMAC integrity, expiry, room scope, and role without consuming the optional nonce, while a separate verifier implemented replay rejection off-path. That duplicate-authority state has been removed.
 
-**C1 disposition (29 Aug 2026):** `src/network/SignedTicket.ts` is now the single canonical authority — one versioned schema (`version/room/role/issuedAt/exp/nonce`), one role ontology (`observer` | `participant`), one cryptographic mechanism (Node `crypto` HMAC-SHA256, synchronous), mandatory nonce consumed atomically with successful admission via `SignedTicketReplayGuard` on `createRoomRegistry().handleConnection()`. The obsolete `SignedTicketVerifier.ts` (WebCrypto, `sessionId/participantId/analyst|observer|collaborator` ontology) is removed and no longer exported from `src/network/index.ts`. Nonce-cache lifetime is bounded by ticket expiry and evicted in `cleanupIdleRooms`. Multi-instance nonce-store sharing is deliberately out of scope (per-instance replay protection) and is recorded as residual risk.
+**C1 disposition (29 Aug 2026):** `src/network/SignedTicket.ts` became the single canonical authority — one versioned schema (`version/room/role/issuedAt/exp/nonce`), one role ontology (`observer` | `participant`), one cryptographic mechanism (Node `crypto` HMAC-SHA256, synchronous), mandatory nonce consumed atomically with successful admission via `SignedTicketReplayGuard` on `createRoomRegistry().handleConnection()`. The obsolete `SignedTicketVerifier.ts` (WebCrypto, `sessionId/participantId/analyst|observer|collaborator` ontology) was removed and no longer exported from `src/network/index.ts`. Nonce-cache lifetime is bounded by ticket expiry and evicted in `cleanupIdleRooms`.
 
-Evidence: adversarial contract and verification record in `docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md`.
+Evidence: adversarial contract and verification record in `docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md`; production service follow-up in `docs/review-plans/P1_W1A_PRODUCTION_SIGNALLING_POST_REVIEW_2026-09-04.md`; deferred multi-replica closure contract in `governance/production-readiness.json` (`RDO-007`).
 
-**Required disposition (original):**
+**Required disposition (original, satisfied for single-replica admission):**
 
 - define one versioned canonical room-ticket schema and role model;
 - make one implementation the sole signing/verifying authority;
@@ -90,20 +90,13 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-038 - Scoped role token parser fails open to participant
 
 **Severity:** High  
-**Status:** `IMPLEMENTATION LANDED` (C1) — awaiting independent Stream B re-review
+**Status:** `VERIFIED COMPLETE`
 
-`authorizePeer()` currently maps every scoped-token suffix other than the exact string `observer` to the more privileged `participant` role. Typographical errors and unknown role names therefore fail open.
+`authorizePeer()` historically mapped every scoped-token suffix other than the exact string `observer` to the more privileged `participant` role. Typographical errors and unknown role names therefore failed open.
 
 **C1 disposition (29 Aug 2026):** `authorizePeer` now uses an exact allow-list — only the suffixes `observer` and `participant` are accepted; `admin`, casing variants, empty suffix, multi-colon suffixes, and unknown role names are rejected with `4001`/`invalid scoped token role` through the real `createRoomRegistry().handleConnection()` path. The resolved role from every branch (scoped token, ticket claims, `tokenValidator` claims, requested-role fallback) is additionally filtered through the single exact allow-list `normalizeNetworkRole`, so no role source can promote a foreign value to `participant`.
 
 Evidence: adversarial contract and verification record in `docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md`.
-
-**Required disposition (original):**
-
-- exact-allowlist `observer` and `participant`;
-- reject every other suffix;
-- prove rejection through the real room-registry admission path, not only a token parser helper;
-- retain strict observer capability tests.
 
 ### RF-039 - Upload hardening policy is duplicated and production evidence targets the wrong module
 
@@ -156,15 +149,9 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-042 - Dev UX trace terminal output accepts control sequences
 
 **Severity:** Low  
-**Status:** `IMPLEMENTATION PARTIAL`
+**Status:** `VERIFIED COMPLETE`
 
-The dev UX trace server JSON-escapes persisted records but interpolates client-controlled values directly into ANSI-coloured terminal output. Control sequences can therefore alter developer-terminal presentation.
-
-**Required disposition:**
-
-- strip or visibly escape C0/C1 controls and ESC from every client-controlled string before terminal presentation;
-- preserve machine-readable JSONL behavior;
-- add a regression test with ANSI/OSC/control-character payloads.
+The original dev UX trace server interpolated client-controlled values directly into ANSI-coloured terminal output. The 3 Sep adversarial fix-forward neutralized C0/C1/ESC terminal control sequences before terminal presentation and added deterministic regression evidence while preserving machine-readable trace records.
 
 ### RF-043 - Rust parser/WASM ABI hostile-input fuzz evidence gap
 
@@ -201,4 +188,4 @@ Stream C is not complete merely because RF-037 through RF-043 are closed individ
 
 ## Relationship to the master roadmap
 
-This document is a detailed work package under `docs/ROADMAP.md`. The master roadmap remains the implementation-status authority. RF-037 through RF-043 should be treated as active review/fix-forward findings until their dispositions and evidence are reflected in the master ledger.
+This document is a detailed work package under `docs/ROADMAP.md`. The master roadmap remains the implementation-status authority. Current closure claims in this document must remain consistent with the live roadmap/readiness registries; deployment-only residuals must not be relabelled as repository verification failures.
