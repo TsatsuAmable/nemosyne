@@ -43,8 +43,9 @@ interface XRConnectionEventData {
  * Wraps WebXR hand tracking and renders a hand mesh plus a pointing ray.
  * Detects pinch between thumb tip and index tip, updates `pinched` state for
  * per-frame polling, and calls `onPinchStart`/`onPinchEnd` fallback callbacks
- * (frame-gated). Pinch transitions are console-logged for on-device validation
- * traces (captured by logs/vr-remote-console.log).
+ * (frame-gated). Pinch transitions are `console.debug` lifecycle traces for
+ * local DevTools only; governed on-device pinch evidence, including routing
+ * decisions, is recorded by UXTraceRecorder in `logs/ux-trace.jsonl`.
  *
  * Robust joint lookup: some runtimes expose `XRHandPrimitive.joints` directly,
  * while others (Quest Browser) expose them on the connected event. We cache
@@ -162,8 +163,11 @@ export class HandPointer implements PointerLike {
     this.jointsValid = this._validateJoints();
 
     // Keep this log minimal; it is useful the first time a hand connects.
+    // Demoted from warn: connect/disconnect churn dominates VR remote logs
+    // (hundreds of events per session) and buries real warnings.
     if (!this.jointsValid || this._debugFrame <= 1) {
-      console.warn(`[HandPointer ${this.index}] connected`, {
+      // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+      console.debug(`[HandPointer ${this.index}] connected`, {
         handedness: this.handedness,
         jointsValid: this.jointsValid,
         jointCount: this.joints ? Object.keys(this.joints).length : 0,
@@ -177,7 +181,8 @@ export class HandPointer implements PointerLike {
       if (alternativeNames) {
         this.joints = alternativeNames;
         this.jointsValid = this._validateJoints();
-        console.warn(`[HandPointer ${this.index}] fallback joint names valid=${this.jointsValid}`);
+        // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+        console.debug(`[HandPointer ${this.index}] fallback joint names valid=${this.jointsValid}`);
       }
     }
   };
@@ -192,7 +197,8 @@ export class HandPointer implements PointerLike {
       HandPointer._sourceClaims.delete(this._boundSource);
       this._boundSource = null;
     }
-    console.warn(`[HandPointer ${this.index}] disconnected`);
+    // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+    console.debug(`[HandPointer ${this.index}] disconnected`);
   };
 
   dispose(): void {
@@ -250,7 +256,8 @@ export class HandPointer implements PointerLike {
             this.handedness = source.handedness ?? this.handedness;
             this.jointsValid = this._validateJoints();
             if (this.jointsValid) {
-              console.warn(
+              // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+              console.debug(
                 `[HandPointer ${this.index}] fallback from inputSource valid=${this.jointsValid} count=${Object.keys(this.joints).length} handedness=${this.handedness}`
               );
             }
@@ -263,7 +270,8 @@ export class HandPointer implements PointerLike {
           const handSourceCount = session?.inputSources
             ? Array.from(session.inputSources).filter((s) => s.hand).length
             : -1;
-          console.warn(
+          // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+          console.debug(
             `[HandPointer ${this.index}] waiting for joints: handedness=${this.handedness} session=${session ? 'yes' : 'no'} handSources=${handSourceCount} joints=${this.joints ? Object.keys(this.joints).length : 0}`
           );
         }
@@ -310,7 +318,8 @@ export class HandPointer implements PointerLike {
 
     if (!this.pinched && d < this.pinchThreshold) {
       this.pinched = true;
-      console.warn(
+      // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+      console.debug(
         `[HandPointer ${this.index}] pinch start d=${d.toFixed(3)} handedness=${this.handedness} frame=${this._debugFrame}`
       );
       if (this.onPinchStart && this._lastPinchCallbackFrame !== this._debugFrame) {
@@ -321,7 +330,8 @@ export class HandPointer implements PointerLike {
       }
     } else if (this.pinched && d > this.releaseThreshold) {
       this.pinched = false;
-      console.warn(
+      // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+      console.debug(
         `[HandPointer ${this.index}] pinch end d=${d.toFixed(3)} frame=${this._debugFrame}`
       );
       if (this.onPinchEnd && this._lastPinchCallbackFrame !== this._debugFrame) {
@@ -498,7 +508,11 @@ export class HandPointer implements PointerLike {
   private _logJointIssueOnce(message: string): void {
     if (this._lastJointIssueMsg === message) return;
     this._lastJointIssueMsg = message;
-    console.warn(`[HandPointer ${this.index}] ${message}`);
+    // Expected on Quest Browser (three.js Group wrappers, not native
+    // XRJointSpace): debug so the once-per-hand note does not read as a
+    // failure in remote VR logs.
+    // eslint-disable-next-line no-console -- intentional low-volume lifecycle trace; excluded from remote/VR log capture by design
+    console.debug(`[HandPointer ${this.index}] ${message}`);
   }
 
   /**
