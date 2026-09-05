@@ -76,12 +76,13 @@ function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
 }
 
-function hexToBytes(value: string): Uint8Array {
-  const bytes = new Uint8Array(value.length / 2);
+function hexToArrayBuffer(value: string): ArrayBuffer {
+  const buffer = new ArrayBuffer(value.length / 2);
+  const bytes = new Uint8Array(buffer);
   for (let index = 0; index < bytes.length; index += 1) {
     bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
   }
-  return bytes;
+  return buffer;
 }
 
 function cloneNullableReference(reference: ImmutableReferenceV1 | null): ImmutableReferenceV1 | null {
@@ -240,7 +241,7 @@ export async function verifySignedModelDeploymentManifestV1(
     valid = await globalThis.crypto.subtle.verify(
       MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM,
       publicKey,
-      hexToBytes(manifest.signature.value),
+      hexToArrayBuffer(manifest.signature.value),
       new TextEncoder().encode(manifest.manifestDigest.value),
     );
   } catch {
