@@ -123,17 +123,12 @@ function isStoredSessionSnapshotV2(value: unknown): value is StoredSessionSnapsh
   );
 }
 
-function datasetStorageIdentity(dataset: DatasetSnapshot): string {
-  // Session snapshots are already JSON-compatible values. Stringifying the
-  // complete DatasetJSON gives an exact persistence identity without creating a
-  // second scientific fingerprint authority. This key never leaves storage.
-  return JSON.stringify(dataset);
-}
-
-function rowStorageIdentity(row: unknown): string {
-  // Same rule as datasetStorageIdentity: this is storage-local exact-value
-  // deduplication, not a scientific fingerprint or cross-runtime identity.
-  return JSON.stringify(row);
+function storageIdentity(value: unknown, label: string): string {
+  const encoded = JSON.stringify(value);
+  if (encoded === undefined) {
+    throw new Error(`Session storage ${label} is not JSON-serializable`);
+  }
+  return encoded;
 }
 
 /**
@@ -156,7 +151,7 @@ export function compactSessionSnapshotForStorage(snapshot: SessionSnapshot): Sto
   const rowIdsByValue = new Map<string, string>();
 
   const internRow = (row: unknown): string => {
-    const identity = rowStorageIdentity(row);
+    const identity = storageIdentity(row, 'row');
     let id = rowIdsByValue.get(identity);
     if (!id) {
       id = `r${rowIdsByValue.size}`;
@@ -168,15 +163,19 @@ export function compactSessionSnapshotForStorage(snapshot: SessionSnapshot): Sto
 
   const visit = (value: unknown): unknown => {
     if (isDatasetSnapshot(value)) {
-      const identity = datasetStorageIdentity(value);
+      const { rows: datasetRows, ...metadata } = value;
+      const rowRefs = datasetRows.map(internRow);
+      // Identify a dataset from lightweight metadata + row-pool references so
+      // repeated derived snapshots do not repeatedly stringify large row bodies
+      // merely to discover that the rows are already interned.
+      const identity = storageIdentity({ metadata, rowRefs }, 'dataset');
       let id = datasetIdsByValue.get(identity);
       if (!id) {
         id = `d${datasetIdsByValue.size}`;
         datasetIdsByValue.set(identity, id);
-        const { rows: datasetRows, ...metadata } = value;
         datasets[id] = {
           metadata: structuredClone(metadata),
-          rowRefs: datasetRows.map(internRow),
+          rowRefs,
         };
       }
       return { [DATASET_REF_KEY]: id } satisfies DatasetReference;
@@ -267,6 +266,11 @@ export function expandSessionSnapshotFromStorage(value: unknown): SessionSnapsho
   if (isStoredSessionSnapshotV2(value)) return expandStoredSnapshotV2(value);
   if (isStoredSessionSnapshotV1(value)) return expandStoredSnapshotV1(value);
   if (!isRecord(value)) throw new Error('Session storage record is not an object');
+  if ('storageSchemaVersion' in value) {
+    throw new Error(
+      `Unsupported or malformed session storage schema ${String(value.storageSchemaVersion)}`,
+    );
+  }
   return structuredClone(value) as SessionSnapshot;
 }
 
