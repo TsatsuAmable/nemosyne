@@ -44,6 +44,8 @@ export const FALLBACK_BUILD_ID = 'unversioned-local-build';
 
 const GIT_SHA_RE = /^[0-9a-f]{40}$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const WASM_DIAGNOSTIC_PROBE_TIMEOUT_MS = 1000;
+const WASM_DIAGNOSTIC_PROBE_MAX_TIMEOUT_MS = 5000;
 
 /**
  * Resolve npm without depending on an executable shell shim.
@@ -105,17 +107,29 @@ function runWasmDevBuild({
  * Best-effort WASM prerequisite diagnostics for the 7/14 governed sessions
  * that abort with `WASM dev build failed; session aborted before Vite start`.
  *
- * Pure collection: never throws, never edits source. Promotion semantics are
- * untouched — the caller still records the same FAIL disposition reason.
+ * Pure collection: never throws, never edits source. Each external version probe
+ * is strictly time-bounded so diagnostics can never indefinitely delay writing
+ * the authoritative FAIL disposition. Promotion semantics are untouched.
  */
-export function collectWasmBuildDiagnostics({ root = process.cwd(), wasm = {} } = {}) {
+export function collectWasmBuildDiagnostics({
+  root = process.cwd(),
+  wasm = {},
+  probeSyncFn = spawnSync,
+  probeTimeoutMs = WASM_DIAGNOSTIC_PROBE_TIMEOUT_MS,
+} = {}) {
+  const boundedProbeTimeoutMs =
+    Number.isFinite(probeTimeoutMs) && probeTimeoutMs > 0
+      ? Math.min(probeTimeoutMs, WASM_DIAGNOSTIC_PROBE_MAX_TIMEOUT_MS)
+      : WASM_DIAGNOSTIC_PROBE_TIMEOUT_MS;
   const probe = (command, args) => {
     try {
-      const stdout = execFileSync(command, args, {
+      const result = probeSyncFn(command, args, {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: boundedProbeTimeoutMs,
       });
-      return String(stdout ?? '').trim().slice(0, 512) || null;
+      if (result?.error || result?.status !== 0) return null;
+      return String(result?.stdout ?? '').trim().slice(0, 512) || null;
     } catch {
       return null;
     }
