@@ -31,6 +31,34 @@ function escapeCell(value) {
   return String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * A finalized bundle must not disappear from publication merely because its
+ * custody file was deleted. Finalization leaves several independent derived
+ * markers; any one of them makes the directory a candidate that must verify.
+ * Launch placeholders do not satisfy these markers.
+ */
+function isFinalizedCandidate(entryName) {
+  const evidenceDir = path.join(validationLogRoot, entryName);
+  if (fs.existsSync(path.join(evidenceDir, 'custody.json'))) return true;
+  if (fs.existsSync(path.join(evidenceDir, 'evidence-index.json'))) return true;
+  if (fs.existsSync(path.join(evidenceDir, 'report.md'))) return true;
+
+  const analysis = readJson(path.join(evidenceDir, 'analysis.json'));
+  if (
+    isRecord(analysis) &&
+    analysis.status === 'complete' &&
+    typeof analysis.rawEvidenceDigest === 'string'
+  ) {
+    return true;
+  }
+  const disposition = readJson(path.join(evidenceDir, 'disposition.json'));
+  return isRecord(disposition) && typeof disposition.rawEvidenceDigest === 'string';
+}
+
 function loadProjection(entryName) {
   if (!SESSION_LABEL_RE.test(entryName)) {
     return { ok: false, reason: 'finalized session directory has an invalid label' };
@@ -119,9 +147,7 @@ function main() {
   }
 
   const finalizedEntries = entries.filter(
-    (entry) =>
-      entry.isDirectory() &&
-      fs.existsSync(path.join(validationLogRoot, entry.name, 'custody.json'))
+    (entry) => entry.isDirectory() && isFinalizedCandidate(entry.name)
   );
   const projections = [];
   const rejected = [];
