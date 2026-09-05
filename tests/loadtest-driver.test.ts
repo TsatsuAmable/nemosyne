@@ -288,4 +288,45 @@ describe('LoadTestDriver state machine', () => {
     expect(session.removeEventListener).toHaveBeenCalledTimes(1);
     expect(events.filter((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)).toHaveLength(1);
   });
+
+  it('restores the pre-run dataset on completion so the UI stays usable', async () => {
+    const profile: LoadTestProfile = {
+      name: 'restore',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 1_000, durationSec: 0.03, label: '1k' }],
+    };
+    const preRunEntry = { key: 'supply-chain', name: 'Supply Chain Hierarchy' };
+    const tracker = { count: 0, entries: [] as unknown[] };
+    const events: { topic: string; payload?: unknown }[] = [];
+    const world = { ...makeWorld(tracker, events), currentEntry: preRunEntry };
+    const driver = new LoadTestDriver(world, makeEngine(8));
+
+    driver.run(profile);
+    driver.update(0.016, 0); // → MEASURING
+    await wait(40);
+    driver.update(0.016, 0); // finish → COMPLETE + restore
+
+    expect(driver.phase).toBe('COMPLETE');
+    expect(tracker.count).toBe(2);
+    expect(tracker.entries[tracker.entries.length - 1]).toBe(preRunEntry);
+  });
+
+  it('skips the restore when no dataset was active before the run', async () => {
+    const profile: LoadTestProfile = {
+      name: 'no-restore',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 1_000, durationSec: 0.03, label: '1k' }],
+    };
+    const tracker = { count: 0, entries: [] as unknown[] };
+    const events: { topic: string; payload?: unknown }[] = [];
+    const driver = new LoadTestDriver(makeWorld(tracker, events), makeEngine(8));
+
+    driver.run(profile);
+    driver.update(0.016, 0); // → MEASURING
+    await wait(40);
+    driver.update(0.016, 0); // finish → COMPLETE, no restore
+
+    expect(driver.phase).toBe('COMPLETE');
+    expect(tracker.count).toBe(1);
+  });
 });
