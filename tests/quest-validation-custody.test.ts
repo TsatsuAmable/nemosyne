@@ -225,6 +225,26 @@ describe('QV4 evidence finalization and custody', () => {
       'quest-3s-qualification'
     );
   });
+
+  it('does not count duplicate reports from one session as independent qualification runs', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawSession(root);
+    appendFileSync(
+      join(evidenceDir, 'loadtest-results.jsonl'),
+      `${JSON.stringify(greenReport(value))}\n`
+    );
+
+    const result = finalizeValidationSession({
+      validationLogRoot: validationRoot,
+      sessionLabel: SESSION.label,
+    });
+    expect(result).toMatchObject({ status: 'finalized', aggregateStatus: 'INVALID_RUN' });
+
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.cohort.perfCompletedRunCount).toBe(0);
+    expect(analysis.cohort.perfPassingRunCount).toBe(0);
+    expect(analysis.validationErrors.join(' ')).toContain('exactly one report per session');
+  });
 });
 
 describe('QV8 dev-server custody guard', () => {
