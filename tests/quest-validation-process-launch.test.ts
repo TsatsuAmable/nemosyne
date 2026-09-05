@@ -73,22 +73,22 @@ describe('Quest validation process launch portability', () => {
   });
 
   it('bounds WASM toolchain probes and records null instead of throwing on probe failure', () => {
-    const probeSyncFn = vi.fn((command: string) => {
+    const probeMock = vi.fn((command: string) => {
       if (command === 'cargo') {
         return { status: null, stdout: '', error: new Error('probe timed out') };
       }
       return { status: 0, stdout: `${command} 1.0.0\n`, error: undefined };
-    }) as unknown as WasmDiagnosticProbeFn;
+    });
 
     const diagnostics = collectWasmBuildDiagnostics({
       root: tempRoot(),
       wasm: { status: 1 },
-      probeSyncFn,
+      probeSyncFn: probeMock as unknown as WasmDiagnosticProbeFn,
       probeTimeoutMs: 123,
     });
 
-    expect(probeSyncFn).toHaveBeenCalledTimes(3);
-    for (const call of probeSyncFn.mock.calls) {
+    expect(probeMock).toHaveBeenCalledTimes(3);
+    for (const call of probeMock.mock.calls) {
       expect(call[2]).toMatchObject({ timeout: 123, encoding: 'utf8' });
     }
     expect(diagnostics.status).toBe(1);
@@ -98,16 +98,16 @@ describe('Quest validation process launch portability', () => {
   });
 
   it('caps an excessive diagnostic-probe timeout so failure evidence stays bounded', () => {
-    const probeSyncFn = vi.fn(() => ({ status: 0, stdout: 'ok\n', error: undefined })) as unknown as WasmDiagnosticProbeFn;
+    const probeMock = vi.fn(() => ({ status: 0, stdout: 'ok\n', error: undefined }));
 
     collectWasmBuildDiagnostics({
       root: tempRoot(),
       wasm: { status: 1 },
-      probeSyncFn,
+      probeSyncFn: probeMock as unknown as WasmDiagnosticProbeFn,
       probeTimeoutMs: Number.MAX_SAFE_INTEGER,
     });
 
-    for (const call of probeSyncFn.mock.calls) {
+    for (const call of probeMock.mock.calls) {
       expect(call[2].timeout).toBe(5000);
     }
   });
@@ -119,15 +119,15 @@ describe('Quest validation process launch portability', () => {
     writeFileSync(join(wasmPkg, 'nemosyne_wasm.js'), 'export default {};\n');
     writeFileSync(join(wasmPkg, 'nemosyne_wasm_bg.wasm'), 'wasm-bytes');
 
-    const probeSyncFn = vi.fn((command: string) => ({
+    const probeMock = vi.fn((command: string) => ({
       status: 0,
       stdout: `${command} 1.0.0\n`,
       error: undefined,
-    })) as unknown as WasmDiagnosticProbeFn;
+    }));
     const diagnostics = collectWasmBuildDiagnostics({
       root,
       wasm: { status: 1 },
-      probeSyncFn,
+      probeSyncFn: probeMock as unknown as WasmDiagnosticProbeFn,
     });
 
     const manifest = {
