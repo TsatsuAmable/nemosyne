@@ -133,8 +133,29 @@ export interface WasmBuildDiagnostics {
   hint: string;
 }
 
+export interface WasmDiagnosticProbeResult {
+  status: number | null;
+  stdout?: string | Buffer | null;
+  error?: unknown;
+}
+
+export type WasmDiagnosticProbeFn = (
+  command: string,
+  args: string[],
+  options: {
+    encoding: 'utf8';
+    stdio: ['ignore', 'pipe', 'pipe'];
+    timeout: number;
+  }
+) => WasmDiagnosticProbeResult;
+
 export declare function collectWasmBuildDiagnostics(
-  options?: { root?: string; wasm?: WasmDevBuildResult }
+  options?: {
+    root?: string;
+    wasm?: WasmDevBuildResult;
+    probeSyncFn?: WasmDiagnosticProbeFn;
+    probeTimeoutMs?: number;
+  }
 ): WasmBuildDiagnostics;
 export declare function writeWasmBuildLog(
   manifest: Pick<ValidationManifest, 'evidenceDir'>,
