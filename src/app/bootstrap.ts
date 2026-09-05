@@ -491,7 +491,35 @@ export async function bootstrapApp(): Promise<AppInstance> {
       },
     });
     world.registerExtensionDisposer(() => devEvidence.dispose());
-    setupDevTraceRecorder(devTraceBindings(world));
+  }
+
+  // UX-trace recorder is constructed in all builds. Recording itself is
+  // gated: always on in dev, otherwise only when the investigator opts in
+  // via the `prodTraceEnabled` setting (default off). With no dev-server
+  // endpoint (production), records accumulate in the bounded in-memory
+  // buffer for user-initiated EXPORT TRACE download; nothing transmits.
+  {
+    const traceRecorder = setupDevTraceRecorder(devTraceBindings(world));
+    world.prodTraceRecorder = traceRecorder;
+    let prodTraceOn = false;
+    try {
+      prodTraceOn = world.uiManager.settingsPanel.getSetting('prodTraceEnabled') === true;
+    } catch {
+      prodTraceOn = false;
+    }
+    traceRecorder.setEnabled(import.meta.env.DEV || prodTraceOn);
+    if (traceRecorder.enabled) traceRecorder.recordSessionManifest(world._prodTraceManifest());
+    const unsubscribeDatasetTrace = world.eventBus.on(WorldTopics.DATASET_LOADED, () => {
+      if (traceRecorder.enabled) traceRecorder.recordSessionManifest(world._prodTraceManifest());
+    });
+    world.registerExtensionDisposer(() => {
+      try {
+        unsubscribeDatasetTrace();
+      } catch {
+        // Ignore unsubscribe failures during teardown.
+      }
+      traceRecorder.dispose();
+    });
   }
 
   if (import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS === '1') {

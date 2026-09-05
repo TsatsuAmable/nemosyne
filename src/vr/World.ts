@@ -97,6 +97,7 @@ import type {
   TelemetryCollectorLike,
   WorldEventBusLike,
 } from './coordinators/types.ts';
+import type { UXTraceRecorder, SessionManifestInfo } from './trace/UXTraceRecorder.ts';
 import type { InteractionMode, FocusState } from './input/InteractionModeController.ts';
 import type { RepresentationRequirements } from '../moneta/representation/RepresentationRequirements.ts';
 import { createDefaultRequirements } from '../moneta/representation/RepresentationRequirements.ts';
@@ -166,6 +167,13 @@ export class World {
   portalA: FarcasterPortal;
   portalB: FarcasterPortal;
   telemetryCollector: TelemetryCollectorLike;
+  /**
+   * UX-trace recorder (session-manifest correlation + optional production
+   * recording). Owned here, constructed by bootstrap in all builds;
+   * recording is gated on the explicit `prodTraceEnabled` setting outside
+   * dev. Null until bootstrap wires it.
+   */
+  prodTraceRecorder: UXTraceRecorder | null = null;
   uiManager: WorldUIManager;
   inputCoordinator: WorldInputCoordinator;
   userModeController: UserModeController;
@@ -368,6 +376,10 @@ export class World {
       getLocalPeerId: () => this.networkManager?.peerId ?? null,
       getSetting: (key) => this.uiManager?.settingsPanel?.getSetting?.(key),
       telemetryCollector: this.telemetryCollector,
+      traceExporter: () => {
+        const recorder = this.prodTraceRecorder;
+        return recorder && recorder.hasRecords ? recorder.exportJson() : null;
+      },
       analysisHistory: this.dataOperationController.analysisHistory,
       getRecommendation: () => this.atlas.activeRecommendation ?? null,
       getOutcome: () => this._activeOutcome,
@@ -1971,6 +1983,8 @@ export class World {
     } else if (key === 'telemetryEnabled') {
       this.telemetryCollector.saveConsent?.(value as boolean);
       this.uiManager.vrConsole?.log?.('log', [`Telemetry ${value ? 'enabled' : 'disabled'}`]);
+    } else if (key === 'prodTraceEnabled') {
+      this.setProdTraceEnabled(value === true);
     } else if (['textScale', 'highContrast', 'colorblindMode', 'dwellSelection'].includes(key)) {
       this._applyAccessibilitySettings();
     } else if (key === 'strictBudget') {
@@ -2010,6 +2024,80 @@ export class World {
     this._saveSharedSettings();
     this._logInteraction('Setting changed', { result: `${key} = ${value}` });
     this._captureSession();
+  }
+
+  /**
+   * Enforcement point for the `prodTraceEnabled` feature flag (default off).
+   * Enabling starts UX-trace recording into the bounded in-memory buffer and
+   * emits a correlation manifest; disabling stops all sampling work. Neither
+   * direction transmits anything: export is user-initiated download only.
+   */
+  setProdTraceEnabled(enabled: boolean): void {
+    const recorder = this.prodTraceRecorder;
+    if (!recorder) {
+      this.uiManager.vrConsole?.log?.('warn', [
+        'Prod trace recorder unavailable (bootstrap wiring missing).',
+      ]);
+      return;
+    }
+    recorder.setEnabled(enabled);
+    if (enabled) recorder.recordSessionManifest(this._prodTraceManifest());
+    this.uiManager.vrConsole?.log?.('log', [
+      `Prod trace recording ${enabled ? 'enabled (local-only buffer)' : 'disabled'}`,
+    ]);
+  }
+
+  /**
+   * Correlation manifest linking the trace sid to build, validation
+   * session, and dataset identity. All fields optional; unknown values
+   * are omitted rather than fabricated.
+   */
+  _prodTraceManifest(): Partial<SessionManifestInfo> {
+    const manifest: Partial<SessionManifestInfo> = {};
+    const env = World._viteEnv();
+    if (env.VITE_NEMOSYNE_BUILD_ID) manifest.buildHash = env.VITE_NEMOSYNE_BUILD_ID;
+    if (env.VITE_NEMOSYNE_VALIDATION_SESSION_LABEL)
+      manifest.validationSessionLabel = env.VITE_NEMOSYNE_VALIDATION_SESSION_LABEL;
+    if (env.VITE_NEMOSYNE_VALIDATION_SESSION_ID)
+      manifest.validationSessionId = env.VITE_NEMOSYNE_VALIDATION_SESSION_ID;
+    try {
+      const entry = this.currentEntry;
+      const name =
+        typeof entry?.name === 'string'
+          ? entry.name
+          : typeof entry?.label === 'string'
+            ? entry.label
+            : undefined;
+      if (name) manifest.datasetName = name;
+      if (typeof entry?.topology === 'string') manifest.topology = entry.topology;
+      const fingerprint = (
+        this.atlas as unknown as { datasetFingerprint?: unknown }
+      ).datasetFingerprint;
+      if (typeof fingerprint === 'string' && fingerprint.length > 0)
+        manifest.datasetFingerprint = fingerprint;
+    } catch {
+      // Atlas/entry may be torn down; manifest stays partial.
+    }
+    return manifest;
+  }
+
+  private static _viteEnv(): Record<string, string | undefined> {
+    try {
+      const env = (import.meta as unknown as { env?: Record<string, unknown> }).env;
+      if (!env || typeof env !== 'object') return {};
+      const out: Record<string, string | undefined> = {};
+      for (const key of [
+        'VITE_NEMOSYNE_BUILD_ID',
+        'VITE_NEMOSYNE_VALIDATION_SESSION_LABEL',
+        'VITE_NEMOSYNE_VALIDATION_SESSION_ID',
+      ]) {
+        const value = env[key];
+        out[key] = typeof value === 'string' && value.length > 0 ? value : undefined;
+      }
+      return out;
+    } catch {
+      return {};
+    }
   }
 
   _applyAccessibilitySettings(): void {
