@@ -46,7 +46,11 @@ export class SystemGestureDetector {
     this.registry = pointerRegistry;
     this._bothPinchHoldMs = options.bothPinchHoldMs ?? 400;
     this._toggleCooldownMs = options.toggleCooldownMs ?? 1000;
-    this._reachZoneY = options.reachZoneY ?? 1.5;
+    const reachZoneY = options.reachZoneY ?? 1.5;
+    if (!Number.isFinite(reachZoneY)) {
+      throw new RangeError('reachZoneY must be a finite number');
+    }
+    this._reachZoneY = reachZoneY;
     this._now = options.now ?? (() => performance.now());
   }
 
