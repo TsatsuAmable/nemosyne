@@ -90,6 +90,7 @@ export class Engine {
   private _xrVisibilityHandler: ((event: XRSessionEvent) => void) | null = null;
   private _xrVisibilitySession: XRSession | null = null;
   private _sessionStartBound = false;
+  private _resumeAfterContextRestore = false;
 
   constructor() {
     this.scene = new THREE.Scene();
@@ -200,6 +201,10 @@ export class Engine {
 
   start(): void {
     if (this.state === 'disposed') return;
+    if (this.state === 'context_lost') {
+      this._resumeAfterContextRestore = true;
+      return;
+    }
     if (this.state === 'running' && this._sessionStartBound) return;
     this.state = 'running';
     this._resetFrameTimingBaseline();
@@ -213,6 +218,10 @@ export class Engine {
 
   pause(): void {
     if (this.state === 'disposed' || this.state === 'paused') return;
+    if (this.state === 'context_lost') {
+      this._resumeAfterContextRestore = false;
+      return;
+    }
     this.state = 'paused';
     this.renderer.setAnimationLoop(null);
   }
@@ -446,6 +455,8 @@ export class Engine {
 
   _contextLost(event: Event): void {
     event.preventDefault();
+    if (this.state === 'disposed' || this.state === 'context_lost') return;
+    this._resumeAfterContextRestore = this.state === 'running';
     this.state = 'context_lost';
     console.warn('[Engine] WebGL context lost');
     this._reportSessionStatus('GPU context lost — pausing render', '#ffaa00');
@@ -453,17 +464,22 @@ export class Engine {
   }
 
   _contextRestored(): void {
-    if (this.state === 'disposed' || this.state === 'paused') return;
-    this.state = 'running';
+    if (this.state === 'disposed' || this.state !== 'context_lost') return;
+    const shouldResume = this._resumeAfterContextRestore;
+    this._resumeAfterContextRestore = false;
     this._resetFrameTimingBaseline();
+    this.state = shouldResume ? 'running' : 'paused';
     console.warn('[Engine] WebGL context restored');
     this._reportSessionStatus('GPU context restored', '#00ffcc');
-    this.renderer.setAnimationLoop(() => this._tick());
+    if (shouldResume) {
+      this.renderer.setAnimationLoop(() => this._tick());
+    }
   }
 
   dispose(): void {
     if (this.state === 'disposed') return;
     this.state = 'disposed';
+    this._resumeAfterContextRestore = false;
     this.renderer.setAnimationLoop(null);
     try {
       this.timer.disconnect();
