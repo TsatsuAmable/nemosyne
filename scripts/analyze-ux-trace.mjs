@@ -14,7 +14,10 @@
  *   - trace completeness / integrity status
  *   - pinch outcome table (gating x what the ray actually hit)
  *   - selection hit/miss rates, misses while looking at a panel (aim errors)
+ *   - miss classes via rayValid (tracking-loss vs aimed vs legacy-unknown)
  *   - head-gaze vs pointer-ray drift stats (median/p90) + target divergence
+ *   - drift conditioned on selection outcome (miss vs hit)
+ *   - hand-height exposure above the 1.5m suppression line
  *   - frustration windows: >=2 ineffective pinches within 3 s
  *   - system toggles / suppressions, wheel open/close counts, tour progress
  *   - --timeline prints a compact chronological event table
@@ -227,6 +230,18 @@ for (const [sid, recs] of sessions) {
         ? ` (${missesWhileLookingAtPanel.length} of them while head-gaze was on a panel/hud => likely aim errors)`
         : '')
   );
+  // Miss classes via rayValid (present since the callback-truthfulness fix):
+  // tracking-loss misses need different remediation than aimed misses.
+  const noneMisses = selections.filter((s) => s.hit === 'none');
+  const noRay = noneMisses.filter((s) => s.rayValid === false).length;
+  const aimed = noneMisses.filter((s) => s.rayValid === true).length;
+  const unknownRay = noneMisses.length - noRay - aimed;
+  if (noneMisses.length > 0) {
+    console.log(
+      `  Miss classes: no-ray (tracking loss)=${noRay} aimed (valid ray, no target)=${aimed}` +
+        (unknownRay > 0 ? ` unknown-ray (legacy records)=${unknownRay}` : '')
+    );
+  }
 
   // --- Drift ---------------------------------------------------------------
   const drifts = contexts.map((c) => c.ctx?.ptr?.driftDeg).filter((d) => typeof d === 'number');
@@ -245,6 +260,21 @@ for (const [sid, recs] of sessions) {
     if (withTargets > 0) {
       console.log(
         `  gaze/pointer target divergence: ${diverged}/${withTargets} samples (${((100 * diverged) / withTargets).toFixed(0)}%)`
+      );
+    }
+    // Drift conditioned on selection outcome: high drift at hits suggests
+    // the raw angle overstates aim error (eye-hand offset); high drift
+    // concentrated at misses points at genuine aiming/tracking trouble.
+    const driftByOutcome = {};
+    for (const s of selections) {
+      const d = s.ctx?.ptr?.driftDeg;
+      if (typeof d !== 'number') continue;
+      const key = s.hit ?? 'unknown';
+      (driftByOutcome[key] ??= []).push(d);
+    }
+    for (const [outcome, ds] of Object.entries(driftByOutcome)) {
+      console.log(
+        `  drift at selection:${outcome}: n=${ds.length} median=${pct(ds, 50).toFixed(1)}° p90=${pct(ds, 90).toFixed(1)}°`
       );
     }
   }
@@ -351,6 +381,22 @@ for (const [sid, recs] of sessions) {
     const gk = {};
     for (const g of gestures) gk[g.name] = (gk[g.name] ?? 0) + 1;
     console.log(`  gestures: ${Object.entries(gk).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+  }
+  // Suppression exposure: fraction of context samples with any hand above
+  // the reach-zone line. Calibrates the 1.5m both-pinch suppression
+  // threshold against how investigators actually hold their hands.
+  const handHeights = [];
+  for (const c of contexts) {
+    const hands = c.ctx?.hands;
+    if (!Array.isArray(hands)) continue;
+    for (const h of hands) if (typeof h?.y === 'number') handHeights.push(h.y);
+  }
+  if (handHeights.length > 0) {
+    const above = handHeights.filter((y) => y > 1.5).length;
+    const abovePct = ((100 * above) / handHeights.length).toFixed(0);
+    console.log(
+      `  hand heights: n=${handHeights.length} max=${Math.max(...handHeights).toFixed(2)}m above 1.5m=${above} (${abovePct}%)`
+    );
   }
 }
 
