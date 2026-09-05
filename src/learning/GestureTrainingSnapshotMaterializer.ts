@@ -5,7 +5,6 @@ import {
   DERIVED_GESTURE_OBSERVATION_FAMILY_ID,
   GESTURE_LEARNING_GOVERNED_EVENT_REGISTRY_V1,
   GOVERNED_PURPOSES,
-  canonicalGovernedJsonV1,
   decodeDerivedGestureLabelCodeV1,
   validateGovernedEventEnvelopeV1,
   type AuthorizationReferenceV1,
@@ -21,18 +20,39 @@ import {
   type GestureTrainingSnapshotV1,
 } from '../vr/input/GestureLearningContracts.ts';
 
-const EXPORT_SCHEMA_VERSION = '1' as const;
-const MAX_EXPORT_BODIES = 10_000;
 const MAX_TOTAL_RECORDS = 1_000_000;
-const MAX_EXPORT_BODY_BYTES = 64 * 1024 * 1024;
+const MAX_ENVELOPE_BYTES = 16 * 1024;
 const UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
+export interface GestureTrainingSourceReadRequestV1 {
+  readonly schemaVersion: '1';
+  /** Inclusive server-received cutoff. Prevents later arrivals changing the materialized population. */
+  readonly asOf: string;
+  readonly maxRecords: number;
+}
+
+/**
+ * Trusted internal projection from the governed durable store.
+ *
+ * It deliberately omits principal/deletion handles. The purpose-scoped profile
+ * pseudonym remains inside the already-admitted envelope and is the only user
+ * grouping authority visible to the learning plane.
+ */
+export interface GestureTrainingSourceRecordV1 {
+  readonly eventId: string;
+  readonly serverReceivedAt: string;
+  readonly envelopeJson: string;
+}
+
+export interface GestureTrainingSnapshotSourceV1 {
+  readDerivedLearningRecords(
+    request: GestureTrainingSourceReadRequestV1,
+  ): Promise<readonly GestureTrainingSourceRecordV1[]>;
+}
+
 export type GestureTrainingMaterializationIssueCode =
-  | 'INVALID_EXPORT_BODY'
-  | 'INVALID_EXPORT_MANIFEST'
+  | 'INVALID_SOURCE_RECORD'
   | 'WRONG_PURPOSE'
-  | 'RECORD_COUNT_MISMATCH'
-  | 'INVALID_GOVERNED_RECORD'
   | 'MISSING_PROFILE_PSEUDONYM'
   | 'INVALID_CONSENT_PROVENANCE'
   | 'INVALID_LABEL_PROVENANCE'
@@ -53,21 +73,6 @@ export class GestureTrainingMaterializationError extends Error {
     this.name = 'GestureTrainingMaterializationError';
     this.issues = Object.freeze([...issues]);
   }
-}
-
-interface GestureLearningExportManifestV1 {
-  readonly kind: 'MANIFEST';
-  readonly schemaVersion: typeof EXPORT_SCHEMA_VERSION;
-  readonly purpose: typeof GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING;
-  readonly recordCount: number;
-  readonly from: string;
-  readonly to: string;
-}
-
-interface GestureLearningExportRecordV1 {
-  readonly kind: 'RECORD';
-  readonly serverReceivedAt: string;
-  readonly envelope: GovernedEventEnvelopeV1;
 }
 
 interface DerivedGesturePayloadV1 {
@@ -102,57 +107,6 @@ function sameReference(left: ImmutableReferenceV1, right: ImmutableReferenceV1):
     left.digest.value === right.digest.value;
 }
 
-function parseJsonLine(line: string, path: string): unknown {
-  try {
-    return JSON.parse(line) as unknown;
-  } catch {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_EXPORT_BODY',
-      path,
-      message: 'must contain valid JSON on every NDJSON line',
-    }]);
-  }
-}
-
-function parseManifest(value: unknown, path: string): GestureLearningExportManifestV1 {
-  if (!isRecord(value) || !exactKeys(value, ['kind', 'schemaVersion', 'purpose', 'recordCount', 'from', 'to'])) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_EXPORT_MANIFEST',
-      path,
-      message: 'manifest must contain exactly kind, schemaVersion, purpose, recordCount, from and to',
-    }]);
-  }
-  if (value.kind !== 'MANIFEST' || value.schemaVersion !== EXPORT_SCHEMA_VERSION) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_EXPORT_MANIFEST',
-      path,
-      message: 'manifest kind/schemaVersion is unsupported',
-    }]);
-  }
-  if (value.purpose !== GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'WRONG_PURPOSE',
-      path: `${path}.purpose`,
-      message: 'PT6D training snapshots accept only derived-gesture-learning exports; raw trajectories are never silently promoted into training snapshots',
-    }]);
-  }
-  if (!Number.isSafeInteger(value.recordCount) || (value.recordCount as number) < 0 || !validUtcTimestamp(value.from) || !validUtcTimestamp(value.to)) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_EXPORT_MANIFEST',
-      path,
-      message: 'recordCount and export time bounds are invalid',
-    }]);
-  }
-  if (Date.parse(value.from) > Date.parse(value.to)) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_EXPORT_MANIFEST',
-      path,
-      message: 'manifest from must not exceed to',
-    }]);
-  }
-  return value as unknown as GestureLearningExportManifestV1;
-}
-
 function parseDerivedPayload(value: JsonValue, path: string): DerivedGesturePayloadV1 {
   if (!isRecord(value) || !exactKeys(value, [
     'featureSchemaId',
@@ -164,7 +118,7 @@ function parseDerivedPayload(value: JsonValue, path: string): DerivedGesturePayl
     'recordedAt',
   ])) {
     throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_GOVERNED_RECORD',
+      code: 'INVALID_SOURCE_RECORD',
       path,
       message: 'derived gesture payload is not the closed PT6B schema',
     }]);
@@ -179,7 +133,7 @@ function parseDerivedPayload(value: JsonValue, path: string): DerivedGesturePayl
     !validUtcTimestamp(value.recordedAt)
   ) {
     throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_GOVERNED_RECORD',
+      code: 'INVALID_SOURCE_RECORD',
       path,
       message: 'derived gesture payload does not preserve the reviewed feature schema and bounded label evidence',
     }]);
@@ -211,70 +165,82 @@ function findConsentAuthorization(envelope: GovernedEventEnvelopeV1, path: strin
   return authorization;
 }
 
-function materializeRecord(value: unknown, path: string): GestureLearningSampleRefV1 {
-  if (!isRecord(value) || !exactKeys(value, ['kind', 'serverReceivedAt', 'envelope']) || value.kind !== 'RECORD' || !validUtcTimestamp(value.serverReceivedAt)) {
+function materializeRecord(
+  record: GestureTrainingSourceRecordV1,
+  index: number,
+  asOf: string,
+): GestureLearningSampleRefV1 {
+  const path = `records[${index}]`;
+  if (
+    !record || typeof record.eventId !== 'string' || !record.eventId ||
+    !validUtcTimestamp(record.serverReceivedAt) || typeof record.envelopeJson !== 'string' || !record.envelopeJson
+  ) {
     throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_GOVERNED_RECORD',
+      code: 'INVALID_SOURCE_RECORD',
       path,
-      message: 'export record must contain exactly kind, serverReceivedAt and envelope',
+      message: 'source record identity, server timestamp and envelope are required',
     }]);
   }
-  if (!isRecord(value.envelope)) {
+  if (Date.parse(record.serverReceivedAt) > Date.parse(asOf)) {
     throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_GOVERNED_RECORD',
-      path: `${path}.envelope`,
-      message: 'envelope must be a governed-event object',
+      code: 'INVALID_SOURCE_RECORD',
+      path: `${path}.serverReceivedAt`,
+      message: 'source returned a record newer than the immutable materialization cutoff',
+    }]);
+  }
+  if (new TextEncoder().encode(record.envelopeJson).byteLength > MAX_ENVELOPE_BYTES) {
+    throw new GestureTrainingMaterializationError([{
+      code: 'RESOURCE_LIMIT_EXCEEDED',
+      path: `${path}.envelopeJson`,
+      message: `derived governed envelope exceeds the ${MAX_ENVELOPE_BYTES}-byte materialization bound`,
     }]);
   }
 
-  let wire: string;
-  try {
-    wire = canonicalGovernedJsonV1(value.envelope as unknown as JsonValue);
-  } catch {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_GOVERNED_RECORD',
-      path: `${path}.envelope`,
-      message: 'envelope cannot be canonically represented as governed JSON',
-    }]);
-  }
-  const structural = validateGovernedEventEnvelopeV1(wire, GESTURE_LEARNING_GOVERNED_EVENT_REGISTRY_V1);
+  const structural = validateGovernedEventEnvelopeV1(record.envelopeJson, GESTURE_LEARNING_GOVERNED_EVENT_REGISTRY_V1);
   if (!structural.ok) {
     throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_GOVERNED_RECORD',
-      path: `${path}.envelope`,
+      code: 'INVALID_SOURCE_RECORD',
+      path: `${path}.envelopeJson`,
       message: `governed envelope failed structural/digest validation: ${structural.issues.map((issue) => issue.code).join(',')}`,
     }]);
   }
   const envelope = structural.envelope;
+  if (envelope.eventId !== record.eventId) {
+    throw new GestureTrainingMaterializationError([{
+      code: 'INVALID_SOURCE_RECORD',
+      path: `${path}.eventId`,
+      message: 'durable row identity does not match its governed envelope',
+    }]);
+  }
   if (
     envelope.eventFamilyId !== DERIVED_GESTURE_OBSERVATION_FAMILY_ID ||
     envelope.purpose !== GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING
   ) {
     throw new GestureTrainingMaterializationError([{
       code: 'WRONG_PURPOSE',
-      path: `${path}.envelope.eventFamilyId`,
-      message: 'only admitted L2 derived gesture observations are eligible for this snapshot contract',
+      path: `${path}.envelopeJson`,
+      message: 'only admitted L2 derived gesture observations are eligible; L3 raw trajectories remain a separately governed research family',
     }]);
   }
   const profilePseudonymId = envelope.identities.profilePseudonymId;
   if (!profilePseudonymId) {
     throw new GestureTrainingMaterializationError([{
       code: 'MISSING_PROFILE_PSEUDONYM',
-      path: `${path}.envelope.identities.profilePseudonymId`,
+      path: `${path}.envelopeJson.identities.profilePseudonymId`,
       message: 'purpose-scoped profile identity is required for user-disjoint splitting',
     }]);
   }
 
-  const payload = parseDerivedPayload(envelope.payload, `${path}.envelope.payload`);
+  const payload = parseDerivedPayload(envelope.payload, `${path}.envelopeJson.payload`);
   const decoded = decodeDerivedGestureLabelCodeV1(payload.labelCode);
   if (!decoded) {
     throw new GestureTrainingMaterializationError([{
       code: 'INVALID_LABEL_PROVENANCE',
-      path: `${path}.envelope.payload.labelCode`,
+      path: `${path}.envelopeJson.payload.labelCode`,
       message: 'only frozen explicit confirmation/correction labels may become L2 training truth',
     }]);
   }
-  const consent = findConsentAuthorization(envelope, `${path}.envelope`);
+  const consent = findConsentAuthorization(envelope, `${path}.envelopeJson`);
 
   return Object.freeze({
     schemaVersion: '1',
@@ -282,6 +248,9 @@ function materializeRecord(value: unknown, path: string): GestureLearningSampleR
     purpose: GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING,
     profilePseudonymId,
     featureSchema: DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE,
+    // The PT6A sample-reference contract stores the exact SHA-256 value of the
+    // admitted governed-event content digest while remaining agnostic to the
+    // event-domain label. The source envelope is revalidated above before use.
     contentDigest: Object.freeze({ algorithm: 'SHA256' as const, value: envelope.contentDigest.value }),
     consent: Object.freeze({
       schemaVersion: '1',
@@ -301,72 +270,37 @@ function materializeRecord(value: unknown, path: string): GestureLearningSampleR
   });
 }
 
-function samplesFromExport(body: string, exportIndex: number): readonly GestureLearningSampleRefV1[] {
-  const path = `exports[${exportIndex}]`;
-  const bytes = new TextEncoder().encode(body).byteLength;
-  if (bytes > MAX_EXPORT_BODY_BYTES) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'RESOURCE_LIMIT_EXCEEDED',
-      path,
-      message: `one governed export exceeds the ${MAX_EXPORT_BODY_BYTES}-byte materialization bound`,
-    }]);
-  }
-  const normalized = body.endsWith('\n') ? body.slice(0, -1) : body;
-  if (!normalized || normalized.includes('\n\n')) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'INVALID_EXPORT_BODY',
-      path,
-      message: 'governed export must be non-empty NDJSON without blank records',
-    }]);
-  }
-  const lines = normalized.split('\n');
-  const manifest = parseManifest(parseJsonLine(lines[0], `${path}.manifest`), `${path}.manifest`);
-  const records = lines.slice(1);
-  if (records.length !== manifest.recordCount) {
-    throw new GestureTrainingMaterializationError([{
-      code: 'RECORD_COUNT_MISMATCH',
-      path,
-      message: `manifest declares ${manifest.recordCount} records but export contains ${records.length}`,
-    }]);
-  }
-  return Object.freeze(records.map((line, index) =>
-    materializeRecord(parseJsonLine(line, `${path}.records[${index}]`), `${path}.records[${index}]`)
-  ));
-}
-
 /**
- * PT6D repository-runnable materializer.
- *
- * Input must be purpose-scoped governed exports produced from the durable PT6C
- * store. The output intentionally contains immutable references rather than
- * copied feature vectors, keeping later erasure/reachability on the governed
- * source records. Raw L3 trajectories are categorically refused here.
+ * Materialize an immutable, user-disjoint L2 training snapshot from the trusted
+ * governed durable-store projection. The snapshot contains references rather
+ * than copied feature vectors, preserving source erasure reachability.
  */
-export function materializeGestureTrainingSnapshotV1(
-  governedDerivedExports: readonly string[],
+export async function materializeGestureTrainingSnapshotV1(
+  source: GestureTrainingSnapshotSourceV1,
   options: GestureTrainingSnapshotBuildOptionsV1,
-): GestureTrainingSnapshotV1 {
-  if (governedDerivedExports.length === 0 || governedDerivedExports.length > MAX_EXPORT_BODIES) {
+): Promise<GestureTrainingSnapshotV1> {
+  if (!validUtcTimestamp(options.createdAt)) {
     throw new GestureTrainingMaterializationError([{
-      code: 'RESOURCE_LIMIT_EXCEEDED',
-      path: 'exports',
-      message: `materialization requires 1..${MAX_EXPORT_BODIES} bounded governed exports`,
+      code: 'SNAPSHOT_CONTRACT_REFUSED',
+      path: 'options.createdAt',
+      message: 'materialization cutoff must be a canonical UTC timestamp',
     }]);
   }
 
-  const samples: GestureLearningSampleRefV1[] = [];
-  for (let index = 0; index < governedDerivedExports.length; index += 1) {
-    const next = samplesFromExport(governedDerivedExports[index], index);
-    if (samples.length + next.length > MAX_TOTAL_RECORDS) {
-      throw new GestureTrainingMaterializationError([{
-        code: 'RESOURCE_LIMIT_EXCEEDED',
-        path: 'exports',
-        message: `materialization exceeds the ${MAX_TOTAL_RECORDS}-record bound`,
-      }]);
-    }
-    samples.push(...next);
+  const records = await source.readDerivedLearningRecords(Object.freeze({
+    schemaVersion: '1',
+    asOf: options.createdAt,
+    maxRecords: MAX_TOTAL_RECORDS,
+  }));
+  if (!Array.isArray(records) || records.length === 0 || records.length > MAX_TOTAL_RECORDS) {
+    throw new GestureTrainingMaterializationError([{
+      code: 'RESOURCE_LIMIT_EXCEEDED',
+      path: 'records',
+      message: `materialization requires 1..${MAX_TOTAL_RECORDS} retained governed L2 records`,
+    }]);
   }
 
+  const samples = records.map((record, index) => materializeRecord(record, index, options.createdAt));
   try {
     return buildGestureTrainingSnapshotV1(samples, options);
   } catch (error) {
