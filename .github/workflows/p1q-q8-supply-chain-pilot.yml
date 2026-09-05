@@ -6,8 +6,10 @@ name: P1-Q Q8 supply-chain pilot
 # A green run is point-in-time evidence, not a permanent absence-of-vulnerability
 # claim, and neither tool replaces Dependabot update automation.
 #
-# Ordinary source-only PRs do not change the dependency graph, so this pilot is
-# intentionally limited to dependency manifests, locks and policy/tooling files.
+# Ordinary source-only PRs do not change the dependency graph, so PR execution is
+# limited to dependency manifests, locks and policy/tooling files. cargo-deny is
+# also run weekly so newly published Rust advisories are observed without taxing
+# every pull request; Dependency Review remains PR-only because it requires a diff.
 
 on:
   pull_request:
@@ -21,6 +23,8 @@ on:
       - 'wasm/Cargo.toml'
       - 'wasm/Cargo.lock'
       - 'wasm/deny.toml'
+  schedule:
+    - cron: '31 4 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -33,6 +37,7 @@ concurrency:
 jobs:
   dependency-review:
     name: GitHub Dependency Review
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
