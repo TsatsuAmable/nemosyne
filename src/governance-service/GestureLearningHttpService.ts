@@ -7,12 +7,16 @@ import {
 import {
   GestureLearningAuthorityError,
   type GestureLearningCaptureAuthorizationRequestV1,
+  type GestureLearningCaptureAuthorizationV1,
+  type GestureLearningConsentStateV1,
   type GestureLearningErasureRequestV1,
+  type GestureLearningErasureResultV1,
+  type GestureLearningEventDispositionV1,
   type GestureLearningExportRequestV1,
+  type GestureLearningExportResultV1,
   type GestureLearningGrantRequestV1,
   type GestureLearningPurpose,
   type GestureLearningRevocationRequestV1,
-  type SqliteGestureLearningGovernanceV1,
 } from './GestureLearningGovernance.ts';
 import { GOVERNED_PURPOSES } from '../governance/index.ts';
 import type { AuthenticatedPrincipalV1 } from './ProductAnalyticsConsentAuthority.ts';
@@ -22,6 +26,25 @@ const MAX_EVENT_BATCH_BYTES = 2_000_000;
 const MAX_EVENT_LINE_BYTES = 1_250_000;
 const MAX_EVENT_LINES = 16;
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+type Awaitable<T> = T | Promise<T>;
+
+type GestureLearningConsentResultV1 = GestureLearningConsentStateV1 & { readonly actionId: string };
+
+/** Persistence-neutral PT6C authority port. SQLite is a compatibility implementation, not a production fallback. */
+export interface GestureLearningGovernancePortV1 {
+  getCurrent(principal: AuthenticatedPrincipalV1, purpose: GestureLearningPurpose): Awaitable<GestureLearningConsentStateV1>;
+  grant(principal: AuthenticatedPrincipalV1, request: GestureLearningGrantRequestV1): Awaitable<GestureLearningConsentResultV1>;
+  revoke(principal: AuthenticatedPrincipalV1, request: GestureLearningRevocationRequestV1): Awaitable<GestureLearningConsentResultV1>;
+  authorizeCapture(
+    principal: AuthenticatedPrincipalV1,
+    request: GestureLearningCaptureAuthorizationRequestV1,
+  ): Awaitable<GestureLearningCaptureAuthorizationV1>;
+  ingestLine(principal: AuthenticatedPrincipalV1, jsonText: string): Awaitable<GestureLearningEventDispositionV1>;
+  exportRecords(principal: AuthenticatedPrincipalV1, request: GestureLearningExportRequestV1): Awaitable<GestureLearningExportResultV1>;
+  erase(principal: AuthenticatedPrincipalV1, request: GestureLearningErasureRequestV1): Awaitable<GestureLearningErasureResultV1>;
+  assertReadyForIngestion(): Awaitable<void>;
+}
 
 interface RouteDefinition {
   readonly method: 'GET' | 'POST';
@@ -87,13 +110,13 @@ function principalFromAuthenticated(value: DataPlaneAuthenticatedPrincipalV1): A
 export interface GestureLearningHttpServiceOptionsV1 {
   readonly allowedOrigins: readonly string[];
   readonly authenticator: GovernanceAuthenticatorV1;
-  readonly governance: SqliteGestureLearningGovernanceV1;
+  readonly governance: GestureLearningGovernancePortV1;
 }
 
 export class GestureLearningHttpServiceV1 {
   private readonly origins: ReadonlySet<string>;
   private readonly authenticator: GovernanceAuthenticatorV1;
-  private readonly governance: SqliteGestureLearningGovernanceV1;
+  private readonly governance: GestureLearningGovernancePortV1;
 
   constructor(options: GestureLearningHttpServiceOptionsV1) {
     if (options.allowedOrigins.length === 0) throw new Error('at least one exact allowed origin is required');
@@ -109,7 +132,12 @@ export class GestureLearningHttpServiceV1 {
   }
 
   async dispatch(request: GovernanceHttpRequestV1): Promise<GovernanceHttpResponseV1> {
-    const origin = this.authorizeOrigin(request.origin);
+    let origin: string | null;
+    try {
+      origin = this.authorizeOrigin(request.origin);
+    } catch {
+      return errorResponse(403, 'ORIGIN_REFUSED', null);
+    }
     const route = ROUTES.find((candidate) => candidate.method === request.method && candidate.path === request.path);
     if (!route) return errorResponse(404, 'NOT_FOUND', origin);
     if (request.authorizationValues.length !== 1) return errorResponse(401, 'AUTHENTICATION_REQUIRED', origin);
@@ -124,7 +152,7 @@ export class GestureLearningHttpServiceV1 {
 
     try {
       if (route.action === 'current') {
-        return jsonResponse(200, this.governance.getCurrent(principal, route.purpose!), origin);
+        return jsonResponse(200, await this.governance.getCurrent(principal, route.purpose!), origin);
       }
       if (route.action === 'ingest') return this.ingestBatch(request, principal, origin);
       if (request.contentEncoding !== null && request.contentEncoding !== 'identity') return errorResponse(415, 'CONTENT_ENCODING_REFUSED', origin);
@@ -133,21 +161,21 @@ export class GestureLearningHttpServiceV1 {
       if (route.action === 'grant') {
         const grant = body as GestureLearningGrantRequestV1;
         if (grant.purpose !== route.purpose) return errorResponse(400, 'PURPOSE_ROUTE_MISMATCH', origin);
-        return jsonResponse(200, this.governance.grant(principal, grant), origin);
+        return jsonResponse(200, await this.governance.grant(principal, grant), origin);
       }
       if (route.action === 'revoke') {
         const revoke = body as GestureLearningRevocationRequestV1;
         if (revoke.purpose !== route.purpose) return errorResponse(400, 'PURPOSE_ROUTE_MISMATCH', origin);
-        return jsonResponse(200, this.governance.revoke(principal, revoke), origin);
+        return jsonResponse(200, await this.governance.revoke(principal, revoke), origin);
       }
       if (route.action === 'capture') {
-        return jsonResponse(200, this.governance.authorizeCapture(principal, body as GestureLearningCaptureAuthorizationRequestV1), origin);
+        return jsonResponse(200, await this.governance.authorizeCapture(principal, body as GestureLearningCaptureAuthorizationRequestV1), origin);
       }
       if (route.action === 'export') {
-        const exported = this.governance.exportRecords(principal, body as GestureLearningExportRequestV1);
+        const exported = await this.governance.exportRecords(principal, body as GestureLearningExportRequestV1);
         return ndjsonResponse(200, exported.body, origin);
       }
-      return jsonResponse(200, this.governance.erase(principal, body as GestureLearningErasureRequestV1), origin);
+      return jsonResponse(200, await this.governance.erase(principal, body as GestureLearningErasureRequestV1), origin);
     } catch (error) {
       if (error instanceof GestureLearningAuthorityError) {
         const status = error.code === 'CONSENT_REVISION_CONFLICT' || error.code === 'ACTION_ID_CONFLICT'
@@ -168,8 +196,7 @@ export class GestureLearningHttpServiceV1 {
 
   private authorizeOrigin(origin: string | null): string | null {
     if (origin === null) return null;
-    let normalized: string;
-    try { normalized = normalizeOrigin(origin); } catch { throw new TypeError('origin refused'); }
+    const normalized = normalizeOrigin(origin);
     if (!this.origins.has(normalized)) throw new TypeError('origin refused');
     return normalized;
   }
@@ -189,7 +216,7 @@ export class GestureLearningHttpServiceV1 {
     if (request.contentEncoding !== null && request.contentEncoding !== 'identity') return errorResponse(415, 'CONTENT_ENCODING_REFUSED', origin);
     const mediaType = request.contentType?.split(';', 1)[0].trim().toLowerCase();
     if (mediaType !== 'application/x-ndjson') return errorResponse(415, 'MEDIA_TYPE_REFUSED', origin);
-    this.governance.assertReadyForIngestion();
+    await this.governance.assertReadyForIngestion();
     const bytes = await request.readBody(MAX_EVENT_BATCH_BYTES);
     if (bytes.byteLength > MAX_EVENT_BATCH_BYTES) return errorResponse(413, 'BATCH_TOO_LARGE', origin);
     let text: string;
@@ -198,7 +225,7 @@ export class GestureLearningHttpServiceV1 {
     if (lines.length < 1 || lines.length > MAX_EVENT_LINES || lines.some((line) => Buffer.byteLength(line, 'utf8') > MAX_EVENT_LINE_BYTES)) {
       return errorResponse(413, 'BATCH_LIMIT_REFUSED', origin);
     }
-    const dispositions = [];
+    const dispositions: GestureLearningEventDispositionV1[] = [];
     for (const line of lines) dispositions.push(await this.governance.ingestLine(principal, line));
     return jsonResponse(200, Object.freeze({ schemaVersion: '1', dispositions }), origin);
   }
