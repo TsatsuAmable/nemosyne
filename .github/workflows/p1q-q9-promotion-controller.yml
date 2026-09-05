@@ -1,19 +1,24 @@
-name: P1-Q Q9 promotion controller
+name: P1-Q Q9 promotion audit
 
 # Non-required governance audit for P1-Q Q9 (exact-head promotion controller)
-# and RF-052 (governance truth). The required approval-gate now runs the same
-# promotion controller before merge. This workflow remains an independent audit
-# and may finish after auto-merge, but it still verifies the exact PR head,
-# required checks, review disposition and adversarial/promotion marker.
+# and RF-052 (governance truth). The required approval-gate enforces the
+# promotion marker/review disposition on ordinary PRs. This workflow is an
+# explicit independent audit of a selected PR head and does not run on every PR.
 #
 # This workflow reports promotion evidence; it never manufactures an approval.
 # The approval authority remains the repository approval-gate / review policy.
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to audit
+        required: true
+        type: string
+      head_sha:
+        description: Exact 40-character PR head SHA to audit
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,16 +26,16 @@ permissions:
   checks: read
 
 concurrency:
-  group: p1q-q9-promotion-${{ github.event.pull_request.number || github.ref }}
+  group: p1q-q9-promotion-audit-${{ inputs.pr_number }}-${{ inputs.head_sha }}
   cancel-in-progress: true
 
 jobs:
   promotion-controller:
-    name: Exact-head promotion evidence
+    name: Exact-head promotion audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Checkout repository
+      - name: Checkout repository governance tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Verify governance policy matches live ruleset
@@ -41,16 +46,13 @@ jobs:
         run: node scripts/check-governance-policy.mjs
 
       - name: Verify exact-head promotion evidence
-        if: github.event.pull_request.number != null
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           GH_TOKEN: ${{ github.token }}
         run: >-
           node scripts/check-promotion-evidence.mjs
-          --pr ${{ github.event.pull_request.number }}
-          --sha ${{ github.event.pull_request.head.sha }}
+          --pr "${{ inputs.pr_number }}"
+          --sha "${{ inputs.head_sha }}"
           --required-checks "Node 24,CodeQL SAST (javascript-typescript),approval-gate"
-          --wait-seconds 780
-          --poll-seconds 10
           --allow-merged

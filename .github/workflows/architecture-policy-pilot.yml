@@ -1,16 +1,20 @@
-name: Architecture policy
+name: Architecture policy audit
 
+# The architecture policy is enforced in required CI / Static analysis.
+# This workflow remains available only for explicit timing/RSS measurement.
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: architecture-policy-audit-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   architecture-policy:
-    name: Architecture policy
+    name: Architecture policy timing audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

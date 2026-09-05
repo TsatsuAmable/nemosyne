@@ -44,4 +44,38 @@ describe('Sprint 27.7 — Recurring Maintainability, Tech Debt & Code Hygiene Au
     expect(codeqlWorkflow).toContain('Enforce zero CodeQL findings');
     expect(codeqlWorkflow).toContain('Upload CodeQL SARIF evidence');
   });
+
+  it('keeps the ordinary PR evidence graph consolidated', () => {
+    const approvalWorkflow = readFileSync('.github/workflows/approval-gate.yml', 'utf8');
+    const ciWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+    const architectureAudit = readFileSync(
+      '.github/workflows/architecture-policy-pilot.yml',
+      'utf8',
+    );
+    const q9Audit = readFileSync(
+      '.github/workflows/p1q-q9-promotion-controller.yml',
+      'utf8',
+    );
+    const q3dAudit = readFileSync(
+      '.github/workflows/q3d-browser-envelope-pilot.yml',
+      'utf8',
+    );
+    const a1Audit = readFileSync(
+      '.github/workflows/stream-a-a1-browser-envelope.yml',
+      'utf8',
+    );
+
+    expect(ciWorkflow).toContain('name: Enforce architecture policy');
+    expect(ciWorkflow).toContain('run: npm run architecture:check');
+
+    expect(approvalWorkflow).toContain('Verify governance policy matches live ruleset');
+    expect(approvalWorkflow).not.toContain('--wait-seconds');
+    expect(approvalWorkflow).not.toContain('--poll-seconds');
+    expect(approvalWorkflow).not.toContain('--required-checks');
+
+    for (const manualAudit of [architectureAudit, q9Audit, q3dAudit, a1Audit]) {
+      expect(manualAudit).toContain('workflow_dispatch:');
+      expect(manualAudit).not.toContain('pull_request:');
+    }
+  });
 });
