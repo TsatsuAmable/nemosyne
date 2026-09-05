@@ -1,13 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   collectWasmBuildDiagnostics,
   resolveNpmInvocation,
   resolveViteInvocation,
+  writeDispositionFile,
   writeWasmBuildLog,
+  type WasmDiagnosticProbeFn,
 } from '../scripts/quest-validation.mjs';
+import type { ValidationManifest } from '../src/validation/validation-manifest.ts';
 
 const tempDirectories: string[] = [];
 
@@ -62,21 +72,98 @@ describe('Quest validation process launch portability', () => {
     });
   });
 
-  it('collects WASM diagnostics without throwing and persists build.log inside the evidence dir', () => {
+  it('bounds WASM toolchain probes and records null instead of throwing on probe failure', () => {
+    const probeSyncFn = vi.fn((command: string) => {
+      if (command === 'cargo') {
+        return { status: null, stdout: '', error: new Error('probe timed out') };
+      }
+      return { status: 0, stdout: `${command} 1.0.0\n`, error: undefined };
+    }) as unknown as WasmDiagnosticProbeFn;
+
     const diagnostics = collectWasmBuildDiagnostics({
       root: tempRoot(),
       wasm: { status: 1 },
+      probeSyncFn,
+      probeTimeoutMs: 123,
     });
-    expect(diagnostics.status).toBe(1);
-    expect(typeof diagnostics.recordedAt).toBe('string');
-    expect(typeof diagnostics.hint).toBe('string');
 
+    expect(probeSyncFn).toHaveBeenCalledTimes(3);
+    for (const call of probeSyncFn.mock.calls) {
+      expect(call[2]).toMatchObject({ timeout: 123, encoding: 'utf8' });
+    }
+    expect(diagnostics.status).toBe(1);
+    expect(diagnostics.wasmPackVersion).toBe('wasm-pack 1.0.0');
+    expect(diagnostics.cargoVersion).toBeNull();
+    expect(diagnostics.rustcVersion).toBe('rustc 1.0.0');
+  });
+
+  it('caps an excessive diagnostic-probe timeout so failure evidence stays bounded', () => {
+    const probeSyncFn = vi.fn(() => ({ status: 0, stdout: 'ok\n', error: undefined })) as unknown as WasmDiagnosticProbeFn;
+
+    collectWasmBuildDiagnostics({
+      root: tempRoot(),
+      wasm: { status: 1 },
+      probeSyncFn,
+      probeTimeoutMs: Number.MAX_SAFE_INTEGER,
+    });
+
+    for (const call of probeSyncFn.mock.calls) {
+      expect(call[2].timeout).toBe(5000);
+    }
+  });
+
+  it('persists readable build.log beside the authoritative FAIL disposition', () => {
     const root = tempRoot();
+    const wasmPkg = join(root, 'wasm', 'pkg');
+    mkdirSync(wasmPkg, { recursive: true });
+    writeFileSync(join(wasmPkg, 'nemosyne_wasm.js'), 'export default {};\n');
+    writeFileSync(join(wasmPkg, 'nemosyne_wasm_bg.wasm'), 'wasm-bytes');
+
+    const probeSyncFn = vi.fn((command: string) => ({
+      status: 0,
+      stdout: `${command} 1.0.0\n`,
+      error: undefined,
+    })) as unknown as WasmDiagnosticProbeFn;
+    const diagnostics = collectWasmBuildDiagnostics({
+      root,
+      wasm: { status: 1 },
+      probeSyncFn,
+    });
+
     const manifest = {
       evidenceDir: 'logs/validation/test-session',
+      sessionId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
       sessionLabel: 'test-session',
-    };
-    const file = writeWasmBuildLog(manifest, diagnostics, root);
-    expect(file).toContain('build.log');
+      buildId: 'a8be01af10e36e595e52571c91613cc070035b51',
+      validationMode: 'quest-perf',
+      gates: ['PERF-04'],
+      evidenceClass: 'governed-physical-validation',
+      deviceIdentity: null,
+      invalidations: [],
+      promotionEligible: false,
+    } as unknown as ValidationManifest;
+
+    const buildLog = writeWasmBuildLog(manifest, diagnostics, root);
+    const disposition = writeDispositionFile(
+      manifest,
+      { status: 'FAIL', reasons: ['WASM dev build exited with status 1; session aborted before Vite start'] },
+      root
+    );
+
+    expect(buildLog).toBe(join(root, 'logs', 'validation', 'test-session', 'build.log'));
+    expect(buildLog).not.toBeNull();
+    expect(existsSync(buildLog!)).toBe(true);
+    expect(dirname(buildLog!)).toBe(dirname(disposition));
+
+    const persistedDiagnostics = JSON.parse(readFileSync(buildLog!, 'utf8'));
+    expect(persistedDiagnostics).toEqual(diagnostics);
+    expect(persistedDiagnostics.wasmJsPresent).toBe(true);
+    expect(persistedDiagnostics.wasmBgPresent).toBe(true);
+
+    const persistedDisposition = JSON.parse(readFileSync(disposition, 'utf8'));
+    expect(persistedDisposition.gateDisposition.status).toBe('FAIL');
+    expect(persistedDisposition.gateDisposition.reasons).toEqual([
+      'WASM dev build exited with status 1; session aborted before Vite start',
+    ]);
   });
 });
