@@ -8,6 +8,7 @@ import {
 import {
   GUIDED_UX_SCHEMA_VERSION,
   GUIDED_UX_TASKS,
+  type GuidedUxSubmission,
 } from '../src/validation/guided-ux-validation.ts';
 import { QUEST_3S_QUALIFICATION_PROFILE } from '../src/vr/scalability/LoadTestDriver.ts';
 import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.ts';
@@ -126,24 +127,27 @@ function boundaryReport(
   };
 }
 
-function uxSubmission(value: ValidationManifest, failedTask: string | null = null) {
+function uxSubmission(
+  value: ValidationManifest,
+  failedTask: string | null = null
+): GuidedUxSubmission {
   return {
     schemaVersion: GUIDED_UX_SCHEMA_VERSION,
     sessionId: value.sessionId,
     sessionLabel: value.sessionLabel,
     buildId: value.buildId,
     deviceBuildFingerprint: value.deviceIdentity?.buildFingerprint ?? null,
-    evidenceKind: 'guided-physical-ux' as const,
+    evidenceKind: 'guided-physical-ux',
     results: GUIDED_UX_TASKS.map((task, index) => ({
       taskId: task.id,
-      outcome: task.id === failedTask ? ('fail' as const) : ('pass' as const),
-      inputModality: index % 2 === 0 ? ('controller' as const) : ('hand' as const),
-      modalityBasis: 'investigator-selected' as const,
+      outcome: task.id === failedTask ? 'fail' : 'pass',
+      inputModality: index % 2 === 0 ? 'controller' : 'hand',
+      modalityBasis: 'investigator-selected',
       recordedAt: '2026-09-05T09:10:00.000Z',
       note: null,
     })),
     comfortObservation: {
-      outcome: 'comfortable' as const,
+      outcome: 'comfortable',
       recordedAt: '2026-09-05T09:20:00.000Z',
       note: null,
     },
