@@ -1,7 +1,8 @@
 import { CLIENT_STORES, openClientDatabase } from '../persistence/ClientPersistence.ts';
 
 const SNAPSHOT_SCHEMA_VERSION = 2;
-const STORAGE_SCHEMA_VERSION = 1;
+const STORAGE_SCHEMA_VERSION = 2;
+const LEGACY_STORAGE_SCHEMA_VERSION = 1;
 const DATASET_REF_KEY = '__nemosyneDatasetRef';
 
 export interface SessionSnapshot {
@@ -39,10 +40,22 @@ interface DatasetReference {
   [DATASET_REF_KEY]: string;
 }
 
+interface StoredDatasetV2 {
+  metadata: Record<string, unknown>;
+  rowRefs: string[];
+}
+
 interface StoredSessionSnapshotV1 {
-  storageSchemaVersion: typeof STORAGE_SCHEMA_VERSION;
+  storageSchemaVersion: typeof LEGACY_STORAGE_SCHEMA_VERSION;
   snapshot: unknown;
   datasets: Record<string, DatasetSnapshot>;
+}
+
+interface StoredSessionSnapshotV2 {
+  storageSchemaVersion: typeof STORAGE_SCHEMA_VERSION;
+  snapshot: unknown;
+  datasets: Record<string, StoredDatasetV2>;
+  rows: Record<string, unknown>;
 }
 
 function txDone(tx: IDBTransaction): Promise<void> {
@@ -81,12 +94,32 @@ function isDatasetReference(value: unknown): value is DatasetReference {
   );
 }
 
+function isStoredDatasetV2(value: unknown): value is StoredDatasetV2 {
+  return (
+    isRecord(value) &&
+    isRecord(value.metadata) &&
+    Array.isArray(value.rowRefs) &&
+    value.rowRefs.every((ref) => typeof ref === 'string')
+  );
+}
+
 function isStoredSessionSnapshotV1(value: unknown): value is StoredSessionSnapshotV1 {
+  return (
+    isRecord(value) &&
+    value.storageSchemaVersion === LEGACY_STORAGE_SCHEMA_VERSION &&
+    'snapshot' in value &&
+    isRecord(value.datasets)
+  );
+}
+
+function isStoredSessionSnapshotV2(value: unknown): value is StoredSessionSnapshotV2 {
   return (
     isRecord(value) &&
     value.storageSchemaVersion === STORAGE_SCHEMA_VERSION &&
     'snapshot' in value &&
-    isRecord(value.datasets)
+    isRecord(value.datasets) &&
+    isRecord(value.rows) &&
+    Object.values(value.datasets).every(isStoredDatasetV2)
   );
 }
 
@@ -97,23 +130,54 @@ function datasetStorageIdentity(dataset: DatasetSnapshot): string {
   return JSON.stringify(dataset);
 }
 
+function rowStorageIdentity(row: unknown): string {
+  // Same rule as datasetStorageIdentity: this is storage-local exact-value
+  // deduplication, not a scientific fingerprint or cross-runtime identity.
+  return JSON.stringify(row);
+}
+
 /**
- * RF-050: compact a logical schema-v2 session for IndexedDB without changing
- * the logical/session/export schema. Every repeated DatasetJSON value is stored
- * once in a side table and replaced by a storage-only reference.
+ * RF-050 residual hardening: compact a logical schema-v2 session for IndexedDB
+ * without changing the logical/session/export schema.
+ *
+ * Storage schema v2 performs two layers of exact-value deduplication:
+ * 1. repeated DatasetJSON snapshots become dataset references; and
+ * 2. rows shared across distinct derived datasets become row-pool references.
+ *
+ * The second layer prevents filter/sort/slice-style histories from copying the
+ * same large row payload once per analytical operation. Metadata and row-order
+ * references may still grow with operation count because exact undo/replay state
+ * is durable; the expensive row payload is stored once per distinct row value.
  */
-export function compactSessionSnapshotForStorage(snapshot: SessionSnapshot): StoredSessionSnapshotV1 {
-  const datasets: Record<string, DatasetSnapshot> = {};
-  const idsByValue = new Map<string, string>();
+export function compactSessionSnapshotForStorage(snapshot: SessionSnapshot): StoredSessionSnapshotV2 {
+  const datasets: Record<string, StoredDatasetV2> = {};
+  const rows: Record<string, unknown> = {};
+  const datasetIdsByValue = new Map<string, string>();
+  const rowIdsByValue = new Map<string, string>();
+
+  const internRow = (row: unknown): string => {
+    const identity = rowStorageIdentity(row);
+    let id = rowIdsByValue.get(identity);
+    if (!id) {
+      id = `r${rowIdsByValue.size}`;
+      rowIdsByValue.set(identity, id);
+      rows[id] = structuredClone(row);
+    }
+    return id;
+  };
 
   const visit = (value: unknown): unknown => {
     if (isDatasetSnapshot(value)) {
       const identity = datasetStorageIdentity(value);
-      let id = idsByValue.get(identity);
+      let id = datasetIdsByValue.get(identity);
       if (!id) {
-        id = `d${idsByValue.size}`;
-        idsByValue.set(identity, id);
-        datasets[id] = structuredClone(value);
+        id = `d${datasetIdsByValue.size}`;
+        datasetIdsByValue.set(identity, id);
+        const { rows: datasetRows, ...metadata } = value;
+        datasets[id] = {
+          metadata: structuredClone(metadata),
+          rowRefs: datasetRows.map(internRow),
+        };
       }
       return { [DATASET_REF_KEY]: id } satisfies DatasetReference;
     }
@@ -129,20 +193,11 @@ export function compactSessionSnapshotForStorage(snapshot: SessionSnapshot): Sto
     storageSchemaVersion: STORAGE_SCHEMA_VERSION,
     snapshot: visit(snapshot),
     datasets,
+    rows,
   };
 }
 
-/**
- * Restore the exact logical snapshot expected by NemosyneSession. Corrupt or
- * dangling storage references fail closed instead of producing a partial
- * investigation.
- */
-export function expandSessionSnapshotFromStorage(value: unknown): SessionSnapshot {
-  if (!isStoredSessionSnapshotV1(value)) {
-    if (!isRecord(value)) throw new Error('Session storage record is not an object');
-    return structuredClone(value) as SessionSnapshot;
-  }
-
+function expandStoredSnapshotV1(value: StoredSessionSnapshotV1): SessionSnapshot {
   const visit = (node: unknown): unknown => {
     if (isDatasetReference(node)) {
       const id = node[DATASET_REF_KEY];
@@ -163,6 +218,56 @@ export function expandSessionSnapshotFromStorage(value: unknown): SessionSnapsho
   const expanded = visit(value.snapshot);
   if (!isRecord(expanded)) throw new Error('Expanded session snapshot is not an object');
   return expanded as SessionSnapshot;
+}
+
+function expandStoredSnapshotV2(value: StoredSessionSnapshotV2): SessionSnapshot {
+  const expandDataset = (id: string): DatasetSnapshot => {
+    const stored = value.datasets[id];
+    if (!isStoredDatasetV2(stored)) {
+      throw new Error(`Session storage references missing dataset ${id}`);
+    }
+    const datasetRows = stored.rowRefs.map((rowId) => {
+      if (!(rowId in value.rows)) {
+        throw new Error(`Session storage references missing row ${rowId}`);
+      }
+      return structuredClone(value.rows[rowId]);
+    });
+    const dataset = {
+      ...structuredClone(stored.metadata),
+      rows: datasetRows,
+    };
+    if (!isDatasetSnapshot(dataset)) {
+      throw new Error(`Session storage dataset ${id} is malformed`);
+    }
+    return dataset;
+  };
+
+  const visit = (node: unknown): unknown => {
+    if (isDatasetReference(node)) return expandDataset(node[DATASET_REF_KEY]);
+    if (Array.isArray(node)) return node.map(visit);
+    if (!isRecord(node)) return node;
+
+    const output: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(node)) output[key] = visit(child);
+    return output;
+  };
+
+  const expanded = visit(value.snapshot);
+  if (!isRecord(expanded)) throw new Error('Expanded session snapshot is not an object');
+  return expanded as SessionSnapshot;
+}
+
+/**
+ * Restore the exact logical snapshot expected by NemosyneSession. Corrupt or
+ * dangling storage references fail closed instead of producing a partial
+ * investigation. Legacy compact storage-v1 and uncompact schema-v2 records
+ * remain readable during migration.
+ */
+export function expandSessionSnapshotFromStorage(value: unknown): SessionSnapshot {
+  if (isStoredSessionSnapshotV2(value)) return expandStoredSnapshotV2(value);
+  if (isStoredSessionSnapshotV1(value)) return expandStoredSnapshotV1(value);
+  if (!isRecord(value)) throw new Error('Session storage record is not an object');
+  return structuredClone(value) as SessionSnapshot;
 }
 
 /** Production session persistence over the single versioned nemosyne-client DB. */
