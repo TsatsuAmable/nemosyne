@@ -9,6 +9,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { validateValidationManifest } from '../src/validation/validation-manifest.ts';
 
 const SESSION_LABEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -88,6 +89,10 @@ function main(argv = process.argv) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+  typeof process !== 'undefined' &&
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   process.exitCode = main();
 }
