@@ -15,6 +15,25 @@ function registry(hands: Array<{ pinched: boolean }>, grips: boolean[] = []) {
   } as never;
 }
 
+/** Hands carrying fingertip heights, exercising the reach-zone (y > 1.5) branch. */
+function registryWithHeights(
+  heights: Array<{ y: number; pinched: boolean }>,
+  isBestPointerOverPanel = false
+) {
+  const handPointers = heights.map((hand) => ({
+    isPinched: () => hand.pinched,
+    rayOrigin: { y: hand.y },
+  }));
+  return {
+    hands: handPointers,
+    controllers: [],
+    lastBothPinched: false,
+    controllerGripPressed: new Map(),
+    isBestPointerOverPanel: vi.fn(() => isBestPointerOverPanel),
+    findSourceForController: vi.fn(() => null),
+  } as never;
+}
+
 describe('SystemGestureDetector unified gate', () => {
   it('fires controller grips once until release', () => {
     const now = 0;
@@ -111,5 +130,117 @@ describe('SystemGestureDetector unified gate', () => {
     detector.update(session);
 
     expect(toggle).toHaveBeenCalledOnce();
+  });
+});
+
+describe('SystemGestureDetector reach-zone suppression (y > 1.5)', () => {
+  it('withholds the toggle and traces suppression while either hand is high', () => {
+    let now = 0;
+    const pointers = registryWithHeights([
+      { y: 1.58, pinched: true },
+      { y: 1.08, pinched: true },
+    ]);
+    const detector = new SystemGestureDetector(pointers, {
+      bothPinchHoldMs: 400,
+      toggleCooldownMs: 0,
+      now: () => now,
+    });
+    const toggle = vi.fn();
+    const traces: Array<{ kind: string }> = [];
+    const hints: string[] = [];
+    detector.onSystemToggle = toggle;
+    detector.onTrace = (info) => traces.push(info);
+    detector.onSuppressedHint = (hint) => hints.push(hint);
+
+    // Hold past the both-pinch hold time: toggle must still be withheld.
+    detector.update(null);
+    now = 500;
+    const result = detector.update(null);
+
+    expect(toggle).not.toHaveBeenCalled();
+    expect(result.suppressSelection).toBe(false);
+    expect(result.bothPinched).toBe(false);
+    expect(traces).toEqual([{ kind: 'both-pinch-suppressed', y0: 1.58, y1: 1.08 }]);
+    expect(hints).toHaveLength(1);
+  });
+
+  it('treats the 1.5 boundary as strictly greater (no suppression at exactly 1.5)', () => {
+    let now = 0;
+    const pointers = registryWithHeights([
+      { y: 1.5, pinched: true },
+      { y: 1.5, pinched: true },
+    ]);
+    const detector = new SystemGestureDetector(pointers, {
+      bothPinchHoldMs: 0,
+      toggleCooldownMs: 0,
+      now: () => now,
+    });
+    const toggle = vi.fn();
+    detector.onSystemToggle = toggle;
+
+    detector.update(null);
+    now = 1;
+    const result = detector.update(null);
+
+    expect(result.bothPinched).toBe(true);
+    expect(toggle).toHaveBeenCalledOnce();
+  });
+
+  it('latches suppression until release: lowering mid-hold does not arm the toggle', () => {
+    let now = 0;
+    const heights = [
+      { y: 1.6, pinched: true },
+      { y: 1.1, pinched: true },
+    ];
+    const pointers = registryWithHeights(heights);
+    const detector = new SystemGestureDetector(pointers, {
+      bothPinchHoldMs: 400,
+      toggleCooldownMs: 0,
+      now: () => now,
+    });
+    const toggle = vi.fn();
+    detector.onSystemToggle = toggle;
+    const hands = (pointers as unknown as { hands: Array<{ rayOrigin: { y: number } }> }).hands;
+
+    detector.update(null);
+    expect(toggle).not.toHaveBeenCalled();
+
+    // Both hands lower while STILL holding: the suppressed start latches the
+    // attempt invalid until release, so no toggle arms.
+    hands[0].rayOrigin.y = 1.2;
+    now = 500;
+    detector.update(null);
+    expect(toggle).not.toHaveBeenCalled();
+
+    // Release and re-pinch low: the fresh attempt holds and fires.
+    heights[0].pinched = false;
+    heights[1].pinched = false;
+    now = 600;
+    detector.update(null);
+    heights[0].pinched = true;
+    heights[1].pinched = true;
+    now = 700;
+    detector.update(null);
+    expect(toggle).not.toHaveBeenCalled();
+    now = 1100;
+    detector.update(null);
+    expect(toggle).toHaveBeenCalledOnce();
+  });
+
+  it('requires both hands present before zone suppression can engage', () => {
+    const pointers = registryWithHeights([{ y: 1.9, pinched: true }]);
+    const detector = new SystemGestureDetector(pointers, {
+      bothPinchHoldMs: 0,
+      toggleCooldownMs: 0,
+      now: () => 0,
+    });
+    const traces: Array<{ kind: string }> = [];
+    detector.onTrace = (info) => traces.push(info);
+
+    const result = detector.update(null);
+
+    expect(result.suppressSelection).toBe(false);
+    expect(result.bothPinched).toBe(false);
+    expect(traces).toEqual([]);
   });
 });
