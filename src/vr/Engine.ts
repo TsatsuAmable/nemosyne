@@ -67,7 +67,7 @@ export class Engine {
   input: InputRouter;
   locomotion: Locomotion;
   desktop: DesktopControls;
-  clock: THREE.Clock;
+  timer: THREE.Timer;
 
   // Optional undo/redo callbacks for desktop/VR keyboard shortcuts.
   onUndo: (() => void) | null = null;
@@ -158,7 +158,15 @@ export class Engine {
     this.input = new InputRouter(this);
     this.locomotion = new Locomotion(this);
     this.desktop = new DesktopControls(this);
-    this.clock = new THREE.Clock();
+    this.timer = new THREE.Timer();
+    // Zero out large deltas when the tab is hidden so resume does not inject
+    // a single huge frame into locomotion/updatables. THREE.Timer handles
+    // this via the Page Visibility API once connected.
+    try {
+      if (typeof document !== 'undefined') this.timer.connect(document);
+    } catch (_) {
+      // Non-DOM test environments may not support visibility binding.
+    }
 
     this.headWorldPos = new THREE.Vector3();
 
@@ -214,7 +222,9 @@ export class Engine {
     if (this.state === 'disposed') return;
     if (this.state === 'running' && this._sessionStartBound) return;
     this.state = 'running';
-    this.clock.start();
+    // Timer has no start/stop: reset the baseline so a pause does not inject
+    // one large catch-up delta on resume.
+    this.timer.reset();
     this.renderer.setAnimationLoop(() => this._tick());
     if (!this._sessionStartBound) {
       this.renderer.xr.addEventListener('sessionstart', this._onSessionStart);
@@ -227,7 +237,8 @@ export class Engine {
     if (this.state === 'disposed' || this.state === 'paused') return;
     this.state = 'paused';
     this.renderer.setAnimationLoop(null);
-    this.clock.stop();
+    // No timer.stop() on THREE.Timer: the loop is halted so update() is no
+    // longer called; start() resets the baseline on resume.
   }
 
   private _handleSessionStart(): void {
@@ -294,8 +305,11 @@ export class Engine {
     this.frameIntervalMs = this._lastFrameStartedAt > 0 ? frameStart - this._lastFrameStartedAt : 0;
     this._lastFrameStartedAt = frameStart;
     try {
-      const delta = this.clock.getDelta();
-      const time = this.clock.getElapsedTime();
+      // Timer latches one delta per update(); query after update so every
+      // consumer in this tick observes identical values.
+      this.timer.update();
+      const delta = this.timer.getDelta();
+      const time = this.timer.getElapsed();
 
       const frame = this.renderer.xr.getFrame() ?? null;
       const refSpace = this.renderer.xr.getReferenceSpace() ?? null;
@@ -338,7 +352,7 @@ export class Engine {
           interactableCount: this.input.interactables.length,
           updatableCount: this.updatables.size,
           panelCount: this.input.panels.length,
-          time: this.clock.getElapsedTime(),
+          time: this.timer.getElapsed(),
         };
         const violations = this.performanceBudget.check(snapshot);
         if (violations.length > 0 && typeof console !== 'undefined') {
@@ -501,6 +515,11 @@ export class Engine {
     if (this.state === 'disposed') return;
     this.state = 'disposed';
     this.renderer.setAnimationLoop(null);
+    try {
+      this.timer.disconnect();
+    } catch (_) {
+      // Timer may never have connected in test environments.
+    }
 
     // Clean up window & XR event listeners
     window.removeEventListener('resize', this._onResize);
