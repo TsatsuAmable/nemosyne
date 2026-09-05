@@ -368,15 +368,21 @@ export function adjudicateValidationEvidence(
     gateResults = manifest.gates.map((gateId) => gate(gateId, 'INVALID_RUN', manifestInvalidations));
     validationErrors.push(...manifestInvalidations);
   } else if (manifest.validationMode === 'quest-perf') {
-    const report = input.loadTestReports.find(
+    const reports = input.loadTestReports.filter(
       (candidate) => isRecord(candidate) && candidate.profileName === QUEST_PERF_PROFILE
     );
-    if (!report) {
+    if (reports.length === 0) {
       gateResults = manifest.gates.map((gateId) =>
         gate(gateId, 'PARTIAL', ['performance evidence has not been captured'])
       );
+    } else if (reports.length !== 1) {
+      const errors = [
+        `performance session contains ${reports.length} terminal reports; governed runs require exactly one report per session`,
+      ];
+      validationErrors.push(...errors);
+      gateResults = manifest.gates.map((gateId) => gate(gateId, 'INVALID_RUN', errors));
     } else {
-      const checked = validateQuestPerformanceReport(report, manifest);
+      const checked = validateQuestPerformanceReport(reports[0], manifest);
       validationErrors.push(...checked.errors);
       if (!checked.ok) {
         gateResults = manifest.gates.map((gateId) => gate(gateId, 'INVALID_RUN', checked.errors));
@@ -403,15 +409,21 @@ export function adjudicateValidationEvidence(
       }
     }
   } else if (manifest.validationMode === 'quest-10m') {
-    const report = input.loadTestReports.find(
+    const reports = input.loadTestReports.filter(
       (candidate) => isRecord(candidate) && candidate.profileName === QUEST_BOUNDARY_PROFILE
     );
-    if (!report) {
+    if (reports.length === 0) {
       gateResults = manifest.gates.map((gateId) =>
         gate(gateId, 'PARTIAL', ['10M boundary evidence has not been captured'])
       );
+    } else if (reports.length !== 1) {
+      const errors = [
+        `10M boundary session contains ${reports.length} terminal reports; governed runs require exactly one report per session`,
+      ];
+      validationErrors.push(...errors);
+      gateResults = manifest.gates.map((gateId) => gate(gateId, 'INVALID_RUN', errors));
     } else {
-      const checked = validateQuestBoundaryReport(report, manifest);
+      const checked = validateQuestBoundaryReport(reports[0], manifest);
       validationErrors.push(...checked.errors);
       if (!checked.ok) {
         gateResults = manifest.gates.map((gateId) => gate(gateId, 'INVALID_RUN', checked.errors));
