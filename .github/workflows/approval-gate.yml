@@ -2,10 +2,10 @@ name: approval-gate
 
 # Enforces the repository merge policy documented in docs/ROADMAP.md.
 #
-# This is the required final promotion gate. It first establishes the owner
-# approval authority, then waits boundedly for the other required exact-head
-# checks and runs the shared Q9 promotion-evidence controller while the PR is
-# still open. Auto-merge therefore cannot outrun exact-head promotion evidence.
+# This required promotion gate owns only the evidence unique to promotion:
+# owner approval authority, exact-head identity, review disposition and the
+# adversarial/promotion marker. The live repository ruleset independently
+# requires Node 24 and CodeQL, so this gate must not poll or duplicate them.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, edited]
@@ -21,7 +21,7 @@ jobs:
   approval-gate:
     name: approval-gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     outputs:
       approved: ${{ steps.gate.outputs.approved }}
     steps:
@@ -69,6 +69,3 @@ jobs:
           node scripts/check-promotion-evidence.mjs
           --pr "$PR_NUMBER"
           --sha "$HEAD_SHA"
-          --required-checks "Node 24,CodeQL SAST (javascript-typescript)"
-          --wait-seconds 720
-          --poll-seconds 10
