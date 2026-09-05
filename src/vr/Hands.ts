@@ -43,8 +43,9 @@ interface XRConnectionEventData {
  * Wraps WebXR hand tracking and renders a hand mesh plus a pointing ray.
  * Detects pinch between thumb tip and index tip, updates `pinched` state for
  * per-frame polling, and calls `onPinchStart`/`onPinchEnd` fallback callbacks
- * (frame-gated). Pinch transitions are console-logged for on-device validation
- * traces (captured by logs/vr-remote-console.log).
+ * (frame-gated). Pinch transitions are `console.debug` lifecycle traces for
+ * local DevTools only; governed on-device pinch evidence, including routing
+ * decisions, is recorded by UXTraceRecorder in `logs/ux-trace.jsonl`.
  *
  * Robust joint lookup: some runtimes expose `XRHandPrimitive.joints` directly,
  * while others (Quest Browser) expose them on the connected event. We cache
