@@ -6,7 +6,13 @@
 import * as THREE from 'three';
 import { SelectionFeedback } from '../audio/SelectionFeedback.ts';
 import type { PanelLike, PointerLike } from '../coordinators/types.ts';
-import type { InteractableEntry, InteractableRegistry, PanelHit, SceneHit } from './InteractableRegistry.ts';
+import type {
+  InteractableEntry,
+  InteractableRegistry,
+  PanelHit,
+  SceneHit,
+} from './InteractableRegistry.ts';
+import { isUsablePointerRay } from './pointerRayValidity.ts';
 
 type DwellTarget =
   | { type: 'panel'; value: PanelLike }
@@ -16,6 +22,7 @@ export interface SelectionDispatchInfo {
   hudConsumed: boolean;
   sceneMesh: THREE.Object3D | null;
   sceneData?: unknown;
+  /** True only when a scene/global selection callback completed successfully. */
   hadCallback: boolean;
   pointer: PointerLike | null;
   /**
@@ -87,18 +94,28 @@ export class SelectionDispatcher {
   /**
    * Trigger selection on the currently hovered scene object or HUD under the
    * active pointer, honoring pinch recoil lock when active.
+   *
+   * Dispatch telemetry is emitted after callbacks complete. That makes
+   * `hadCallback` an observed outcome rather than a pre-dispatch guess; a
+   * callback that throws cannot be recorded as a successful callback-only hit.
    */
   triggerSelect(activePointer: PointerLike | null) {
     if (!activePointer) return;
     const ray = activePointer.getRay(new THREE.Ray());
     this.registry.raycaster.ray.copy(ray);
-    // Mirror PointerRegistry.getBestPointerRay validity so traces can tell
-    // tracking-loss misses apart from aimed misses.
-    const rayValid = Number.isFinite(ray.origin.x) && ray.direction.lengthSq() > 0;
+    const rayValid = isUsablePointerRay(ray);
 
     this.feedback.playSelect();
     this.feedback.flashPointer(activePointer);
-    this.feedback.playHaptic(0.6, 40, activePointer as unknown as { gamepad?: { hapticActuators?: Array<{ pulse: (v: number, d: number) => Promise<unknown> }> } });
+    this.feedback.playHaptic(
+      0.6,
+      40,
+      activePointer as unknown as {
+        gamepad?: {
+          hapticActuators?: Array<{ pulse: (v: number, d: number) => Promise<unknown> }>;
+        };
+      }
+    );
 
     const hudConsumed = this.registry.dispatchHudClick();
     const effectiveHovered =
@@ -106,25 +123,37 @@ export class SelectionDispatcher {
         ? this._pinchLockTarget
         : this.registry.hovered;
 
-    if (this.onDispatch) {
-      this.onDispatch({
-        hudConsumed,
-        sceneMesh: hudConsumed ? null : effectiveHovered?.mesh ?? null,
-        sceneData: hudConsumed ? undefined : effectiveHovered?.data,
-        hadCallback: !!effectiveHovered?.onSelect || !!this.onSelectCallback,
+    if (hudConsumed) {
+      this.onDispatch?.({
+        hudConsumed: true,
+        sceneMesh: null,
+        sceneData: undefined,
+        hadCallback: false,
         pointer: activePointer,
         rayValid,
       });
+      return;
     }
-    if (hudConsumed) return;
 
+    let callbackCompleted = false;
     if (effectiveHovered?.onSelect) {
       effectiveHovered.onSelect(effectiveHovered.mesh, effectiveHovered.data);
+      callbackCompleted = true;
     }
 
     if (this.onSelectCallback) {
       this.onSelectCallback(ray);
+      callbackCompleted = true;
     }
+
+    this.onDispatch?.({
+      hudConsumed: false,
+      sceneMesh: effectiveHovered?.mesh ?? null,
+      sceneData: effectiveHovered?.data,
+      hadCallback: callbackCompleted,
+      pointer: activePointer,
+      rayValid,
+    });
     this.clearPinchLock();
   }
 
@@ -134,7 +163,11 @@ export class SelectionDispatcher {
    */
   private _dwellStartTime = 0;
 
-  updateDwell(panelHit: PanelHit | null, sceneHit: SceneHit | null, activePointer: PointerLike | null) {
+  updateDwell(
+    panelHit: PanelHit | null,
+    sceneHit: SceneHit | null,
+    activePointer: PointerLike | null
+  ) {
     if (!this.dwellSelection || !activePointer) return;
 
     const sceneEntry = sceneHit?.entry ?? null;
