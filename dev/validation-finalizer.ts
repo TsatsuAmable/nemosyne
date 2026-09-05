@@ -481,6 +481,7 @@ export function finalizeValidationSession(options: {
       cohort,
       prerequisites,
     });
+    const { schemaVersion: adjudicationSchemaVersion, ...adjudicationResult } = adjudication;
     const finalizedAt = (options.now ?? (() => new Date()))().toISOString();
     const evidenceIndex = {
       schemaVersion: VALIDATION_CUSTODY_SCHEMA_VERSION,
@@ -491,10 +492,11 @@ export function finalizeValidationSession(options: {
     };
     const analysis = {
       schemaVersion: VALIDATION_CUSTODY_SCHEMA_VERSION,
+      adjudicationSchemaVersion,
       status: 'complete',
       recordedAt: finalizedAt,
       rawEvidenceDigest,
-      ...adjudication,
+      ...adjudicationResult,
     };
     const disposition = {
       schemaVersion: VALIDATION_CUSTODY_SCHEMA_VERSION,
