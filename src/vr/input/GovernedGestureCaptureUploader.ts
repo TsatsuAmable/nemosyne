@@ -26,15 +26,13 @@ import {
   computeGovernedEventContentDigestV1,
   computeGovernedPayloadDigestV1,
   type AuthorizationEvidenceV1,
+  type GestureLearningCaptureAuthorizationRequestV1,
+  type GestureLearningCaptureAuthorizationV1,
+  type GestureLearningEventDispositionV1,
   type GovernedEventEnvelopeV1,
   type JsonValue,
   type RuntimeProvenanceV1,
 } from '../../governance/index.ts';
-import type {
-  GestureLearningCaptureAuthorizationRequestV1,
-  GestureLearningCaptureAuthorizationV1,
-  GestureLearningEventDispositionV1,
-} from '../../governance-service/GestureLearningGovernance.ts';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRODUCER_PATTERN = /^piv1_[0-9a-f-]{36}$/i;
