@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, expect, it, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
