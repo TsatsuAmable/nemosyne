@@ -78,10 +78,10 @@ The consolidated model is:
 
 - `Node 24` remains the single required aggregate for deterministic application CI: static analysis, complete merged coverage, Rust tests, production build and Chromium smoke.
 - `CodeQL SAST (javascript-typescript)` remains an independent required security signal.
-- `approval-gate` owns only promotion-specific evidence: owner approval authority, exact-head identity, review disposition and the adversarial/promotion marker. GitHub's ruleset composes `Node 24`, CodeQL and `approval-gate`; the approval workflow does not poll the other required checks.
+- `approval-gate` owns promotion/governance evidence unique to it: live-ruleset drift, owner approval authority, exact-head identity, review disposition and the adversarial/promotion marker. GitHub's ruleset composes `Node 24`, CodeQL and `approval-gate`; the approval workflow does not poll the other required checks.
 - `architecture:check` is enforced inside the existing `Static analysis` job. The standalone architecture workflow is retained only as a manual timing/RSS audit.
 - the Q9 promotion-controller workflow is retained as an explicit manual exact-head governance audit rather than a second per-PR copy of `approval-gate`.
-- the Q8 supply-chain pilot runs on PRs only when dependency manifests, lockfiles, toolchain or supply-chain policy files change, while remaining manually runnable.
+- the Q8 supply-chain pilot runs on PRs only when dependency manifests, lockfiles, toolchain or supply-chain policy files change. `cargo-deny` also runs weekly and on manual dispatch so newly published Rust advisories remain visible without taxing ordinary PRs; GitHub Dependency Review remains PR-only because it requires a change diff.
 - the heavier UV0 instrumented screenshot baseline runs automatically only when its compile-gated evidence seam or harness changes, while ordinary production/browser behavior remains protected by required CI.
 - legacy Q3D and Stream A A1 resource-envelope workflows are manual reproduction tools rather than skipped checks emitted on every PR.
 - wiki publication still watches `src/**` on `main` because the generated codebase index depends on exported TypeScript symbols, but source-only PRs no longer run a validation job that cannot detect drift against a committed wiki artifact.
