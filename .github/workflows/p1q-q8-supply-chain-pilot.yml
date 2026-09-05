@@ -5,10 +5,22 @@ name: P1-Q Q8 supply-chain pilot
 # acceptable cost before any of them is promoted to a required PR gate.
 # A green run is point-in-time evidence, not a permanent absence-of-vulnerability
 # claim, and neither tool replaces Dependabot update automation.
+#
+# Ordinary source-only PRs do not change the dependency graph, so this pilot is
+# intentionally limited to dependency manifests, locks and policy/tooling files.
 
 on:
   pull_request:
     branches: [main]
+    paths:
+      - '.github/workflows/p1q-q8-supply-chain-pilot.yml'
+      - '.github/dependabot.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'rust-toolchain.toml'
+      - 'wasm/Cargo.toml'
+      - 'wasm/Cargo.lock'
+      - 'wasm/deny.toml'
   workflow_dispatch:
 
 permissions:
