@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "policy": "This registry records desired service boundaries and the verification obligations required to promote them. It does not replace docs/ROADMAP.md, and deployment evidence must never be inferred from repository tests. Missing, manual, physical-device, external-service and policy-deferred obligations remain explicit until their owning evidence is actually collected.",
+  "deploymentPolicy": {
+    "state": "DEFERRED_BY_OWNER",
+    "effectiveDate": "2026-09-05",
+    "reason": "Production deployments are intentionally deferred while implementation, repository verification and product-transition work continue up to the deployment boundary.",
+    "blocksForwardDevelopment": false
+  },
+  "services": [
+    {
+      "id": "governance-service",
+      "planes": ["product", "data"],
+      "targetState": "RUNNABLE_AND_DEPLOYABLE",
+      "implementationState": "IMPLEMENTATION_INCOMPLETE",
+      "deploymentState": "DEFERRED_BY_POLICY",
+      "verificationState": "REPOSITORY_PARTIAL",
+      "roadmapRefs": ["PT4", "P1-W"],
+      "capabilityRefs": ["product-analytics-browser-client"],
+      "sources": ["src/governance-service"],
+      "summary": "Product-intended PostgreSQL/OIDC governance substrate for authenticated, consent-aware ingestion, durable storage, export and erasure. The browser client exists, but the repository still lacks a runnable service entry point and end-to-end service evidence.",
+      "obligationRefs": ["RDO-001", "RDO-002", "RDO-003"]
+    },
+    {
+      "id": "collaboration-signalling-service",
+      "planes": ["realtime"],
+      "targetState": "RUNNABLE_AND_DEPLOYABLE",
+      "implementationState": "READY_TO_DEPLOY",
+      "deploymentState": "DEFERRED_BY_POLICY",
+      "verificationState": "REPOSITORY_VERIFIED",
+      "roadmapRefs": ["RF-054", "P1-W1"],
+      "capabilityRefs": ["collaboration-client", "collaboration-signalling-service"],
+      "sources": ["src/network/SignallingServer.mjs", "src/network/SignallingServerCore.ts", "src/network/SignedTicket.ts"],
+      "summary": "Fail-closed signalling runtime with readiness surface, container contract and operator-issued one-use signed collaboration invites. Repository tests cover real two-peer service admission and replay rejection; deployed wss:// evidence is intentionally deferred.",
+      "obligationRefs": ["RDO-004", "RDO-005", "RDO-006", "RDO-007"]
+    },
+    {
+      "id": "production-live-source-contract",
+      "planes": ["data"],
+      "targetState": "CONFIGURABLE_EXTERNAL_SOURCE",
+      "implementationState": "CLIENT_READY",
+      "deploymentState": "DEFERRED_BY_POLICY",
+      "verificationState": "REPOSITORY_PARTIAL",
+      "roadmapRefs": ["RF-054", "P1-W"],
+      "capabilityRefs": ["live-ingest"],
+      "sources": ["src/vr/coordinators/LiveStreamCoordinator.ts", "src/data/connectors/WebSocketAdapter.ts", "src/data/connectors/PollingAdapter.ts"],
+      "summary": "Production live ingest is a configured external-source contract. The bundled /__demo-stream server is a development fixture and is not itself a required production deployable.",
+      "obligationRefs": ["RDO-008", "RDO-009", "RDO-010"]
+    },
+    {
+      "id": "learning-plane-jobs",
+      "planes": ["learning"],
+      "targetState": "REPRODUCIBLE_GOVERNED_JOBS",
+      "implementationState": "PLANNED",
+      "deploymentState": "NOT_REQUIRED_YET",
+      "verificationState": "MISSING",
+      "roadmapRefs": ["PT6", "PT7", "PT8", "PT9"],
+      "capabilityRefs": ["learned-fitness-training"],
+      "sources": ["src/fitness", "src/judgement"],
+      "summary": "Future governed training-snapshot, evaluation, registry and staged-promotion jobs. Current process-local research machinery is intentionally not promoted into an operational learning service by inertia.",
+      "obligationRefs": ["RDO-011", "RDO-012", "RDO-013"]
+    }
+  ],
+  "verificationObligations": [
+    {
+      "id": "RDO-001",
+      "serviceRef": "governance-service",
+      "kind": "AUTOMATED",
+      "state": "MISSING",
+      "expectedEvidence": ["tests/p1w-governance-service-runtime.test.ts"],
+      "closure": "Add a runnable repository service entry point with fail-closed configuration plus health/readiness coverage exercised through a real process boundary."
+    },
+    {
+      "id": "RDO-002",
+      "serviceRef": "governance-service",
+      "kind": "AUTOMATED",
+      "state": "MISSING",
+      "expectedEvidence": ["tests/p1w-governance-service-lifecycle.test.ts"],
+      "closure": "Exercise authenticated consent-aware ingestion, durable storage, export, revoke-future-collection and applicable erasure through the runnable service boundary."
+    },
+    {
+      "id": "RDO-003",
+      "serviceRef": "governance-service",
+      "kind": "EXTERNAL_SERVICE",
+      "state": "DEFERRED_BY_POLICY",
+      "closure": "Against an actually deployed service, run the clean production browser journey and verify authentication, consent, ingestion, export and erasure without upgrading local or repository evidence into deployment proof."
+    },
+    {
+      "id": "RDO-004",
+      "serviceRef": "collaboration-signalling-service",
+      "kind": "AUTOMATED",
+      "state": "GREEN",
+      "evidence": ["tests/p1w1-signalling-service-runtime.test.ts"],
+      "closure": "Keep real service startup, health/readiness, signed-ticket admission and bounded failure semantics green."
+    },
+    {
+      "id": "RDO-005",
+      "serviceRef": "collaboration-signalling-service",
+      "kind": "AUTOMATED",
+      "state": "GREEN",
+      "evidence": ["tests/p1w1-collaboration-invite.test.ts", "tests/signalling-reconnect-ticket.test.ts"],
+      "closure": "Keep operator-issued invite consumption, server-bound peer identity and consumed-ticket replay rejection green."
+    },
+    {
+      "id": "RDO-006",
+      "serviceRef": "collaboration-signalling-service",
+      "kind": "EXTERNAL_SERVICE",
+      "state": "DEFERRED_BY_POLICY",
+      "closure": "Run a clean production bundle through the actually deployed wss:// endpoint and capture RF-054 deployment evidence."
+    },
+    {
+      "id": "RDO-007",
+      "serviceRef": "collaboration-signalling-service",
+      "kind": "AUTOMATED",
+      "state": "MISSING",
+      "expectedEvidence": ["tests/p1w-signalling-shared-nonce-store.test.ts"],
+      "closure": "Before enabling more than one signalling replica, introduce a shared atomic nonce store and prove one-use ticket replay safety across replicas. Single-replica operation does not require this obligation to be green."
+    },
+    {
+      "id": "RDO-008",
+      "serviceRef": "production-live-source-contract",
+      "kind": "AUTOMATED",
+      "state": "GREEN",
+      "evidence": ["tests/rf062f-feature-ports-production-path.test.ts"],
+      "closure": "Keep configured live-source adapters on the governed production path without silently depending on the bundled development stream."
+    },
+    {
+      "id": "RDO-009",
+      "serviceRef": "production-live-source-contract",
+      "kind": "AUTOMATED",
+      "state": "GREEN",
+      "evidence": ["dev/demo-stream-server.ts"],
+      "closure": "Keep /__demo-stream explicitly classified as a development fixture rather than a production service claim."
+    },
+    {
+      "id": "RDO-010",
+      "serviceRef": "production-live-source-contract",
+      "kind": "EXTERNAL_SERVICE",
+      "state": "DEFERRED_BY_POLICY",
+      "closure": "When a real production live source is selected, exercise a clean configured source journey and capture endpoint, reconnect, parsing, bounded-ingest and failure evidence."
+    },
+    {
+      "id": "RDO-011",
+      "serviceRef": "learning-plane-jobs",
+      "kind": "AUTOMATED",
+      "state": "MISSING",
+      "expectedEvidence": ["tests/pt6-training-snapshot-governance.test.ts"],
+      "closure": "Build immutable user-disjoint training snapshots with consent scope, label provenance, dataset identity and reproducible manifest checks."
+    },
+    {
+      "id": "RDO-012",
+      "serviceRef": "learning-plane-jobs",
+      "kind": "AUTOMATED",
+      "state": "MISSING",
+      "expectedEvidence": ["tests/pt7-runtime-model-registry.test.ts"],
+      "closure": "Prove exact artifact lineage, reproducible job inputs, model/runtime registry identity and rollback metadata before promotion workflows are product-composed."
+    },
+    {
+      "id": "RDO-013",
+      "serviceRef": "learning-plane-jobs",
+      "kind": "MANUAL",
+      "state": "MISSING",
+      "closure": "Define and review staged shadow/canary/promotion evidence for gesture and Moneta learning loops, including held-out groups, known-answer falsifiers, abstention/stability gates and human promotion authority."
+    }
+  ]
+}
