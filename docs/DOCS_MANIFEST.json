@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-09-03",
+  "lastReviewed": "2026-09-05",
   "statuses": ["canonical", "active", "historical"],
   "documents": [
     {
@@ -103,6 +103,12 @@
       "path": "docs/CI_TEST_ACCELERATION_STRATEGY.md",
       "status": "active",
       "authority": "ci-strategy",
+      "owner": "engineering"
+    },
+    {
+      "path": "docs/PRODUCTION_READINESS.md",
+      "status": "active",
+      "authority": "production-readiness-projection",
       "owner": "engineering"
     },
     {
