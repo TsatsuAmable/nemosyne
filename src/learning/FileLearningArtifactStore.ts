@@ -55,9 +55,11 @@ function validateDescriptor(value: unknown): value is LearningArtifactDescriptor
 /**
  * Repository-runnable durable artifact store for the PT7 learning plane.
  *
- * Storage is content-addressed by SHA-256. Logical id/version metadata is bound
- * to the digest and may not be rebound to different bytes. This is deliberately
- * a replaceable filesystem adapter, not a production object-storage claim.
+ * Blobs are content-addressed by SHA-256 while logical id/version aliases are
+ * stored separately. Identical bytes can therefore be reused by multiple
+ * legitimate logical artifacts, while one id/version may never be rebound to
+ * different content. This is replaceable repository infrastructure, not a
+ * production object-storage claim.
  */
 export class FileLearningArtifactStoreV1 {
   private readonly rootDirectory: string;
@@ -72,6 +74,7 @@ export class FileLearningArtifactStoreV1 {
     this.rootDirectory = options.rootDirectory;
     this.maxArtifactBytes = max;
     mkdirSync(join(this.rootDirectory, 'sha256'), { recursive: true });
+    mkdirSync(join(this.rootDirectory, 'refs'), { recursive: true });
   }
 
   put(input: PutLearningArtifactV1): LearningArtifactDescriptorV1 {
@@ -96,36 +99,42 @@ export class FileLearningArtifactStoreV1 {
       mediaType: input.mediaType,
       byteLength: input.bytes.byteLength,
     });
-    const { dataPath, metadataPath } = this.paths(digest);
+    const dataPath = this.dataPath(digest);
+    const metadataPath = this.metadataPath(input.id, input.version);
     mkdirSync(join(this.rootDirectory, 'sha256', digest.slice(0, 2)), { recursive: true });
 
-    if (existsSync(dataPath) || existsSync(metadataPath)) {
-      if (!existsSync(dataPath) || !existsSync(metadataPath)) {
-        throw new LearningArtifactStoreError('CORRUPT_STORE', `partial content-addressed artifact ${digest}`);
+    if (existsSync(dataPath)) {
+      this.verifyBytes(dataPath, descriptor);
+    } else {
+      try {
+        writeFileSync(dataPath, input.bytes, { flag: 'wx' });
+      } catch (error) {
+        if (!existsSync(dataPath)) {
+          throw new LearningArtifactStoreError('CORRUPT_STORE', `failed to commit immutable blob ${digest}: ${String(error)}`);
+        }
+        this.verifyBytes(dataPath, descriptor);
       }
+    }
+
+    if (existsSync(metadataPath)) {
       const existingDescriptor = this.readDescriptor(metadataPath);
       if (!descriptorEqual(existingDescriptor, descriptor)) {
         throw new LearningArtifactStoreError(
           'IDENTITY_COLLISION',
-          `digest ${digest} is already bound to ${existingDescriptor.id}@${existingDescriptor.version}`,
+          `${input.id}@${input.version} is already bound to ${existingDescriptor.digest.value}`,
         );
       }
-      this.verifyBytes(dataPath, existingDescriptor);
       return descriptor;
     }
 
     try {
-      writeFileSync(dataPath, input.bytes, { flag: 'wx' });
       writeFileSync(metadataPath, `${JSON.stringify(descriptor)}\n`, { encoding: 'utf8', flag: 'wx' });
     } catch (error) {
-      if (existsSync(dataPath) && existsSync(metadataPath)) {
+      if (existsSync(metadataPath)) {
         const existingDescriptor = this.readDescriptor(metadataPath);
-        if (descriptorEqual(existingDescriptor, descriptor)) {
-          this.verifyBytes(dataPath, existingDescriptor);
-          return descriptor;
-        }
+        if (descriptorEqual(existingDescriptor, descriptor)) return descriptor;
       }
-      throw new LearningArtifactStoreError('CORRUPT_STORE', `failed to commit immutable artifact ${digest}: ${String(error)}`);
+      throw new LearningArtifactStoreError('CORRUPT_STORE', `failed to commit immutable artifact alias: ${String(error)}`);
     }
     return descriptor;
   }
@@ -134,24 +143,29 @@ export class FileLearningArtifactStoreV1 {
     if (!validateDescriptor(descriptor)) {
       throw new LearningArtifactStoreError('INVALID_ARTIFACT', 'artifact descriptor is invalid');
     }
-    const { dataPath, metadataPath } = this.paths(descriptor.digest.value);
-    if (!existsSync(dataPath) || !existsSync(metadataPath)) {
-      throw new LearningArtifactStoreError('NOT_FOUND', `artifact ${descriptor.digest.value} is not present`);
+    const metadataPath = this.metadataPath(descriptor.id, descriptor.version);
+    if (!existsSync(metadataPath)) {
+      throw new LearningArtifactStoreError('NOT_FOUND', `${descriptor.id}@${descriptor.version} is not registered`);
     }
     const storedDescriptor = this.readDescriptor(metadataPath);
     if (!descriptorEqual(storedDescriptor, descriptor)) {
       throw new LearningArtifactStoreError('IDENTITY_COLLISION', 'requested logical identity does not match stored artifact metadata');
     }
+    const dataPath = this.dataPath(descriptor.digest.value);
+    if (!existsSync(dataPath)) {
+      throw new LearningArtifactStoreError('CORRUPT_STORE', `artifact blob ${descriptor.digest.value} is missing`);
+    }
     const bytes = this.verifyBytes(dataPath, storedDescriptor);
     return new Uint8Array(bytes);
   }
 
-  private paths(digest: string): Readonly<{ dataPath: string; metadataPath: string }> {
-    const directory = join(this.rootDirectory, 'sha256', digest.slice(0, 2));
-    return {
-      dataPath: join(directory, `${digest}.bin`),
-      metadataPath: join(directory, `${digest}.json`),
-    };
+  private dataPath(digest: string): string {
+    return join(this.rootDirectory, 'sha256', digest.slice(0, 2), `${digest}.bin`);
+  }
+
+  private metadataPath(id: string, version: string): string {
+    const aliasDigest = sha256Hex(`pt7-learning-artifact-alias-v1\n${id}\n${version}`);
+    return join(this.rootDirectory, 'refs', `${aliasDigest}.json`);
   }
 
   private readDescriptor(metadataPath: string): LearningArtifactDescriptorV1 {
