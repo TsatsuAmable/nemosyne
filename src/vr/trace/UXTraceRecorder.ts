@@ -9,7 +9,10 @@
 import * as THREE from 'three';
 import { canonicalSha256Hex } from '../../security/CryptoHash.ts';
 import type { HandLike, PanelLike } from '../coordinators/types.ts';
-import type { SelectionDispatchInfo } from '../input/SelectionDispatcher.ts';
+import type {
+  SelectionDispatchInfo,
+  SelectionDispatchStartInfo,
+} from '../input/SelectionDispatcher.ts';
 import type { SystemGestureTraceInfo } from '../input/SystemGestureDetector.ts';
 import {
   WorldSpatialContext,
@@ -109,6 +112,9 @@ interface TraceEngineDeps {
     panels: PanelLike[];
     interactables: Array<{ mesh: THREE.Object3D; data?: unknown }>;
     pointers?: { getBestPointerRay(): THREE.Ray | null };
+    dispatcher?: {
+      onDispatchStart: ((info: SelectionDispatchStartInfo) => void) | null;
+    };
     raycastScene?(raycaster: THREE.Raycaster, options?: { ignoreSuppression?: boolean }): {
       entry: { mesh: THREE.Object3D; data?: unknown };
       distance: number;
@@ -214,6 +220,16 @@ export class UXTraceRecorder {
   private _metaEmitted = false;
   private _warnedSections = new Set<string>();
 
+  /**
+   * Selection context captured at the dispatch-start boundary. `undefined`
+   * means no start hook was observed (legacy/direct caller); `null` means the
+   * start occurred while tracing was disabled and the later outcome must not
+   * become a post-consent observation.
+   */
+  private _selectionContextCapture: TraceContext | null | undefined;
+  private _previousDispatchStart: ((info: SelectionDispatchStartInfo) => void) | null = null;
+  private _dispatchStartTap: ((info: SelectionDispatchStartInfo) => void) | null = null;
+
   private _raycaster = new THREE.Raycaster();
   private _gazeRay = new THREE.Ray();
   private _headPos = new THREE.Vector3();
@@ -268,6 +284,20 @@ export class UXTraceRecorder {
           this._push({ type: 'interaction', payload: p ?? {}, ctx: this._context() });
         })
       );
+    }
+
+    // Capture the selection context before scene/global callbacks mutate UI or
+    // world state. Outcome recording still occurs afterward, when callback
+    // success is actually known. The hook is chained and restored on dispose.
+    const dispatcher = this._engine.input.dispatcher;
+    if (dispatcher) {
+      this._previousDispatchStart = dispatcher.onDispatchStart;
+      this._dispatchStartTap = (info) => {
+        this._previousDispatchStart?.(info);
+        this._selectionContextCapture =
+          this._disabled || this._disposed ? null : this._context();
+      };
+      dispatcher.onDispatchStart = this._dispatchStartTap;
     }
 
     this._engine.addUpdatable(this._updatable);
@@ -441,7 +471,14 @@ export class UXTraceRecorder {
 
   /** Selection dispatch outcome (hud / scene / callback-only / miss). */
   recordSelection(info: SelectionDispatchInfo): void {
-    if (this._disabled) return;
+    const capturedContext = this._selectionContextCapture;
+    this._selectionContextCapture = undefined;
+
+    // An explicit null capture means the selection began while recording was
+    // disabled. Do not admit the later outcome if a callback enabled tracing
+    // mid-dispatch; consent is evaluated at the observation boundary.
+    if (this._disabled || capturedContext === null) return;
+
     const pointer = info.pointer as HandLike | null;
     this._push({
       type: 'selection',
@@ -455,7 +492,7 @@ export class UXTraceRecorder {
       target: this._describeMesh(info.sceneMesh, info.sceneData),
       pointer: pointer?.handedness ?? (pointer?.index != null ? `#${pointer.index}` : null),
       rayValid: typeof info.rayValid === 'boolean' ? info.rayValid : null,
-      ctx: this._context(),
+      ctx: capturedContext ?? this._context(),
     });
   }
 
@@ -537,6 +574,14 @@ export class UXTraceRecorder {
       }
     }
     this._unsubs = [];
+
+    const dispatcher = this._engine.input.dispatcher;
+    if (dispatcher?.onDispatchStart === this._dispatchStartTap) {
+      dispatcher.onDispatchStart = this._previousDispatchStart;
+    }
+    this._dispatchStartTap = null;
+    this._selectionContextCapture = undefined;
+
     try {
       this._engine.removeUpdatable(this._updatable);
     } catch {
@@ -641,7 +686,8 @@ export class UXTraceRecorder {
     }
 
     if (dropMarker) {
-      dropMarker.droppedNow = (typeof dropMarker.droppedNow === 'number' ? dropMarker.droppedNow : 0) + droppedNow;
+      dropMarker.droppedNow =
+        (typeof dropMarker.droppedNow === 'number' ? dropMarker.droppedNow : 0) + droppedNow;
       dropMarker.droppedCount = this._droppedCount;
       dropMarker.lastDroppedAt = round(this._time, 3);
       return;
@@ -703,7 +749,13 @@ export class UXTraceRecorder {
       this._warnSectionOnce('head/gaze', err);
     }
 
-    let ptr: TraceContext['ptr'] = { target: null, kind: null, dist: null, hand: null, driftDeg: null };
+    let ptr: TraceContext['ptr'] = {
+      target: null,
+      kind: null,
+      dist: null,
+      hand: null,
+      driftDeg: null,
+    };
     try {
       const pointerRay = this._engine.input.pointers?.getBestPointerRay?.() ?? null;
       if (pointerRay) {
