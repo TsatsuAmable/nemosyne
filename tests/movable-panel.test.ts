@@ -49,6 +49,17 @@ function makeMockPointer({
   } as MockPointer;
 }
 
+function startTitleBarDrag(panel: MovablePanel, pointer: MockPointer): THREE.Raycaster {
+  const raycaster = makeRaycasterForUV(panel, 0.1, 0.95);
+  // In production the raycaster hit and PointerLike ray are the same physical
+  // controller/hand ray. Keep the unit test faithful to that invariant so grab
+  // offset measures the title-bar contact point rather than a synthetic second ray.
+  pointer._origin.copy(raycaster.ray.origin);
+  pointer._direction.copy(raycaster.ray.direction);
+  expect(panel.handlePointerDown(raycaster, pointer)).toBe('drag');
+  return raycaster;
+}
+
 describe('MovablePanel', () => {
   let panel: MovablePanel;
 
@@ -80,36 +91,34 @@ describe('MovablePanel', () => {
   });
 
   it('starts drag when title bar is clicked', () => {
-    const raycaster = makeRaycasterForUV(panel, 0.1, 0.95);
     const pointer = makeMockPointer();
-    const mode = panel.handlePointerDown(raycaster, pointer);
+    startTitleBarDrag(panel, pointer);
 
-    expect(mode).toBe('drag');
     expect(panel.drag.active).toBe(true);
     expect(panel.drag.pointer).toBe(pointer);
   });
 
   it('moves the panel 1:1 with the free-floating grab ray instead of lerping', () => {
     const pointer = makeMockPointer();
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    startTitleBarDrag(panel, pointer);
     const start = panel.mesh.position.clone();
 
-    pointer._origin.set(0.2, 0.1, 0);
-    panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    pointer._origin.add(new THREE.Vector3(0.2, 0.1, 0));
+    panel.handlePointerMove(new THREE.Raycaster(), pointer);
 
-    // The title-bar hit is intentionally off-centre; direct manipulation must
-    // preserve that grab offset while following the pointer translation 1:1.
+    // The off-centre title-bar contact remains attached to the ray while the
+    // panel follows controller/hand translation 1:1.
     expect(panel.mesh.position.x - start.x).toBeCloseTo(0.2, 2);
     expect(panel.mesh.position.y - start.y).toBeCloseTo(0.1, 2);
   });
 
   it('allows depth movement when the controller/hand ray origin moves in depth', () => {
     const pointer = makeMockPointer();
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    startTitleBarDrag(panel, pointer);
     const startZ = panel.mesh.position.z;
 
-    pointer._origin.set(0, 0, -0.35);
-    panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    pointer._origin.z -= 0.35;
+    panel.handlePointerMove(new THREE.Raycaster(), pointer);
 
     expect(panel.mesh.position.z).toBeLessThan(startZ - 0.2);
   });
@@ -118,7 +127,7 @@ describe('MovablePanel', () => {
     panel.mesh.rotation.set(-0.2, 0.65, 0, 'YXZ');
     panel.mesh.updateMatrixWorld(true);
     const pointer = makeMockPointer();
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    startTitleBarDrag(panel, pointer);
 
     const expected = new THREE.Vector3(0, 0, 1)
       .applyQuaternion(panel.mesh.getWorldQuaternion(new THREE.Quaternion()))
@@ -149,23 +158,23 @@ describe('MovablePanel', () => {
 
   it('does not clamp during manipulation but clamps once on release', () => {
     const pointer = makeMockPointer();
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    startTitleBarDrag(panel, pointer);
 
-    pointer._origin.set(0, 0, -2.5);
-    panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    pointer._origin.z -= 2.5;
+    panel.handlePointerMove(new THREE.Raycaster(), pointer);
     expect(panel.mesh.position.length()).toBeGreaterThan(panel.maxDistance);
 
-    panel.handlePointerUp(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    panel.handlePointerUp(new THREE.Raycaster(), pointer);
     expect(panel.mesh.position.length()).toBeLessThanOrEqual(panel.maxDistance + 1e-6);
   });
 
   it('commits the exact final pointer target on release', () => {
     const pointer = makeMockPointer();
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    startTitleBarDrag(panel, pointer);
     const start = panel.mesh.position.clone();
 
-    pointer._origin.set(0.3, 0.15, 0);
-    panel.handlePointerUp(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    pointer._origin.add(new THREE.Vector3(0.3, 0.15, 0));
+    panel.handlePointerUp(new THREE.Raycaster(), pointer);
 
     expect(panel.mesh.position.x - start.x).toBeCloseTo(0.3, 2);
     expect(panel.mesh.position.y - start.y).toBeCloseTo(0.15, 2);
