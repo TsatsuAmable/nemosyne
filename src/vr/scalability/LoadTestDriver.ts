@@ -89,6 +89,8 @@ export interface LoadTestSummary {
 /** Minimal World surface the driver needs. */
 export interface LoadTestWorldLike {
   loadDataset(entry: DatasetLoadEntry): void;
+  /** Dataset active before the run; restored on finish so the UI is usable. */
+  currentEntry?: DatasetLoadEntry | null;
   /** Read the geometry/layout the Draco solver actually picked, if available. */
   getActiveSpecInfo?(): {
     geometry?: string;
@@ -152,6 +154,8 @@ export class LoadTestDriver implements Updatable {
   private _visibilityTracker: QuestVisibilityTracker | null = null;
   private _runId = '';
   private _disposed = false;
+  /** Entry active before run(); restored after _finishRun so the stress dataset does not freeze the UI. */
+  private _preRunEntry: DatasetLoadEntry | null = null;
 
   constructor(
     private readonly _world: LoadTestWorldLike,
@@ -173,6 +177,7 @@ export class LoadTestDriver implements Updatable {
     this._stepIndex = 0;
     this._steps = [];
     this._aborted = false;
+    this._preRunEntry = this._world.currentEntry ?? null;
     this._startedAt = performance.now();
     this._runId =
       typeof globalThis.crypto?.randomUUID === 'function'
@@ -361,6 +366,23 @@ export class LoadTestDriver implements Updatable {
       },
     };
     this._world.eventBus.emit(WorldTopics.LOADTEST_COMPLETE, summary);
+    this._restorePreRunDataset();
+  }
+
+  /**
+   * Reload the dataset that was active before the run. Without this, the
+   * final (heaviest) stress step stays live and the interface freezes,
+   * making post-run actions such as evidence Flush unreachable.
+   */
+  private _restorePreRunDataset(): void {
+    const entry = this._preRunEntry;
+    this._preRunEntry = null;
+    if (!entry) return;
+    try {
+      this._world.loadDataset(entry);
+    } catch (err) {
+      console.error('[LoadTestDriver] pre-run dataset restore failed:', err);
+    }
   }
 
   private _emitSample(): void {

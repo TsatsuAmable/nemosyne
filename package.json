@@ -59,6 +59,7 @@
     "benchmark:rust-js-boundary": "node --expose-gc scripts/benchmark-columnar-capacity.mjs",
     "benchmark:spatial-accelerator": "node scripts/benchmark-spatial-accelerator.mjs",
     "analyze:quest-telemetry": "node scripts/analyze-quest-telemetry.mjs",
+    "quest:evidence-status": "node scripts/quest-evidence-status.mjs",
     "audit:hygiene": "node scripts/audit-hygiene.mjs",
     "deploy:netlify": "npm run build && npx netlify deploy --prod --dir=dist",
     "architecture:boundaries": "depcruise --config .dependency-cruiser.boundaries.cjs --output-type err-long src",

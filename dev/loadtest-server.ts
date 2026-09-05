@@ -249,13 +249,26 @@ export function createLoadTestResultsHandler(
     const requestSession = readPostValidationSession(
       req.headers as Record<string, string | string[] | undefined>
     );
+    const requestLabel: string =
+      typeof requestSession?.label === 'string' ? requestSession.label : '(none)';
+    const activeLabel: string =
+      typeof activeSession?.label === 'string' ? activeSession.label : '(none)';
     if (!sessionMatches(activeSession, requestSession)) {
-      jsonError(res, 409, 'request does not match the active validation session');
+      jsonError(
+        res,
+        409,
+        `request session '${requestLabel}' does not match the active validation session '${activeLabel}'; ` +
+          `reload the Quest page from the current launcher URL so browser and server sessions agree`
+      );
       return true;
     }
     const manifest = readSessionManifest(validationLogRoot, activeSession);
     if (!manifest) {
-      jsonError(res, 409, 'active validation manifest is unavailable or invalid');
+      jsonError(
+        res,
+        409,
+        `active validation manifest for session '${activeSession.label}' is unavailable or invalid`
+      );
       return true;
     }
     jsonOk(res, {
@@ -389,7 +402,12 @@ export function createLoadTestResultsHandler(
       }
       const manifest = readSessionManifest(validationLogRoot, activeSession);
       if (!manifest) {
-        jsonError(response, 409, 'evidence was written but active manifest confirmation failed');
+        jsonError(
+          response,
+          409,
+          `evidence was written but active manifest confirmation failed for session '${activeSession.label}'; ` +
+            `the summary is on disk - check logs/validation/${activeSession.label}/`
+        );
         return;
       }
       jsonOk(response, {
