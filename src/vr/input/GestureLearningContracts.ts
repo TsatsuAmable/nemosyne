@@ -75,6 +75,12 @@ export interface GestureTrainingSnapshotSplitV1 {
   readonly samples: readonly GestureLearningSampleRefV1[];
 }
 
+export interface GestureTrainingSplitFractionsV1 {
+  readonly train: number;
+  readonly validation: number;
+  readonly test: number;
+}
+
 export interface GestureTrainingSnapshotContentV1 {
   readonly schemaVersion: typeof GESTURE_LEARNING_SCHEMA_VERSION;
   readonly snapshotId: string;
@@ -83,7 +89,9 @@ export interface GestureTrainingSnapshotContentV1 {
   readonly featureSchema: ImmutableReferenceV1;
   readonly labelRulesVersion: typeof GESTURE_LABEL_PROVENANCE_RULE_VERSION;
   readonly splitPolicyVersion: typeof GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION;
-  readonly splitSeedDigest: Sha256DigestV1;
+  /** Secret-free stable seed identifier required to reproduce the profile split. */
+  readonly splitSeedId: string;
+  readonly splitFractions: GestureTrainingSplitFractionsV1;
   readonly splits: Readonly<{
     train: GestureTrainingSnapshotSplitV1;
     validation: GestureTrainingSnapshotSplitV1;
@@ -109,11 +117,13 @@ export type GestureLearningContractIssueCode =
   | 'INVALID_CONSENT_EVIDENCE'
   | 'INVALID_LABEL_PROVENANCE'
   | 'INVALID_SAMPLE_REFERENCE'
+  | 'INVALID_SNAPSHOT_METADATA'
   | 'DUPLICATE_RECORD_ID'
   | 'MIXED_FEATURE_SCHEMA'
   | 'INSUFFICIENT_PROFILE_GROUPS'
   | 'INVALID_SPLIT_FRACTIONS'
   | 'PROFILE_SPLIT_OVERLAP'
+  | 'SPLIT_POLICY_MISMATCH'
   | 'SNAPSHOT_DIGEST_MISMATCH';
 
 export interface GestureLearningContractIssue {
@@ -139,6 +149,7 @@ const UTC_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const GESTURE_CLASS_SET = new Set<string>(GESTURE_CLASSES);
 const LABEL_SOURCE_SET = new Set<string>(GESTURE_LABEL_SOURCES);
 const SPLIT_DOMAIN = 'nemosyne:gesture-profile-split:v1\n';
+const FRACTION_EPSILON = 1e-12;
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -184,6 +195,17 @@ function validUtcTimestamp(value: unknown): value is string {
     typeof value === 'string' &&
     UTC_TIMESTAMP.test(value) &&
     Number.isFinite(Date.parse(value))
+  );
+}
+
+function validSplitFractions(
+  fractions: GestureTrainingSplitFractionsV1 | undefined
+): fractions is GestureTrainingSplitFractionsV1 {
+  if (!fractions) return false;
+  const values = [fractions.train, fractions.validation, fractions.test];
+  return (
+    values.every((value) => Number.isFinite(value) && value > 0 && value < 1) &&
+    Math.abs(values.reduce((sum, value) => sum + value, 0) - 1) <= FRACTION_EPSILON
   );
 }
 
@@ -421,6 +443,29 @@ function normalizedSplitCounts(
   return { train: profileCount - validation - test, validation, test };
 }
 
+function orderedProfilesForPolicy(profileIds: readonly string[], splitSeed: string): string[] {
+  return [...profileIds].sort((a, b) => {
+    const byHash = profileOrderKey(a, splitSeed).localeCompare(profileOrderKey(b, splitSeed));
+    return byHash !== 0 ? byHash : a.localeCompare(b);
+  });
+}
+
+function expectedProfileOwners(
+  profileIds: readonly string[],
+  splitSeed: string,
+  fractions: GestureTrainingSplitFractionsV1
+): ReadonlyMap<string, GestureTrainingSplit> {
+  const orderedProfiles = orderedProfilesForPolicy(profileIds, splitSeed);
+  const counts = normalizedSplitCounts(orderedProfiles.length, fractions.validation, fractions.test);
+  const owners = new Map<string, GestureTrainingSplit>();
+  orderedProfiles.slice(0, counts.train).forEach((profileId) => owners.set(profileId, 'train'));
+  orderedProfiles
+    .slice(counts.train, counts.train + counts.validation)
+    .forEach((profileId) => owners.set(profileId, 'validation'));
+  orderedProfiles.slice(counts.train + counts.validation).forEach((profileId) => owners.set(profileId, 'test'));
+  return owners;
+}
+
 function buildSplit(
   profileIds: readonly string[],
   samplesByProfile: ReadonlyMap<string, readonly GestureLearningSampleRefV1[]>
@@ -442,14 +487,13 @@ export function buildGestureTrainingSnapshotV1(
   const issues: GestureLearningContractIssue[] = [];
   const validationFraction = options.validationFraction ?? 0.15;
   const testFraction = options.testFraction ?? 0.15;
+  const splitFractions: GestureTrainingSplitFractionsV1 = {
+    train: 1 - validationFraction - testFraction,
+    validation: validationFraction,
+    test: testFraction,
+  };
 
-  if (
-    !Number.isFinite(validationFraction) ||
-    !Number.isFinite(testFraction) ||
-    validationFraction <= 0 ||
-    testFraction <= 0 ||
-    validationFraction + testFraction >= 1
-  ) {
+  if (!validSplitFractions(splitFractions)) {
     issues.push({
       code: 'INVALID_SPLIT_FRACTIONS',
       path: 'options',
@@ -463,7 +507,7 @@ export function buildGestureTrainingSnapshotV1(
     !SAFE_ID.test(options.splitSeed)
   ) {
     issues.push({
-      code: 'INVALID_SAMPLE_REFERENCE',
+      code: 'INVALID_SNAPSHOT_METADATA',
       path: 'options',
       message: 'snapshot identity, version, timestamp and splitSeed must be stable bounded values',
     });
@@ -515,10 +559,7 @@ export function buildGestureTrainingSnapshotV1(
   }
   if (issues.length > 0 || featureSchema === null) throw new GestureLearningContractError(issues);
 
-  const orderedProfiles = [...samplesByProfile.keys()].sort((a, b) => {
-    const byHash = profileOrderKey(a, options.splitSeed).localeCompare(profileOrderKey(b, options.splitSeed));
-    return byHash !== 0 ? byHash : a.localeCompare(b);
-  });
+  const orderedProfiles = orderedProfilesForPolicy([...samplesByProfile.keys()], options.splitSeed);
   const counts = normalizedSplitCounts(orderedProfiles.length, validationFraction, testFraction);
   if (counts.train < 1 || counts.validation < 1 || counts.test < 1) {
     throw new GestureLearningContractError([
@@ -542,10 +583,8 @@ export function buildGestureTrainingSnapshotV1(
     featureSchema: cloneReference(featureSchema),
     labelRulesVersion: GESTURE_LABEL_PROVENANCE_RULE_VERSION,
     splitPolicyVersion: GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION,
-    splitSeedDigest: {
-      algorithm: 'SHA256',
-      value: sha256Hex(`${SPLIT_DOMAIN}${options.splitSeed}`),
-    },
+    splitSeedId: options.splitSeed,
+    splitFractions,
     splits: {
       train: buildSplit(trainProfiles, samplesByProfile),
       validation: buildSplit(validationProfiles, samplesByProfile),
@@ -569,7 +608,31 @@ export function validateGestureTrainingSnapshotV1(
   const splitNames = ['train', 'validation', 'test'] as const;
   const profileOwner = new Map<string, GestureTrainingSplit>();
   const recordIds = new Set<string>();
+  const allProfileIds = new Set<string>();
   let featureSchema: ImmutableReferenceV1 | null = null;
+
+  if (
+    snapshot?.schemaVersion !== GESTURE_LEARNING_SCHEMA_VERSION ||
+    !SAFE_ID.test(snapshot?.snapshotId ?? '') ||
+    !STABLE_VERSION.test(snapshot?.snapshotVersion ?? '') ||
+    !validUtcTimestamp(snapshot?.createdAt) ||
+    snapshot?.labelRulesVersion !== GESTURE_LABEL_PROVENANCE_RULE_VERSION ||
+    snapshot?.splitPolicyVersion !== GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION ||
+    !SAFE_ID.test(snapshot?.splitSeedId ?? '')
+  ) {
+    issues.push({
+      code: 'INVALID_SNAPSHOT_METADATA',
+      path: 'snapshot',
+      message: 'snapshot metadata must use the frozen PT6A schema, label rules and split policy',
+    });
+  }
+  if (!validSplitFractions(snapshot?.splitFractions)) {
+    issues.push({
+      code: 'INVALID_SPLIT_FRACTIONS',
+      path: 'splitFractions',
+      message: 'train/validation/test fractions must be finite, positive and sum to 1',
+    });
+  }
 
   for (const splitName of splitNames) {
     const split = snapshot?.splits?.[splitName];
@@ -582,6 +645,13 @@ export function validateGestureTrainingSnapshotV1(
       continue;
     }
     const declaredProfiles = new Set(split.profilePseudonymIds);
+    if (declaredProfiles.size !== split.profilePseudonymIds.length) {
+      issues.push({
+        code: 'PROFILE_SPLIT_OVERLAP',
+        path: `splits.${splitName}.profilePseudonymIds`,
+        message: 'split profile list contains duplicates',
+      });
+    }
     for (const profileId of declaredProfiles) {
       const prior = profileOwner.get(profileId);
       if (prior && prior !== splitName) {
@@ -592,6 +662,7 @@ export function validateGestureTrainingSnapshotV1(
         });
       }
       profileOwner.set(profileId, splitName);
+      allProfileIds.add(profileId);
     }
     for (let index = 0; index < split.samples.length; index += 1) {
       const sample = split.samples[index];
@@ -635,6 +706,23 @@ export function validateGestureTrainingSnapshotV1(
       path: 'featureSchema',
       message: 'snapshot feature schema must match every sample',
     });
+  }
+
+  if (validSplitFractions(snapshot?.splitFractions) && SAFE_ID.test(snapshot?.splitSeedId ?? '') && allProfileIds.size >= 3) {
+    const expectedOwners = expectedProfileOwners(
+      [...allProfileIds],
+      snapshot.splitSeedId,
+      snapshot.splitFractions
+    );
+    for (const profileId of allProfileIds) {
+      if (expectedOwners.get(profileId) !== profileOwner.get(profileId)) {
+        issues.push({
+          code: 'SPLIT_POLICY_MISMATCH',
+          path: 'splits',
+          message: `${profileId} is not assigned according to ${GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION}`,
+        });
+      }
+    }
   }
 
   if (!isSha256Digest(snapshot?.snapshotDigest)) {
