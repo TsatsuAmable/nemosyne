@@ -1,7 +1,7 @@
 # P1-PT6A Gesture-Learning Contracts — Post-Implementation Adversarial Review
 
 **Date:** 5 September 2026  
-**Base:** `main@ed9bd1611f4d4f2f0b3f237a2520699e4c1c6582`  
+**Integration base re-reviewed:** `main@ee14b93b7a7d1fcd461a9c61e221230a34b618e1` after synchronizing #660  
 **Disposition:** **ADOPT PT6A if the unchanged exact head passes required promotion gates**
 
 ## Scope reviewed
@@ -16,6 +16,7 @@ Reviewed surfaces:
 - `tests/gesture-retrain.test.ts`
 - existing governed-purpose/data-class contracts from PT3/PT4
 - dormant `GestureCaptureUploader` and existing gesture capture/retraining prototypes as hostile compatibility inputs, not authorities to preserve
+- current risk-tiered assurance contract from #660
 
 ## Findings and fix-forward
 
@@ -62,6 +63,12 @@ This prevents a model prediction from being laundered into training truth by a g
 ### 7. Row-wise splitting is forbidden
 
 Every admitted derived-learning sample carries a purpose-scoped learning profile pseudonym. Snapshot construction groups by that pseudonym before assigning train/validation/test. All rows from one profile remain in exactly one split; duplicate record identity and mixed feature-schema identity are rejected.
+
+### 8. Empty declared profiles could manipulate policy reconstruction
+
+The independent PR-head review found a second-order manifest attack not covered by the original pre-review. The validator reconstructed expected split ownership from the declared profile lists, but it did not require every declared profile to own a sample. A hostile producer could therefore add freshly invented, zero-row profile IDs, re-digest the manifest, and let those fake groups perturb the deterministic ordering/count calculation used to judge real profiles.
+
+**BLOCKER fixed:** every declared profile ID is now syntactically bounded and must have at least one sample in the same split. Zero-row declarations are rejected with `EMPTY_PROFILE_GROUP` and cannot silently influence the split-policy proof. A regression creates a freshly re-digested manifest containing a ghost profile and proves that digest validity does not make that manifest admissible.
 
 ## Residual boundary / next tranche
 
