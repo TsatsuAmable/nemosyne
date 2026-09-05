@@ -92,12 +92,15 @@ describe('MovablePanel', () => {
   it('moves the panel 1:1 with the free-floating grab ray instead of lerping', () => {
     const pointer = makeMockPointer();
     panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    const start = panel.mesh.position.clone();
 
     pointer._origin.set(0.2, 0.1, 0);
     panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
 
-    expect(panel.mesh.position.x).toBeCloseTo(0.2, 2);
-    expect(panel.mesh.position.y).toBeCloseTo(0.1, 2);
+    // The title-bar hit is intentionally off-centre; direct manipulation must
+    // preserve that grab offset while following the pointer translation 1:1.
+    expect(panel.mesh.position.x - start.x).toBeCloseTo(0.2, 2);
+    expect(panel.mesh.position.y - start.y).toBeCloseTo(0.1, 2);
   });
 
   it('allows depth movement when the controller/hand ray origin moves in depth', () => {
@@ -159,12 +162,13 @@ describe('MovablePanel', () => {
   it('commits the exact final pointer target on release', () => {
     const pointer = makeMockPointer();
     panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    const start = panel.mesh.position.clone();
 
     pointer._origin.set(0.3, 0.15, 0);
     panel.handlePointerUp(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
 
-    expect(panel.mesh.position.x).toBeCloseTo(0.3, 2);
-    expect(panel.mesh.position.y).toBeCloseTo(0.15, 2);
+    expect(panel.mesh.position.x - start.x).toBeCloseTo(0.3, 2);
+    expect(panel.mesh.position.y - start.y).toBeCloseTo(0.15, 2);
     expect(panel.drag.active).toBe(false);
   });
 
