@@ -1,4 +1,5 @@
 import {
+  VALIDATION_MODE_TABLE,
   deriveValidationManifest,
   validateValidationManifest,
   type QuestDeviceIdentity,
@@ -39,7 +40,7 @@ function provisionalContext(env: Record<string, unknown>): BrowserValidationCont
     !buildId ||
     !/^[0-9a-f]{40}$/i.test(buildId) ||
     !mode ||
-    !['quest', 'quest-perf', 'quest-ux', 'quest-10m', 'quest-validate'].includes(mode) ||
+    !(mode in VALIDATION_MODE_TABLE) ||
     !worktree ||
     !['clean', 'dirty', 'unknown'].includes(worktree)
   ) {
@@ -63,17 +64,32 @@ function provisionalContext(env: Record<string, unknown>): BrowserValidationCont
         }
       : null;
 
-  const manifest = deriveValidationManifest({
+  let manifest = deriveValidationManifest({
     sessionId: session.id,
     sessionLabel: session.label,
     buildId,
     worktree,
     mode,
     deviceIdentity,
-    deviceIdentityError: deviceIdentity ? null : 'awaiting server-owned launcher manifest confirmation',
+    deviceIdentityError: deviceIdentity ? null : 'machine-captured ADB identity is unavailable',
     declaredQuestModel: model,
     declaredFirmwareVersion: buildIncremental,
   });
+
+  // This projection may only make eligibility *stricter* while waiting for the
+  // exact server-owned manifest. It must never upgrade a governed run.
+  const governed = VALIDATION_MODE_TABLE[mode].evidenceClass === 'governed-physical-validation';
+  const recognisableQuest = Boolean(deviceIdentity && /quest|oculus|meta/i.test(deviceIdentity.model));
+  if (governed && !recognisableQuest) {
+    manifest = {
+      ...manifest,
+      invalidations: [
+        ...manifest.invalidations,
+        'device identity: governed physical validation requires machine-captured recognisable Quest identity',
+      ],
+      promotionEligible: false,
+    };
+  }
 
   return {
     session,
@@ -89,9 +105,9 @@ function provisionalContext(env: Record<string, unknown>): BrowserValidationCont
  *
  * Preferred path: validate an exact serialized launcher manifest when present.
  * Current launcher compatibility path: project only the already-propagated
- * session/build/ADB env fields and mark them provisional. The QV6 panel must
- * obtain the exact manifest from `/__validation-status` before enabling a
- * governed start.
+ * session/build/ADB env fields and mark them provisional. The QV6 panel obtains
+ * the exact manifest from `/__validation-status`; provisional eligibility is
+ * fail-closed and is never allowed to upgrade a run.
  */
 export function readBrowserValidationContext(
   env: Record<string, unknown>
