@@ -190,7 +190,7 @@ describe('P1-R2E B1 source-authoritative relationship graph contract', () => {
       candidates.some((candidate) => candidate.disqualificationCode === 'graph-authority-required')
     ).toBe(false);
     expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v5');
-    expect(decision.provenance.version).toBe('2.1.0-v5-bootstrap');
+    expect(decision.provenance.version).toBe('2.1.1-v5-bootstrap');
   });
 
   it('hard-refuses graph node and edge counts beyond the B1 envelope before ranking', () => {
