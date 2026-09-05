@@ -1,3 +1,5 @@
+import { clearStoredCollaborationInviteCredential } from './CollaborationInvite.ts';
+
 /**
  * Minimal WebSocket signalling channel for Nemosyne collaboration rooms.
  *
@@ -15,6 +17,7 @@ export interface SignallingMessage {
 
 const RECONNECT_BASE_DELAY_MS = 250;
 const RECONNECT_MAX_DELAY_MS = 5000;
+export const SIGNALLING_CONNECT_TIMEOUT_MS = 8000;
 
 export class SignallingChannel extends EventTarget {
   url: string;
@@ -75,9 +78,12 @@ export class SignallingChannel extends EventTarget {
 
   private _openSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      let opened = false;
+      let transportOpened = false;
       let settled = false;
+      let awaitingSignedAdmission = false;
+      let activeAuthToken = this.token;
       let ws: WebSocket;
+      let connectTimeout: ReturnType<typeof setTimeout> | null = null;
       try {
         const params = `room=${encodeURIComponent(this.roomId)}&peer=${encodeURIComponent(this.peerId)}&role=${this.role}`;
         // Credentials are never placed in the URL query string to prevent access-log exposure.
@@ -88,23 +94,58 @@ export class SignallingChannel extends EventTarget {
         return;
       }
 
+      const clearConnectTimeout = () => {
+        if (!connectTimeout) return;
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+      };
       const resolveOnce = () => {
         if (settled) return;
         settled = true;
+        clearConnectTimeout();
         resolve();
       };
       const rejectOnce = (error: unknown) => {
         if (settled) return;
         settled = true;
+        clearConnectTimeout();
         reject(error instanceof Error ? error : new Error('signalling connection failed'));
       };
+      const markConnected = () => {
+        if (settled || this._ws !== ws || this._manualDisconnect) return;
+        awaitingSignedAdmission = false;
+        this._connected = true;
+        this._flushQueue();
+        this.dispatchEvent(new Event('open'));
+        this._hasConnectedOnce = true;
+        this._reconnectAttempt = 0;
+        if (activeAuthToken?.includes('.')) {
+          clearStoredCollaborationInviteCredential(activeAuthToken);
+        }
+        resolveOnce();
+      };
+
+      connectTimeout = setTimeout(() => {
+        if (settled || this._ws !== ws) return;
+        if (transportOpened && awaitingSignedAdmission) {
+          this._manualDisconnect = true;
+          rejectOnce(new Error('signalling admission timed out'));
+        } else {
+          rejectOnce(new Error('signalling connection timed out'));
+        }
+        try {
+          ws.close();
+        } catch {
+          // The timeout rejection is authoritative even if transport teardown fails.
+        }
+      }, SIGNALLING_CONNECT_TIMEOUT_MS);
 
       ws.addEventListener('open', async () => {
         if (this._ws !== ws || this._manualDisconnect) return;
-        opened = true;
+        transportOpened = true;
         // In-band authentication message sent immediately over every socket generation.
         // The server remains authoritative for the role associated with the token.
-        let authToken = this.token;
+        activeAuthToken = this.token;
         if (this._hasConnectedOnce && this.onNeedReconnectTicket) {
           try {
             const freshTicket = await this.onNeedReconnectTicket();
@@ -112,17 +153,19 @@ export class SignallingChannel extends EventTarget {
               this.dispatchEvent(
                 new CustomEvent('reconnect-failed', { detail: { reason: 'no-fresh-ticket' } })
               );
-              ws.close();
+              this._manualDisconnect = true;
               rejectOnce(new Error('reconnect failed: no fresh ticket'));
+              ws.close();
               return;
             }
-            authToken = freshTicket;
+            activeAuthToken = freshTicket;
           } catch {
             this.dispatchEvent(
               new CustomEvent('reconnect-failed', { detail: { reason: 'ticket-callback-error' } })
             );
-            ws.close();
+            this._manualDisconnect = true;
             rejectOnce(new Error('reconnect failed: ticket callback error'));
+            ws.close();
             return;
           }
         } else if (this._hasConnectedOnce && this.token?.includes('.')) {
@@ -137,25 +180,27 @@ export class SignallingChannel extends EventTarget {
             new CustomEvent('reconnect-failed', { detail: { reason: 'fresh-ticket-required' } })
           );
           this._manualDisconnect = true;
-          ws.close();
           rejectOnce(new Error('reconnect failed: fresh signed ticket required'));
+          ws.close();
           return;
         }
-        if (authToken) {
+        if (activeAuthToken) {
           const authMsg: SignallingMessage = {
             roomId: this.roomId,
             from: this.peerId,
             to: '*',
-            data: { type: 'auth', token: authToken, role: this.role },
+            data: { type: 'auth', token: activeAuthToken, role: this.role },
           };
           ws.send(JSON.stringify(authMsg));
         }
-        this._connected = true;
-        this._flushQueue();
-        this.dispatchEvent(new Event('open'));
-        this._hasConnectedOnce = true;
-        this._reconnectAttempt = 0;
-        resolveOnce();
+
+        // The standalone production service acknowledges canonical signed
+        // tickets only after the synchronous admission authority accepts them.
+        // Shared-secret and open development modes retain their legacy raw-open
+        // semantics so the development signalling plugin is not turned into a
+        // second production protocol implementation.
+        awaitingSignedAdmission = Boolean(activeAuthToken?.includes('.'));
+        if (!awaitingSignedAdmission) markConnected();
       });
 
       ws.addEventListener('message', (event: MessageEvent) => {
@@ -166,22 +211,53 @@ export class SignallingChannel extends EventTarget {
         } catch {
           return;
         }
+        if (
+          awaitingSignedAdmission &&
+          payload !== null &&
+          typeof payload === 'object' &&
+          !Array.isArray(payload) &&
+          (payload as { type?: unknown }).type === 'admitted' &&
+          (payload as { roomId?: unknown }).roomId === this.roomId
+        ) {
+          markConnected();
+          return;
+        }
         this.dispatchEvent(new CustomEvent('signal', { detail: payload }));
       });
 
-      ws.addEventListener('close', () => {
+      ws.addEventListener('close', (event: CloseEvent) => {
         if (this._ws !== ws) return;
+        clearConnectTimeout();
+        const signedAdmissionRejected = awaitingSignedAdmission && !settled && transportOpened;
         this._connected = false;
         this._ws = null;
+        if (signedAdmissionRejected) {
+          // A canonical signed credential that reached the service but was not
+          // admitted is terminal for this automatic connection generation. Do
+          // not hammer a replay/invalid ticket until the auth-failure throttle
+          // fires; an explicit user retry can still reuse an unconsumed ticket.
+          this._manualDisconnect = true;
+          this.dispatchEvent(
+            new CustomEvent('admission-failed', { detail: { code: event.code || undefined } })
+          );
+          rejectOnce(new Error('signalling admission rejected'));
+        } else if (!settled) {
+          rejectOnce(
+            new Error(
+              transportOpened
+                ? 'signalling connection closed before admission'
+                : 'signalling connection closed before opening'
+            )
+          );
+        }
         this.dispatchEvent(new Event('close'));
-        if (!opened) rejectOnce(new Error('signalling connection closed before opening'));
         if (!this._manualDisconnect) this._scheduleReconnect();
       });
 
       ws.addEventListener('error', () => {
         if (this._ws !== ws) return;
         this.dispatchEvent(new Event('error'));
-        if (!opened) rejectOnce(new Error('signalling connection failed'));
+        if (!transportOpened) rejectOnce(new Error('signalling connection failed'));
       });
     });
   }

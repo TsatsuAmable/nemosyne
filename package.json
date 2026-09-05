@@ -26,6 +26,8 @@
     "dev:quest:10m": "node scripts/quest-validation.mjs quest-10m",
     "dev:quest:validate": "node scripts/quest-validation.mjs quest-validate",
     "dev:quest:device": "node scripts/quest-device-declaration.mjs",
+    "start:signalling": "node src/network/SignallingServer.mjs",
+    "collaboration:invite": "node scripts/create-collaboration-invite.mjs",
     "build": "npm run wasm && vite build",
     "preview": "vite preview",
     "lint": "eslint src tests dev vite.config.ts vitest.config.ts vitest.coverage.config.ts vitest.fast.config.ts vitest.ui.config.ts vitest.wasm.config.ts playwright.collaboration.config.ts",

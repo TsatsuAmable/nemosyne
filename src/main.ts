@@ -3,6 +3,7 @@ import { bootstrapApp } from './app/index.ts';
 import { installConfiguredProductAnalyticsClient } from './app/governance/installProductAnalyticsClient.ts';
 import { installInvestigationJourney } from './app/investigation/installInvestigationJourney.ts';
 import { installInvestigationContinuity } from './app/investigation/installInvestigationContinuity.ts';
+import { consumeCollaborationInvite } from './network/CollaborationInvite.ts';
 import {
   initializeClientPersistence,
   installClientPersistenceStorageBridge,
@@ -68,6 +69,19 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
 });
 
 async function start(): Promise<void> {
+  try {
+    const invite = consumeCollaborationInvite(
+      window.location.href,
+      window.sessionStorage,
+      (url) => window.history.replaceState(window.history.state, '', url)
+    );
+    if (invite.error) {
+      console.warn(`[Nemosyne] collaboration invite rejected: ${invite.error}`);
+    }
+  } catch (error) {
+    console.warn('[Nemosyne] collaboration invite storage unavailable; continuing without invite', error);
+  }
+
   await initializeClientPersistence().catch((error) => {
     console.warn('[Nemosyne] client persistence unavailable; continuing without durable local state', error);
     showPersistenceUnavailableNotice(error);

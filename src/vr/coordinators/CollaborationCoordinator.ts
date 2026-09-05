@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { NetworkManager } from '../../network/NetworkManager.ts';
 import { PeerAvatarManager } from '../../network/PeerAvatarManager.ts';
+import { readStoredCollaborationRoom } from '../../network/CollaborationInvite.ts';
+import {
+  readSignallingBrowserConfig,
+  type BrowserSignallingRuntimeConfig,
+} from '../../network/SignallingRuntimeConfig.ts';
 import { AsymmetricDesktopCompanion } from '../ui/AsymmetricDesktopCompanion.ts';
 import type {
   SharedAnnotationManager,
@@ -19,6 +24,7 @@ export interface CollaborationPresencePort {
 export interface CollaborationStatus {
   roomId?: string;
   connected?: boolean;
+  available?: boolean;
   peers?: Array<{ peerId: string; name?: string }>;
   lastEvent?: string | null;
 }
@@ -34,6 +40,8 @@ export interface CollaborationPresentationPort {
 export interface CollaborationCoordinatorOptions {
   presence: CollaborationPresencePort;
   presentation: CollaborationPresentationPort;
+  /** Override for tests or an explicit composition root. Undefined resolves import.meta.env. */
+  signallingConfig?: BrowserSignallingRuntimeConfig | null;
 }
 
 export interface NetworkEvent {
@@ -69,42 +77,74 @@ export interface NetworkManagerLike {
  * Owns WebRTC/WebSocket collaboration state, avatar meshes, spectator companion,
  * and network-panel updates.
  *
- * This coordinator keeps World.js free of connection-event wiring and reduces
- * the monolithic surface area for the future Rust/WASM networking port.
+ * Production composition is capability-gated by a configured signalling URL.
+ * Local Vite development retains its same-origin /__signal endpoint, while an
+ * ordinary production bundle never guesses that a signalling service exists.
  */
 export class CollaborationCoordinator {
   private readonly presence: CollaborationPresencePort;
   private readonly presentation: CollaborationPresentationPort;
+  private readonly signallingConfig: BrowserSignallingRuntimeConfig | null;
   private generation = 0;
   networkManager: NetworkManagerLike | null;
   peerAvatarManager: PeerAvatarManager | null = null;
   desktopCompanion: AsymmetricDesktopCompanion | null = null;
 
-  constructor({ presence, presentation }: CollaborationCoordinatorOptions) {
+  constructor({ presence, presentation, signallingConfig }: CollaborationCoordinatorOptions) {
     this.presence = presence;
     this.presentation = presentation;
+    this.signallingConfig =
+      signallingConfig === undefined
+        ? readSignallingBrowserConfig(
+            import.meta.env,
+            typeof location === 'undefined' ? undefined : location.href
+          )
+        : signallingConfig;
     this.networkManager = null;
   }
 
+  isAvailable(): boolean {
+    return this.signallingConfig !== null;
+  }
+
   _defaultSignallingUrl(): string {
-    if (typeof location === 'undefined') return 'wss://localhost:5173/__signal';
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${location.host}/__signal`;
+    if (!this.signallingConfig) {
+      throw new Error('collaboration signalling service is not configured');
+    }
+    return this.signallingConfig.url;
   }
 
   async joinCollaborationRoom(roomId: string | null = null): Promise<void> {
     if (this.networkManager?.isConnected) return;
+    if (!this.signallingConfig) {
+      const message = 'Collaboration unavailable: signalling service is not configured';
+      this.presentation.setStatus({
+        roomId: '-',
+        connected: false,
+        available: false,
+        peers: [],
+        lastEvent: message,
+      });
+      this.presentation.log(message);
+      this.presentation.recordInteraction('Join room', {
+        result: 'unavailable',
+        reason: 'signalling-unconfigured',
+      });
+      return;
+    }
     if (this.networkManager) {
       this.generation += 1;
       this.teardown(this.networkManager);
     }
     const generation = ++this.generation;
     const settings = this.presentation.getSettings();
+    const inviteRoom = readStoredCollaborationRoom();
     const targetRoom = (roomId ??
+      inviteRoom ??
       (settings.collabRoom as string | undefined) ??
       'default') as string;
     const networkManager = new NetworkManager({
-      signallingUrl: this._defaultSignallingUrl(),
+      signallingUrl: this.signallingConfig.url,
       roomId: targetRoom,
       peerName: (settings.collabName as string | undefined) ?? 'Analyst',
     } as LooseOptions) as unknown as NetworkManagerLike;
@@ -132,6 +172,7 @@ export class CollaborationCoordinator {
     this.presentation.setStatus({
       roomId: targetRoom,
       connected: false,
+      available: true,
       peers: [],
       lastEvent: 'Joining...',
     });
@@ -154,6 +195,7 @@ export class CollaborationCoordinator {
     this.presentation.setStatus({
       roomId: '-',
       connected: false,
+      available: this.isAvailable(),
       peers: [],
       lastEvent: 'Left room',
     });
@@ -206,6 +248,7 @@ export class CollaborationCoordinator {
       this.presentation.setStatus({
         roomId,
         connected: true,
+        available: true,
         lastEvent: `Connected to ${roomId}`,
       });
       this.presentation.log(`Collaboration: joined ${roomId}`);
@@ -216,6 +259,7 @@ export class CollaborationCoordinator {
       if (!this.isCurrent(networkManager, generation)) return;
       this.presentation.setStatus({
         connected: false,
+        available: true,
         lastEvent: 'Disconnected',
       });
       this.presentation.log('Collaboration: left room');

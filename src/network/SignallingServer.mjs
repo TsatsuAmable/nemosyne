@@ -1,101 +1,325 @@
+import { createServer } from 'node:http';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { createRoomRegistry, WS_MAX_PAYLOAD_BYTES } from './SignallingServerCore.ts';
 
-/**
- * Minimal Node.js signalling server for Nemosyne collaboration rooms.
- *
- * Run with:
- *   node src/network/SignallingServer.mjs --port=5173 [--token=PARTICIPANT_SECRET] [--observer-token=OBSERVER_SECRET] [--allowed-origins=http://localhost:5173]
- *
- * Authentication & Role Enforcement:
- *   - Dual-token mode (Recommended): Pass both --token (or NEMOSYNE_SIGNAL_TOKEN) and
- *     --observer-token (or NEMOSYNE_OBSERVER_TOKEN). The server authoritatively enforces
- *     and binds peer capabilities (observers cannot escalate to participant).
- *   - Cryptographic Signed Tickets: Clients supply HMAC-SHA256 room tickets with embedded claims.
- *   - Scoped shared secret format: Clients connect with "SECRET:observer" or "SECRET:participant".
- *   - Open mode (Dev only): Pass --allow-open or NEMOSYNE_SIGNAL_ALLOW_OPEN=1.
- */
-
-const args = process.argv.slice(2);
-const portArg = args.find((a) => a.startsWith('--port='));
-const PORT = portArg ? parseInt(portArg.split('=')[1], 10) : 5173;
-const tokenArg = args.find((a) => a.startsWith('--token='));
-const AUTH_TOKEN = tokenArg ? tokenArg.split('=')[1] : (process.env.NEMOSYNE_SIGNAL_TOKEN || '');
-const observerTokenArg = args.find((a) => a.startsWith('--observer-token='));
-const OBSERVER_TOKEN = observerTokenArg ? observerTokenArg.split('=')[1] : (process.env.NEMOSYNE_OBSERVER_TOKEN || '');
-// Open (no-token) mode is opt-in for the standalone server so an operator who
-// forgets to set NEMOSYNE_SIGNAL_TOKEN doesn't accidentally run an open relay.
-// Set NEMOSYNE_SIGNAL_ALLOW_OPEN=1 (or pass --allow-open) for frictionless local dev.
-const allowOpenArg = args.find((a) => a.startsWith('--allow-open'));
-const ALLOW_OPEN =
-  allowOpenArg !== undefined || process.env.NEMOSYNE_SIGNAL_ALLOW_OPEN === '1';
-
-const originsArg = args.find((a) => a.startsWith('--allowed-origins='));
-const ALLOWED_ORIGINS = originsArg
-  ? originsArg.split('=')[1].split(',')
-  : (process.env.NEMOSYNE_ALLOWED_ORIGINS ? process.env.NEMOSYNE_ALLOWED_ORIGINS.split(',') : undefined);
-
-// Resolve the security profile: open mode is dev-only; a configured token
-// selects ResearchPreview (or Production when origins are also configured).
-// An operator who forgets both token and --allow-open gets a fail-closed
-// registry that rejects unauthenticated connections after the auth timeout.
-const SECURITY_PROFILE = ALLOW_OPEN
-  ? 'Development'
-  : (ALLOWED_ORIGINS ? 'Production' : 'ResearchPreview');
-
-const registry = createRoomRegistry({
-  authToken: AUTH_TOKEN,
-  observerAuthToken: OBSERVER_TOKEN,
-  allowedOrigins: ALLOWED_ORIGINS,
-  securityProfile: SECURITY_PROFILE,
-  allowOpenNoToken: ALLOW_OPEN,
-});
-
-const wss = new WebSocketServer({ port: PORT, maxPayload: WS_MAX_PAYLOAD_BYTES });
-
-// --- Heartbeat & Zombie Socket Reaper ---------------------------------------
+const DEFAULT_PORT = 8787;
+const DEFAULT_HOST = '127.0.0.1';
 const HEARTBEAT_INTERVAL_MS = 30_000;
-const heartbeatInterval = setInterval(() => {
-  for (const socket of wss.clients) {
-    if (socket.isAlive === false) {
-      socket.terminate();
-      continue;
-    }
-    socket.isAlive = false;
-    socket.ping();
+const SHUTDOWN_TIMEOUT_MS = 5_000;
+const SIGNAL_PATH = '/__signal';
+const HEALTH_PATH = '/healthz';
+const READY_PATH = '/readyz';
+const SECURITY_PROFILES = new Set(['Development', 'ResearchPreview', 'Production']);
+const ROUTING_BASE_URL = 'http://localhost';
+const SIGNED_TICKET_WIRE_RE = /^[A-Za-z0-9_-]+\.[0-9a-fA-F]{64}$/;
+
+function optionValue(args, name) {
+  const prefix = `--${name}=`;
+  const match = args.find((arg) => arg.startsWith(prefix));
+  return match ? match.slice(prefix.length) : undefined;
+}
+
+function splitCsv(value) {
+  if (!value) return undefined;
+  const values = value.split(',').map((item) => item.trim()).filter(Boolean);
+  return values.length > 0 ? values : undefined;
+}
+
+function parsePort(value) {
+  const port = Number(value ?? DEFAULT_PORT);
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+    throw new Error('signalling port must be an integer between 0 and 65535');
   }
-  registry.cleanupIdleRooms();
-}, HEARTBEAT_INTERVAL_MS);
+  return port;
+}
 
-wss.on('close', () => {
-  clearInterval(heartbeatInterval);
-});
+/**
+ * Resolve standalone signalling-service configuration.
+ *
+ * The standalone executable defaults to Production rather than silently
+ * falling back to a research/open profile. Development open mode requires an
+ * explicit --allow-open flag or NEMOSYNE_SIGNAL_ALLOW_OPEN=1.
+ */
+export function readSignallingServiceConfig(
+  args = process.argv.slice(2),
+  env = process.env,
+) {
+  const allowOpen =
+    args.includes('--allow-open') || env.NEMOSYNE_SIGNAL_ALLOW_OPEN === '1';
+  const profile =
+    optionValue(args, 'profile') ||
+    env.NEMOSYNE_SIGNAL_PROFILE ||
+    (allowOpen ? 'Development' : 'Production');
+  if (!SECURITY_PROFILES.has(profile)) {
+    throw new Error(`invalid signalling security profile: ${profile}`);
+  }
+  if (allowOpen && profile !== 'Development') {
+    throw new Error('open signalling mode is permitted only with the Development profile');
+  }
 
-wss.on('connection', (socket, req) => {
-  socket.isAlive = true;
-  socket.on('pong', () => {
-    socket.isAlive = true;
+  const host = optionValue(args, 'host') || env.NEMOSYNE_SIGNAL_HOST || DEFAULT_HOST;
+  const port = parsePort(
+    optionValue(args, 'port') || env.NEMOSYNE_SIGNAL_PORT || env.PORT || DEFAULT_PORT,
+  );
+  const authToken = optionValue(args, 'token') ?? env.NEMOSYNE_SIGNAL_TOKEN ?? '';
+  const observerAuthToken =
+    optionValue(args, 'observer-token') ?? env.NEMOSYNE_OBSERVER_TOKEN ?? '';
+  const allowedOrigins = splitCsv(
+    optionValue(args, 'allowed-origins') || env.NEMOSYNE_ALLOWED_ORIGINS,
+  );
+
+  return Object.freeze({
+    host,
+    port,
+    authToken,
+    observerAuthToken,
+    allowedOrigins,
+    allowOpen,
+    securityProfile: profile,
+  });
+}
+
+function writeJson(response, statusCode, payload) {
+  const body = JSON.stringify(payload);
+  response.writeHead(statusCode, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+  });
+  response.end(body);
+}
+
+function rejectUpgrade(socket, statusCode, reason) {
+  try {
+    socket.write(
+      `HTTP/1.1 ${statusCode} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+    );
+  } finally {
+    socket.destroy();
+  }
+}
+
+/**
+ * Recognize only the canonical signed-ticket auth message shape. This is not an
+ * authorization decision: SignallingServerCore's listener is registered first
+ * and remains the sole admission authority. The transport calls this only to
+ * decide whether a still-open socket is eligible for a post-admission ack.
+ */
+function signedAdmissionToken(raw) {
+  const rawStr = typeof raw === 'string' ? raw : (raw?.toString?.() ?? String(raw));
+  if (Buffer.byteLength(rawStr, 'utf8') > WS_MAX_PAYLOAD_BYTES) return null;
+  let message;
+  try {
+    message = JSON.parse(rawStr);
+  } catch {
+    return null;
+  }
+  if (!message || typeof message !== 'object' || Array.isArray(message)) return null;
+  if (message.to !== undefined && message.to !== '*' && typeof message.to !== 'string') return null;
+  if (message.from !== undefined && typeof message.from !== 'string') return null;
+  const data = message.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  if (data.type !== 'auth' || typeof data.token !== 'string') return null;
+  return SIGNED_TICKET_WIRE_RE.test(data.token) ? data.token : null;
+}
+
+/**
+ * Create the production-capable signalling service without starting it.
+ * Tests can bind port 0 and exercise the real health/readiness HTTP surface.
+ */
+export function createSignallingService(config) {
+  const registry = createRoomRegistry({
+    authToken: config.authToken,
+    observerAuthToken: config.observerAuthToken,
+    allowedOrigins: config.allowedOrigins,
+    securityProfile: config.securityProfile,
+    allowOpenNoToken: config.allowOpen,
+  });
+  const diagnostic = registry.getSecurityDiagnostic();
+  if (!diagnostic.ok) {
+    throw new Error(
+      `unsafe signalling configuration for ${diagnostic.profile}: ${diagnostic.warnings.join('; ') || 'security diagnostic failed'}`,
+    );
+  }
+
+  const httpServer = createServer((request, response) => {
+    const url = new URL(request.url || '/', ROUTING_BASE_URL);
+    if (request.method === 'GET' && url.pathname === HEALTH_PATH) {
+      writeJson(response, 200, { status: 'ok' });
+      return;
+    }
+    if (request.method === 'GET' && url.pathname === READY_PATH) {
+      writeJson(response, diagnostic.ok ? 200 : 503, {
+        status: diagnostic.ok ? 'ready' : 'not-ready',
+        profile: diagnostic.profile,
+        originEnforcement: diagnostic.originEnforcement,
+        authenticationConfigured:
+          diagnostic.authTokenConfigured || diagnostic.tokenValidatorConfigured,
+      });
+      return;
+    }
+    writeJson(response, 404, { error: 'not-found' });
   });
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const roomId = url.searchParams.get('room') || 'default';
-  const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
-  // P0.3: URL-token auth is development-only. In Production the registry
-  // ignores the ?token= query param — peers must authenticate via in-band
-  // `auth` messages. We still read it here for Development/ResearchPreview
-  // but the registry enforces the profile-based gate.
-  const token = SECURITY_PROFILE === 'Production' ? undefined : (url.searchParams.get('token') || undefined);
-  const role = url.searchParams.get('role') === 'observer' ? 'observer' : 'participant';
-  registry.handleConnection(socket, roomId, peerId, token, role, req);
-});
+  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
+  let heartbeatInterval = null;
+  let started = false;
+  let stopping = null;
 
-let mode = 'closed (set NEMOSYNE_SIGNAL_TOKEN or --allow-open)';
-if (AUTH_TOKEN && OBSERVER_TOKEN) {
-  mode = 'token required (dual-token: participant + observer separated)';
-} else if (AUTH_TOKEN) {
-  mode = 'token required (single secret; pass --observer-token for strict role separation)';
-  console.warn('[SignallingServer] WARNING: Running with single --token without --observer-token. Observers sharing this secret can request participant role unless scoped (secret:observer) or HMAC tickets are used.');
-} else if (ALLOW_OPEN) {
-  mode = 'OPEN (no token)';
+  httpServer.on('upgrade', (request, socket, head) => {
+    let url;
+    try {
+      url = new URL(request.url || '/', ROUTING_BASE_URL);
+    } catch {
+      rejectUpgrade(socket, 400, 'Bad Request');
+      return;
+    }
+    if (url.pathname !== SIGNAL_PATH) {
+      rejectUpgrade(socket, 404, 'Not Found');
+      return;
+    }
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  });
+
+  wss.on('connection', (socket, request) => {
+    socket.isAlive = true;
+    socket.on('pong', () => {
+      socket.isAlive = true;
+    });
+
+    const url = new URL(request.url || SIGNAL_PATH, ROUTING_BASE_URL);
+    const roomId = url.searchParams.get('room') || 'default';
+    const peerId = url.searchParams.get('peer') || `peer-${Date.now()}`;
+    // Production never consumes URL credentials. Authentication must arrive
+    // in-band so reverse proxies and access logs cannot capture secrets.
+    const token =
+      config.securityProfile === 'Production'
+        ? undefined
+        : (url.searchParams.get('token') || undefined);
+    const role = url.searchParams.get('role') === 'observer' ? 'observer' : 'participant';
+    registry.handleConnection(socket, roomId, peerId, token, role, request);
+
+    // SignallingServerCore registered its synchronous message listener above.
+    // Therefore a canonical signed auth message reaches this second listener
+    // with readyState OPEN only if the core did not reject/close it. This ack is
+    // transport evidence of admission, not a second token verifier or replay
+    // authority. One ack per socket generation prevents forged repeat auth
+    // messages from manufacturing additional lifecycle events.
+    let signedAdmissionAcknowledged = false;
+    socket.on('message', (raw) => {
+      if (signedAdmissionAcknowledged || socket.readyState !== 1) return;
+      if (!signedAdmissionToken(raw)) return;
+      if (socket.readyState !== 1) return;
+      signedAdmissionAcknowledged = true;
+      socket.send(JSON.stringify({ type: 'admitted', roomId }));
+    });
+  });
+
+  async function start() {
+    if (started) return httpServer.address();
+    await new Promise((resolveStart, rejectStart) => {
+      const onError = (error) => {
+        httpServer.off('listening', onListening);
+        rejectStart(error);
+      };
+      const onListening = () => {
+        httpServer.off('error', onError);
+        resolveStart();
+      };
+      httpServer.once('error', onError);
+      httpServer.once('listening', onListening);
+      httpServer.listen(config.port, config.host);
+    });
+    started = true;
+    heartbeatInterval = setInterval(() => {
+      for (const socket of wss.clients) {
+        if (socket.isAlive === false) {
+          socket.terminate();
+          continue;
+        }
+        socket.isAlive = false;
+        socket.ping();
+      }
+      registry.cleanupIdleRooms();
+    }, HEARTBEAT_INTERVAL_MS);
+    heartbeatInterval.unref?.();
+    return httpServer.address();
+  }
+
+  async function stop() {
+    if (stopping) return stopping;
+    stopping = (async () => {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+      for (const socket of wss.clients) socket.terminate();
+      if (started) {
+        await Promise.all([
+          new Promise((resolveClose) => wss.close(() => resolveClose())),
+          new Promise((resolveClose) => httpServer.close(() => resolveClose())),
+        ]);
+      }
+      started = false;
+    })();
+    try {
+      await stopping;
+    } finally {
+      stopping = null;
+    }
+  }
+
+  return Object.freeze({
+    diagnostic,
+    httpServer,
+    wss,
+    start,
+    stop,
+  });
 }
-console.warn(`[SignallingServer] listening on ws://localhost:${PORT}/__signal (${mode})`);
+
+async function main() {
+  const config = readSignallingServiceConfig();
+  const service = createSignallingService(config);
+  const address = await service.start();
+  const port = typeof address === 'object' && address ? address.port : config.port;
+  console.warn(
+    `[SignallingServer] listening on ${config.host}:${port}${SIGNAL_PATH} (${config.securityProfile})`,
+  );
+
+  let shuttingDown = false;
+  const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    const forcedExit = setTimeout(() => {
+      console.error(`[SignallingServer] forced shutdown after ${SHUTDOWN_TIMEOUT_MS}ms`);
+      process.exitCode = 1;
+    }, SHUTDOWN_TIMEOUT_MS);
+    forcedExit.unref?.();
+    try {
+      await service.stop();
+      clearTimeout(forcedExit);
+      console.warn(`[SignallingServer] stopped after ${signal}`);
+    } catch (error) {
+      console.error('[SignallingServer] shutdown failed:', error);
+      process.exitCode = 1;
+    }
+  };
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+}
+
+const invokedAsScript =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (invokedAsScript) {
+  void main().catch((error) => {
+    console.error('[SignallingServer] startup failed:', error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}
