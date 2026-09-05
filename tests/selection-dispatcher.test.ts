@@ -36,7 +36,10 @@ describe('SelectionDispatcher', () => {
     const invalidRays = [
       new THREE.Ray(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(0, 0, 0)),
       new THREE.Ray(new THREE.Vector3(0, Number.NaN, 0), new THREE.Vector3(0, 0, -1)),
-      new THREE.Ray(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(Number.POSITIVE_INFINITY, 0, -1)),
+      new THREE.Ray(
+        new THREE.Vector3(0, 1.6, 0),
+        new THREE.Vector3(Number.POSITIVE_INFINITY, 0, -1)
+      ),
     ];
 
     for (const invalidRay of invalidRays) {
@@ -82,6 +85,22 @@ describe('SelectionDispatcher', () => {
     );
   });
 
+  it('exposes one pre-callback boundary before the truthful outcome hook', () => {
+    const registry = new InteractableRegistry();
+    const order: string[] = [];
+    const dispatcher = new SelectionDispatcher(registry, {
+      onSelectCallback: () => order.push('callback'),
+    });
+    dispatcher.onDispatchStart = () => order.push('start');
+    dispatcher.onDispatch = (info) => {
+      order.push(`outcome:${info.hadCallback}`);
+    };
+
+    dispatcher.triggerSelect({ getRay: () => new THREE.Ray() });
+
+    expect(order).toEqual(['start', 'callback', 'outcome:true']);
+  });
+
   it('does not emit a successful dispatch record when the callback throws', () => {
     const registry = new InteractableRegistry();
     const dispatcher = new SelectionDispatcher(registry, {
@@ -89,12 +108,15 @@ describe('SelectionDispatcher', () => {
         throw new Error('selection failed');
       },
     });
+    const onDispatchStart = vi.fn();
     const onDispatch = vi.fn();
+    dispatcher.onDispatchStart = onDispatchStart;
     dispatcher.onDispatch = onDispatch;
 
     expect(() => dispatcher.triggerSelect({ getRay: () => new THREE.Ray() })).toThrow(
       'selection failed'
     );
+    expect(onDispatchStart).toHaveBeenCalledTimes(1);
     expect(onDispatch).not.toHaveBeenCalled();
   });
 });
