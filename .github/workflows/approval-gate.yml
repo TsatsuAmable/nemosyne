@@ -2,10 +2,11 @@ name: approval-gate
 
 # Enforces the repository merge policy documented in docs/ROADMAP.md.
 #
-# This required promotion gate owns only the evidence unique to promotion:
-# owner approval authority, exact-head identity, review disposition and the
-# adversarial/promotion marker. The live repository ruleset independently
-# requires Node 24 and CodeQL, so this gate must not poll or duplicate them.
+# This required promotion gate owns only the evidence unique to promotion and
+# governance: live-ruleset drift, owner approval authority, exact-head identity,
+# review disposition and the adversarial/promotion marker. The live repository
+# ruleset independently requires Node 24 and CodeQL, so this gate must not poll
+# or duplicate those checks.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, edited]
@@ -27,6 +28,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify governance policy matches live ruleset
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-governance-policy.mjs
 
       - id: gate
         name: Verify approval authority
