@@ -165,6 +165,21 @@ function cohortManifestEligible(manifest: ValidationManifest): boolean {
   return false;
 }
 
+function priorSessionCustodyMatches(
+  evidenceDir: string,
+  manifest: ValidationManifest
+): boolean {
+  const verified = verifyFinalizedCustody(evidenceDir);
+  if (!verified.ok) return false;
+  const expectedFingerprint = manifest.deviceIdentity?.buildFingerprint ?? null;
+  return Boolean(
+    verified.custody.sessionId === manifest.sessionId &&
+      verified.custody.sessionLabel === manifest.sessionLabel &&
+      verified.custody.buildId === manifest.buildId &&
+      verified.custody.deviceBuildFingerprint === expectedFingerprint
+  );
+}
+
 function scanCohort(
   validationLogRoot: string,
   activeManifest: ValidationManifest
@@ -191,6 +206,7 @@ function scanCohort(
     const manifest = readManifest(evidenceDir);
     if (
       !manifest ||
+      entry.name !== manifest.sessionLabel ||
       manifest.worktree !== 'clean' ||
       !sameBuildDevice(activeManifest, manifest) ||
       !cohortManifestEligible(manifest) ||
@@ -198,6 +214,11 @@ function scanCohort(
     ) {
       continue;
     }
+
+    const isActiveSession =
+      manifest.sessionId === activeManifest.sessionId &&
+      manifest.sessionLabel === activeManifest.sessionLabel;
+    if (!isActiveSession && !priorSessionCustodyMatches(evidenceDir, manifest)) continue;
     seenSessionIds.add(manifest.sessionId);
 
     const reports = readBoundedJsonLines(path.join(evidenceDir, 'loadtest-results.jsonl'));
