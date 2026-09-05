@@ -35,7 +35,7 @@ const ROUTES: readonly RouteDefinition[] = [
   { method: 'GET', path: '/v1/governance/gesture-learning/derived/current', scope: 'consent:read', purpose: GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING, action: 'current' },
   { method: 'POST', path: '/v1/governance/gesture-learning/derived/grants', scope: 'consent:write', purpose: GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING, action: 'grant' },
   { method: 'POST', path: '/v1/governance/gesture-learning/derived/revocations', scope: 'consent:write', purpose: GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING, action: 'revoke' },
-  { method: 'POST', path: '/v1/governance/gesture-learning/raw/current', scope: 'consent:read', purpose: GOVERNED_PURPOSES.RAW_TRAJECTORY_RESEARCH, action: 'current' },
+  { method: 'GET', path: '/v1/governance/gesture-learning/raw/current', scope: 'consent:read', purpose: GOVERNED_PURPOSES.RAW_TRAJECTORY_RESEARCH, action: 'current' },
   { method: 'POST', path: '/v1/governance/gesture-learning/raw/grants', scope: 'consent:write', purpose: GOVERNED_PURPOSES.RAW_TRAJECTORY_RESEARCH, action: 'grant' },
   { method: 'POST', path: '/v1/governance/gesture-learning/raw/revocations', scope: 'consent:write', purpose: GOVERNED_PURPOSES.RAW_TRAJECTORY_RESEARCH, action: 'revoke' },
   { method: 'POST', path: '/v1/governance/gesture-learning/capture-authorizations', scope: 'events:capture', purpose: null, action: 'capture' },
