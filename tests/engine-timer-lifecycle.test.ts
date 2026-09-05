@@ -34,6 +34,25 @@ describe('Engine resume timing baseline', () => {
     engine.dispose();
   });
 
+  it('preserves an intentional pause across WebGL context loss and restoration', () => {
+    const engine = new Engine();
+    const reset = vi.spyOn(engine.timer, 'reset');
+    const setAnimationLoop = vi.spyOn(engine.renderer, 'setAnimationLoop');
+
+    engine.pause();
+    engine._contextLost(new Event('webglcontextlost', { cancelable: true }));
+    expect(engine.state).toBe('context_lost');
+
+    reset.mockClear();
+    setAnimationLoop.mockClear();
+    engine._contextRestored();
+
+    expect(reset).toHaveBeenCalledOnce();
+    expect(engine.state).toBe('paused');
+    expect(setAnimationLoop).not.toHaveBeenCalled();
+    engine.dispose();
+  });
+
   it('resets timer when an XR compositor session becomes visible again', () => {
     const engine = new Engine();
     const internals = engine as unknown as EngineInternals;
