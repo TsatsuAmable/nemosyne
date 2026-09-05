@@ -12,9 +12,19 @@ function invalidPointer(): PointerLike {
   } as PointerLike;
 }
 
+function seedRaycaster(registry: InteractableRegistry): void {
+  registry.raycaster.ray.set(new THREE.Vector3(1, 2, 3), new THREE.Vector3(0, 0, -1));
+}
+
+function expectSeedRayUnchanged(registry: InteractableRegistry): void {
+  expect(registry.raycaster.ray.origin.toArray()).toEqual([1, 2, 3]);
+  expect(registry.raycaster.ray.direction.toArray()).toEqual([0, 0, -1]);
+}
+
 describe('invalid pointer-ray admission', () => {
   it('SelectionDispatcher reports tracking loss but refuses all selection side effects', () => {
     const registry = new InteractableRegistry();
+    seedRaycaster(registry);
     const hud = vi.spyOn(registry, 'dispatchHudClick');
     const sceneSelect = vi.fn();
     const staleMesh = new THREE.Object3D();
@@ -31,6 +41,7 @@ describe('invalid pointer-ray admission', () => {
     dispatcher.lockTargetForPinch(1000);
     dispatcher.triggerSelect(invalidPointer());
 
+    expectSeedRayUnchanged(registry);
     expect(hud).not.toHaveBeenCalled();
     expect(sceneSelect).not.toHaveBeenCalled();
     expect(globalSelect).not.toHaveBeenCalled();
@@ -50,6 +61,7 @@ describe('invalid pointer-ray admission', () => {
 
   it('PointerEventMachine refuses launcher, panel, HUD and scene dispatch for an invalid press', () => {
     const registry = new InteractableRegistry();
+    seedRaycaster(registry);
     const panelDown = vi.fn(() => 'down');
     registry.panels = [{ handlePointerDown: panelDown } as PanelLike];
     const hud = vi.spyOn(registry, 'dispatchHudClick');
@@ -66,6 +78,7 @@ describe('invalid pointer-ray admission', () => {
     });
 
     expect(machine.press(invalidPointer())).toBe(false);
+    expectSeedRayUnchanged(registry);
     expect(launcherHit).not.toHaveBeenCalled();
     expect(panelDown).not.toHaveBeenCalled();
     expect(hud).not.toHaveBeenCalled();
@@ -76,6 +89,7 @@ describe('invalid pointer-ray admission', () => {
 
   it('invalid drag/release rays do not reach a captured panel but release still clears capture state', () => {
     const registry = new InteractableRegistry();
+    seedRaycaster(registry);
     const move = vi.fn();
     const up = vi.fn();
     const capturedPanel = {
@@ -92,6 +106,7 @@ describe('invalid pointer-ray admission', () => {
     machine.move(pointer);
     machine.release(pointer);
 
+    expectSeedRayUnchanged(registry);
     expect(move).not.toHaveBeenCalled();
     expect(up).not.toHaveBeenCalled();
     expect(machine.state).toBe('idle');
