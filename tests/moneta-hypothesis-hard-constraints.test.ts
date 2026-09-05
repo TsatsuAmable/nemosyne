@@ -89,37 +89,45 @@ describe('Moneta hypothesis hard constraints', () => {
     expect(['DENSITY_FIELD', 'DISTRIBUTION_FIELD']).not.toContain(decision.chosenCandidateId);
   });
 
-  it('admits distribution and density to ranking only after explicit dimensions are declared', () => {
+  it('admits each field-bound candidate only at its exact declared dimensionality', () => {
     const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'explicit-dimension-fp', 0);
-    const requirements = createDefaultRequirements('overview', 'MEDIUM');
-    requirements.primaryDimensions = ['units', 'revenue'];
+    const engine = new MonetaHypothesisEngine();
 
-    const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
-    const rankedCandidates = decision.rankedCandidates ?? [];
-    const density = rankedCandidates.filter(
-      (candidate) => candidate.candidateId === 'DENSITY_FIELD'
-    );
-    const distribution = rankedCandidates.filter(
+    const distributionRequirements = createDefaultRequirements('overview', 'MEDIUM');
+    distributionRequirements.primaryDimensions = ['units'];
+    const distributionDecision = engine.arbitrate(signature, distributionRequirements);
+    const distribution = (distributionDecision.rankedCandidates ?? []).filter(
       (candidate) => candidate.candidateId === 'DISTRIBUTION_FIELD'
     );
 
-    expect(density.length).toBeGreaterThan(0);
+    const densityRequirements = createDefaultRequirements('overview', 'MEDIUM');
+    densityRequirements.primaryDimensions = ['units', 'revenue'];
+    const densityDecision = engine.arbitrate(signature, densityRequirements);
+    const density = (densityDecision.rankedCandidates ?? []).filter(
+      (candidate) => candidate.candidateId === 'DENSITY_FIELD'
+    );
+
     expect(distribution.length).toBeGreaterThan(0);
-    expect(
-      density.some((candidate) => candidate.disqualificationCode === 'analytical-dimensions-required')
-    ).toBe(false);
     expect(
       distribution.some(
         (candidate) => candidate.disqualificationCode === 'analytical-dimensions-required'
       )
     ).toBe(false);
+    expect(density.length).toBeGreaterThan(0);
+    expect(
+      density.some((candidate) => candidate.disqualificationCode === 'analytical-dimensions-required')
+    ).toBe(false);
   });
 
-  it('keeps blank or duplicate density dimensions fail-closed', () => {
+  it('keeps blank, duplicate, or surplus analytical dimensions fail-closed', () => {
     const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'invalid-dimension-fp', 0);
     const engine = new MonetaHypothesisEngine();
 
-    for (const primaryDimensions of [['', 'revenue'], ['units', 'units']]) {
+    for (const primaryDimensions of [
+      ['', 'revenue'],
+      ['units', 'units'],
+      ['units', 'revenue', 'margin'],
+    ]) {
       const requirements = createDefaultRequirements('overview', 'MEDIUM');
       requirements.primaryDimensions = primaryDimensions;
       const decision = engine.arbitrate(signature, requirements);
@@ -136,5 +144,20 @@ describe('Moneta hypothesis hard constraints', () => {
         )
       ).toBe(true);
     }
+
+    const distributionRequirements = createDefaultRequirements('overview', 'MEDIUM');
+    distributionRequirements.primaryDimensions = ['units', 'revenue'];
+    const distributionDecision = engine.arbitrate(signature, distributionRequirements);
+    const distribution = (distributionDecision.rankedCandidates ?? []).filter(
+      (candidate) => candidate.candidateId === 'DISTRIBUTION_FIELD'
+    );
+    expect(distribution.length).toBeGreaterThan(0);
+    expect(
+      distribution.every(
+        (candidate) =>
+          candidate.disqualified &&
+          candidate.disqualificationCode === 'analytical-dimensions-required'
+      )
+    ).toBe(true);
   });
 });
