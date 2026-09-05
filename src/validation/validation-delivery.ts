@@ -1,3 +1,5 @@
+import type { ValidationManifest } from './validation-manifest.ts';
+
 export const VALIDATION_RECEIPT_VERSION_HEADER = 'x-nemosyne-validation-receipt-version';
 export const VALIDATION_RECEIPT_VERSION = '1';
 export const VALIDATION_STATUS_ENDPOINT = '/__validation-status';
@@ -25,6 +27,8 @@ export interface ValidationServerStatus {
   status: 'ok';
   sessionLabel: string;
   sessionId: string;
+  /** Exact launcher-written manifest re-read from the active evidence directory. */
+  manifest: ValidationManifest;
   progress: QualificationProgress | null;
   gateDisposition: {
     status: string | null;
