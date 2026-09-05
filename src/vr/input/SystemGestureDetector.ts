@@ -30,22 +30,35 @@ export class SystemGestureDetector {
   private _lastSystemToggleAt = -Infinity;
   private readonly _bothPinchHoldMs: number;
   private readonly _toggleCooldownMs: number;
+  /**
+   * Hand height (ray-origin Y, metres) above which both-pinch is treated as
+   * a reach-zone conflict with the Quest OS gesture and the system toggle
+   * is withheld. Tunable for calibration; the 1.5 default is frozen pending
+   * trace evidence (no documented rationale yet).
+   */
+  private readonly _reachZoneY: number;
   private readonly _now: () => number;
 
   constructor(
     pointerRegistry: PointerRegistry,
-    options: { bothPinchHoldMs?: number; toggleCooldownMs?: number; now?: () => number } = {}
+    options: { bothPinchHoldMs?: number; toggleCooldownMs?: number; reachZoneY?: number; now?: () => number } = {}
   ) {
     this.registry = pointerRegistry;
     this._bothPinchHoldMs = options.bothPinchHoldMs ?? 400;
     this._toggleCooldownMs = options.toggleCooldownMs ?? 1000;
+    const reachZoneY = options.reachZoneY ?? 1.5;
+    if (!Number.isFinite(reachZoneY)) {
+      throw new RangeError('reachZoneY must be a finite number');
+    }
+    this._reachZoneY = reachZoneY;
     this._now = options.now ?? (() => performance.now());
   }
 
   /**
    * Check the current controller and hand states and fire `onSystemToggle` once
    * when a system gesture starts. Suppress system gesture if hands are in a reach zone
-   * (Y > 1.5m) to prevent Quest system gesture from blocking user grab input.
+   * (Y above the configured threshold) to prevent Quest system gesture from
+   * blocking user grab input.
    */
   update(session: XRSession | null): { bothPinched: boolean; suppressSelection: boolean } {
     const sources = session?.inputSources ? Array.from(session.inputSources) : [];
@@ -58,7 +71,7 @@ export class SystemGestureDetector {
       this.registry.hands.length >= 2 &&
       origin0?.y !== undefined &&
       origin1?.y !== undefined &&
-      (origin0.y > 1.5 || origin1.y > 1.5);
+      (origin0.y > this._reachZoneY || origin1.y > this._reachZoneY);
 
     const rawBothPinched =
       this.registry.hands.length >= 2 &&

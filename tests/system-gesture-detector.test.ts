@@ -243,4 +243,42 @@ describe('SystemGestureDetector reach-zone suppression (y > 1.5)', () => {
     expect(result.bothPinched).toBe(false);
     expect(traces).toEqual([]);
   });
+
+  it('honors a custom reachZoneY without changing the 1.5 default', () => {
+    const heights = [
+      { y: 1.3, pinched: true },
+      { y: 1.1, pinched: true },
+    ];
+    const traces: Array<{ kind: string }> = [];
+
+    // Default threshold: hands below 1.5 are a valid both-pinch attempt.
+    const defaulted = new SystemGestureDetector(registryWithHeights(heights), {
+      bothPinchHoldMs: 0,
+      toggleCooldownMs: 0,
+      now: () => 0,
+    });
+    const defaultToggle = vi.fn();
+    defaulted.onSystemToggle = defaultToggle;
+    defaulted.onTrace = (info) => traces.push(info);
+    defaulted.update(null);
+    defaulted.update(null);
+    expect(defaultToggle).toHaveBeenCalledOnce();
+    expect(traces).toEqual([{ kind: 'both-pinch' }]);
+
+    // Lowered threshold: the same posture suppresses.
+    const tuned = new SystemGestureDetector(registryWithHeights(heights), {
+      bothPinchHoldMs: 0,
+      toggleCooldownMs: 0,
+      reachZoneY: 1.2,
+      now: () => 0,
+    });
+    const tunedToggle = vi.fn();
+    const tunedTraces: Array<{ kind: string }> = [];
+    tuned.onSystemToggle = tunedToggle;
+    tuned.onTrace = (info) => tunedTraces.push(info);
+    tuned.update(null);
+    tuned.update(null);
+    expect(tunedToggle).not.toHaveBeenCalled();
+    expect(tunedTraces).toEqual([{ kind: 'both-pinch-suppressed', y0: 1.3, y1: 1.1 }]);
+  });
 });
