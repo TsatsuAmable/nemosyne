@@ -17,10 +17,28 @@ import {
   isValidSessionId,
   type ValidationSessionIdentity,
 } from '../src/validation/validation-session.ts';
+import {
+  validateValidationManifest,
+  type ValidationManifest,
+} from '../src/validation/validation-manifest.ts';
+import {
+  VALIDATION_RECEIPT_VERSION_HEADER,
+  VALIDATION_RECEIPT_VERSION,
+  VALIDATION_STATUS_ENDPOINT,
+  VALIDATION_UX_ENDPOINT,
+  type QualificationProgress,
+  type ValidationDeliveryReceipt,
+} from '../src/validation/validation-delivery.ts';
+import {
+  validateGuidedUxSubmission,
+  type GuidedUxSubmission,
+} from '../src/validation/guided-ux-validation.ts';
 
 interface LoadTestSummary {
   profileName?: unknown;
   xrActive?: unknown;
+  aborted?: unknown;
+  outcome?: { status?: unknown };
   verdict?: {
     jsPathSufficientTo?: unknown;
     commandBufferWarrantedAt?: unknown;
@@ -42,6 +60,10 @@ export interface LoadTestSinkResolution {
   /** True when the POST claimed a session that is not the active one. */
   mismatch: boolean;
 }
+
+const MAX_PROGRESS_SESSIONS = 256;
+const MAX_PROGRESS_FILE_BYTES = 16 * 1024 * 1024;
+const MAX_PROGRESS_LINES_PER_SESSION = 512;
 
 function firstHeader(value: string | string[] | undefined): string | null {
   if (typeof value === 'string' && value.length > 0) return value;
@@ -108,6 +130,176 @@ export function resolveLoadTestSink(opts: {
   };
 }
 
+function readJsonFile(file: string): unknown | null {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function readSessionManifest(
+  validationLogRoot: string,
+  session: ValidationSessionIdentity
+): ValidationManifest | null {
+  const raw = readJsonFile(path.join(validationLogRoot, session.label, 'manifest.json'));
+  const validated = validateValidationManifest(raw);
+  if (!validated.ok) return null;
+  if (
+    validated.manifest.sessionLabel !== session.label ||
+    validated.manifest.sessionId !== session.id
+  ) {
+    return null;
+  }
+  return validated.manifest;
+}
+
+function readGateDisposition(validationLogRoot: string, sessionLabel: string): {
+  status: string | null;
+  reasons: string[];
+} | null {
+  const raw = readJsonFile(path.join(validationLogRoot, sessionLabel, 'disposition.json'));
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const gate = (raw as { gateDisposition?: unknown }).gateDisposition;
+  if (!gate || typeof gate !== 'object' || Array.isArray(gate)) return null;
+  const statusValue = (gate as { status?: unknown }).status;
+  const reasonsValue = (gate as { reasons?: unknown }).reasons;
+  return {
+    status: typeof statusValue === 'string' ? statusValue : null,
+    reasons: Array.isArray(reasonsValue)
+      ? reasonsValue.filter((value): value is string => typeof value === 'string').slice(0, 32)
+      : [],
+  };
+}
+
+function sameQualificationDevice(a: ValidationManifest, b: ValidationManifest): boolean {
+  const af = a.deviceIdentity?.buildFingerprint ?? null;
+  const bf = b.deviceIdentity?.buildFingerprint ?? null;
+  return Boolean(af && bf && af === bf && a.buildId === b.buildId);
+}
+
+function readBoundedJsonLines(file: string): LoadTestSummary[] {
+  try {
+    const stat = fs.statSync(file);
+    if (!stat.isFile() || stat.size > MAX_PROGRESS_FILE_BYTES) return [];
+    return fs
+      .readFileSync(file, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .slice(-MAX_PROGRESS_LINES_PER_SESSION)
+      .map((line) => {
+        try {
+          const value = JSON.parse(line);
+          return value && typeof value === 'object' && !Array.isArray(value)
+            ? (value as LoadTestSummary)
+            : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter((value): value is LoadTestSummary => value !== null);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Count only evidence that was actually written under a validation session with
+ * the same exact build and machine-captured device fingerprint. The UI never
+ * increments a local counter and cannot make an uncaptured run "count".
+ */
+export function computeQualificationProgress(
+  validationLogRoot: string,
+  activeManifest: ValidationManifest | null
+): QualificationProgress | null {
+  const activeFingerprint = activeManifest?.deviceIdentity?.buildFingerprint ?? null;
+  if (!activeManifest || !activeFingerprint) return null;
+  let renderCompleted = 0;
+  let boundaryAttempts = 0;
+  let entries: fs.Dirent[] = [];
+  try {
+    entries = fs
+      .readdirSync(validationLogRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .slice(0, MAX_PROGRESS_SESSIONS);
+  } catch {
+    return {
+      target: 3,
+      renderCompleted,
+      boundaryAttempts,
+      buildId: activeManifest.buildId,
+      deviceBuildFingerprint: activeFingerprint,
+    };
+  }
+
+  for (const entry of entries) {
+    if (!isValidSessionLabel(entry.name)) continue;
+    const raw = readJsonFile(path.join(validationLogRoot, entry.name, 'manifest.json'));
+    const validated = validateValidationManifest(raw);
+    if (!validated.ok) continue;
+    const manifest = validated.manifest;
+    if (manifest.worktree !== 'clean' || !sameQualificationDevice(activeManifest, manifest)) continue;
+    const lines = readBoundedJsonLines(
+      path.join(validationLogRoot, entry.name, 'loadtest-results.jsonl')
+    );
+    for (const summary of lines) {
+      if (
+        summary.profileName === 'quest-3s-qualification' &&
+        summary.xrActive === true &&
+        summary.aborted === false
+      ) {
+        renderCompleted += 1;
+      }
+      if (
+        summary.profileName === 'quest-3s-rust-boundary-10m' &&
+        summary.xrActive === true
+      ) {
+        boundaryAttempts += 1;
+      }
+    }
+  }
+
+  return {
+    target: 3,
+    renderCompleted,
+    boundaryAttempts,
+    buildId: activeManifest.buildId,
+    deviceBuildFingerprint: activeFingerprint,
+  };
+}
+
+function sessionMatches(
+  activeSession: ValidationSessionIdentity | null,
+  requestSession: ValidationSessionIdentity | null
+): activeSession is ValidationSessionIdentity {
+  return Boolean(
+    activeSession &&
+      requestSession &&
+      activeSession.label === requestSession.label &&
+      activeSession.id === requestSession.id
+  );
+}
+
+function wantsReceipt(headers: Record<string, string | string[] | undefined>): boolean {
+  return firstHeader(headers[VALIDATION_RECEIPT_VERSION_HEADER]) === VALIDATION_RECEIPT_VERSION;
+}
+
+function makeReceipt(
+  session: ValidationSessionIdentity,
+  artifact: string,
+  progress: QualificationProgress | null
+): ValidationDeliveryReceipt {
+  return {
+    version: '1',
+    status: 'captured',
+    receivedAt: new Date().toISOString(),
+    artifact,
+    sessionLabel: session.label,
+    sessionId: session.id,
+    progress,
+  };
+}
+
 /**
  * The request handler mounted by `loadtestResultsPlugin`. Exported separately so
  * tests can exercise the real routing/write path with mocked req/res and a temp
@@ -130,11 +322,109 @@ export function createLoadTestResultsHandler(
     // Ignore error
   }
 
-  function handleLoadTest(req: IncomingMessage, res: ServerResponse): boolean {
-    if (req.url !== '/__loadtest-results' || req.method !== 'POST') return false;
-    const postSession = readPostValidationSession(
+  function handleStatus(req: IncomingMessage, res: ServerResponse): boolean {
+    if (req.url !== VALIDATION_STATUS_ENDPOINT || req.method !== 'GET') return false;
+    const requestSession = readPostValidationSession(
       req.headers as Record<string, string | string[] | undefined>
     );
+    if (!sessionMatches(activeSession, requestSession)) {
+      jsonError(res, 409, 'request does not match the active validation session');
+      return true;
+    }
+    const manifest = readSessionManifest(validationLogRoot, activeSession);
+    if (!manifest) {
+      jsonError(res, 409, 'active validation manifest is unavailable or invalid');
+      return true;
+    }
+    jsonOk(res, {
+      status: 'ok',
+      sessionLabel: activeSession.label,
+      sessionId: activeSession.id,
+      manifest,
+      progress: computeQualificationProgress(validationLogRoot, manifest),
+      gateDisposition: readGateDisposition(validationLogRoot, activeSession.label),
+    });
+    return true;
+  }
+
+  function handleUx(req: IncomingMessage, res: ServerResponse): boolean {
+    if (req.url !== VALIDATION_UX_ENDPOINT || req.method !== 'POST') return false;
+    const requestSession = readPostValidationSession(
+      req.headers as Record<string, string | string[] | undefined>
+    );
+    if (!sessionMatches(activeSession, requestSession)) {
+      jsonError(res, 409, 'guided UX evidence does not match the active validation session');
+      return true;
+    }
+    const manifest = readSessionManifest(validationLogRoot, activeSession);
+    if (!manifest || manifest.validationMode !== 'quest-ux') {
+      jsonError(res, 409, 'guided UX evidence requires an active quest-ux manifest');
+      return true;
+    }
+    return handleBoundedJsonPost<GuidedUxSubmission>(req, res, MAX_BODY_BYTES, (submission, response) => {
+      const errors = validateGuidedUxSubmission(submission);
+      if (errors.length > 0) {
+        jsonError(response, 400, errors[0]);
+        return;
+      }
+      if (
+        submission.sessionId !== activeSession.id ||
+        submission.sessionLabel !== activeSession.label ||
+        submission.buildId !== manifest.buildId ||
+        submission.deviceBuildFingerprint !== (manifest.deviceIdentity?.buildFingerprint ?? null)
+      ) {
+        jsonError(response, 409, 'guided UX evidence identity does not match the active manifest');
+        return;
+      }
+      const evidenceDir = path.join(validationLogRoot, activeSession.label);
+      try {
+        fs.mkdirSync(evidenceDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(evidenceDir, 'ux-results.json'),
+          `${JSON.stringify({
+            schemaVersion: submission.schemaVersion,
+            sessionId: submission.sessionId,
+            sessionLabel: submission.sessionLabel,
+            buildId: submission.buildId,
+            deviceBuildFingerprint: submission.deviceBuildFingerprint,
+            evidenceKind: submission.evidenceKind,
+            results: submission.results,
+            completedAt: submission.completedAt,
+          }, null, 2)}\n`,
+          'utf8'
+        );
+        fs.writeFileSync(
+          path.join(evidenceDir, 'comfort-observation.json'),
+          `${JSON.stringify({
+            schemaVersion: submission.schemaVersion,
+            sessionId: submission.sessionId,
+            sessionLabel: submission.sessionLabel,
+            buildId: submission.buildId,
+            deviceBuildFingerprint: submission.deviceBuildFingerprint,
+            ...submission.comfortObservation,
+          }, null, 2)}\n`,
+          'utf8'
+        );
+      } catch (error) {
+        console.error('[validation-ux] failed to write guided UX evidence:', error);
+        jsonError(response, 500, 'write failed');
+        return;
+      }
+      jsonOk(response, {
+        status: 'ok',
+        receipt: makeReceipt(
+          activeSession,
+          'ux-results.json + comfort-observation.json',
+          computeQualificationProgress(validationLogRoot, manifest)
+        ),
+      });
+    });
+  }
+
+  function handleLoadTest(req: IncomingMessage, res: ServerResponse): boolean {
+    if (req.url !== '/__loadtest-results' || req.method !== 'POST') return false;
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const postSession = readPostValidationSession(headers);
     const routing = resolveLoadTestSink({
       activeSession,
       postSession,
@@ -152,7 +442,6 @@ export function createLoadTestResultsHandler(
         jsonError(response, 400, 'expected a summary object');
         return;
       }
-      // One JSON object per line (JSONL). The body cap already bounds total size.
       try {
         if (routing.kind === 'session') {
           fs.mkdirSync(path.dirname(routing.file), { recursive: true });
@@ -163,7 +452,6 @@ export function createLoadTestResultsHandler(
         jsonError(response, 500, 'write failed');
         return;
       }
-      // Echo a compact verdict line to the dev console (bound the strings).
       const verdict = summary.verdict ?? {};
       const profileName = isShortString(summary.profileName, 128) ? summary.profileName : '?';
       const line =
@@ -171,11 +459,29 @@ export function createLoadTestResultsHandler(
         `sufficientTo=${verdict.jsPathSufficientTo} warrantedAt=${verdict.commandBufferWarrantedAt}`;
       // eslint-disable-next-line no-console
       console.log(`\x1b[35m${line}\x1b[0m`);
-      jsonOk(response, { status: 'ok' });
+
+      // Backwards-compatible default response for ordinary dev/legacy clients.
+      if (!wantsReceipt(headers) || routing.kind !== 'session' || !activeSession) {
+        jsonOk(response, { status: 'ok' });
+        return;
+      }
+      const manifest = readSessionManifest(validationLogRoot, activeSession);
+      if (!manifest) {
+        jsonError(response, 409, 'evidence was written but active manifest confirmation failed');
+        return;
+      }
+      jsonOk(response, {
+        status: 'ok',
+        receipt: makeReceipt(
+          activeSession,
+          'loadtest-results.jsonl',
+          computeQualificationProgress(validationLogRoot, manifest)
+        ),
+      });
     });
   }
 
-  return handleLoadTest;
+  return (req, res) => handleStatus(req, res) || handleUx(req, res) || handleLoadTest(req, res);
 }
 
 export function loadtestResultsPlugin(options: LoadTestSinkOptions = {}): Plugin {

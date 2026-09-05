@@ -210,7 +210,7 @@ describe('LoadTestDriver state machine', () => {
     };
     expect(summary.version).toBe('2');
     expect(summary.device.declaredDeviceTarget).toBe('META_QUEST_3S');
-    expect(summary.device.identityBasis).toBe('investigator-declared');
+    expect(summary.device.identityBasis).toBe('unavailable');
     expect(summary.collection.rawFrameTraceIncluded).toBe(false);
     expect(summary.collection.datasetRowsIncluded).toBe(false);
     expect(summary.collection.cameraPosesIncluded).toBe(false);

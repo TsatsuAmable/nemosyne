@@ -50,12 +50,13 @@ describe('RF-062H dev/research evidence isolation', () => {
 
     expect(installer).not.toMatch(/from ['"].*\/World\.ts['"]/);
     expect(installer).toContain('export function installDevEvidence');
-    expect(installer).toContain(
-      "panelRolesManager.registerPanel('loadTest', 'Load Test Panel', 'diagnostic')",
+    expect(installer).toMatch(
+      /panelRolesManager\.registerPanel\(\s*['"]loadTest['"],[\s\S]*?['"]diagnostic['"]\s*\)/
     );
     expect(installer).toContain("panelRolesManager.unregisterPanel('loadTest')");
     expect(installer).toContain('engine.removeUpdatable(loadTestDriver)');
     expect(installer).toContain('engine.removeUpdatable(questBoundaryProbe)');
+    expect(installer).toContain("validationContext ? 'Device Validation' : 'Load Test Panel'");
   });
 
   it('routes Dev Lab controls through optional engine extension callbacks', () => {
