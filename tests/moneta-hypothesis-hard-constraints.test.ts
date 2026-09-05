@@ -55,4 +55,96 @@ describe('Moneta hypothesis hard constraints', () => {
       hardwareChanged.embodiment.spatialStrategy.provenance.requirementsHash
     );
   });
+
+  it('refuses field-bound semantic candidates when overview intent declares no analytical dimensions', () => {
+    const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'implicit-dimension-fp', 0);
+    const requirements = createDefaultRequirements('overview', 'MEDIUM');
+    const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+
+    const density = decision.rankedCandidates.filter(
+      (candidate) => candidate.candidateId === 'DENSITY_FIELD'
+    );
+    const distribution = decision.rankedCandidates.filter(
+      (candidate) => candidate.candidateId === 'DISTRIBUTION_FIELD'
+    );
+
+    expect(requirements.primaryDimensions).toBeUndefined();
+    expect(density.length).toBeGreaterThan(0);
+    expect(distribution.length).toBeGreaterThan(0);
+    expect(
+      density.every(
+        (candidate) =>
+          candidate.disqualified &&
+          candidate.disqualificationCode === 'analytical-dimensions-required'
+      )
+    ).toBe(true);
+    expect(
+      distribution.every(
+        (candidate) =>
+          candidate.disqualified &&
+          candidate.disqualificationCode === 'analytical-dimensions-required'
+      )
+    ).toBe(true);
+    expect(['DENSITY_FIELD', 'DISTRIBUTION_FIELD']).not.toContain(decision.chosenCandidateId);
+  });
+
+  it('admits distribution and density to ranking only after explicit dimensions are declared', () => {
+    const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'explicit-dimension-fp', 0);
+    const requirements = createDefaultRequirements('overview', 'MEDIUM');
+    requirements.primaryDimensions = ['units', 'revenue'];
+
+    const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+    const density = decision.rankedCandidates.filter(
+      (candidate) => candidate.candidateId === 'DENSITY_FIELD'
+    );
+    const distribution = decision.rankedCandidates.filter(
+      (candidate) => candidate.candidateId === 'DISTRIBUTION_FIELD'
+    );
+
+    expect(
+      density.some(
+        (candidate) =>
+          !candidate.disqualified ||
+          candidate.disqualificationCode !== 'analytical-dimensions-required'
+      )
+    ).toBe(true);
+    expect(
+      distribution.some(
+        (candidate) =>
+          !candidate.disqualified ||
+          candidate.disqualificationCode !== 'analytical-dimensions-required'
+      )
+    ).toBe(true);
+    expect(
+      density.some((candidate) => candidate.disqualificationCode === 'analytical-dimensions-required')
+    ).toBe(false);
+    expect(
+      distribution.some(
+        (candidate) => candidate.disqualificationCode === 'analytical-dimensions-required'
+      )
+    ).toBe(false);
+  });
+
+  it('keeps blank or duplicate density dimensions fail-closed', () => {
+    const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'invalid-dimension-fp', 0);
+    const engine = new MonetaHypothesisEngine();
+
+    for (const primaryDimensions of [['', 'revenue'], ['units', 'units']]) {
+      const requirements = createDefaultRequirements('overview', 'MEDIUM');
+      requirements.primaryDimensions = primaryDimensions;
+      const decision = engine.arbitrate(signature, requirements);
+      const density = decision.rankedCandidates.filter(
+        (candidate) => candidate.candidateId === 'DENSITY_FIELD'
+      );
+
+      expect(density.length).toBeGreaterThan(0);
+      expect(
+        density.every(
+          (candidate) =>
+            candidate.disqualified &&
+            candidate.disqualificationCode === 'analytical-dimensions-required'
+        )
+      ).toBe(true);
+    }
+  });
 });
