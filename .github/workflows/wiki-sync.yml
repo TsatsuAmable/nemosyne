@@ -14,7 +14,6 @@ on:
   pull_request:
     paths:
       - 'docs/**'
-      - 'src/**'
       - 'AGENTS.md'
       - 'CONTRIBUTING.md'
       - 'SECURITY.md'
