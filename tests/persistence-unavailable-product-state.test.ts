@@ -71,9 +71,12 @@ describe('local persistence unavailable product state', () => {
   });
 
   it('proves the production composition routes controller interactions into the Interaction Coach', () => {
-    const worldSource = readFileSync(new URL('../src/vr/World.ts', import.meta.url), 'utf8');
+    // Coverage runs execute through Vite's transformed module environment, where
+    // import.meta.url is not guaranteed to use file://. These repository-source
+    // assertions intentionally resolve from the CI working directory instead.
+    const worldSource = readFileSync('src/vr/World.ts', 'utf8');
     const bindingSource = readFileSync(
-      new URL('../src/vr/presentation/bindings/bindInteractionProjection.ts', import.meta.url),
+      'src/vr/presentation/bindings/bindInteractionProjection.ts',
       'utf8',
     );
 
