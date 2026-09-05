@@ -3,7 +3,7 @@
  * Offline analyzer for UX traces recorded by UXTraceRecorder.
  *
  * Usage:
- *   node scripts/analyze-ux-trace.mjs [trace.jsonl|trace.json] [--timeline] [--session SID]
+ *   node scripts/analyze-ux-trace.mjs [trace.jsonl|trace.json] [--timeline] [--session SID] [--reach-zone-y METRES]
  *
  * Defaults to logs/ux-trace.jsonl. Accepts legacy dev JSONL, legacy production
  * export envelopes, v1 records-only integrity exports, and v2 whole-envelope
@@ -17,7 +17,7 @@
  *   - miss classes via rayValid (tracking-loss vs aimed vs legacy-unknown)
  *   - head-gaze vs pointer-ray drift stats (median/p90) + target divergence
  *   - drift conditioned on selection outcome (miss vs hit)
- *   - hand-height exposure above the 1.5m suppression line
+ *   - eligible two-hand context exposure above the reach-zone threshold
  *   - frustration windows: >=2 ineffective pinches within 3 s
  *   - system toggles / suppressions, wheel open/close counts, tour progress
  *   - --timeline prints a compact chronological event table
@@ -31,7 +31,25 @@ const args = process.argv.slice(2);
 const timelineFlag = args.includes('--timeline');
 const sessionFlagIdx = args.indexOf('--session');
 const sessionFilter = sessionFlagIdx >= 0 ? args[sessionFlagIdx + 1] : null;
-const fileArg = args.find((a) => !a.startsWith('--') && a !== sessionFilter);
+const reachZoneFlagIdx = args.indexOf('--reach-zone-y');
+const reachZoneRaw = reachZoneFlagIdx >= 0 ? args[reachZoneFlagIdx + 1] : null;
+if (reachZoneFlagIdx >= 0 && (reachZoneRaw == null || reachZoneRaw.startsWith('--'))) {
+  console.error('--reach-zone-y requires a finite numeric value in metres.');
+  process.exit(1);
+}
+const reachZoneY = reachZoneRaw == null ? 1.5 : Number(reachZoneRaw);
+if (!Number.isFinite(reachZoneY)) {
+  console.error(`Invalid --reach-zone-y value: ${String(reachZoneRaw)}`);
+  process.exit(1);
+}
+const optionValueIndices = new Set(
+  [sessionFlagIdx >= 0 ? sessionFlagIdx + 1 : -1, reachZoneFlagIdx >= 0 ? reachZoneFlagIdx + 1 : -1].filter(
+    (index) => index >= 0
+  )
+);
+const fileArg = args.find(
+  (arg, index) => !arg.startsWith('--') && !optionValueIndices.has(index)
+);
 
 const file = path.resolve(fileArg ?? path.join('logs', 'ux-trace.jsonl'));
 if (!fs.existsSync(file)) {
@@ -44,7 +62,8 @@ let input;
 try {
   input = parseUXTraceText(fs.readFileSync(file, 'utf-8'), { source: file });
 } catch (error) {
-  const message = error instanceof UXTraceInputError || error instanceof Error ? error.message : String(error);
+  const message =
+    error instanceof UXTraceInputError || error instanceof Error ? error.message : String(error);
   console.error(`Invalid UX trace evidence: ${message}`);
   process.exit(1);
 }
@@ -107,7 +126,9 @@ for (const [sid, recs] of sessions) {
   const latestManifest = manifests.length > 0 ? manifests[manifests.length - 1] : null;
 
   console.log('\n================================================================');
-  console.log(`Session ${sid}  (${meta?.startedAt ?? latestManifest?.startedAt ?? 'unknown start'}, ${Math.round(duration)}s)`);
+  console.log(
+    `Session ${sid}  (${meta?.startedAt ?? latestManifest?.startedAt ?? 'unknown start'}, ${Math.round(duration)}s)`
+  );
   if (latestManifest) {
     console.log(
       `Dataset: ${latestManifest.datasetName ?? 'none'} | Topology: ${latestManifest.topology ?? '-'} | Version: ${latestManifest.datasetVersion ?? '-'} | Caps: 0x${(latestManifest.wasmCapabilities ?? 0).toString(16)}`
@@ -153,7 +174,8 @@ for (const [sid, recs] of sessions) {
 
   const lifecycleCounts = {};
   for (const event of lifecycles) {
-    lifecycleCounts[event.event ?? 'unknown'] = (lifecycleCounts[event.event ?? 'unknown'] ?? 0) + 1;
+    lifecycleCounts[event.event ?? 'unknown'] =
+      (lifecycleCounts[event.event ?? 'unknown'] ?? 0) + 1;
   }
   if (lifecycles.length > 0) {
     console.log(
@@ -167,33 +189,38 @@ for (const [sid, recs] of sessions) {
   const dropMarkers = lifecycles.filter((r) => r.event === 'buffer-drop');
   if (dropMarkers.length > 0) {
     const latestDrop = dropMarkers[dropMarkers.length - 1];
-    console.log(`  ⚠ buffer truncation observed: cumulative dropped=${latestDrop.droppedCount ?? '?'}`);
+    console.log(
+      `  ⚠ buffer truncation observed: cumulative dropped=${latestDrop.droppedCount ?? '?'}`
+    );
   }
 
   // --- UX Phenomenon Scorecard (UX-001 through UX-012) -------------------
   console.log('\n--- UX Phenomenon Scorecard (UX-001 - UX-012) ---');
-  // UX-001: Hand tracking cold-start
   const validJoints = handsEvents.find((h) => h.phase === 'joints-valid');
   if (validJoints && typeof validJoints.ttfrMs === 'number') {
     const coldStartSec = validJoints.ttfrMs / 1000;
-    console.log(`  UX-001 Hand Cold-Start: ${coldStartSec.toFixed(1)}s ${coldStartSec > 10 ? '⚠️ [FLAGGED > 10s]' : '✅'}`);
+    console.log(
+      `  UX-001 Hand Cold-Start: ${coldStartSec.toFixed(1)}s ${coldStartSec > 10 ? '⚠️ [FLAGGED > 10s]' : '✅'}`
+    );
   } else {
     console.log('  UX-001 Hand Cold-Start: nominal (no joint delay recorded)');
   }
 
-  // UX-006: Frustrations & Friction
   if (frictions.length > 0) {
     const peakScore = Math.max(...frictions.map((f) => f.score ?? 0));
-    console.log(`  UX-006 Frustration Bursts: ${frictions.length} events (Peak Score: ${peakScore.toFixed(2)}) ⚠️`);
+    console.log(
+      `  UX-006 Frustration Bursts: ${frictions.length} events (Peak Score: ${peakScore.toFixed(2)}) ⚠️`
+    );
   } else {
     console.log('  UX-006 Frustration Bursts: 0 events ✅');
   }
 
-  // UX-007: Perf Budget
   const criticalPerfs = perfs.filter((p) => p.severity === 'critical');
   const warnPerfs = perfs.filter((p) => p.severity === 'warning');
   if (criticalPerfs.length > 0 || warnPerfs.length > 0) {
-    console.log(`  UX-007 Perf Breaches: ${criticalPerfs.length} critical, ${warnPerfs.length} warnings ⚠️`);
+    console.log(
+      `  UX-007 Perf Breaches: ${criticalPerfs.length} critical, ${warnPerfs.length} warnings ⚠️`
+    );
   } else {
     console.log('  UX-007 Perf Breaches: 0 breaches (90 FPS nominal) ✅');
   }
@@ -230,8 +257,6 @@ for (const [sid, recs] of sessions) {
         ? ` (${missesWhileLookingAtPanel.length} of them while head-gaze was on a panel/hud => likely aim errors)`
         : '')
   );
-  // Miss classes via rayValid (present since the callback-truthfulness fix):
-  // tracking-loss misses need different remediation than aimed misses.
   const noneMisses = selections.filter((s) => s.hit === 'none');
   const noRay = noneMisses.filter((s) => s.rayValid === false).length;
   const aimed = noneMisses.filter((s) => s.rayValid === true).length;
@@ -244,10 +269,21 @@ for (const [sid, recs] of sessions) {
   }
 
   // --- Drift ---------------------------------------------------------------
-  const drifts = contexts.map((c) => c.ctx?.ptr?.driftDeg).filter((d) => typeof d === 'number');
+  const drifts = contexts
+    .map((c) => c.ctx?.ptr?.driftDeg)
+    .filter((d) => typeof d === 'number' && Number.isFinite(d));
+  const driftByOutcome = {};
+  for (const s of selections) {
+    const d = s.ctx?.ptr?.driftDeg;
+    if (typeof d !== 'number' || !Number.isFinite(d)) continue;
+    const key = s.hit ?? 'unknown';
+    (driftByOutcome[key] ??= []).push(d);
+  }
+  if (drifts.length > 0 || Object.keys(driftByOutcome).length > 0) {
+    console.log('\n--- Head-gaze vs pointer-ray drift ---');
+  }
   if (drifts.length > 0) {
     const mean = drifts.reduce((a, b) => a + b, 0) / drifts.length;
-    console.log('\n--- Head-gaze vs pointer-ray drift ---');
     console.log(
       `  samples=${drifts.length} mean=${mean.toFixed(1)}° median=${pct(drifts, 50).toFixed(1)}° p90=${pct(drifts, 90).toFixed(1)}° max=${Math.max(...drifts).toFixed(1)}°`
     );
@@ -256,31 +292,22 @@ for (const [sid, recs] of sessions) {
       const p = c.ctx?.ptr?.target;
       return g && p && g !== p;
     }).length;
-    const withTargets = contexts.filter((c) => c.ctx?.gaze?.target && c.ctx?.ptr?.target).length;
+    const withTargets = contexts.filter(
+      (c) => c.ctx?.gaze?.target && c.ctx?.ptr?.target
+    ).length;
     if (withTargets > 0) {
       console.log(
         `  gaze/pointer target divergence: ${diverged}/${withTargets} samples (${((100 * diverged) / withTargets).toFixed(0)}%)`
       );
     }
-    // Drift conditioned on selection outcome: high drift at hits suggests
-    // the raw angle overstates aim error (eye-hand offset); high drift
-    // concentrated at misses points at genuine aiming/tracking trouble.
-    const driftByOutcome = {};
-    for (const s of selections) {
-      const d = s.ctx?.ptr?.driftDeg;
-      if (typeof d !== 'number') continue;
-      const key = s.hit ?? 'unknown';
-      (driftByOutcome[key] ??= []).push(d);
-    }
-    for (const [outcome, ds] of Object.entries(driftByOutcome)) {
-      console.log(
-        `  drift at selection:${outcome}: n=${ds.length} median=${pct(ds, 50).toFixed(1)}° p90=${pct(ds, 90).toFixed(1)}°`
-      );
-    }
+  }
+  for (const [outcome, ds] of Object.entries(driftByOutcome)) {
+    console.log(
+      `  drift at selection:${outcome}: n=${ds.length} median=${pct(ds, 50).toFixed(1)}° p90=${pct(ds, 90).toFixed(1)}°`
+    );
   }
 
   // --- Frustration windows ---------------------------------------------------
-  // >=2 selection misses (none/callback-only) or system-suppressed pinches within 3 s.
   const ineffective = [
     ...misses.map((m) => ({ t: m.t, why: `selection:${m.hit}` })),
     ...pinches
@@ -300,7 +327,9 @@ for (const [sid, recs] of sessions) {
   console.log('\n--- Frustration windows (>=2 ineffective inputs within 3 s) ---');
   if (windows.length === 0) console.log('  none');
   for (const w of windows) {
-    console.log(`  ${fmtT(w[0].t)} -> ${fmtT(w[w.length - 1].t)}  ${w.map((e) => e.why).join(', ')}`);
+    console.log(
+      `  ${fmtT(w[0].t)} -> ${fmtT(w[w.length - 1].t)}  ${w.map((e) => e.why).join(', ')}`
+    );
   }
 
   // --- World-aware & Ergonomic Spatial Analysis -----------------------------
@@ -319,7 +348,8 @@ for (const [sid, recs] of sessions) {
         if (p?.reachZone) reachCounts[p.reachZone] = (reachCounts[p.reachZone] ?? 0) + 1;
         if (typeof p?.ergonomicScore === 'number') ergoScores.push(p.ergonomicScore);
         if (p?.troubleshootingFlag && p.troubleshootingFlag !== 'NONE') {
-          troubleshootCounts[p.troubleshootingFlag] = (troubleshootCounts[p.troubleshootingFlag] ?? 0) + 1;
+          troubleshootCounts[p.troubleshootingFlag] =
+            (troubleshootCounts[p.troubleshootingFlag] ?? 0) + 1;
         }
       }
     }
@@ -338,7 +368,10 @@ for (const [sid, recs] of sessions) {
     const reachStr = Object.entries(reachCounts)
       .map(([r, n]) => `${r} (${((100 * n) / totalReach).toFixed(0)}%)`)
       .join(', ');
-    const avgScore = ergoScores.length > 0 ? (ergoScores.reduce((a, b) => a + b, 0) / ergoScores.length).toFixed(1) : '-';
+    const avgScore =
+      ergoScores.length > 0
+        ? (ergoScores.reduce((a, b) => a + b, 0) / ergoScores.length).toFixed(1)
+        : '-';
     console.log(`  reach zones:  ${reachStr}`);
     console.log(`  ergonomic health score: mean=${avgScore}/100 (samples=${ergoScores.length})`);
   }
@@ -374,28 +407,45 @@ for (const [sid, recs] of sessions) {
   if (tours.length > 0) {
     console.log(`  tour transitions: ${tours.length}`);
     for (const t of tours.slice(-3)) {
-      console.log(`    ${fmtT(t.t)} -> step ${(t.step ?? 0) + 1}/${t.total ?? '?'} active=${t.active}`);
+      console.log(
+        `    ${fmtT(t.t)} -> step ${(t.step ?? 0) + 1}/${t.total ?? '?'} active=${t.active}`
+      );
     }
   }
   if (gestures.length > 0) {
     const gk = {};
     for (const g of gestures) gk[g.name] = (gk[g.name] ?? 0) + 1;
-    console.log(`  gestures: ${Object.entries(gk).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+    console.log(
+      `  gestures: ${Object.entries(gk)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(' ')}`
+    );
   }
-  // Suppression exposure: fraction of context samples with any hand above
-  // the reach-zone line. Calibrates the 1.5m both-pinch suppression
-  // threshold against how investigators actually hold their hands.
-  const handHeights = [];
+
+  // Suppression exposure uses the same eligibility shape as the runtime gate:
+  // two finite tracked hand heights, with suppression when either exceeds the
+  // candidate threshold. This is per-context exposure, not per-hand exposure.
+  let eligibleHandContexts = 0;
+  let contextsAboveReachZone = 0;
+  let maxHandHeight = -Infinity;
   for (const c of contexts) {
     const hands = c.ctx?.hands;
     if (!Array.isArray(hands)) continue;
-    for (const h of hands) if (typeof h?.y === 'number') handHeights.push(h.y);
+    const heights = hands
+      .map((hand) => hand?.y)
+      .filter((height) => typeof height === 'number' && Number.isFinite(height));
+    if (heights.length < 2) continue;
+    const twoHandHeights = heights.slice(0, 2);
+    eligibleHandContexts += 1;
+    maxHandHeight = Math.max(maxHandHeight, ...twoHandHeights);
+    if (twoHandHeights.some((height) => height > reachZoneY)) {
+      contextsAboveReachZone += 1;
+    }
   }
-  if (handHeights.length > 0) {
-    const above = handHeights.filter((y) => y > 1.5).length;
-    const abovePct = ((100 * above) / handHeights.length).toFixed(0);
+  if (eligibleHandContexts > 0) {
+    const abovePct = ((100 * contextsAboveReachZone) / eligibleHandContexts).toFixed(0);
     console.log(
-      `  hand heights: n=${handHeights.length} max=${Math.max(...handHeights).toFixed(2)}m above 1.5m=${above} (${abovePct}%)`
+      `  hand-height exposure: contexts=${eligibleHandContexts} max=${maxHandHeight.toFixed(2)}m above ${reachZoneY}m=${contextsAboveReachZone} (${abovePct}%)`
     );
   }
 }
