@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Engine } from '../src/vr/Engine.ts';
