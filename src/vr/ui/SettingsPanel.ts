@@ -52,6 +52,12 @@ export interface SettingsPanelOptions {
   onExitVR?: () => void;
   telemetryCollector?: TelemetryCollectorLike | null;
   performanceBudget?: PerformanceBudgetLike | null;
+  /**
+   * Lazily evaluated UX-trace export. Invoked only from the user-initiated
+   * EXPORT TRACE button; must return local JSON or null when nothing is
+   * recorded. Never called automatically.
+   */
+  traceExporter?: (() => string | null) | null;
   dataset?: Dataset | null;
   datasetTopology?: string;
   sessionDurationSeconds?: number;
@@ -171,6 +177,7 @@ const SETTINGS: SettingDescriptor[] = [
   { key: 'feedbackHaptic', label: 'Haptic Feedback', section: 'FEEDBACK', type: 'toggle' },
   { key: 'feedbackVisual', label: 'Visual Feedback', section: 'FEEDBACK', type: 'toggle' },
   { key: 'telemetryEnabled', label: 'Telemetry Opt-in', section: 'PRIVACY & TELEMETRY', type: 'toggle' },
+  { key: 'prodTraceEnabled', label: 'Prod Trace Recording', section: 'PRIVACY & TELEMETRY', type: 'toggle' },
   { key: 'strictBudget', label: 'Strict Budget', section: 'PERFORMANCE', type: 'toggle' },
   { key: 'collabEnabled', label: 'Collaboration', section: 'COLLABORATION', type: 'toggle' },
   {
@@ -209,6 +216,7 @@ export class SettingsPanel extends SpatialPanel {
     feedbackVisual: true,
     gesturesEnabled: true,
     telemetryEnabled: false,
+    prodTraceEnabled: false,
     colorblindMode: 'none',
     highContrast: false,
     textScale: 1,
@@ -253,6 +261,8 @@ export class SettingsPanel extends SpatialPanel {
   private _headerText: Text;
   private _labelTexts: { node: Text; baseSize: number }[] = [];
   private _exportButton: Button | null = null;
+  private _exportTraceButton: Button | null = null;
+  private _traceExporter: (() => string | null) | null = null;
   private _exitButton: Button | null = null;
   private _privacyToggle: Toggle | null = null;
   private _budgetController: PanelBudgetController | null;
@@ -286,6 +296,7 @@ export class SettingsPanel extends SpatialPanel {
 
     this._telemetryCollector = options.telemetryCollector ?? null;
     this._performanceBudget = options.performanceBudget ?? null;
+    this._traceExporter = options.traceExporter ?? null;
     this._dataset = options.dataset ?? null;
     this._datasetTopology = options.datasetTopology ?? '-';
     this._sessionDurationSeconds = options.sessionDurationSeconds ?? 0;
@@ -590,6 +601,30 @@ export class SettingsPanel extends SpatialPanel {
     exportRow.add(this._privacyToggle);
     exportRow.add(this._exportButton);
     footer.add(exportRow);
+    // UX-trace row: user-initiated local download of the in-memory trace
+    // buffer. The exporter is a lazy closure so the panel never holds trace
+    // data itself; nothing is transmitted.
+    const traceRow = new Container({
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+      gap: SPACING_TOKENS.grid.x12,
+    });
+    const traceLabel = new Text({
+      text: 'Trace: local-only export',
+      fontSize: 14 * this._textScale,
+      color: palette.textMuted,
+    });
+    this._labelTexts.push({ node: traceLabel, baseSize: 14 });
+    this._exportTraceButton = new Button({
+      label: 'EXPORT TRACE',
+      variant: 'primary',
+      onClick: () => this._exportTrace(),
+    });
+    traceRow.add(traceLabel);
+    traceRow.add(this._exportTraceButton);
+    footer.add(traceRow);
 
     // Exit VR button.
     this._exitButton = new Button({
@@ -643,5 +678,21 @@ export class SettingsPanel extends SpatialPanel {
     downloadText(formatReviewBundle(bundle), 'nemosyne-review-bundle.json', 'application/json').catch(
       () => {},
     );
+  }
+
+  /**
+   * User-initiated trace export. The exporter closure returns locally
+   * buffered JSON (or null when nothing is recorded); the download is the
+   * only way trace data leaves memory. No network call is made here.
+   */
+  private _exportTrace(): void {
+    let payload: string | null = null;
+    try {
+      payload = this._traceExporter?.() ?? null;
+    } catch {
+      payload = null;
+    }
+    if (!payload) return;
+    downloadText(payload, 'nemosyne-ux-trace.json', 'application/json').catch(() => {});
   }
 }

@@ -78,6 +78,8 @@ export interface WorldUIManagerCallbacks {
   getLocalPeerId?: () => string | null;
   getSetting?: (key: string) => unknown;
   telemetryCollector?: unknown;
+  /** Lazy UX-trace export for the Settings EXPORT TRACE button. Local-only. */
+  traceExporter?: (() => string | null) | null;
   analysisHistory?: unknown;
   getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
   getOutcome?: () => import('../../moneta/representation/ActionableNil.ts').InvestigatorActionableOutcome | null;
@@ -354,6 +356,7 @@ export class WorldUIManager {
       onExitVR: callbacks.onExitVR,
       telemetryCollector: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
       performanceBudget: engine.performanceBudget as PerformanceBudgetLike,
+      traceExporter: callbacks.traceExporter ?? null,
       datasetTopology: '-',
       panelBudgetController: this.panelBudgetController,
     });

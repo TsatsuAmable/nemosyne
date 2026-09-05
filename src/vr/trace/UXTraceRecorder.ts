@@ -44,6 +44,9 @@ export type UXTraceHandPinchGating =
 export interface SessionManifestInfo {
   sid?: string;
   nemosyneSessionId?: string;
+  /** Quest-validation session label/id (launcher-generated), when present. */
+  validationSessionLabel?: string;
+  validationSessionId?: string;
   datasetName?: string;
   datasetFingerprint?: string;
   datasetVersion?: string;
@@ -107,6 +110,13 @@ export interface UXTraceRecorderOptions {
   sampleHz?: number;
   flushMs?: number;
   endpoint?: string;
+  /**
+   * Explicit recording switch. Defaults to true (historical behavior: record
+   * and flush to the dev-server endpoint). Production wiring constructs the
+   * recorder always but starts disabled until the investigator opts in via
+   * the `prodTraceEnabled` setting; `setEnabled()` flips it at runtime.
+   */
+  enabled?: boolean;
   now?: () => number;
   fetchImpl?: (
     url: string,
@@ -168,7 +178,16 @@ export class UXTraceRecorder {
   private _frame = 0;
   private _buffer: TraceRecord[] = [];
   private _droppedCount = 0;
+  /** Explicit off-switch (setting / fatal errors). Stops all sampling work. */
   private _disabled = false;
+  /**
+   * Dev-server endpoint confirmed absent (HTTP 404, e.g. production build).
+   * Flushing stops, but recording continues into the bounded in-memory
+   * buffer so a user-initiated export still captures the session. Never
+   * implies network transmission: there is no fallback endpoint.
+   */
+  private _endpointDead = false;
+  private _endpointDeadWarned = false;
   private _disposed = false;
   private _errorCount = 0;
   private _lastSampleAt = -Infinity;
@@ -205,6 +224,7 @@ export class UXTraceRecorder {
         fetch(url, init as RequestInit) as unknown as Promise<{ ok: boolean; status: number }>);
 
     this._sessionId = crypto.randomUUID();
+    this._disabled = !(options.enabled ?? true);
 
     if (options.eventBus) {
       const bus = options.eventBus;
@@ -236,8 +256,56 @@ export class UXTraceRecorder {
     return this._sessionId;
   }
 
+  /**
+   * Observable off-state: explicitly disabled OR endpoint confirmed absent.
+   * Sampling work is gated on the explicit flag only, so an endpoint-dead
+   * recorder keeps buffering in memory for user-initiated export.
+   */
   get disabled(): boolean {
-    return this._disabled;
+    return this._disabled || this._endpointDead;
+  }
+
+  /** True once the dev-server endpoint 404s (production builds). */
+  get endpointDead(): boolean {
+    return this._endpointDead;
+  }
+
+  /** Explicit recording switch state (ignores endpoint health). */
+  get enabled(): boolean {
+    return !this._disabled;
+  }
+
+  /** True once at least one record is buffered (manifest counts). */
+  get hasRecords(): boolean {
+    return this._buffer.length > 0;
+  }
+
+  /**
+   * Runtime switch for the production-trace feature flag. Enabling never
+   * transmits: with a dead endpoint, records accumulate in the bounded
+   * in-memory buffer until exported. Disabling stops all sampling work.
+   */
+  setEnabled(value: boolean): void {
+    this._disabled = !value;
+  }
+
+  /**
+   * Local-only snapshot of buffered records for user-initiated download.
+   * Non-destructive; never transmits.
+   */
+  exportJson(): string {
+    return JSON.stringify(
+      {
+        exportedAt: new Date().toISOString(),
+        sid: this._sessionId,
+        recordCount: this._buffer.length,
+        droppedCount: this._droppedCount,
+        endpointDead: this._endpointDead,
+        records: [...this._buffer],
+      },
+      null,
+      2
+    );
   }
 
   get droppedCount(): number {
@@ -655,6 +723,7 @@ export class UXTraceRecorder {
 
   private async _flush(): Promise<void> {
     if (this._flushing || this._buffer.length === 0 || this._disabled) return;
+    if (this._endpointDead) return;
     this._flushing = true;
     const batch = this._buffer;
     this._buffer = [];
@@ -667,7 +736,7 @@ export class UXTraceRecorder {
       if (!res.ok) {
         if (res.status === 404) {
           this._requeue(batch);
-          this._disable(`endpoint ${this._endpoint} not available (not a dev server)`);
+          this._markEndpointDead();
         } else {
           this._requeue(batch);
         }
@@ -692,5 +761,19 @@ export class UXTraceRecorder {
     if (this._disabled) return;
     this._disabled = true;
     console.warn(`[UXTraceRecorder] disabled: ${reason}`);
+  }
+
+  /**
+   * Endpoint confirmed absent: stop flushing permanently (no retry loop, no
+   * fallback endpoint) but keep recording into the bounded buffer for
+   * user-initiated export. Warns once.
+   */
+  private _markEndpointDead(): void {
+    this._endpointDead = true;
+    if (this._endpointDeadWarned) return;
+    this._endpointDeadWarned = true;
+    console.warn(
+      `[UXTraceRecorder] endpoint ${this._endpoint} not available (not a dev server); buffering in memory for local export`
+    );
   }
 }

@@ -333,6 +333,79 @@ describe('UXTraceRecorder', () => {
   });
 });
 
+describe('UXTraceRecorder feature-flag gating (prodTraceEnabled)', () => {
+  function bufferOf(recorder: UXTraceRecorder): Array<Record<string, unknown>> {
+    return (recorder as unknown as { _buffer: Array<Record<string, unknown>> })._buffer;
+  }
+
+  it('starts disabled with enabled:false and records nothing until setEnabled(true)', async () => {
+    const { recorder, fetchImpl, update } = makeRecorder({ enabled: false });
+    expect(recorder.enabled).toBe(false);
+    update(0.2);
+    update(0.5);
+    expect(bufferOf(recorder).length).toBe(0);
+
+    recorder.setEnabled(true);
+    expect(recorder.enabled).toBe(true);
+    recorder.recordSessionManifest({ datasetName: 'supply-chain', buildHash: 'abc1234' });
+    // Manifest lands in the buffer synchronously, before any flush.
+    const manifest = bufferOf(recorder).find((r) => r.type === 'session-manifest') as
+      Record<string, unknown> | undefined;
+    expect(manifest?.datasetName).toBe('supply-chain');
+    expect(manifest?.buildHash).toBe('abc1234');
+    // Sampling resumes and the enabled dev path still flushes to the endpoint.
+    update(1.0);
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled());
+    const body = JSON.parse(
+      (fetchImpl.mock.calls[0] as unknown as [url: string, init: { body: string }])[1].body
+    ) as { sid: string; records: unknown[] };
+    expect(body.sid).toBe(recorder.sessionId);
+    expect(body.records.length).toBeGreaterThan(0);
+  });
+
+  it('keeps buffering in memory after endpoint 404 without further fetch traffic', async () => {
+    const { recorder, fetchImpl, update } = makeRecorder();
+    fetchImpl.mockImplementation(() => Promise.resolve({ ok: false, status: 404 }));
+    update(1.1);
+    await vi.waitFor(() => expect(recorder.endpointDead).toBe(true));
+    // Composite off-state preserved (no network), but memory sink stays live.
+    expect(recorder.disabled).toBe(true);
+    const callsAfterDeath = fetchImpl.mock.calls.length;
+    update(2.0);
+    update(3.0);
+    // No retry loop and no fallback endpoint: fetch count frozen.
+    expect(fetchImpl.mock.calls.length).toBe(callsAfterDeath);
+    const buffer = bufferOf(recorder);
+    expect(buffer.length).toBeGreaterThan(0);
+    const exported = JSON.parse(recorder.exportJson()) as {
+      sid: string;
+      records: unknown[];
+      endpointDead: boolean;
+    };
+    expect(exported.sid).toBe(recorder.sessionId);
+    expect(exported.records.length).toBe(buffer.length);
+    expect(exported.endpointDead).toBe(true);
+  });
+
+  it('setEnabled(false) stops all sampling work', () => {
+    const { recorder, update } = makeRecorder();
+    update(0.2);
+    const before = bufferOf(recorder).length;
+    expect(before).toBeGreaterThan(0);
+    recorder.setEnabled(false);
+    expect(recorder.enabled).toBe(false);
+    update(1.0);
+    update(2.0);
+    expect(bufferOf(recorder).length).toBe(before);
+  });
+
+  it('ships prodTraceEnabled default-off in the governed settings contract', async () => {
+    const { SettingsPanel } = await import('../src/vr/ui/SettingsPanel.ts');
+    expect(SettingsPanel.DEFAULTS.prodTraceEnabled).toBe(false);
+    expect(SettingsPanel.DEFAULTS.telemetryEnabled).toBe(false);
+  });
+});
+
 describe('InputRouter pinch-edge tap integration', () => {
   it('reports gating decisions for select, wheel and system-suppressed pinches', async () => {
     const { InputRouter } = await import('../src/vr/InputRouter.ts');

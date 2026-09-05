@@ -315,6 +315,12 @@ export interface SettingsMap {
   feedbackVisual: boolean;
   gesturesEnabled: boolean;
   telemetryEnabled: boolean;
+  /**
+   * Production UX-trace recording (UXTraceRecorder outside dev builds).
+   * Default false. When on, records buffer locally in memory only; export
+   * is user-initiated download. Never transmits automatically.
+   */
+  prodTraceEnabled: boolean;
   colorblindMode: string;
   highContrast: boolean;
   textScale: number;
