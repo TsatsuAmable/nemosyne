@@ -121,6 +121,7 @@ export type GestureLearningContractIssueCode =
   | 'DUPLICATE_RECORD_ID'
   | 'MIXED_FEATURE_SCHEMA'
   | 'INSUFFICIENT_PROFILE_GROUPS'
+  | 'EMPTY_PROFILE_GROUP'
   | 'INVALID_SPLIT_FRACTIONS'
   | 'PROFILE_SPLIT_OVERLAP'
   | 'SPLIT_POLICY_MISMATCH'
@@ -191,11 +192,7 @@ function isAuthorizationEvidence(value: unknown): value is AuthorizationEvidence
 }
 
 function validUtcTimestamp(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    UTC_TIMESTAMP.test(value) &&
-    Number.isFinite(Date.parse(value))
-  );
+  return typeof value === 'string' && UTC_TIMESTAMP.test(value) && Number.isFinite(Date.parse(value));
 }
 
 function validSplitFractions(
@@ -305,68 +302,38 @@ export function validateGestureLabelProvenanceV1(
     label.rulesVersion !== GESTURE_LABEL_PROVENANCE_RULE_VERSION ||
     !LABEL_SOURCE_SET.has(label.source)
   ) {
-    issues.push({
+    return [{
       code: 'INVALID_LABEL_PROVENANCE',
       path: 'label',
       message: 'must use the frozen PT6 label-provenance contract',
-    });
-    return issues;
+    }];
   }
   if (!GESTURE_CLASS_SET.has(label.assignedGesture)) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label.assignedGesture',
-      message: 'must be a declared gesture class',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label.assignedGesture', message: 'must be a declared gesture class' });
   }
   if (label.predictedGesture !== null && !GESTURE_CLASS_SET.has(label.predictedGesture)) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label.predictedGesture',
-      message: 'must be null or a declared gesture class',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label.predictedGesture', message: 'must be null or a declared gesture class' });
   }
   if (!SAFE_ID.test(label.evidenceId)) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label.evidenceId',
-      message: 'must be a bounded stable evidence identifier',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label.evidenceId', message: 'must be a bounded stable evidence identifier' });
   }
   if (!validUtcTimestamp(label.recordedAt)) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label.recordedAt',
-      message: 'must be a canonical UTC timestamp',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label.recordedAt', message: 'must be a canonical UTC timestamp' });
   }
-
   if (
     label.source === 'EXPLICIT_CONFIRMATION' &&
     (label.predictedGesture === null || label.predictedGesture !== label.assignedGesture)
   ) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label',
-      message: 'explicit confirmation requires predictedGesture == assignedGesture',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label', message: 'explicit confirmation requires predictedGesture == assignedGesture' });
   }
   if (
     label.source === 'EXPLICIT_CORRECTION' &&
     (label.predictedGesture === null || label.predictedGesture === label.assignedGesture)
   ) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label',
-      message: 'explicit correction requires a different predicted and assigned gesture',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label', message: 'explicit correction requires a different predicted and assigned gesture' });
   }
   if (label.source === 'PROTOCOL_TARGET' && label.predictedGesture !== null) {
-    issues.push({
-      code: 'INVALID_LABEL_PROVENANCE',
-      path: 'label.predictedGesture',
-      message: 'protocol target labels are independent of model predictions',
-    });
+    issues.push({ code: 'INVALID_LABEL_PROVENANCE', path: 'label.predictedGesture', message: 'protocol target labels are independent of model predictions' });
   }
   return issues;
 }
@@ -375,11 +342,7 @@ export function validateGestureLearningSampleRefV1(
   sample: GestureLearningSampleRefV1
 ): readonly GestureLearningContractIssue[] {
   const issues: GestureLearningContractIssue[] = [];
-  if (
-    !sample ||
-    sample.schemaVersion !== '1' ||
-    sample.purpose !== GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING
-  ) {
+  if (!sample || sample.schemaVersion !== '1' || sample.purpose !== GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING) {
     issues.push({
       code: 'INVALID_SAMPLE_REFERENCE',
       path: 'sample.purpose',
@@ -387,39 +350,18 @@ export function validateGestureLearningSampleRefV1(
     });
   }
   if (!SAFE_ID.test(sample?.recordId ?? '')) {
-    issues.push({
-      code: 'INVALID_SAMPLE_REFERENCE',
-      path: 'sample.recordId',
-      message: 'must be a bounded stable record identifier',
-    });
+    issues.push({ code: 'INVALID_SAMPLE_REFERENCE', path: 'sample.recordId', message: 'must be a bounded stable record identifier' });
   }
   if (!SAFE_ID.test(sample?.profilePseudonymId ?? '')) {
-    issues.push({
-      code: 'INVALID_SAMPLE_REFERENCE',
-      path: 'sample.profilePseudonymId',
-      message: 'must be a purpose-scoped derived-learning pseudonym',
-    });
+    issues.push({ code: 'INVALID_SAMPLE_REFERENCE', path: 'sample.profilePseudonymId', message: 'must be a purpose-scoped derived-learning pseudonym' });
   }
   if (!isImmutableReference(sample?.featureSchema)) {
-    issues.push({
-      code: 'INVALID_SAMPLE_REFERENCE',
-      path: 'sample.featureSchema',
-      message: 'must be an immutable feature-schema reference',
-    });
+    issues.push({ code: 'INVALID_SAMPLE_REFERENCE', path: 'sample.featureSchema', message: 'must be an immutable feature-schema reference' });
   }
   if (!isSha256Digest(sample?.contentDigest)) {
-    issues.push({
-      code: 'INVALID_SAMPLE_REFERENCE',
-      path: 'sample.contentDigest',
-      message: 'must be an exact SHA-256 content digest',
-    });
+    issues.push({ code: 'INVALID_SAMPLE_REFERENCE', path: 'sample.contentDigest', message: 'must be an exact SHA-256 content digest' });
   }
-  issues.push(
-    ...validateGestureLearningConsentEvidenceV1(
-      sample?.consent,
-      GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING
-    )
-  );
+  issues.push(...validateGestureLearningConsentEvidenceV1(sample?.consent, GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING));
   issues.push(...validateGestureLabelProvenanceV1(sample?.label));
   return issues;
 }
@@ -459,9 +401,7 @@ function expectedProfileOwners(
   const counts = normalizedSplitCounts(orderedProfiles.length, fractions.validation, fractions.test);
   const owners = new Map<string, GestureTrainingSplit>();
   orderedProfiles.slice(0, counts.train).forEach((profileId) => owners.set(profileId, 'train'));
-  orderedProfiles
-    .slice(counts.train, counts.train + counts.validation)
-    .forEach((profileId) => owners.set(profileId, 'validation'));
+  orderedProfiles.slice(counts.train, counts.train + counts.validation).forEach((profileId) => owners.set(profileId, 'validation'));
   orderedProfiles.slice(counts.train + counts.validation).forEach((profileId) => owners.set(profileId, 'test'));
   return owners;
 }
@@ -470,13 +410,12 @@ function buildSplit(
   profileIds: readonly string[],
   samplesByProfile: ReadonlyMap<string, readonly GestureLearningSampleRefV1[]>
 ): GestureTrainingSnapshotSplitV1 {
-  const samples = profileIds
-    .flatMap((profileId) => samplesByProfile.get(profileId) ?? [])
-    .map(cloneSample)
-    .sort((a, b) => a.recordId.localeCompare(b.recordId));
   return {
     profilePseudonymIds: [...profileIds].sort(),
-    samples,
+    samples: profileIds
+      .flatMap((profileId) => samplesByProfile.get(profileId) ?? [])
+      .map(cloneSample)
+      .sort((a, b) => a.recordId.localeCompare(b.recordId)),
   };
 }
 
@@ -494,11 +433,7 @@ export function buildGestureTrainingSnapshotV1(
   };
 
   if (!validSplitFractions(splitFractions)) {
-    issues.push({
-      code: 'INVALID_SPLIT_FRACTIONS',
-      path: 'options',
-      message: 'validation/test fractions must be positive and leave a positive train fraction',
-    });
+    issues.push({ code: 'INVALID_SPLIT_FRACTIONS', path: 'options', message: 'validation/test fractions must be positive and leave a positive train fraction' });
   }
   if (
     !SAFE_ID.test(options.snapshotId) ||
@@ -506,11 +441,7 @@ export function buildGestureTrainingSnapshotV1(
     !validUtcTimestamp(options.createdAt) ||
     !SAFE_ID.test(options.splitSeed)
   ) {
-    issues.push({
-      code: 'INVALID_SNAPSHOT_METADATA',
-      path: 'options',
-      message: 'snapshot identity, version, timestamp and splitSeed must be stable bounded values',
-    });
+    issues.push({ code: 'INVALID_SNAPSHOT_METADATA', path: 'options', message: 'snapshot identity, version, timestamp and splitSeed must be stable bounded values' });
   }
 
   const seenRecordIds = new Set<string>();
@@ -519,30 +450,18 @@ export function buildGestureTrainingSnapshotV1(
 
   for (let index = 0; index < samples.length; index += 1) {
     const sample = samples[index];
-    for (const issue of validateGestureLearningSampleRefV1(sample)) {
-      issues.push({ ...issue, path: `samples[${index}].${issue.path}` });
-    }
+    const sampleIssues = validateGestureLearningSampleRefV1(sample);
+    for (const issue of sampleIssues) issues.push({ ...issue, path: `samples[${index}].${issue.path}` });
+    if (sampleIssues.length > 0) continue;
+
     if (seenRecordIds.has(sample.recordId)) {
-      issues.push({
-        code: 'DUPLICATE_RECORD_ID',
-        path: `samples[${index}].recordId`,
-        message: `duplicate recordId ${sample.recordId}`,
-      });
+      issues.push({ code: 'DUPLICATE_RECORD_ID', path: `samples[${index}].recordId`, message: `duplicate recordId ${sample.recordId}` });
     }
     seenRecordIds.add(sample.recordId);
 
-    if (featureSchema === null && isImmutableReference(sample.featureSchema)) {
-      featureSchema = sample.featureSchema;
-    } else if (
-      featureSchema !== null &&
-      isImmutableReference(sample.featureSchema) &&
-      !sameReference(featureSchema, sample.featureSchema)
-    ) {
-      issues.push({
-        code: 'MIXED_FEATURE_SCHEMA',
-        path: `samples[${index}].featureSchema`,
-        message: 'one training snapshot cannot mix feature-schema identities',
-      });
+    if (featureSchema === null) featureSchema = sample.featureSchema;
+    else if (!sameReference(featureSchema, sample.featureSchema)) {
+      issues.push({ code: 'MIXED_FEATURE_SCHEMA', path: `samples[${index}].featureSchema`, message: 'one training snapshot cannot mix feature-schema identities' });
     }
 
     const grouped = samplesByProfile.get(sample.profilePseudonymId) ?? [];
@@ -551,30 +470,23 @@ export function buildGestureTrainingSnapshotV1(
   }
 
   if (samplesByProfile.size < 3) {
-    issues.push({
-      code: 'INSUFFICIENT_PROFILE_GROUPS',
-      path: 'samples',
-      message: 'at least three distinct purpose-scoped profiles are required for train/validation/test',
-    });
+    issues.push({ code: 'INSUFFICIENT_PROFILE_GROUPS', path: 'samples', message: 'at least three distinct purpose-scoped profiles are required for train/validation/test' });
   }
   if (issues.length > 0 || featureSchema === null) throw new GestureLearningContractError(issues);
 
   const orderedProfiles = orderedProfilesForPolicy([...samplesByProfile.keys()], options.splitSeed);
   const counts = normalizedSplitCounts(orderedProfiles.length, validationFraction, testFraction);
   if (counts.train < 1 || counts.validation < 1 || counts.test < 1) {
-    throw new GestureLearningContractError([
-      {
-        code: 'INSUFFICIENT_PROFILE_GROUPS',
-        path: 'samples',
-        message: 'split policy must produce non-empty train, validation and test profile groups',
-      },
-    ]);
+    throw new GestureLearningContractError([{
+      code: 'INSUFFICIENT_PROFILE_GROUPS',
+      path: 'samples',
+      message: 'split policy must produce non-empty train, validation and test profile groups',
+    }]);
   }
 
   const trainProfiles = orderedProfiles.slice(0, counts.train);
   const validationProfiles = orderedProfiles.slice(counts.train, counts.train + counts.validation);
   const testProfiles = orderedProfiles.slice(counts.train + counts.validation);
-
   const content: GestureTrainingSnapshotContentV1 = {
     schemaVersion: '1',
     snapshotId: options.snapshotId,
@@ -594,10 +506,7 @@ export function buildGestureTrainingSnapshotV1(
 
   return deepFreeze({
     ...content,
-    snapshotDigest: {
-      algorithm: 'SHA256' as const,
-      value: canonicalSha256Hex(content),
-    },
+    snapshotDigest: { algorithm: 'SHA256' as const, value: canonicalSha256Hex(content) },
   });
 }
 
@@ -620,126 +529,94 @@ export function validateGestureTrainingSnapshotV1(
     snapshot?.splitPolicyVersion !== GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION ||
     !SAFE_ID.test(snapshot?.splitSeedId ?? '')
   ) {
-    issues.push({
-      code: 'INVALID_SNAPSHOT_METADATA',
-      path: 'snapshot',
-      message: 'snapshot metadata must use the frozen PT6A schema, label rules and split policy',
-    });
+    issues.push({ code: 'INVALID_SNAPSHOT_METADATA', path: 'snapshot', message: 'snapshot metadata must use the frozen PT6A schema, label rules and split policy' });
   }
   if (!validSplitFractions(snapshot?.splitFractions)) {
-    issues.push({
-      code: 'INVALID_SPLIT_FRACTIONS',
-      path: 'splitFractions',
-      message: 'train/validation/test fractions must be finite, positive and sum to 1',
-    });
+    issues.push({ code: 'INVALID_SPLIT_FRACTIONS', path: 'splitFractions', message: 'train/validation/test fractions must be finite, positive and sum to 1' });
   }
 
   for (const splitName of splitNames) {
     const split = snapshot?.splits?.[splitName];
     if (!split || split.profilePseudonymIds.length === 0 || split.samples.length === 0) {
-      issues.push({
-        code: 'INSUFFICIENT_PROFILE_GROUPS',
-        path: `splits.${splitName}`,
-        message: 'each split must contain at least one profile and sample',
-      });
+      issues.push({ code: 'INSUFFICIENT_PROFILE_GROUPS', path: `splits.${splitName}`, message: 'each split must contain at least one profile and sample' });
       continue;
     }
+
     const declaredProfiles = new Set(split.profilePseudonymIds);
+    const sampleCountByProfile = new Map<string, number>();
     if (declaredProfiles.size !== split.profilePseudonymIds.length) {
-      issues.push({
-        code: 'PROFILE_SPLIT_OVERLAP',
-        path: `splits.${splitName}.profilePseudonymIds`,
-        message: 'split profile list contains duplicates',
-      });
+      issues.push({ code: 'PROFILE_SPLIT_OVERLAP', path: `splits.${splitName}.profilePseudonymIds`, message: 'split profile list contains duplicates' });
     }
+
     for (const profileId of declaredProfiles) {
+      if (!SAFE_ID.test(profileId)) {
+        issues.push({ code: 'INVALID_SAMPLE_REFERENCE', path: `splits.${splitName}.profilePseudonymIds`, message: `${profileId} is not a bounded purpose-scoped profile identifier` });
+      }
       const prior = profileOwner.get(profileId);
       if (prior && prior !== splitName) {
-        issues.push({
-          code: 'PROFILE_SPLIT_OVERLAP',
-          path: `splits.${splitName}.profilePseudonymIds`,
-          message: `${profileId} is already assigned to ${prior}`,
-        });
+        issues.push({ code: 'PROFILE_SPLIT_OVERLAP', path: `splits.${splitName}.profilePseudonymIds`, message: `${profileId} is already assigned to ${prior}` });
       }
       profileOwner.set(profileId, splitName);
       allProfileIds.add(profileId);
+      sampleCountByProfile.set(profileId, 0);
     }
+
     for (let index = 0; index < split.samples.length; index += 1) {
       const sample = split.samples[index];
       for (const issue of validateGestureLearningSampleRefV1(sample)) {
         issues.push({ ...issue, path: `splits.${splitName}.samples[${index}].${issue.path}` });
       }
       if (!declaredProfiles.has(sample.profilePseudonymId)) {
-        issues.push({
-          code: 'PROFILE_SPLIT_OVERLAP',
-          path: `splits.${splitName}.samples[${index}].profilePseudonymId`,
-          message: 'sample profile must be declared in its split',
-        });
+        issues.push({ code: 'PROFILE_SPLIT_OVERLAP', path: `splits.${splitName}.samples[${index}].profilePseudonymId`, message: 'sample profile must be declared in its split' });
+      } else {
+        sampleCountByProfile.set(sample.profilePseudonymId, (sampleCountByProfile.get(sample.profilePseudonymId) ?? 0) + 1);
       }
       if (recordIds.has(sample.recordId)) {
-        issues.push({
-          code: 'DUPLICATE_RECORD_ID',
-          path: `splits.${splitName}.samples[${index}].recordId`,
-          message: `duplicate recordId ${sample.recordId}`,
-        });
+        issues.push({ code: 'DUPLICATE_RECORD_ID', path: `splits.${splitName}.samples[${index}].recordId`, message: `duplicate recordId ${sample.recordId}` });
       }
       recordIds.add(sample.recordId);
-      if (featureSchema === null && isImmutableReference(sample.featureSchema)) {
-        featureSchema = sample.featureSchema;
-      } else if (
-        featureSchema !== null &&
-        isImmutableReference(sample.featureSchema) &&
-        !sameReference(featureSchema, sample.featureSchema)
-      ) {
+      if (isImmutableReference(sample.featureSchema)) {
+        if (featureSchema === null) featureSchema = sample.featureSchema;
+        else if (!sameReference(featureSchema, sample.featureSchema)) {
+          issues.push({ code: 'MIXED_FEATURE_SCHEMA', path: `splits.${splitName}.samples[${index}].featureSchema`, message: 'sample feature schema differs from snapshot schema' });
+        }
+      }
+    }
+
+    for (const [profileId, count] of sampleCountByProfile) {
+      if (count === 0) {
         issues.push({
-          code: 'MIXED_FEATURE_SCHEMA',
-          path: `splits.${splitName}.samples[${index}].featureSchema`,
-          message: 'sample feature schema differs from snapshot schema',
+          code: 'EMPTY_PROFILE_GROUP',
+          path: `splits.${splitName}.profilePseudonymIds`,
+          message: `${profileId} has no sample in its declared split and cannot influence split policy`,
         });
       }
     }
   }
 
+  if (allProfileIds.size < 3) {
+    issues.push({ code: 'INSUFFICIENT_PROFILE_GROUPS', path: 'splits', message: 'snapshot must contain at least three distinct profile groups' });
+  }
+
   if (!isImmutableReference(snapshot?.featureSchema) || (featureSchema && !sameReference(snapshot.featureSchema, featureSchema))) {
-    issues.push({
-      code: 'MIXED_FEATURE_SCHEMA',
-      path: 'featureSchema',
-      message: 'snapshot feature schema must match every sample',
-    });
+    issues.push({ code: 'MIXED_FEATURE_SCHEMA', path: 'featureSchema', message: 'snapshot feature schema must match every sample' });
   }
 
   if (validSplitFractions(snapshot?.splitFractions) && SAFE_ID.test(snapshot?.splitSeedId ?? '') && allProfileIds.size >= 3) {
-    const expectedOwners = expectedProfileOwners(
-      [...allProfileIds],
-      snapshot.splitSeedId,
-      snapshot.splitFractions
-    );
+    const expectedOwners = expectedProfileOwners([...allProfileIds], snapshot.splitSeedId, snapshot.splitFractions);
     for (const profileId of allProfileIds) {
       if (expectedOwners.get(profileId) !== profileOwner.get(profileId)) {
-        issues.push({
-          code: 'SPLIT_POLICY_MISMATCH',
-          path: 'splits',
-          message: `${profileId} is not assigned according to ${GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION}`,
-        });
+        issues.push({ code: 'SPLIT_POLICY_MISMATCH', path: 'splits', message: `${profileId} is not assigned according to ${GESTURE_SNAPSHOT_SPLIT_POLICY_VERSION}` });
       }
     }
   }
 
   if (!isSha256Digest(snapshot?.snapshotDigest)) {
-    issues.push({
-      code: 'SNAPSHOT_DIGEST_MISMATCH',
-      path: 'snapshotDigest',
-      message: 'snapshot digest must be SHA-256',
-    });
+    issues.push({ code: 'SNAPSHOT_DIGEST_MISMATCH', path: 'snapshotDigest', message: 'snapshot digest must be SHA-256' });
   } else {
     const { snapshotDigest: _snapshotDigest, ...content } = snapshot;
-    const actual = canonicalSha256Hex(content);
-    if (actual !== snapshot.snapshotDigest.value) {
-      issues.push({
-        code: 'SNAPSHOT_DIGEST_MISMATCH',
-        path: 'snapshotDigest.value',
-        message: 'snapshot content does not match its immutable digest',
-      });
+    if (canonicalSha256Hex(content) !== snapshot.snapshotDigest.value) {
+      issues.push({ code: 'SNAPSHOT_DIGEST_MISMATCH', path: 'snapshotDigest.value', message: 'snapshot content does not match its immutable digest' });
     }
   }
 
