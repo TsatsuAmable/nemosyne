@@ -52,6 +52,10 @@ function validateDescriptor(value: unknown): value is LearningArtifactDescriptor
     descriptor.byteLength >= 0;
 }
 
+function isUint8ArrayView(value: unknown): value is Uint8Array {
+  return ArrayBuffer.isView(value) && Object.prototype.toString.call(value) === '[object Uint8Array]';
+}
+
 /**
  * Repository-runnable durable artifact store for the PT7 learning plane.
  *
@@ -82,7 +86,7 @@ export class FileLearningArtifactStoreV1 {
       !LEARNING_SAFE_ID.test(input.id) ||
       !LEARNING_STABLE_VERSION.test(input.version) ||
       !MEDIA_TYPE.test(input.mediaType) ||
-      !(input.bytes instanceof Uint8Array)
+      !isUint8ArrayView(input.bytes)
     ) {
       throw new LearningArtifactStoreError('INVALID_ARTIFACT', 'artifact id/version/mediaType/bytes are invalid');
     }
