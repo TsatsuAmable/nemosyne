@@ -1,13 +1,16 @@
-"""Export the trained MLP weights to ONNX and write the model card.
+"""Legacy bootstrap exporter for the original gesture-intelligence demo assets.
 
-Builds the graph with the `onnx` package directly (no torch): Gemm/Relu/Softmax
-over the trained numpy weights, validates with onnx.checker, and emits both
-assets/gesture_classifier.onnx and assets/model_card.json.
+PT8 product model updates MUST use pt8_export_onnx.py plus the governed PT7/PT8
+registry/deployment path. This file is retained only to reproduce the historical
+bootstrap asset and refuses live-asset mutation unless an operator explicitly
+opts into that legacy/research-only action.
 """
 
 import hashlib
 import json
+import os
 import pathlib
+import sys
 
 import numpy as np
 import onnx
@@ -16,6 +19,7 @@ from onnx import TensorProto, helper
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = HERE / "_output"
 ASSETS = HERE.parent / "assets"
+LEGACY_OVERRIDE = "NEMOSYNE_ALLOW_LEGACY_GESTURE_ASSET_OVERWRITE"
 
 CLASSES = ["idle", "pinchTogether", "pinchApart", "scoopUp", "pushForward", "bothPinched"]
 FEATURE_SPEC = (
@@ -27,6 +31,15 @@ FEATURE_SPEC = (
 
 
 def main():
+    if os.environ.get(LEGACY_OVERRIDE) != "1":
+        print(
+            "REFUSED: legacy exporter would overwrite live demo/runtime assets. "
+            "Use the PT8 governed trainer/exporter and signed registry path. "
+            f"Set {LEGACY_OVERRIDE}=1 only to reproduce the historical bootstrap asset.",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+
     w = np.load(OUT / "weights.npz")
     metrics = json.loads((OUT / "metrics.json").read_text(encoding="utf-8"))
 
@@ -82,7 +95,7 @@ def main():
     }
     (ASSETS / "model_card.json").write_text(json.dumps(card, indent=2), encoding="utf-8")
     (ASSETS / "training_report.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-    print(f"wrote {onnx_path} ({onnx_path.stat().st_size} bytes)")
+    print(f"LEGACY BOOTSTRAP ONLY: wrote {onnx_path} ({onnx_path.stat().st_size} bytes)")
     print(f"sha256={card['sha256']}")
     print(json.dumps(card["metrics"], indent=2))
 

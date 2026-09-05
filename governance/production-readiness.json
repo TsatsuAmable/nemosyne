@@ -51,14 +51,14 @@
       "id": "learning-plane-jobs",
       "planes": ["learning"],
       "targetState": "REPRODUCIBLE_GOVERNED_JOBS",
-      "implementationState": "REGISTRY_AND_JOB_CONTRACTS_READY",
+      "implementationState": "GESTURE_UPDATE_LOOP_READY",
       "deploymentState": "NOT_REQUIRED_YET",
       "verificationState": "REPOSITORY_PARTIAL",
       "roadmapRefs": ["PT6", "PT7", "PT8", "PT9"],
       "capabilityRefs": ["learned-fitness-training"],
       "sources": ["src/learning", "src/fitness", "src/judgement"],
-      "summary": "PT6/PT7 now provide governed user-disjoint snapshots, held-out evaluation artifacts, content-addressed learning artifacts, exact runtime/model registry lineage, reproducible job manifests/receipts, signed staged deployment manifests and rollback metadata. PT8/PT9 still own concrete model-update loops and model-specific qualification evidence; no deployed learning service is claimed.",
-      "obligationRefs": ["RDO-011", "RDO-012", "RDO-013"]
+      "summary": "PT6/PT7 provide governed user-disjoint snapshots, held-out evaluation artifacts, content-addressed learning artifacts, exact runtime/model lineage, reproducible job manifests/receipts and signed staged deployment/rollback. PT8 now adds the gesture-specific model update loop with exact held-out qualification, stability/failure/resource evidence, shadow/canary evidence and explicit human promotion authority. PT9 still owns the learned-Moneta update loop; no deployed learning service or live-human gesture-quality claim is made.",
+      "obligationRefs": ["RDO-011", "RDO-012", "RDO-013", "RDO-014", "RDO-015"]
     }
   ],
   "verificationObligations": [
@@ -162,6 +162,22 @@
       "state": "GREEN",
       "evidence": ["docs/review-plans/P1_PT7_RUNTIME_MODEL_REGISTRY_2026-09-05.md", "docs/review/P1_PT7_RUNTIME_MODEL_REGISTRY_POST_REVIEW_2026-09-05.md"],
       "closure": "Keep the staged shadow/canary/production/rollback review contract explicit: model-specific held-out evidence, known-answer/failure/stability evidence, abstention/coverage where applicable, and signed human promotion authority remain prerequisites rather than an automatic scalar gate."
+    },
+    {
+      "id": "RDO-014",
+      "serviceRef": "learning-plane-jobs",
+      "kind": "AUTOMATED",
+      "state": "GREEN",
+      "evidence": ["tests/pt8-gesture-model-update-loop.test.ts"],
+      "closure": "Keep gesture retraining bound to the exact PT6 snapshot and PT7 receipt/model lineage; require exact validation/test reports, stage-specific qualification evidence, Product-mode adaptive treatment, human review, signed shadow/canary/production sequencing and exact rollback."
+    },
+    {
+      "id": "RDO-015",
+      "serviceRef": "learning-plane-jobs",
+      "kind": "MANUAL",
+      "state": "GREEN",
+      "evidence": ["docs/review-plans/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_2026-09-05.md", "docs/review/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_POST_REVIEW_2026-09-05.md"],
+      "closure": "Keep PT8 model-specific qualification scientifically honest: derived metrics are evidence rather than automatic authority, frozen/Research treatments cannot adapt, and repository shadow/canary contracts are not promoted into live-cohort or physical human-performance claims."
     }
   ]
 }
