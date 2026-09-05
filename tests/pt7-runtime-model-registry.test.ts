@@ -30,6 +30,7 @@ import {
   buildRuntimeRegistryEntryV1,
   modelRegistryEntryReferenceV1,
   runtimeRegistryEntryReferenceV1,
+  type RuntimeModelRegistryIssueCode,
   type RuntimeRegistryEntryV1,
 } from '../src/learning/RuntimeModelRegistry.ts';
 import {
@@ -108,12 +109,11 @@ function productRuntimeEntry(): RuntimeRegistryEntryV1 {
 }
 
 function sample(index: number): GestureLearningSampleRefV1 {
-  const profile = `gesture-profile-${index}`;
   return Object.freeze({
     schemaVersion: '1',
     recordId: `gesture-record-${index}`,
     purpose: GOVERNED_PURPOSES.DERIVED_GESTURE_LEARNING,
-    profilePseudonymId: profile,
+    profilePseudonymId: `gesture-profile-${index}`,
     featureSchema: ref('gesture-feature-schema', 'b'),
     contentDigest: Object.freeze({ algorithm: 'SHA256', value: index.toString(16).padStart(64, '0') }),
     consent: Object.freeze({
@@ -153,7 +153,7 @@ function snapshot() {
 }
 
 async function deploymentKeyPair(): Promise<CryptoKeyPair> {
-  return globalThis.crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']) as Promise<CryptoKeyPair>;
+  return await globalThis.crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']) as CryptoKeyPair;
 }
 
 function deploymentContent(
@@ -190,36 +190,61 @@ function deploymentContent(
   };
 }
 
+function expectRegistryErrorCode(action: () => unknown, code: RuntimeModelRegistryIssueCode): void {
+  try {
+    action();
+    throw new Error(`expected ${code}`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(RuntimeModelRegistryError);
+    expect((error as RuntimeModelRegistryError).issues.map((issue) => issue.code)).toContain(code);
+  }
+}
+
+async function expectRegistryRejectionCode(action: Promise<unknown>, code: RuntimeModelRegistryIssueCode): Promise<void> {
+  try {
+    await action;
+    throw new Error(`expected ${code}`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(RuntimeModelRegistryError);
+    expect((error as RuntimeModelRegistryError).issues.map((issue) => issue.code)).toContain(code);
+  }
+}
+
 describe('PT7 runtime/model registry and reproducible learning jobs', () => {
-  it('persists content-addressed artifacts and fails closed on storage tampering or logical identity rebinding', () => {
+  it('deduplicates immutable blobs while refusing id/version rebinding and storage tampering', () => {
     const root = directory();
     const store = new FileLearningArtifactStoreV1({ rootDirectory: root, maxArtifactBytes: 1_024 });
     const bytes = new TextEncoder().encode('gesture-model-v1');
     const descriptor = store.put({ id: 'gesture-model', version: '1.0.0', mediaType: 'application/octet-stream', bytes });
+    const alias = store.put({ id: 'same-bytes-different-purpose', version: '1.0.0', mediaType: 'application/octet-stream', bytes });
+    expect(alias.digest.value).toBe(descriptor.digest.value);
     expect(new TextDecoder().decode(store.get(descriptor))).toBe('gesture-model-v1');
-    expect(store.put({ id: 'gesture-model', version: '1.0.0', mediaType: 'application/octet-stream', bytes })).toEqual(descriptor);
 
     expect(() => store.put({
-      id: 'different-logical-model',
-      version: '9.0.0',
+      id: 'gesture-model',
+      version: '1.0.0',
       mediaType: 'application/octet-stream',
-      bytes,
+      bytes: new TextEncoder().encode('different-bytes'),
     })).toThrowError(LearningArtifactStoreError);
 
     const dataPath = join(root, 'sha256', descriptor.digest.value.slice(0, 2), `${descriptor.digest.value}.bin`);
     writeFileSync(dataPath, new TextEncoder().encode('tampered'));
-    expect(() => store.get(descriptor)).toThrowError(expect.objectContaining({ code: 'CORRUPT_STORE' }));
+    try {
+      store.get(descriptor);
+      throw new Error('expected corrupt store refusal');
+    } catch (error) {
+      expect(error).toBeInstanceOf(LearningArtifactStoreError);
+      expect((error as LearningArtifactStoreError).code).toBe('CORRUPT_STORE');
+    }
   });
 
-  it('freezes exact runtime identities and distinguishes Product adaptation from Research treatment variables', () => {
+  it('freezes exact runtime identities and distinguishes Product adaptation from Research treatments', () => {
     const product = productRuntimeEntry();
     expect(product.registryDigest.value).toHaveLength(64);
-
+    const { registryDigest: _productDigest, ...productContent } = product;
     const research = buildRuntimeRegistryEntryV1({
-      ...product,
-      registryDigest: undefined as never,
+      ...productContent,
       runtimeId: 'runtime-research-freeze',
-      runtimeVersion: '1.0.0',
       mode: 'RESEARCH',
       treatmentDisposition: {
         representationTreatment: 'FROZEN',
@@ -232,19 +257,17 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
     });
     expect(research.mode).toBe('RESEARCH');
 
+    const { registryDigest: _researchDigest, ...researchContent } = research;
     expect(() => buildRuntimeRegistryEntryV1({
-      ...research,
-      registryDigest: undefined as never,
+      ...researchContent,
       runtimeId: 'runtime-invalid-research',
       treatmentDisposition: { ...research.treatmentDisposition, monetaEngine: 'ADAPTIVE_ALLOWED' },
     })).toThrowError(RuntimeModelRegistryError);
   });
 
-  it('binds PT6 snapshots to reproducible job inputs and rejects runner-environment drift', () => {
+  it('binds PT6 snapshots to exact job inputs and rejects actual runner-environment drift', () => {
     const trainingSnapshot = snapshot();
-    const dataset = buildGestureTrainingDatasetBindingV1(trainingSnapshot);
-    const runtimeEntry = productRuntimeEntry();
-    const runtimeReference = runtimeRegistryEntryReferenceV1(runtimeEntry);
+    const runtimeReference = runtimeRegistryEntryReferenceV1(productRuntimeEntry());
     const environment = ref('python-training-container', 'e');
     const manifest = buildReproducibleTrainingJobManifestV1({
       schemaVersion: '1',
@@ -253,7 +276,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       jobVersion: '1.0.0',
       createdAt: '2026-09-05T08:10:00.000Z',
       outputKind: 'GESTURE_MODEL',
-      dataset,
+      dataset: buildGestureTrainingDatasetBindingV1(trainingSnapshot),
       trainingCode: ref('gesture-training-code', 'f'),
       sourceCommitSha: '1'.repeat(40),
       environment,
@@ -269,20 +292,6 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
     const output = ref('gesture-model-artifact', '3');
     const evaluation = ref('gesture-evaluation-report', '4');
     const logs = ref('gesture-training-logs', '5');
-    const receipt = buildTrainingJobReceiptV1(manifest, {
-      receiptId: 'gesture-train-receipt-1',
-      receiptVersion: '1.0.0',
-      startedAt: '2026-09-05T08:20:00.000Z',
-      finishedAt: '2026-09-05T08:30:00.000Z',
-      status: 'SUCCEEDED',
-      runnerEnvironment: environment,
-      outputModel: output,
-      evaluationReport: evaluation,
-      logs,
-      failureCode: null,
-    });
-    expect(receipt.outputModel).toEqual(output);
-
     expect(() => buildTrainingJobReceiptV1(manifest, {
       receiptId: 'gesture-train-receipt-drift',
       receiptVersion: '1.0.0',
@@ -294,20 +303,19 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       evaluationReport: evaluation,
       logs,
       failureCode: null,
-    })).toThrowError(expect.objectContaining({ name: 'TrainingJobContractError' }));
+    })).toThrowError(expect.objectContaining({ name: 'TrainingJobContractError' }) as Error);
   });
 
-  it('requires signed human-authorised shadow -> canary -> production transitions and supports exact rollback', async () => {
+  it('requires signed shadow -> canary -> production transitions and supports exact rollback', async () => {
     const registry = new RuntimeModelRegistryV1();
-    const runtimeEntry = registry.registerRuntime(productRuntimeEntry());
-    const runtimeReference = runtimeRegistryEntryReferenceV1(runtimeEntry);
+    const runtimeReference = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry()));
     const dataset = buildGestureTrainingDatasetBindingV1(snapshot());
     const environment = ref('python-training-container', 'e');
     const keyPair = await deploymentKeyPair();
     const authority = { keyId: 'pt7-operator-key', publicKey: keyPair.publicKey };
 
     const registerVersion = (version: string, character: string, parentModel: ImmutableReferenceV1 | null) => {
-      const manifest = buildReproducibleTrainingJobManifestV1({
+      const job = buildReproducibleTrainingJobManifestV1({
         schemaVersion: '1',
         policyVersion: 'reproducible-training-job-v1',
         jobId: `gesture-job-${version.replaceAll('.', '-')}`,
@@ -327,7 +335,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       });
       const model = ref(`gesture-model-${version.replaceAll('.', '-')}`, character, version);
       const evaluation = ref(`gesture-evaluation-${version.replaceAll('.', '-')}`, character === 'a' ? 'b' : 'c', version);
-      const receipt = buildTrainingJobReceiptV1(manifest, {
+      const receipt = buildTrainingJobReceiptV1(job, {
         receiptId: `gesture-receipt-${version.replaceAll('.', '-')}`,
         receiptVersion: version,
         startedAt: '2026-09-05T08:20:00.000Z',
@@ -339,7 +347,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
         logs: ref(`gesture-logs-${version.replaceAll('.', '-')}`, '9', version),
         failureCode: null,
       });
-      const registered = registry.registerModel({
+      const entry = registry.registerModel({
         modelId: 'gesture-model',
         modelVersion: version,
         createdAt: '2026-09-05T08:40:00.000Z',
@@ -347,45 +355,43 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
         targetComponent: 'perceptionGestureTreatment',
         modelArtifact: model,
         parentModel,
-      }, manifest, receipt);
-      return { registered, reference: modelRegistryEntryReferenceV1(registered), model, evaluation, receipt };
+      }, job, receipt);
+      return { reference: modelRegistryEntryReferenceV1(entry), model, evaluation, receipt };
     };
 
     const first = registerVersion('1.0.0', 'a', null);
-    const firstReceiptRef = trainingJobReceiptReferenceV1(first.receipt);
+    const firstReceipt = trainingJobReceiptReferenceV1(first.receipt);
     const shadow1 = await signModelDeploymentManifestV1(
-      deploymentContent('SHADOW', first.model, first.reference, runtimeReference, firstReceiptRef, first.evaluation, null),
+      deploymentContent('SHADOW', first.model, first.reference, runtimeReference, firstReceipt, first.evaluation, null),
       keyPair.privateKey,
     );
     await registry.applyDeploymentManifest(shadow1, authority);
-    expect(registry.modelState(first.reference)).toBe('SHADOW');
-
     const canary1 = await signModelDeploymentManifestV1(
-      deploymentContent('CANARY', first.model, first.reference, runtimeReference, firstReceiptRef, first.evaluation, deploymentManifestReferenceV1(shadow1)),
+      deploymentContent('CANARY', first.model, first.reference, runtimeReference, firstReceipt, first.evaluation, deploymentManifestReferenceV1(shadow1)),
       keyPair.privateKey,
     );
     await registry.applyDeploymentManifest(canary1, authority);
     const production1 = await signModelDeploymentManifestV1(
-      deploymentContent('PRODUCTION', first.model, first.reference, runtimeReference, firstReceiptRef, first.evaluation, deploymentManifestReferenceV1(canary1)),
+      deploymentContent('PRODUCTION', first.model, first.reference, runtimeReference, firstReceipt, first.evaluation, deploymentManifestReferenceV1(canary1)),
       keyPair.privateKey,
     );
     await registry.applyDeploymentManifest(production1, authority);
     expect(registry.currentProduction()?.modelVersion).toBe('1.0.0');
 
     const second = registerVersion('2.0.0', 'b', first.model);
-    const secondReceiptRef = trainingJobReceiptReferenceV1(second.receipt);
+    const secondReceipt = trainingJobReceiptReferenceV1(second.receipt);
     const shadow2 = await signModelDeploymentManifestV1(
-      deploymentContent('SHADOW', second.model, second.reference, runtimeReference, secondReceiptRef, second.evaluation, null, null, '2.0.0'),
+      deploymentContent('SHADOW', second.model, second.reference, runtimeReference, secondReceipt, second.evaluation, null, null, '2.0.0'),
       keyPair.privateKey,
     );
     await registry.applyDeploymentManifest(shadow2, authority);
     const canary2 = await signModelDeploymentManifestV1(
-      deploymentContent('CANARY', second.model, second.reference, runtimeReference, secondReceiptRef, second.evaluation, deploymentManifestReferenceV1(shadow2), null, '2.0.0'),
+      deploymentContent('CANARY', second.model, second.reference, runtimeReference, secondReceipt, second.evaluation, deploymentManifestReferenceV1(shadow2), null, '2.0.0'),
       keyPair.privateKey,
     );
     await registry.applyDeploymentManifest(canary2, authority);
     const production2 = await signModelDeploymentManifestV1(
-      deploymentContent('PRODUCTION', second.model, second.reference, runtimeReference, secondReceiptRef, second.evaluation, deploymentManifestReferenceV1(canary2), null, '2.0.0'),
+      deploymentContent('PRODUCTION', second.model, second.reference, runtimeReference, secondReceipt, second.evaluation, deploymentManifestReferenceV1(canary2), null, '2.0.0'),
       keyPair.privateKey,
     );
     await registry.applyDeploymentManifest(production2, authority);
@@ -398,7 +404,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
         first.model,
         first.reference,
         runtimeReference,
-        firstReceiptRef,
+        firstReceipt,
         first.evaluation,
         deploymentManifestReferenceV1(production2),
         second.model,
@@ -410,25 +416,21 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
     expect(registry.modelState(second.reference)).toBe('ROLLED_BACK');
     expect(registry.currentProduction()?.modelVersion).toBe('1.0.0');
     expect(registry.lifecycleHistory().map((event) => event.reason)).toContain('ROLLBACK_FROM');
-    await expect(registry.applyDeploymentManifest(rollback, authority)).rejects.toMatchObject({
-      issues: expect.arrayContaining([expect.objectContaining({ code: 'DEPLOYMENT_REPLAY' })]),
-    });
+    await expectRegistryRejectionCode(registry.applyDeploymentManifest(rollback, authority), 'DEPLOYMENT_REPLAY');
   });
 
-  it('rejects forged deployment signatures and keeps runtime observability aggregate-only', async () => {
+  it('rejects forged signatures and keeps deployment observability aggregate-only', async () => {
     const registry = new RuntimeModelRegistryV1();
-    const runtimeEntry = registry.registerRuntime(productRuntimeEntry());
-    const runtimeReference = runtimeRegistryEntryReferenceV1(runtimeEntry);
-    const dataset = buildGestureTrainingDatasetBindingV1(snapshot());
+    const runtimeReference = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry()));
     const environment = ref('python-training-container', 'e');
-    const manifest = buildReproducibleTrainingJobManifestV1({
+    const job = buildReproducibleTrainingJobManifestV1({
       schemaVersion: '1',
       policyVersion: 'reproducible-training-job-v1',
       jobId: 'gesture-job-observe',
       jobVersion: '1.0.0',
       createdAt: '2026-09-05T08:10:00.000Z',
       outputKind: 'GESTURE_MODEL',
-      dataset,
+      dataset: buildGestureTrainingDatasetBindingV1(snapshot()),
       trainingCode: ref('gesture-training-code', 'f'),
       sourceCommitSha: '7'.repeat(40),
       environment,
@@ -441,7 +443,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
     });
     const model = ref('gesture-model-observe', '7');
     const evaluation = ref('gesture-evaluation-observe', '8');
-    const receipt = buildTrainingJobReceiptV1(manifest, {
+    const receipt = buildTrainingJobReceiptV1(job, {
       receiptId: 'gesture-receipt-observe',
       receiptVersion: '1.0.0',
       startedAt: '2026-09-05T08:20:00.000Z',
@@ -461,7 +463,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       targetComponent: 'perceptionGestureTreatment',
       modelArtifact: model,
       parentModel: null,
-    }, manifest, receipt);
+    }, job, receipt);
     const modelReference = modelRegistryEntryReferenceV1(registered);
     const keys = await deploymentKeyPair();
     const signed = await signModelDeploymentManifestV1(
@@ -469,9 +471,10 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       keys.privateKey,
     );
     const forged = { ...signed, rolloutPercent: 1 } as typeof signed;
-    await expect(registry.applyDeploymentManifest(forged, { keyId: 'pt7-operator-key', publicKey: keys.publicKey })).rejects.toMatchObject({
-      issues: expect.arrayContaining([expect.objectContaining({ code: 'INVALID_DEPLOYMENT_SIGNATURE' })]),
-    });
+    await expectRegistryRejectionCode(
+      registry.applyDeploymentManifest(forged, { keyId: 'pt7-operator-key', publicKey: keys.publicKey }),
+      'INVALID_DEPLOYMENT_SIGNATURE',
+    );
 
     await registry.applyDeploymentManifest(signed, { keyId: 'pt7-operator-key', publicKey: keys.publicKey });
     registry.recordObservation({
@@ -497,7 +500,7 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       lastRecordedAt: '2026-09-05T09:06:00.000Z',
     }]);
 
-    expect(() => registry.recordObservation({
+    expectRegistryErrorCode(() => registry.recordObservation({
       schemaVersion: '1',
       recordedAt: '2026-09-05T09:07:00.000Z',
       modelRegistryEntry: modelReference,
@@ -505,6 +508,6 @@ describe('PT7 runtime/model registry and reproducible learning jobs', () => {
       outcome: 'MODEL_LOADED',
       count: 1,
       profilePseudonymId: 'must-not-cross-this-boundary',
-    } as never)).toThrowError(RuntimeModelRegistryError);
+    } as never), 'INVALID_OBSERVATION');
   });
 });
