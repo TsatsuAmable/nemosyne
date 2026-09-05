@@ -1,5 +1,5 @@
 import { GESTURE_CLASSES, type GestureClass } from '../../modules/gesture-intelligence/src/contracts.ts';
-import type { ImmutableReferenceV1 } from '../governance/GovernedEventContracts.ts';
+import type { ImmutableReferenceV1, Sha256DigestV1 } from '../governance/GovernedEventContracts.ts';
 import { canonicalSha256Hex } from '../security/CryptoHash.ts';
 import {
   validateGestureTrainingSnapshotV1,
@@ -17,6 +17,7 @@ import {
   exactObjectKeys,
   isImmutableReferenceV1,
   isLearningUtcTimestamp,
+  isSha256DigestV1,
   sameImmutableReferenceV1,
 } from './LearningContractPrimitives.ts';
 import {
@@ -105,7 +106,7 @@ export interface GestureQualificationEvidenceContentV1 {
 export interface GestureQualificationEvidenceV1 extends GestureQualificationEvidenceContentV1 {
   readonly validationSummary: GestureReportSummaryV1;
   readonly testSummary: GestureReportSummaryV1;
-  readonly evidenceDigest: Readonly<{ algorithm: 'SHA256'; value: string }>;
+  readonly evidenceDigest: Sha256DigestV1;
 }
 
 export interface GesturePromotionReviewContentV1 {
@@ -122,7 +123,7 @@ export interface GesturePromotionReviewContentV1 {
 }
 
 export interface GesturePromotionReviewV1 extends GesturePromotionReviewContentV1 {
-  readonly reviewDigest: Readonly<{ algorithm: 'SHA256'; value: string }>;
+  readonly reviewDigest: Sha256DigestV1;
 }
 
 export interface GestureTrainingExecutionResultV1 {
@@ -148,32 +149,28 @@ export interface ExecuteGestureTrainingOutputV1 extends GestureTrainingExecution
   readonly model: OperationalModelRegistryEntryV1;
 }
 
-export interface ApplyGesturePromotionInputV1 {
-  readonly stage: Exclude<ModelDeploymentStage, 'ROLLBACK'>;
+interface GesturePromotionEvidenceInputV1 {
   readonly modelRegistryEntry: ImmutableReferenceV1;
   readonly runtimeRegistryEntry: ImmutableReferenceV1;
   readonly qualification: GestureQualificationEvidenceV1;
+  readonly validationReport: GestureEvaluationReportV1;
+  readonly testReport: GestureEvaluationReportV1;
   readonly review: GesturePromotionReviewV1;
   readonly manifestId: string;
   readonly manifestVersion: string;
   readonly createdAt: string;
-  readonly rolloutPercent: number;
   readonly signingKeyId: string;
   readonly privateKey: CryptoKey;
   readonly publicKey: CryptoKey;
 }
 
-export interface ApplyGestureRollbackInputV1 {
+export interface ApplyGesturePromotionInputV1 extends GesturePromotionEvidenceInputV1 {
+  readonly stage: Exclude<ModelDeploymentStage, 'ROLLBACK'>;
+  readonly rolloutPercent: number;
+}
+
+export interface ApplyGestureRollbackInputV1 extends Omit<GesturePromotionEvidenceInputV1, 'modelRegistryEntry'> {
   readonly targetModelRegistryEntry: ImmutableReferenceV1;
-  readonly runtimeRegistryEntry: ImmutableReferenceV1;
-  readonly qualification: GestureQualificationEvidenceV1;
-  readonly review: GesturePromotionReviewV1;
-  readonly manifestId: string;
-  readonly manifestVersion: string;
-  readonly createdAt: string;
-  readonly signingKeyId: string;
-  readonly privateKey: CryptoKey;
-  readonly publicKey: CryptoKey;
 }
 
 export type GestureModelUpdateIssueCode =
@@ -185,6 +182,7 @@ export type GestureModelUpdateIssueCode =
   | 'INVALID_OPERATOR_REVIEW'
   | 'REVIEW_DIGEST_MISMATCH'
   | 'REVIEW_STAGE_MISMATCH'
+  | 'RUNTIME_ADAPTATION_FORBIDDEN'
   | 'UNKNOWN_MODEL_OR_RUNTIME';
 
 export interface GestureModelUpdateIssueV1 {
@@ -254,70 +252,18 @@ export function summarizeGestureEvaluationReportV1(report: GestureEvaluationRepo
     const f1 = 2 * tp + fp + fn === 0 ? 0 : (2 * tp) / (2 * tp + fp + fn);
     return Object.freeze({ gesture, support: row.support, precision, recall, f1 });
   });
-  const macroF1 = perClass.reduce((sum, metric) => sum + metric.f1, 0) / GESTURE_CLASSES.length;
   return deepFreezeLearning({
     accuracy: report.accuracy,
     coverage: report.coverage,
     coveredAccuracy: report.coveredAccuracy,
-    macroF1,
+    macroF1: perClass.reduce((sum, metric) => sum + metric.f1, 0) / GESTURE_CLASSES.length,
     supportedClassCount: perClass.filter((metric) => metric.support > 0).length,
     perClass,
   });
 }
 
-function validateQualificationContent(
-  content: GestureQualificationEvidenceContentV1,
-  validationReport: GestureEvaluationReportV1,
-  testReport: GestureEvaluationReportV1,
-): GestureModelUpdateIssueV1[] {
+function validateEvidenceCounts(content: GestureQualificationEvidenceContentV1): GestureModelUpdateIssueV1[] {
   const issues: GestureModelUpdateIssueV1[] = [];
-  if (
-    !content ||
-    content.schemaVersion !== GESTURE_MODEL_QUALIFICATION_SCHEMA_VERSION ||
-    content.policyVersion !== GESTURE_MODEL_QUALIFICATION_POLICY_VERSION ||
-    !LEARNING_SAFE_ID.test(content.evidenceId ?? '') ||
-    !LEARNING_STABLE_VERSION.test(content.evidenceVersion ?? '') ||
-    !isLearningUtcTimestamp(content.createdAt) ||
-    !['OFFLINE', 'SHADOW', 'CANARY'].includes(content.stage)
-  ) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'qualification', message: 'qualification metadata is invalid' });
-  }
-  for (const [path, reference] of [
-    ['modelArtifact', content?.modelArtifact],
-    ['validationReport', content?.validationReport],
-    ['testReport', content?.testReport],
-    ['stabilityArtifact', content?.stabilityArtifact],
-    ['knownFailureArtifact', content?.knownFailureArtifact],
-    ['latencyArtifact', content?.latencyArtifact],
-  ] as const) {
-    if (!isImmutableReferenceV1(reference)) {
-      issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path, message: 'must be an immutable versioned reference' });
-    }
-  }
-  if ((content.baselineModel === null) !== (content.baselineTestReport === null)) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'baseline', message: 'baseline model and report must either both exist or both be absent' });
-  } else if (content.baselineModel && (!isImmutableReferenceV1(content.baselineModel) || !isImmutableReferenceV1(content.baselineTestReport))) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'baseline', message: 'baseline references must be immutable when supplied' });
-  }
-
-  const validationIssues = validateGestureEvaluationReportV1(validationReport);
-  const testIssues = validateGestureEvaluationReportV1(testReport);
-  if (validationIssues.length > 0 || testIssues.length > 0 || validationReport.split !== 'validation' || testReport.split !== 'test') {
-    issues.push({ code: 'EVALUATION_BINDING_MISMATCH', path: 'reports', message: 'qualification requires valid validation and test held-out reports' });
-  } else {
-    const validationReference = reportReference(validationReport);
-    const testReference = reportReference(testReport);
-    if (
-      !sameImmutableReferenceV1(content.modelArtifact, validationReport.modelArtifact) ||
-      !sameImmutableReferenceV1(content.modelArtifact, testReport.modelArtifact) ||
-      !sameImmutableReferenceV1(content.validationReport, validationReference) ||
-      !sameImmutableReferenceV1(content.testReport, testReference) ||
-      validationReport.snapshot.snapshotDigest.value !== testReport.snapshot.snapshotDigest.value
-    ) {
-      issues.push({ code: 'EVALUATION_BINDING_MISMATCH', path: 'reports', message: 'reports must bind the same exact model and frozen PT6 snapshot' });
-    }
-  }
-
   if (
     !nonNegativeSafeInteger(content.stabilityCaseCount) || content.stabilityCaseCount < 1 ||
     !nonNegativeSafeInteger(content.stableCaseCount) || content.stableCaseCount > content.stabilityCaseCount ||
@@ -327,11 +273,11 @@ function validateQualificationContent(
     !Number.isFinite(content.p95LatencyMs) || content.p95LatencyMs < 0 ||
     !nonNegativeSafeInteger(content.peakResidentBytes)
   ) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'offlineEvidence', message: 'stability, known-failure and latency evidence must use bounded non-negative counts/measurements' });
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'offlineEvidence', message: 'offline evidence counts and resource measurements must be bounded and internally consistent' });
   }
 
-  const shadowRequired = content.stage === 'SHADOW' || content.stage === 'CANARY';
-  if (shadowRequired) {
+  const needsShadow = content.stage === 'SHADOW' || content.stage === 'CANARY';
+  if (needsShadow) {
     if (
       !isImmutableReferenceV1(content.shadowComparisonArtifact) ||
       !nonNegativeSafeInteger(content.shadowSampleCount) || content.shadowSampleCount < 1 ||
@@ -340,13 +286,13 @@ function validateQualificationContent(
       !nonNegativeSafeInteger(content.shadowTieCount) ||
       content.candidatePreferredCount + content.incumbentPreferredCount + content.shadowTieCount !== content.shadowSampleCount
     ) {
-      issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'shadowEvidence', message: 'shadow evidence must bind one exact comparison artifact and reconcile every evaluated sample' });
+      issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'shadowEvidence', message: 'shadow evidence must bind one artifact and reconcile every compared sample' });
     }
   } else if (
     content.shadowComparisonArtifact !== null || content.shadowSampleCount !== 0 ||
     content.candidatePreferredCount !== 0 || content.incumbentPreferredCount !== 0 || content.shadowTieCount !== 0
   ) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'shadowEvidence', message: 'OFFLINE qualification may not pre-claim shadow evidence' });
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'shadowEvidence', message: 'OFFLINE evidence may not pre-claim shadow results' });
   }
 
   if (content.stage === 'CANARY') {
@@ -355,11 +301,54 @@ function validateQualificationContent(
       !nonNegativeSafeInteger(content.canaryInvocationCount) || content.canaryInvocationCount < 1 ||
       !nonNegativeSafeInteger(content.canaryFailureCount) || content.canaryFailureCount > content.canaryInvocationCount
     ) {
-      issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'canaryEvidence', message: 'production qualification requires exact canary evidence with reconciled invocation/failure counts' });
+      issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'canaryEvidence', message: 'CANARY evidence must bind one artifact and reconcile invocation/failure counts' });
     }
   } else if (content.canaryArtifact !== null || content.canaryInvocationCount !== 0 || content.canaryFailureCount !== 0) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'canaryEvidence', message: 'pre-canary qualification may not pre-claim canary evidence' });
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'canaryEvidence', message: 'pre-canary evidence may not pre-claim canary results' });
   }
+  return issues;
+}
+
+function validateQualificationContent(
+  content: GestureQualificationEvidenceContentV1,
+  validationReport: GestureEvaluationReportV1,
+  testReport: GestureEvaluationReportV1,
+): GestureModelUpdateIssueV1[] {
+  const issues: GestureModelUpdateIssueV1[] = [];
+  if (
+    !content || content.schemaVersion !== GESTURE_MODEL_QUALIFICATION_SCHEMA_VERSION ||
+    content.policyVersion !== GESTURE_MODEL_QUALIFICATION_POLICY_VERSION ||
+    !LEARNING_SAFE_ID.test(content.evidenceId ?? '') || !LEARNING_STABLE_VERSION.test(content.evidenceVersion ?? '') ||
+    !isLearningUtcTimestamp(content.createdAt) || !['OFFLINE', 'SHADOW', 'CANARY'].includes(content.stage)
+  ) {
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'qualification', message: 'qualification metadata is invalid' });
+  }
+  for (const [path, reference] of [
+    ['modelArtifact', content?.modelArtifact], ['validationReport', content?.validationReport], ['testReport', content?.testReport],
+    ['stabilityArtifact', content?.stabilityArtifact], ['knownFailureArtifact', content?.knownFailureArtifact], ['latencyArtifact', content?.latencyArtifact],
+  ] as const) {
+    if (!isImmutableReferenceV1(reference)) issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path, message: 'must be an immutable versioned reference' });
+  }
+  if ((content.baselineModel === null) !== (content.baselineTestReport === null)) {
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'baseline', message: 'baseline model/report must both exist or both be absent' });
+  } else if (content.baselineModel && (!isImmutableReferenceV1(content.baselineModel) || !isImmutableReferenceV1(content.baselineTestReport))) {
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'baseline', message: 'baseline references must be immutable' });
+  }
+
+  const validationIssues = validateGestureEvaluationReportV1(validationReport);
+  const testIssues = validateGestureEvaluationReportV1(testReport);
+  if (validationIssues.length > 0 || testIssues.length > 0 || validationReport.split !== 'validation' || testReport.split !== 'test') {
+    issues.push({ code: 'EVALUATION_BINDING_MISMATCH', path: 'reports', message: 'qualification requires valid validation and test held-out reports' });
+  } else if (
+    !sameImmutableReferenceV1(content.modelArtifact, validationReport.modelArtifact) ||
+    !sameImmutableReferenceV1(content.modelArtifact, testReport.modelArtifact) ||
+    !sameImmutableReferenceV1(content.validationReport, reportReference(validationReport)) ||
+    !sameImmutableReferenceV1(content.testReport, reportReference(testReport)) ||
+    validationReport.snapshot.snapshotDigest.value !== testReport.snapshot.snapshotDigest.value
+  ) {
+    issues.push({ code: 'EVALUATION_BINDING_MISMATCH', path: 'reports', message: 'reports must bind the same exact model and immutable PT6 snapshot' });
+  }
+  issues.push(...validateEvidenceCounts(content));
   return issues;
 }
 
@@ -368,7 +357,7 @@ export function buildGestureQualificationEvidenceV1(
   validationReport: GestureEvaluationReportV1,
   testReport: GestureEvaluationReportV1,
 ): GestureQualificationEvidenceV1 {
-  const closedContent: GestureQualificationEvidenceContentV1 = {
+  const closed: GestureQualificationEvidenceContentV1 = {
     ...content,
     schemaVersion: GESTURE_MODEL_QUALIFICATION_SCHEMA_VERSION,
     policyVersion: GESTURE_MODEL_QUALIFICATION_POLICY_VERSION,
@@ -383,15 +372,14 @@ export function buildGestureQualificationEvidenceV1(
     shadowComparisonArtifact: cloneNullableReference(content.shadowComparisonArtifact),
     canaryArtifact: cloneNullableReference(content.canaryArtifact),
   };
-  const issues = validateQualificationContent(closedContent, validationReport, testReport);
+  const issues = validateQualificationContent(closed, validationReport, testReport);
   if (issues.length > 0) throw new GestureModelUpdateError(issues);
-  const validationSummary = summarizeGestureEvaluationReportV1(validationReport);
-  const testSummary = summarizeGestureEvaluationReportV1(testReport);
-  const digestContent = { ...closedContent, validationSummary, testSummary };
-  return deepFreezeLearning({
-    ...digestContent,
-    evidenceDigest: { algorithm: 'SHA256' as const, value: canonicalSha256Hex(digestContent) },
-  });
+  const body = {
+    ...closed,
+    validationSummary: summarizeGestureEvaluationReportV1(validationReport),
+    testSummary: summarizeGestureEvaluationReportV1(testReport),
+  };
+  return deepFreezeLearning({ ...body, evidenceDigest: { algorithm: 'SHA256' as const, value: canonicalSha256Hex(body) } });
 }
 
 export function validateGestureQualificationEvidenceV1(
@@ -402,17 +390,23 @@ export function validateGestureQualificationEvidenceV1(
   const issues = validateQualificationContent(evidence, validationReport, testReport);
   const expectedValidation = summarizeGestureEvaluationReportV1(validationReport);
   const expectedTest = summarizeGestureEvaluationReportV1(testReport);
-  if (canonicalSha256Hex(evidence.validationSummary) !== canonicalSha256Hex(expectedValidation) || canonicalSha256Hex(evidence.testSummary) !== canonicalSha256Hex(expectedTest)) {
-    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'summaries', message: 'evaluation summaries must be deterministically derived from the bound held-out reports' });
+  if (
+    canonicalSha256Hex(evidence.validationSummary) !== canonicalSha256Hex(expectedValidation) ||
+    canonicalSha256Hex(evidence.testSummary) !== canonicalSha256Hex(expectedTest)
+  ) {
+    issues.push({ code: 'INVALID_QUALIFICATION_EVIDENCE', path: 'summaries', message: 'summaries must be derived from the exact bound reports' });
   }
-  const { evidenceDigest: _digest, ...content } = evidence;
-  if (!evidence?.evidenceDigest || evidence.evidenceDigest.algorithm !== 'SHA256' || canonicalSha256Hex(content) !== evidence.evidenceDigest.value) {
+  const { evidenceDigest: _digest, ...body } = evidence;
+  if (!isSha256DigestV1(evidence?.evidenceDigest) || canonicalSha256Hex(body) !== evidence.evidenceDigest.value) {
     issues.push({ code: 'QUALIFICATION_DIGEST_MISMATCH', path: 'evidenceDigest', message: 'qualification evidence does not match its immutable digest' });
   }
   return issues;
 }
 
 export function gestureQualificationEvidenceReferenceV1(evidence: GestureQualificationEvidenceV1): ImmutableReferenceV1 {
+  if (!isSha256DigestV1(evidence.evidenceDigest)) {
+    throw new GestureModelUpdateError([{ code: 'QUALIFICATION_DIGEST_MISMATCH', path: 'evidenceDigest', message: 'qualification reference requires a SHA-256 digest' }]);
+  }
   return deepFreezeLearning({
     schemaVersion: '1' as const,
     id: `gesture-qualification:${evidence.evidenceId}`,
@@ -431,12 +425,13 @@ export function buildGesturePromotionReviewV1(content: GesturePromotionReviewCon
     qualificationEvidence: cloneImmutableReferenceV1(content.qualificationEvidence),
     rollbackFromModel: cloneNullableReference(content.rollbackFromModel),
   };
-  const issues = validateGesturePromotionReviewV1({
+  const candidate: GesturePromotionReviewV1 = {
     ...closed,
     reviewDigest: { algorithm: 'SHA256', value: canonicalSha256Hex(closed) },
-  });
+  };
+  const issues = validateGesturePromotionReviewV1(candidate);
   if (issues.length > 0) throw new GestureModelUpdateError(issues);
-  return deepFreezeLearning({ ...closed, reviewDigest: { algorithm: 'SHA256' as const, value: canonicalSha256Hex(closed) } });
+  return deepFreezeLearning(candidate);
 }
 
 export function validateGesturePromotionReviewV1(review: GesturePromotionReviewV1): readonly GestureModelUpdateIssueV1[] {
@@ -446,11 +441,9 @@ export function validateGesturePromotionReviewV1(review: GesturePromotionReviewV
     'reviewerAuthority', 'modelArtifact', 'qualificationEvidence', 'rollbackFromModel', 'reviewDigest',
   ];
   if (
-    !review || !exactObjectKeys(review, expectedKeys) ||
-    review.schemaVersion !== GESTURE_MODEL_REVIEW_SCHEMA_VERSION ||
-    review.policyVersion !== GESTURE_MODEL_REVIEW_POLICY_VERSION ||
-    !LEARNING_SAFE_ID.test(review.reviewId ?? '') || !LEARNING_STABLE_VERSION.test(review.reviewVersion ?? '') ||
-    !isLearningUtcTimestamp(review.reviewedAt) ||
+    !review || !exactObjectKeys(review, expectedKeys) || review.schemaVersion !== GESTURE_MODEL_REVIEW_SCHEMA_VERSION ||
+    review.policyVersion !== GESTURE_MODEL_REVIEW_POLICY_VERSION || !LEARNING_SAFE_ID.test(review.reviewId ?? '') ||
+    !LEARNING_STABLE_VERSION.test(review.reviewVersion ?? '') || !isLearningUtcTimestamp(review.reviewedAt) ||
     !['REJECT', 'APPROVE_SHADOW', 'APPROVE_CANARY', 'APPROVE_PRODUCTION', 'APPROVE_ROLLBACK'].includes(review.disposition) ||
     !isImmutableReferenceV1(review.reviewerAuthority) || !isImmutableReferenceV1(review.modelArtifact) ||
     !isImmutableReferenceV1(review.qualificationEvidence) ||
@@ -458,8 +451,8 @@ export function validateGesturePromotionReviewV1(review: GesturePromotionReviewV
   ) {
     issues.push({ code: 'INVALID_OPERATOR_REVIEW', path: 'review', message: 'operator review violates the closed PT8 human-review contract' });
   }
-  const { reviewDigest: _digest, ...content } = review ?? {} as GesturePromotionReviewV1;
-  if (!review?.reviewDigest || review.reviewDigest.algorithm !== 'SHA256' || canonicalSha256Hex(content) !== review.reviewDigest.value) {
+  const { reviewDigest: _digest, ...body } = review ?? {} as GesturePromotionReviewV1;
+  if (!isSha256DigestV1(review?.reviewDigest) || canonicalSha256Hex(body) !== review.reviewDigest.value) {
     issues.push({ code: 'REVIEW_DIGEST_MISMATCH', path: 'reviewDigest', message: 'operator review does not match its immutable digest' });
   }
   return issues;
@@ -483,10 +476,10 @@ function expectedDisposition(stage: ModelDeploymentStage): GesturePromotionDispo
   return 'APPROVE_ROLLBACK';
 }
 
-function qualificationSupportsStage(stage: ModelDeploymentStage, qualification: GestureQualificationEvidenceV1): boolean {
-  if (stage === 'SHADOW') return ['OFFLINE', 'SHADOW', 'CANARY'].includes(qualification.stage);
-  if (stage === 'CANARY') return ['SHADOW', 'CANARY'].includes(qualification.stage);
-  if (stage === 'PRODUCTION') return qualification.stage === 'CANARY';
+function qualificationSupportsStage(stage: ModelDeploymentStage, evidence: GestureQualificationEvidenceV1): boolean {
+  if (stage === 'SHADOW') return ['OFFLINE', 'SHADOW', 'CANARY'].includes(evidence.stage);
+  if (stage === 'CANARY') return ['SHADOW', 'CANARY'].includes(evidence.stage);
+  if (stage === 'PRODUCTION') return evidence.stage === 'CANARY';
   return true;
 }
 
@@ -500,43 +493,30 @@ export class GestureModelUpdateLoopV1 {
     const snapshotIssues = validateGestureTrainingSnapshotV1(input.snapshot);
     const manifestIssues = validateReproducibleTrainingJobManifestV1(input.manifest);
     if (snapshotIssues.length > 0 || manifestIssues.length > 0 || input.manifest.outputKind !== 'GESTURE_MODEL') {
-      throw new GestureModelUpdateError([{
-        code: 'INVALID_TRAINING_INPUT',
-        path: 'training',
-        message: 'PT8 requires a valid PT6 snapshot and PT7 GESTURE_MODEL training manifest',
-      }]);
+      throw new GestureModelUpdateError([{ code: 'INVALID_TRAINING_INPUT', path: 'training', message: 'PT8 requires a valid PT6 snapshot and PT7 GESTURE_MODEL manifest' }]);
     }
     if (
-      input.manifest.dataset.kind !== 'GESTURE_L2_SNAPSHOT' ||
-      input.manifest.dataset.dataset.id !== input.snapshot.snapshotId ||
+      input.manifest.dataset.kind !== 'GESTURE_L2_SNAPSHOT' || input.manifest.dataset.dataset.id !== input.snapshot.snapshotId ||
       input.manifest.dataset.dataset.version !== input.snapshot.snapshotVersion ||
       input.manifest.dataset.dataset.digest.value !== input.snapshot.snapshotDigest.value
     ) {
-      throw new GestureModelUpdateError([{
-        code: 'TRAINING_LINEAGE_MISMATCH', path: 'manifest.dataset', message: 'training manifest must bind the exact supplied frozen PT6 snapshot',
-      }]);
+      throw new GestureModelUpdateError([{ code: 'TRAINING_LINEAGE_MISMATCH', path: 'manifest.dataset', message: 'manifest must bind the exact supplied frozen PT6 snapshot' }]);
     }
 
     const result = await executor.execute(input.manifest, input.snapshot);
     const receiptIssues = validateTrainingJobReceiptV1(result.receipt, input.manifest);
     if (receiptIssues.length > 0 || result.receipt.status !== 'SUCCEEDED' || !result.receipt.outputModel || !result.receipt.evaluationReport) {
-      throw new GestureModelUpdateError([{
-        code: 'TRAINING_LINEAGE_MISMATCH', path: 'receipt', message: 'training executor must return a successful exact-manifest PT7 receipt with immutable outputs',
-      }]);
+      throw new GestureModelUpdateError([{ code: 'TRAINING_LINEAGE_MISMATCH', path: 'receipt', message: 'executor must return a successful exact-manifest PT7 receipt with immutable outputs' }]);
     }
     const validationIssues = validateGestureEvaluationReportV1(result.validationReport, input.snapshot);
     const testIssues = validateGestureEvaluationReportV1(result.testReport, input.snapshot);
-    const testReference = testIssues.length === 0 ? reportReference(result.testReport) : null;
     if (
-      validationIssues.length > 0 || testIssues.length > 0 ||
-      result.validationReport.split !== 'validation' || result.testReport.split !== 'test' ||
+      validationIssues.length > 0 || testIssues.length > 0 || result.validationReport.split !== 'validation' || result.testReport.split !== 'test' ||
       !sameImmutableReferenceV1(result.receipt.outputModel, result.validationReport.modelArtifact) ||
       !sameImmutableReferenceV1(result.receipt.outputModel, result.testReport.modelArtifact) ||
-      !testReference || !sameImmutableReferenceV1(result.receipt.evaluationReport, testReference)
+      !sameImmutableReferenceV1(result.receipt.evaluationReport, reportReference(result.testReport))
     ) {
-      throw new GestureModelUpdateError([{
-        code: 'EVALUATION_BINDING_MISMATCH', path: 'evaluation', message: 'training output must bind complete validation/test held-out reports for the exact output model and snapshot',
-      }]);
+      throw new GestureModelUpdateError([{ code: 'EVALUATION_BINDING_MISMATCH', path: 'evaluation', message: 'training output must bind validation/test reports for the exact output model and snapshot' }]);
     }
 
     const model = this.registry.registerModel({
@@ -551,27 +531,16 @@ export class GestureModelUpdateLoopV1 {
   async applyPromotion(input: ApplyGesturePromotionInputV1): Promise<SignedModelDeploymentManifestV1> {
     const model = this.registry.model(input.modelRegistryEntry);
     const runtime = this.registry.runtime(input.runtimeRegistryEntry);
-    if (!model || !runtime) {
-      throw new GestureModelUpdateError([{ code: 'UNKNOWN_MODEL_OR_RUNTIME', path: 'promotion', message: 'promotion references an unregistered model or runtime' }]);
-    }
-    this.assertReviewBinding(input.stage, model, input.qualification, input.review, null);
+    if (!model || !runtime) throw new GestureModelUpdateError([{ code: 'UNKNOWN_MODEL_OR_RUNTIME', path: 'promotion', message: 'promotion references an unregistered model or runtime' }]);
+    this.assertAdaptiveRuntime(runtime);
+    this.assertQualificationAndReview(input.stage, model, input.qualification, input.validationReport, input.testReport, input.review, null);
     const previousDeployment = input.stage === 'SHADOW' ? null : this.registry.latestDeployment(input.modelRegistryEntry);
     if (input.stage !== 'SHADOW' && !previousDeployment) {
-      throw new GestureModelUpdateError([{ code: 'REVIEW_STAGE_MISMATCH', path: 'promotion', message: `${input.stage} requires an exact prior deployment to chain` }]);
+      throw new GestureModelUpdateError([{ code: 'REVIEW_STAGE_MISMATCH', path: 'promotion', message: `${input.stage} requires the exact prior deployment` }]);
     }
-
     const manifest = await signModelDeploymentManifestV1(this.deploymentContent(
-      input.stage,
-      model,
-      runtime,
-      input.review,
-      input.manifestId,
-      input.manifestVersion,
-      input.createdAt,
-      input.rolloutPercent,
-      input.signingKeyId,
-      previousDeployment,
-      null,
+      input.stage, model, runtime, input.review, input.manifestId, input.manifestVersion,
+      input.createdAt, input.rolloutPercent, input.signingKeyId, previousDeployment, null,
     ), input.privateKey);
     await this.registry.applyDeploymentManifest(manifest, { keyId: input.signingKeyId, publicKey: input.publicKey });
     return manifest;
@@ -581,43 +550,45 @@ export class GestureModelUpdateLoopV1 {
     const target = this.registry.model(input.targetModelRegistryEntry);
     const runtime = this.registry.runtime(input.runtimeRegistryEntry);
     const current = this.registry.currentProduction();
-    if (!target || !runtime || !current) {
-      throw new GestureModelUpdateError([{ code: 'UNKNOWN_MODEL_OR_RUNTIME', path: 'rollback', message: 'rollback requires registered target/runtime and an active production model' }]);
-    }
+    if (!target || !runtime || !current) throw new GestureModelUpdateError([{ code: 'UNKNOWN_MODEL_OR_RUNTIME', path: 'rollback', message: 'rollback requires registered target/runtime and active production model' }]);
+    this.assertAdaptiveRuntime(runtime);
     const currentReference = modelRegistryEntryReferenceV1(current);
     const currentDeployment = this.registry.latestDeployment(currentReference);
-    if (!currentDeployment) {
-      throw new GestureModelUpdateError([{ code: 'REVIEW_STAGE_MISMATCH', path: 'rollback', message: 'active production model has no exact deployment lineage' }]);
-    }
-    this.assertReviewBinding('ROLLBACK', target, input.qualification, input.review, current.modelArtifact);
+    if (!currentDeployment) throw new GestureModelUpdateError([{ code: 'REVIEW_STAGE_MISMATCH', path: 'rollback', message: 'active production model has no exact deployment lineage' }]);
+    this.assertQualificationAndReview('ROLLBACK', target, input.qualification, input.validationReport, input.testReport, input.review, current.modelArtifact);
     const manifest = await signModelDeploymentManifestV1(this.deploymentContent(
-      'ROLLBACK',
-      target,
-      runtime,
-      input.review,
-      input.manifestId,
-      input.manifestVersion,
-      input.createdAt,
-      100,
-      input.signingKeyId,
-      currentDeployment,
-      current.modelArtifact,
+      'ROLLBACK', target, runtime, input.review, input.manifestId, input.manifestVersion,
+      input.createdAt, 100, input.signingKeyId, currentDeployment, current.modelArtifact,
     ), input.privateKey);
     await this.registry.applyDeploymentManifest(manifest, { keyId: input.signingKeyId, publicKey: input.publicKey });
     return manifest;
   }
 
-  private assertReviewBinding(
+  private assertAdaptiveRuntime(runtime: RuntimeRegistryEntryV1): void {
+    if (runtime.mode !== 'PRODUCT' || runtime.treatmentDisposition.perceptionGestureTreatment !== 'ADAPTIVE_ALLOWED') {
+      throw new GestureModelUpdateError([{
+        code: 'RUNTIME_ADAPTATION_FORBIDDEN',
+        path: 'runtime.treatmentDisposition.perceptionGestureTreatment',
+        message: 'gesture model rollout is allowed only in Product Mode with explicit ADAPTIVE_ALLOWED gesture treatment; Research/frozen treatments remain immutable',
+      }]);
+    }
+  }
+
+  private assertQualificationAndReview(
     stage: ModelDeploymentStage,
     model: OperationalModelRegistryEntryV1,
     qualification: GestureQualificationEvidenceV1,
+    validationReport: GestureEvaluationReportV1,
+    testReport: GestureEvaluationReportV1,
     review: GesturePromotionReviewV1,
     rollbackFromModel: ImmutableReferenceV1 | null,
   ): void {
+    const qualificationIssues = validateGestureQualificationEvidenceV1(qualification, validationReport, testReport);
+    if (qualificationIssues.length > 0) throw new GestureModelUpdateError(qualificationIssues);
     const reviewIssues = validateGesturePromotionReviewV1(review);
     if (reviewIssues.length > 0) throw new GestureModelUpdateError(reviewIssues);
     if (!qualificationSupportsStage(stage, qualification)) {
-      throw new GestureModelUpdateError([{ code: 'REVIEW_STAGE_MISMATCH', path: 'qualification.stage', message: `${stage} lacks the required preceding qualification evidence stage` }]);
+      throw new GestureModelUpdateError([{ code: 'REVIEW_STAGE_MISMATCH', path: 'qualification.stage', message: `${stage} lacks the required preceding qualification stage` }]);
     }
     const qualificationReference = gestureQualificationEvidenceReferenceV1(qualification);
     if (
