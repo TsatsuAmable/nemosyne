@@ -85,7 +85,10 @@ function fixtureLines(): string {
         ptrTarget: null,
         gazeTarget: 'VR MENU',
         gazeKind: 'panel',
-        hands: [{ h: 'left', y: 1.7 }],
+        hands: [
+          { h: 'left', y: 1.7 },
+          { h: 'right', y: 1.3 },
+        ],
       }),
     },
     {
