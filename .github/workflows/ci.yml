@@ -49,6 +49,9 @@ jobs:
       - name: Enforce architecture boundaries
         run: npm run architecture:boundaries
 
+      - name: Enforce architecture policy
+        run: npm run architecture:check
+
   coverage-wasm:
     name: Coverage WASM package
     runs-on: ubuntu-latest

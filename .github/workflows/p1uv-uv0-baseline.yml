@@ -1,13 +1,16 @@
 name: P1-UV0 baseline evidence
 
+# Dedicated product-baseline evidence. Required CI already provides the ordinary
+# production build and browser smoke, so this heavier instrumented screenshot
+# capture runs on PRs only when its harness or compile-gated UV0 seam changes.
 on:
   pull_request:
     branches: [main]
     paths:
       - '.github/workflows/p1uv-uv0-baseline.yml'
-      - 'src/**'
-      - 'wasm/**'
-      - 'scripts/build-wasm.mjs'
+      - 'src/app/bootstrap.ts'
+      - 'src/app/uv0TestHandle.ts'
+      - 'src/validation/uv0-inventory.ts'
       - 'index.html'
       - 'vite.config.ts'
       - 'package.json'
