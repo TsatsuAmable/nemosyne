@@ -1,0 +1,1 @@
+PT8 readiness registry update is intentionally deferred until the exact implementation/test surface is stabilized on this branch.
