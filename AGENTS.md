@@ -33,11 +33,13 @@ This applies to security, correctness, scientific semantics, privacy/compliance,
 
 ## Adversarial implementation protocol
 
-Implementation work uses a **pre-implementation adversarial review -> implementation -> post-implementation adversarial review** cycle. The purpose is to attack assumptions before they harden into code and then attack the resulting code rather than merely checking whether it resembles the plan.
+The assurance burden is **risk-tiered**. The goal is to spend review effort where it can expose a distinct failure class, not to manufacture multiple copies of the same confidence signal.
+
+Every implementation PR must classify itself as **high-risk**, **standard-risk**, or **low-risk exemption**. The classification controls review depth; required CI and exact-head merge protection remain independent of this classification.
 
 ### Risk classification
 
-A pre-implementation adversarial review is mandatory when a change touches any of the following, or closes a blocker/high review finding:
+A **high-risk** change is one that touches any of the following, closes a blocker/high review finding, or could plausibly create an undetected correctness or evidence failure at one of these boundaries:
 
 - analytical, statistical, scientific, measurement, Moneta, or representation semantics;
 - Rust/WASM/TypeScript authority, ABI, data ownership, or cross-runtime boundaries;
@@ -46,13 +48,18 @@ A pre-implementation adversarial review is mandatory when a change touches any o
 - worker/concurrency, recovery, lifecycle generations, cancellation, stale-state handling, or durable mutation;
 - large-N complexity, memory/resource envelopes, copies/transfers, rendering hot paths, or performance claims;
 - WebXR input, Direct Touch/grab, controller/hand/mouse semantic parity, locomotion, persistent spatial UI, accessibility, or other core interaction grammar;
-- an architectural/trust/public-format decision that may require an RFC/ADR.
+- an architectural/trust/public-format decision that may require an RFC/ADR;
+- a change to required merge gates, promotion authority, evidence attribution, or other machinery whose failure could falsely report an unsafe change as verified.
 
-Purely editorial prose, formatting-only changes, comments, or demonstrably mechanical refactors with unchanged semantics may use a **low-risk exemption**. The PR must state why the exemption is safe. If risk is uncertain, perform the review.
+A **standard-risk** change alters behavior but does not cross one of the high-risk boundaries above. Typical examples are bounded product/UI behavior, ordinary internal refactors with semantic change, maintainability fixes, non-authoritative tooling, or CI/documentation workflow changes that cannot weaken a required safety property. Standard-risk work does **not** require a pre-implementation adversarial contract. It does require focused verification and one post-implementation adversarial pass aimed at falsifying the changed behavior.
 
-### Pre-implementation adversarial contract
+Purely editorial prose, formatting-only changes, comments, or demonstrably mechanical refactors with unchanged semantics may use a **low-risk exemption**. The PR must state why the exemption is safe. Low-risk exemptions do not require a formal adversarial pass beyond ordinary diff inspection and applicable automated checks.
 
-Before writing the implementation for high-risk work, record a compact contract in the working notes or PR description containing:
+If risk is uncertain, choose the higher tier. Do not elevate standard work merely because a template makes high-risk review convenient; risk classification should reflect the changed production/evidence boundary.
+
+### High-risk pre-implementation adversarial contract
+
+Before writing the implementation for high-risk work, record a compact contract in working notes or the PR description containing:
 
 1. **Invariant:** the exact property that must be true when the change is correct.
 2. **Authority and production path:** which layer owns the truth and which real entry point/call path must enforce it.
@@ -64,18 +71,22 @@ If the pre-review reveals that the planned fix requires a material architecture,
 
 ### Post-implementation adversarial review
 
-After focused verification, perform a distinct adversarial pass before claiming completion or `VERIFIED COMPLETE`:
+For **high-risk** work, perform a distinct post-implementation adversarial pass after focused verification. For **standard-risk** work, perform one bounded falsification pass after implementation; a pre-review is not required.
 
-- compare the diff and real production call path against the pre-implementation invariant rather than against the code's own abstractions;
-- actively try the listed failure modes plus at least one newly inferred failure mode;
+The pass should:
+
+- compare the diff and real production call path against the intended behavior rather than against the code's own abstractions;
+- actively try the known failure modes and, for high-risk work, at least one newly inferred failure mode;
 - inspect whether tests would fail if the forbidden behavior were reintroduced and whether mocks are being mistaken for production evidence;
 - check authority, output identity, provenance, failure semantics, lifecycle/recovery, complexity/peak memory, and user-visible semantics where applicable;
 - classify discovered items as `BLOCKER`, `DEFER`, or `SUGGESTION`; fix blockers before merge and record valid deferred work without recursively expanding scope;
 - reclassify roadmap/completion claims downward when the evidence does not support them.
 
-Use an independent reviewer/agent for the post-implementation pass when available. If the same agent must self-review, explicitly switch to the adversarial contract and search for ways its own design assumptions could be wrong rather than restating the implementation rationale.
+Record the useful result in the PR body. A standalone `docs/review*` artifact is warranted only when the review itself is durable programme/research evidence, closes a named milestone/finding, or must be cited independently later. Do not create a review file merely to prove that a review happened.
 
-A green CI run does not substitute for either adversarial pass on high-risk work.
+Use an independent reviewer/agent when the risk or claimed evidence benefits from independent challenge. Multiple reviewers are useful only when they attack materially different failure classes, for example security plus statistical validity, or XR interaction plus persistence/replay. Repeating substantially the same generalist review is not an additional assurance requirement.
+
+A green CI run does not substitute for the required adversarial pass on high-risk or standard-risk implementation work.
 
 ## Development and verification
 
@@ -98,7 +109,7 @@ npm run audit:hygiene
 
 The required CI graph is defined only by `.github/workflows/ci.yml`. Coverage policy is defined only by `vitest.coverage.config.ts`. Rust toolchain policy is defined by `rust-toolchain.toml`. Dependency versions are defined by the package manifests and lockfiles.
 
-During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. For high-risk work, derive those checks from the pre-implementation adversarial contract. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface and complete the post-implementation adversarial review. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
+During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. For high-risk work, derive those checks from the pre-implementation adversarial contract. For standard-risk work, target the changed behavior and its nearest production path. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface and complete the review required by the selected risk tier. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
 
 ## Current four-stream operating model
 
@@ -111,9 +122,9 @@ The active implementation topology is defined in `docs/ROADMAP.md`. The previous
 
 Default concurrency is one open implementation PR per current stream. Stream D may use disjoint QV and security-assurance sub-lanes only when changed-file sets and governance contracts do not collide. Shared integration files named in `docs/ROADMAP.md` are exclusive integration seams: do not create competing versions of the same generic contract across branches.
 
-Independent adversarial review is **cross-cutting process, not a fifth stream**. Each stream must obtain the review/evidence required by its checkpoint before promotion.
+Independent adversarial review is **cross-cutting process, not a fifth stream**. Each stream must obtain the review/evidence required by its checkpoint and risk tier before promotion.
 
-Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus the programme-specific evidence and independent review disposition.
+Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus the programme-specific evidence and independent review disposition where the programme explicitly requires independence.
 
 ## Documentation discipline
 
@@ -121,6 +132,8 @@ Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requ
 - Historical reports and superseded plans belong under `docs/archive/`; historical stream names in retained review/evidence documents are provenance, not live ownership.
 - Do not create a new status document when the information belongs in `ROADMAP.md`, the findings ledger, an ADR, or an existing technical reference.
 - Do not duplicate executable facts in prose. Link to the source instead.
+- Update `docs/ROADMAP.md` only when execution status, programme sequencing, a durable finding, or a claimed completion state actually changes. Routine implementation activity, verification detail, and review narration belong in the PR rather than creating roadmap churn.
+- Create standalone review/review-plan documents only when they are durable evidence needed by a programme, research treatment, milestone/finding closure, or future audit. Ordinary standard-risk review belongs in the PR body.
 - Service/deployment/test-readiness debt belongs in `governance/production-readiness.json`. Any PR that adds or materially changes a service boundary, production capability requiring a service, deployment dependency, or verification obligation must update that registry and regenerate `docs/PRODUCTION_READINESS.md`; deferral must be explicit rather than omitted.
 - Any change to a canonical document, agent contract, CI policy, or documentation authority must pass `npm run docs:check`.
 - When touching stale documentation, update it or clearly subordinate its status to `docs/ROADMAP.md` rather than preserving contradictory operational truth.
@@ -129,10 +142,12 @@ Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requ
 
 - Review diffs and production call paths, not just newly introduced helpers.
 - For high-risk changes, handoff/PR material must contain the pre-implementation adversarial contract, verification evidence, post-implementation adversarial disposition, and honest residual risk.
+- For standard-risk changes, handoff/PR material needs the risk classification, focused verification, one bounded adversarial disposition, and any material residual risk. Do not require a separate review-plan/review document.
+- For low-risk exemptions, state why semantics and required evidence are unchanged.
 - Prefer one high-confidence finding over several speculative comments.
 - Block merges for demonstrated correctness, security, reproducibility, authority, material performance, required-process, or required-gate failures. Track valid non-blocking work without recursively expanding PR scope.
 - Record exact verification evidence and honest residual risk. Never fabricate a pass or treat a skipped/unrun check as green.
-- Keep PRs narrow enough that the independent review can reason about the semantic change.
+- Keep PRs narrow enough that the required review can reason about the semantic change.
 
 ## Local-only agent configuration
 
