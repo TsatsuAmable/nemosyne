@@ -129,7 +129,7 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
 
 /** Rank-effective engine provenance. Bump (with fitness/ontology provenance) whenever
  * admissibility or information semantics change ranking. */
-export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.0-v5-bootstrap';
+export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.1-v5-bootstrap';
 
 export class MonetaHypothesisEngine {
   readonly version = MONETA_HYPOTHESIS_ENGINE_VERSION;
@@ -673,6 +673,39 @@ export class MonetaHypothesisEngine {
         reason: 'Cluster separation loss is not acceptable for this request',
         code: 'cluster-separation-loss',
       };
+    }
+
+    const declaredDimensions = reqs.primaryDimensions ?? [];
+    const isDeclaredDimension = (field: string | undefined): field is string =>
+      typeof field === 'string' && field.length > 0 && field.trim() === field;
+
+    if (candidate.id === 'DISTRIBUTION_FIELD') {
+      if (declaredDimensions.length !== 1 || !isDeclaredDimension(declaredDimensions[0])) {
+        return {
+          passed: false,
+          reason:
+            'DISTRIBUTION_FIELD requires exactly one explicit primary analytical dimension; dataset numeric-column availability is not analytical intent',
+          code: 'analytical-dimensions-required',
+        };
+      }
+    }
+
+    if (candidate.id === 'DENSITY_FIELD') {
+      const fieldX = declaredDimensions[0];
+      const fieldY = declaredDimensions[1];
+      if (
+        declaredDimensions.length !== 2 ||
+        !isDeclaredDimension(fieldX) ||
+        !isDeclaredDimension(fieldY) ||
+        fieldX === fieldY
+      ) {
+        return {
+          passed: false,
+          reason:
+            'DENSITY_FIELD requires exactly two explicit, distinct primary analytical dimensions; dataset numeric-column availability is not analytical intent',
+          code: 'analytical-dimensions-required',
+        };
+      }
     }
 
     if (candidate.id === 'CLUSTER_REGIONS') {
