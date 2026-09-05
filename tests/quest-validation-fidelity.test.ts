@@ -11,7 +11,6 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   deriveValidationManifest,
   type QuestDeviceIdentity,
@@ -32,6 +31,7 @@ import { computeQualificationProgress } from '../dev/loadtest-server.ts';
 import { recordValidationPrerequisite } from '../scripts/quest-validation-prerequisite.mjs';
 
 const BUILD = '4d54a76c49ebb57ae8cac5a5166fe8a3dfd7c318';
+const PUBLISH_VALIDATION_SCRIPT = join(process.cwd(), 'scripts', 'publish-validation-docs.mjs');
 const roots: string[] = [];
 
 function tempRoot(): string {
@@ -364,8 +364,7 @@ describe('QV publication fidelity', () => {
     ).toBe('finalized');
 
     appendFileSync(join(firstDir, 'loadtest-results.jsonl'), `${JSON.stringify({ injected: true })}\n`);
-    const script = fileURLToPath(new URL('../scripts/publish-validation-docs.mjs', import.meta.url));
-    const published = spawnSync(process.execPath, [script], {
+    const published = spawnSync(process.execPath, [PUBLISH_VALIDATION_SCRIPT], {
       cwd: root,
       encoding: 'utf8',
     });
