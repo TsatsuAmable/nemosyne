@@ -160,4 +160,22 @@ describe('RF-050 session persistence dataset deduplication', () => {
 
     expect(() => expandSessionSnapshotFromStorage(compact)).toThrow(/references missing row/);
   });
+
+  it('fails closed on a malformed storage-v2 envelope instead of reclassifying it as a logical snapshot', () => {
+    const malformed = {
+      storageSchemaVersion: 2,
+      snapshot: {
+        schemaVersion: 2,
+        originalDataset: { __nemosyneDatasetRef: 'd0' },
+      },
+      datasets: {
+        d0: { metadata: { name: 'broken', columns: [] }, rowRefs: 'not-an-array' },
+      },
+      rows: {},
+    };
+
+    expect(() => expandSessionSnapshotFromStorage(malformed)).toThrow(
+      /Unsupported or malformed session storage schema 2/,
+    );
+  });
 });
