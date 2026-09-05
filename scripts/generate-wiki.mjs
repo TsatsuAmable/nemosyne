@@ -34,6 +34,7 @@ const pageByAuthority = new Map([
   ['implementation-quality-policy', 'Implementation-Quality'],
   ['security-assurance-findings', 'Security-Assurance'],
   ['ci-strategy', 'CI-Strategy'],
+  ['production-readiness-projection', 'Production-Readiness'],
   ['statistical-methods', 'Statistical-Methods'],
   ['study-index', 'Study'],
 ]);
@@ -204,6 +205,7 @@ const sidebar = [
   '- [Current status](Current-Status)',
   '- [Vision & roadmap](Vision-and-Roadmap)',
   '- [Architecture](Architecture)',
+  '- [Production readiness](Production-Readiness)',
   '- [Codebase index](Codebase-Index)',
   '- [Documentation index](Documentation-Index)',
   '- [Statistical methods](Statistical-Methods)',
