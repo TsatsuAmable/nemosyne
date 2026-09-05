@@ -1,19 +1,31 @@
-// @ts-nocheck
 /**
  * Analyzer calibration-report tests: miss classes via rayValid, drift
  * conditioned on selection outcome, and hand-height suppression exposure.
  *
- * Runs the real `scripts/analyze-ux-trace.mjs` CLI against a synthetic
- * legacy-JSONL fixture so the numbers future calibration depends on are
+ * Runs the real `scripts/analyze-ux-trace.mjs` CLI against synthetic
+ * legacy-JSONL fixtures so the numbers future calibration depends on are
  * pinned without requiring on-device traces.
  */
-import { describe, expect, it, afterEach } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const tempDirectories: string[] = [];
+
+type GazeKind = 'panel' | 'hud' | 'scene' | null;
+interface HandSample {
+  h: string;
+  y: number;
+}
+interface ContextOptions {
+  drift?: number | null;
+  ptrTarget?: string | null;
+  gazeTarget?: string | null;
+  gazeKind?: GazeKind;
+  hands?: HandSample[];
+}
 
 afterEach(() => {
   for (const directory of tempDirectories.splice(0)) {
@@ -27,7 +39,7 @@ function ctx({
   gazeTarget = null,
   gazeKind = null,
   hands = [],
-} = {}) {
+}: ContextOptions = {}) {
   return {
     head: { p: [0, 1.6, 0], yaw: 0, pitch: 0 },
     gaze: { target: gazeTarget, kind: gazeKind, dist: 1.5 },
@@ -43,7 +55,7 @@ function ctx({
   };
 }
 
-function fixtureLines() {
+function fixtureLines(): string {
   const sid = 'calibration-fixture-sid';
   const records = [
     { t: 0, sid, seq: 1, type: 'meta', startedAt: '2026-09-06T00:00:00.000Z' },
@@ -94,7 +106,7 @@ function fixtureLines() {
       hit: 'none',
       target: null,
       rayValid: false,
-      ctx: ctx({ drift: 80, ptrTarget: null, gazeTarget: null, gazeKind: null }),
+      ctx: ctx({ drift: 80 }),
     },
     {
       t: 5,
@@ -104,7 +116,7 @@ function fixtureLines() {
       hit: 'none',
       target: null,
       rayValid: true,
-      ctx: ctx({ drift: 50, ptrTarget: null, gazeTarget: 'VR MENU', gazeKind: 'panel' }),
+      ctx: ctx({ drift: 50, gazeTarget: 'VR MENU', gazeKind: 'panel' }),
     },
     {
       t: 6,
@@ -113,7 +125,7 @@ function fixtureLines() {
       type: 'selection',
       hit: 'none',
       target: null,
-      ctx: ctx({ drift: 60, ptrTarget: null, gazeTarget: null, gazeKind: null }),
+      ctx: ctx({ drift: 60 }),
     },
     {
       t: 7,
@@ -124,19 +136,29 @@ function fixtureLines() {
       gating: 'select',
       hand: 'left',
       d: 0.03,
-      ctx: ctx({ drift: 50, ptrTarget: null, gazeTarget: 'VR MENU', gazeKind: 'panel' }),
+      ctx: ctx({ drift: 50, gazeTarget: 'VR MENU', gazeKind: 'panel' }),
     },
     { t: 8, sid, seq: 9, type: 'system', kind: 'both-pinch-suppressed', y0: 1.6, y1: 1.1 },
   ];
-  return records.map((r) => JSON.stringify(r)).join('\n') + '\n';
+  return records.map((record) => JSON.stringify(record)).join('\n') + '\n';
 }
 
-function analyze(fixture: string): string {
+function selectionOnlyFixtureLines(): string {
+  const sid = 'selection-only-sid';
+  const records = [
+    { t: 0, sid, seq: 1, type: 'meta', startedAt: '2026-09-06T00:00:00.000Z' },
+    { t: 1, sid, seq: 2, type: 'selection', hit: 'scene', rayValid: true, ctx: ctx({ drift: 10 }) },
+    { t: 2, sid, seq: 3, type: 'selection', hit: 'none', rayValid: true, ctx: ctx({ drift: 70 }) },
+  ];
+  return records.map((record) => JSON.stringify(record)).join('\n') + '\n';
+}
+
+function analyze(fixture: string, extraArgs: string[] = []): string {
   const directory = mkdtempSync(join(tmpdir(), 'nemosyne-analyzer-'));
   tempDirectories.push(directory);
   const file = join(directory, 'trace.jsonl');
   writeFileSync(file, fixture, 'utf8');
-  return execFileSync(process.execPath, ['scripts/analyze-ux-trace.mjs', file], {
+  return execFileSync(process.execPath, ['scripts/analyze-ux-trace.mjs', file, ...extraArgs], {
     encoding: 'utf8',
   });
 }
@@ -149,14 +171,19 @@ describe('analyze-ux-trace calibration report', () => {
     );
   });
 
-  it('conditions drift on selection outcome', () => {
-    const output = analyze(fixtureLines());
-    expect(output).toContain('drift at selection:none: n=3 median=60.0° p90=80.0°');
-    expect(output).toContain('drift at selection:scene: n=1 median=12.0° p90=12.0°');
+  it('conditions drift on selection outcome even when no standalone context records exist', () => {
+    const output = analyze(selectionOnlyFixtureLines());
+    expect(output).toContain('drift at selection:none: n=1 median=70.0° p90=70.0°');
+    expect(output).toContain('drift at selection:scene: n=1 median=10.0° p90=10.0°');
   });
 
-  it('reports hand-height exposure above the suppression line', () => {
+  it('reports context-level hand-height exposure instead of hand-observation exposure', () => {
     const output = analyze(fixtureLines());
-    expect(output).toContain('hand heights: n=3 max=1.70m above 1.5m=2 (67%)');
+    expect(output).toContain('hand-height exposure: contexts=2 max=1.70m above 1.5m=2 (100%)');
+  });
+
+  it('can evaluate exposure against an explicit candidate reach-zone threshold', () => {
+    const output = analyze(fixtureLines(), ['--reach-zone-y', '1.65']);
+    expect(output).toContain('hand-height exposure: contexts=2 max=1.70m above 1.65m=1 (50%)');
   });
 });
