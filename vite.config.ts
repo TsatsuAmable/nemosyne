@@ -3,6 +3,7 @@ import {
   demoStreamPlugin,
   signallingPlugin,
   remoteLogsPlugin,
+  validationFinalizationPlugin,
   loadtestResultsPlugin,
   uxTracePlugin,
   wasmServePlugin,
@@ -15,6 +16,9 @@ export default defineConfig(({ command }) => ({
     demoStreamPlugin(),
     signallingPlugin(),
     remoteLogsPlugin(),
+    // Must precede the existing sink: it write-locks finalized sessions and
+    // finalizes successful governed writes without replacing collection.
+    validationFinalizationPlugin(),
     loadtestResultsPlugin(),
     uxTracePlugin(),
     wasmServePlugin(),
