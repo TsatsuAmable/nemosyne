@@ -46,11 +46,11 @@ const GIT_SHA_RE = /^[0-9a-f]{40}$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Resolve npm without depending on a platform shell shim.
+ * Resolve npm without depending on an executable shell shim.
  *
  * `npm run dev:quest` provides `npm_execpath`, so prefer launching that JS CLI
- * through the current Node executable. Direct `node scripts/quest-validation.mjs`
- * usage falls back to the platform command name; on Windows that is `npm.cmd`.
+ * through the current Node executable. Direct Windows launcher usage falls back
+ * to `cmd.exe /c npm`, which is the supported way to execute npm's `.cmd` shim.
  */
 export function resolveNpmInvocation(env = process.env, platform = process.platform) {
   const npmExecPath =
@@ -60,7 +60,16 @@ export function resolveNpmInvocation(env = process.env, platform = process.platf
   if (npmExecPath) {
     return { command: process.execPath, args: [npmExecPath] };
   }
-  return { command: platform === 'win32' ? 'npm.cmd' : 'npm', args: [] };
+  if (platform === 'win32') {
+    const comspec =
+      typeof env.ComSpec === 'string' && env.ComSpec.trim().length > 0
+        ? env.ComSpec.trim()
+        : typeof env.COMSPEC === 'string' && env.COMSPEC.trim().length > 0
+          ? env.COMSPEC.trim()
+          : 'cmd.exe';
+    return { command: comspec, args: ['/d', '/s', '/c', 'npm'] };
+  }
+  return { command: 'npm', args: [] };
 }
 
 /**
