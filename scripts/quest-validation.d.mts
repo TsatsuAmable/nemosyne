@@ -114,6 +114,34 @@ export declare function writeManifestFile(
   manifest: Pick<ValidationManifest, 'evidenceDir'>,
   root?: string
 ): string;
+export interface WasmDevBuildResult {
+  status?: number | null;
+  error?: unknown;
+}
+
+export interface WasmBuildDiagnostics {
+  recordedAt: string;
+  status: number | null;
+  launchError: string | null;
+  node: string | null;
+  platform: NodeJS.Platform | null;
+  wasmPackVersion: string | null;
+  cargoVersion: string | null;
+  rustcVersion: string | null;
+  wasmJsPresent: boolean;
+  wasmBgPresent: boolean;
+  hint: string;
+}
+
+export declare function collectWasmBuildDiagnostics(
+  options?: { root?: string; wasm?: WasmDevBuildResult }
+): WasmBuildDiagnostics;
+export declare function writeWasmBuildLog(
+  manifest: Pick<ValidationManifest, 'evidenceDir'>,
+  diagnostics: WasmBuildDiagnostics,
+  root?: string
+): string | null;
+
 export declare function printSessionSummary(manifest: ValidationManifest): void;
 export declare function main(argv?: string[], env?: ProcessEnv, root?: string): number | undefined;
 

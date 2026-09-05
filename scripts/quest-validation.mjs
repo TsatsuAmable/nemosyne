@@ -101,6 +101,61 @@ function runWasmDevBuild({
   });
 }
 
+/**
+ * Best-effort WASM prerequisite diagnostics for the 7/14 governed sessions
+ * that abort with `WASM dev build failed; session aborted before Vite start`.
+ *
+ * Pure collection: never throws, never edits source. Promotion semantics are
+ * untouched — the caller still records the same FAIL disposition reason.
+ */
+export function collectWasmBuildDiagnostics({ root = process.cwd(), wasm = {} } = {}) {
+  const probe = (command, args) => {
+    try {
+      const stdout = execFileSync(command, args, {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      return String(stdout ?? '').trim().slice(0, 512) || null;
+    } catch {
+      return null;
+    }
+  };
+  const exists = (rel) => {
+    try {
+      return fs.existsSync(path.join(root, rel));
+    } catch {
+      return false;
+    }
+  };
+  return {
+    recordedAt: new Date().toISOString(),
+    status: typeof wasm?.status === 'number' ? wasm.status : null,
+    launchError:
+      wasm?.error instanceof Error ? wasm.error.message : wasm?.error ? String(wasm.error) : null,
+    node: typeof process !== 'undefined' ? process.version : null,
+    platform: typeof process !== 'undefined' ? process.platform : null,
+    wasmPackVersion: probe('wasm-pack', ['--version']),
+    cargoVersion: probe('cargo', ['--version']),
+    rustcVersion: probe('rustc', ['--version']),
+    wasmJsPresent: exists(path.join('wasm', 'pkg', 'nemosyne_wasm.js')),
+    wasmBgPresent: exists(path.join('wasm', 'pkg', 'nemosyne_wasm_bg.wasm')),
+    hint: 'Run `npm run wasm:dev` manually for full output; see docs/GETTING_STARTED.md for the Rust/wasm-pack fallback.',
+  };
+}
+
+/** Persist diagnostics next to manifest/disposition; best-effort, never throws. */
+export function writeWasmBuildLog(manifest, diagnostics, root = process.cwd()) {
+  try {
+    const evidenceDir = resolveEvidenceDir(manifest, root);
+    fs.mkdirSync(evidenceDir, { recursive: true });
+    const file = path.join(evidenceDir, 'build.log');
+    fs.writeFileSync(file, `${JSON.stringify(diagnostics, null, 2)}\n`, 'utf8');
+    return file;
+  } catch {
+    return null;
+  }
+}
+
 export function runGit(args, { execFileSyncFn = execFileSync } = {}) {
   try {
     const stdout = execFileSyncFn('git', args, {
@@ -480,6 +535,17 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
         ? `failed to launch npm for WASM dev build: ${wasm.error instanceof Error ? wasm.error.message : String(wasm.error)}`
         : `WASM dev build exited with status ${wasm.status ?? 'unknown'}`;
       process.stderr.write(`[quest-validation] ${reason}; aborting session\n`);
+      try {
+        const diagnostics = collectWasmBuildDiagnostics({ root, wasm });
+        const buildLog = writeWasmBuildLog(validated.manifest, diagnostics, root);
+        if (buildLog) {
+          process.stderr.write(`[quest-validation] WASM diagnostics recorded to ${buildLog}\n`);
+        }
+      } catch (error) {
+        process.stderr.write(
+          `[quest-validation] failed to record WASM diagnostics: ${error instanceof Error ? error.message : String(error)}\n`
+        );
+      }
       try {
         const disposition = writeDispositionFile(
           validated.manifest,

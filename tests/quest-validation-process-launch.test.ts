@@ -3,8 +3,10 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  collectWasmBuildDiagnostics,
   resolveNpmInvocation,
   resolveViteInvocation,
+  writeWasmBuildLog,
 } from '../scripts/quest-validation.mjs';
 
 const tempDirectories: string[] = [];
@@ -58,5 +60,23 @@ describe('Quest validation process launch portability', () => {
       command: process.execPath,
       args: [viteCli],
     });
+  });
+
+  it('collects WASM diagnostics without throwing and persists build.log inside the evidence dir', () => {
+    const diagnostics = collectWasmBuildDiagnostics({
+      root: tempRoot(),
+      wasm: { status: 1 },
+    });
+    expect(diagnostics.status).toBe(1);
+    expect(typeof diagnostics.recordedAt).toBe('string');
+    expect(typeof diagnostics.hint).toBe('string');
+
+    const root = tempRoot();
+    const manifest = {
+      evidenceDir: 'logs/validation/test-session',
+      sessionLabel: 'test-session',
+    };
+    const file = writeWasmBuildLog(manifest, diagnostics, root);
+    expect(file).toContain('build.log');
   });
 });
