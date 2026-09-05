@@ -238,7 +238,7 @@ describe('QV2a governed ADB identity gate', () => {
       { renderer: { xr: { getSession: () => session }, getContext: () => gl } },
       'META_QUEST_3S'
     );
-    expect(runtime.identityBasis).toBe('investigator-declared');
+    expect(runtime.identityBasis).toBe('unavailable');
     expect(runtime.webgl.renderer).toBe('Adreno');
     expect(runtime.xr.nominalFrameRateHz).toBe(72);
   });
