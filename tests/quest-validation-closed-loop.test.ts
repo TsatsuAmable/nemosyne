@@ -35,10 +35,13 @@ import {
   VALIDATION_SESSION_LABEL_HEADER,
   type ValidationSessionIdentity,
 } from '../src/validation/validation-session.ts';
+import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.ts';
+import { QUEST_PERF_STEP_POLICY } from '../dev/validation-adjudication.ts';
 import {
   computeQualificationProgress,
   createLoadTestResultsHandler,
 } from '../dev/loadtest-server.ts';
+import { finalizeValidationSession } from '../dev/validation-finalizer.ts';
 
 const BUILD = '277c2e73f9206f5b387a856bc8298d8247e39376';
 const SESSION: ValidationSessionIdentity = {
@@ -102,6 +105,72 @@ function writeSession(logDir: string, value: ValidationManifest, lines: unknown[
   if (lines.length > 0) {
     writeFileSync(join(dir, 'loadtest-results.jsonl'), lines.map((line) => JSON.stringify(line)).join('\n') + '\n');
   }
+}
+
+function validPerfReport(value: ValidationManifest) {
+  return {
+    version: '2',
+    profileName: 'quest-3s-qualification',
+    xrActive: true,
+    aborted: false,
+    thresholds: { ...LOAD_TEST_THRESHOLDS },
+    device: {
+      buildId: value.buildId,
+      declaredDeviceTarget: 'META_QUEST_3S',
+      identityBasis: 'adb-system-property',
+      declaredFirmwareVersion: value.deviceIdentity?.buildIncremental,
+      xr: { active: true },
+    },
+    collection: {
+      rawFrameTraceIncluded: false,
+      datasetRowsIncluded: false,
+      cameraPosesIncluded: false,
+    },
+    steps: QUEST_PERF_STEP_POLICY.map((policy) => ({
+      spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
+      frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+      criticalViolations: 0,
+      grade: 'green',
+    })),
+  };
+}
+
+function validBoundaryReport(
+  value: ValidationManifest,
+  outcome: 'completed' | 'failed' | 'aborted' = 'failed'
+) {
+  return {
+    version: '1',
+    profileName: 'quest-3s-rust-boundary-10m',
+    xrActive: true,
+    device: {
+      buildId: value.buildId,
+      declaredDeviceTarget: 'META_QUEST_3S',
+      identityBasis: 'adb-system-property',
+      declaredFirmwareVersion: value.deviceIdentity?.buildIncremental,
+      xr: { active: true },
+    },
+    collection: {
+      rawFrameTraceIncluded: false,
+      datasetRowsIncluded: false,
+      cameraPosesIncluded: false,
+    },
+    scenario: { rows: 10_000_000 },
+    outcome: { status: outcome },
+    qualification: {
+      deviceQualifiedAt10m: false,
+      promotionBlockedByAudits: true,
+    },
+    ...(outcome === 'completed'
+      ? {
+          evidence: {
+            structureProfileRowCount: 10_000_000,
+            rowMaterialisations: 0,
+            checksumParity: true,
+          },
+        }
+      : {}),
+  };
 }
 
 type FakeRes = { writeHead: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
@@ -196,16 +265,20 @@ describe('browser validation projection', () => {
 });
 
 describe('sink-owned qualification progress', () => {
-  it('counts only written non-aborted render evidence and boundary attempts for the same build/device', () => {
+  it('projects only QV4-valid active evidence and custody-verified prior sessions for the same build/device', () => {
     const logDir = tempRoot();
     const active = manifest();
-    writeSession(logDir, active, [
-      { profileName: 'quest-3s-qualification', xrActive: true, aborted: false },
-      { profileName: 'quest-3s-qualification', xrActive: true, aborted: true },
-    ]);
-    writeSession(logDir, manifest(OTHER_SESSION, 'quest-10m'), [
-      { profileName: 'quest-3s-rust-boundary-10m', xrActive: true, outcome: { status: 'failed' } },
-    ]);
+    writeSession(logDir, active, [validPerfReport(active)]);
+
+    const boundary = manifest(OTHER_SESSION, 'quest-10m');
+    writeSession(logDir, boundary, [validBoundaryReport(boundary)]);
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: join(logDir, 'validation'),
+        sessionLabel: boundary.sessionLabel,
+      }).status
+    ).toBe('finalized');
+
     const foreign = deriveValidationManifest({
       sessionId: '8f14e45f-ea31-4a5f-8cbb-9e2c1a0f0f99',
       sessionLabel: 'PERF04-277c2e7-foreign-device',
@@ -214,9 +287,7 @@ describe('sink-owned qualification progress', () => {
       mode: 'quest-perf',
       deviceIdentity: identity('different/device/fingerprint'),
     });
-    writeSession(logDir, foreign, [
-      { profileName: 'quest-3s-qualification', xrActive: true, aborted: false },
-    ]);
+    writeSession(logDir, foreign, [validPerfReport(foreign)]);
 
     expect(computeQualificationProgress(join(logDir, 'validation'), active)).toMatchObject({
       target: 3,
@@ -234,12 +305,13 @@ describe('governed delivery receipt and status', () => {
     const active = manifest();
     writeSession(logDir, active);
     const handler = createLoadTestResultsHandler({ logDir, activeSession: SESSION });
-    const res = request(handler, 'POST', '/__loadtest-results', headers(SESSION, true), {
-      profileName: 'quest-3s-qualification',
-      xrActive: true,
-      aborted: false,
-      verdict: {},
-    });
+    const res = request(
+      handler,
+      'POST',
+      '/__loadtest-results',
+      headers(SESSION, true),
+      validPerfReport(active)
+    );
     const payload = JSON.parse(res.end.mock.calls.at(-1)?.[0] as string);
     expect(payload.status).toBe('ok');
     expect(payload.receipt).toMatchObject({
@@ -252,12 +324,10 @@ describe('governed delivery receipt and status', () => {
     expect(payload.receipt.progress.renderCompleted).toBe(1);
   });
 
-  it('returns the exact launcher-written manifest and current evidence progress', () => {
+  it('returns the exact launcher-written manifest and current adjudicable evidence progress', () => {
     const logDir = tempRoot();
     const active = manifest();
-    writeSession(logDir, active, [
-      { profileName: 'quest-3s-qualification', xrActive: true, aborted: false },
-    ]);
+    writeSession(logDir, active, [validPerfReport(active)]);
     const handler = createLoadTestResultsHandler({ logDir, activeSession: SESSION });
     const res = request(handler, 'GET', VALIDATION_STATUS_ENDPOINT, headers(), undefined);
     const payload = JSON.parse(res.end.mock.calls.at(-1)?.[0] as string);

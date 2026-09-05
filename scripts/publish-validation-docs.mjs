@@ -31,27 +31,63 @@ function escapeCell(value) {
   return String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * A finalized bundle must not disappear from publication merely because its
+ * custody file was deleted. Finalization leaves several independent derived
+ * markers; any one of them makes the directory a candidate that must verify.
+ * Launch placeholders do not satisfy these markers.
+ */
+function isFinalizedCandidate(entryName) {
+  const evidenceDir = path.join(validationLogRoot, entryName);
+  if (fs.existsSync(path.join(evidenceDir, 'custody.json'))) return true;
+  if (fs.existsSync(path.join(evidenceDir, 'evidence-index.json'))) return true;
+  if (fs.existsSync(path.join(evidenceDir, 'report.md'))) return true;
+
+  const analysis = readJson(path.join(evidenceDir, 'analysis.json'));
+  if (
+    isRecord(analysis) &&
+    analysis.status === 'complete' &&
+    typeof analysis.rawEvidenceDigest === 'string'
+  ) {
+    return true;
+  }
+  const disposition = readJson(path.join(evidenceDir, 'disposition.json'));
+  return isRecord(disposition) && typeof disposition.rawEvidenceDigest === 'string';
+}
+
 function loadProjection(entryName) {
-  if (!SESSION_LABEL_RE.test(entryName)) return null;
+  if (!SESSION_LABEL_RE.test(entryName)) {
+    return { ok: false, reason: 'finalized session directory has an invalid label' };
+  }
   const evidenceDir = path.join(validationLogRoot, entryName);
   const verified = verifyFinalizedCustody(evidenceDir);
-  if (!verified.ok) return null;
+  if (!verified.ok) return { ok: false, reason: verified.reason };
   const custody = verified.custody;
-  if (custody.sessionLabel !== entryName) return null;
+  if (custody.sessionLabel !== entryName) {
+    return { ok: false, reason: 'custody session label does not match its directory' };
+  }
 
   const manifestCheck = validateValidationManifest(readJson(path.join(evidenceDir, 'manifest.json')));
-  if (!manifestCheck.ok) return null;
+  if (!manifestCheck.ok) {
+    return { ok: false, reason: 'custody-verified session contains an invalid manifest' };
+  }
   const manifest = manifestCheck.manifest;
   if (
     manifest.sessionId !== custody.sessionId ||
     manifest.buildId !== custody.buildId ||
     manifest.sessionLabel !== custody.sessionLabel
   ) {
-    return null;
+    return { ok: false, reason: 'manifest identity does not match the custody record' };
   }
 
   const disposition = readJson(path.join(evidenceDir, 'disposition.json'));
-  if (!disposition || typeof disposition !== 'object' || Array.isArray(disposition)) return null;
+  if (!disposition || typeof disposition !== 'object' || Array.isArray(disposition)) {
+    return { ok: false, reason: 'custody-verified session contains an invalid disposition' };
+  }
   const gateDisposition = disposition.gateDisposition;
   const status =
     gateDisposition &&
@@ -64,7 +100,7 @@ function loadProjection(entryName) {
     ? disposition.gates.filter((gate) => gate && typeof gate === 'object' && !Array.isArray(gate))
     : [];
 
-  return { manifest, custody, status, gates };
+  return { ok: true, projection: { manifest, custody, status, gates } };
 }
 
 function renderSession(projection) {
@@ -110,12 +146,30 @@ function main() {
     return;
   }
 
-  const projections = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => loadProjection(entry.name))
-    .filter(Boolean)
-    .sort((a, b) => a.custody.finalizedAt.localeCompare(b.custody.finalizedAt));
+  const finalizedEntries = entries.filter(
+    (entry) => entry.isDirectory() && isFinalizedCandidate(entry.name)
+  );
+  const projections = [];
+  const rejected = [];
+  for (const entry of finalizedEntries) {
+    const loaded = loadProjection(entry.name);
+    if (!loaded.ok) {
+      rejected.push(`${entry.name}: ${loaded.reason}`);
+      continue;
+    }
+    projections.push(loaded.projection);
+  }
 
+  if (rejected.length > 0) {
+    console.error(
+      `Refusing to publish validation documentation because ${rejected.length} finalized session(s) failed custody/projection verification:`
+    );
+    for (const reason of rejected) console.error(`  - ${reason}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  projections.sort((a, b) => a.custody.finalizedAt.localeCompare(b.custody.finalizedAt));
   if (projections.length === 0) {
     console.error('No custody-verified finalized validation sessions are available to publish.');
     process.exitCode = 1;

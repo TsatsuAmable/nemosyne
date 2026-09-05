@@ -33,6 +33,7 @@ import {
   validateGuidedUxSubmission,
   type GuidedUxSubmission,
 } from '../src/validation/guided-ux-validation.ts';
+import { scanValidationCohort } from './validation-finalizer.ts';
 
 interface LoadTestSummary {
   profileName?: unknown;
@@ -60,10 +61,6 @@ export interface LoadTestSinkResolution {
   /** True when the POST claimed a session that is not the active one. */
   mismatch: boolean;
 }
-
-const MAX_PROGRESS_SESSIONS = 256;
-const MAX_PROGRESS_FILE_BYTES = 16 * 1024 * 1024;
-const MAX_PROGRESS_LINES_PER_SESSION = 512;
 
 function firstHeader(value: string | string[] | undefined): string | null {
   if (typeof value === 'string' && value.length > 0) return value;
@@ -172,41 +169,10 @@ function readGateDisposition(validationLogRoot: string, sessionLabel: string): {
   };
 }
 
-function sameQualificationDevice(a: ValidationManifest, b: ValidationManifest): boolean {
-  const af = a.deviceIdentity?.buildFingerprint ?? null;
-  const bf = b.deviceIdentity?.buildFingerprint ?? null;
-  return Boolean(af && bf && af === bf && a.buildId === b.buildId);
-}
-
-function readBoundedJsonLines(file: string): LoadTestSummary[] {
-  try {
-    const stat = fs.statSync(file);
-    if (!stat.isFile() || stat.size > MAX_PROGRESS_FILE_BYTES) return [];
-    return fs
-      .readFileSync(file, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .slice(-MAX_PROGRESS_LINES_PER_SESSION)
-      .map((line) => {
-        try {
-          const value = JSON.parse(line);
-          return value && typeof value === 'object' && !Array.isArray(value)
-            ? (value as LoadTestSummary)
-            : null;
-        } catch {
-          return null;
-        }
-      })
-      .filter((value): value is LoadTestSummary => value !== null);
-  } catch {
-    return [];
-  }
-}
-
 /**
- * Count only evidence that was actually written under a validation session with
- * the same exact build and machine-captured device fingerprint. The UI never
- * increments a local counter and cannot make an uncaptured run "count".
+ * Project the exact QV4 cohort authority into the operator surface. Prior runs
+ * count only when their custody verifies, duplicate reports never inflate the
+ * total, and the active session is counted only if it is itself adjudicable.
  */
 export function computeQualificationProgress(
   validationLogRoot: string,
@@ -214,55 +180,11 @@ export function computeQualificationProgress(
 ): QualificationProgress | null {
   const activeFingerprint = activeManifest?.deviceIdentity?.buildFingerprint ?? null;
   if (!activeManifest || !activeFingerprint) return null;
-  let renderCompleted = 0;
-  let boundaryAttempts = 0;
-  let entries: fs.Dirent[] = [];
-  try {
-    entries = fs
-      .readdirSync(validationLogRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .slice(0, MAX_PROGRESS_SESSIONS);
-  } catch {
-    return {
-      target: 3,
-      renderCompleted,
-      boundaryAttempts,
-      buildId: activeManifest.buildId,
-      deviceBuildFingerprint: activeFingerprint,
-    };
-  }
-
-  for (const entry of entries) {
-    if (!isValidSessionLabel(entry.name)) continue;
-    const raw = readJsonFile(path.join(validationLogRoot, entry.name, 'manifest.json'));
-    const validated = validateValidationManifest(raw);
-    if (!validated.ok) continue;
-    const manifest = validated.manifest;
-    if (manifest.worktree !== 'clean' || !sameQualificationDevice(activeManifest, manifest)) continue;
-    const lines = readBoundedJsonLines(
-      path.join(validationLogRoot, entry.name, 'loadtest-results.jsonl')
-    );
-    for (const summary of lines) {
-      if (
-        summary.profileName === 'quest-3s-qualification' &&
-        summary.xrActive === true &&
-        summary.aborted === false
-      ) {
-        renderCompleted += 1;
-      }
-      if (
-        summary.profileName === 'quest-3s-rust-boundary-10m' &&
-        summary.xrActive === true
-      ) {
-        boundaryAttempts += 1;
-      }
-    }
-  }
-
+  const cohort = scanValidationCohort(validationLogRoot, activeManifest);
   return {
     target: 3,
-    renderCompleted,
-    boundaryAttempts,
+    renderCompleted: cohort.perfCompletedRunCount,
+    boundaryAttempts: cohort.boundaryAttemptCount,
     buildId: activeManifest.buildId,
     deviceBuildFingerprint: activeFingerprint,
   };
