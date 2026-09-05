@@ -127,10 +127,10 @@
     {
       "id": "RDO-009",
       "serviceRef": "production-live-source-contract",
-      "kind": "AUTOMATED",
+      "kind": "MANUAL",
       "state": "GREEN",
       "evidence": ["dev/demo-stream-server.ts"],
-      "closure": "Keep /__demo-stream explicitly classified as a development fixture rather than a production service claim."
+      "closure": "Keep /__demo-stream explicitly classified as a development fixture rather than a production service claim. This is a classification assertion, not an executable production-service test."
     },
     {
       "id": "RDO-010",
