@@ -13,8 +13,8 @@ Follow `AGENTS.md` as the canonical engineering contract for this repository. Do
 
 - Use focused reads and diffs rather than repeatedly loading the full repository.
 - Treat local `.claude/`, `.agents/`, and `.ai/` material as harness working memory only; it cannot override repository policy.
-- For implementation work, live-check remote `main`, apply the risk classification and pre-implementation adversarial contract from `AGENTS.md`, keep one focused branch/PR, and perform a distinct post-implementation adversarial pass before claiming completion.
-- Prefer an independent agent/reviewer for the post-implementation pass when available. If self-reviewing, switch explicitly to falsification rather than defending the implementation plan.
+- For implementation work, live-check remote `main`, apply the risk tier from `AGENTS.md`, keep one focused branch/PR, and perform only the review required by that tier: high-risk gets pre- and post-implementation adversarial review, standard-risk gets one bounded post-implementation falsification pass, and low-risk non-semantic work may use the exemption.
+- Prefer an independent agent/reviewer when it adds a materially different challenge. Do not multiply review merely by repeating the same generalist pass.
 - When a property matters in production, follow the production-path evidence rule in `AGENTS.md`; an isolated helper test is not proof that the live runtime enforces the property.
 - For command names, versions, CI jobs, coverage policy, and test selection, read `package.json`, `.github/workflows/`, and the relevant config files rather than this adapter.
 
