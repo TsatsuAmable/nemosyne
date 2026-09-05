@@ -54,6 +54,23 @@ describe('Stable Body Frame Tracking Subsystem', () => {
     expect(composer.analystAnchor.rotation.y).toBeCloseTo(baselineYaw, 6);
   });
 
+  it('does not accumulate opposing out-of-deadband gaze scans into a body turn', () => {
+    const { camera, composer } = makeComposer();
+    composer.update(1 / 72);
+    let maxAbsYaw = 0;
+
+    // Each excursion is outside the 18° entry band, but the direction flips
+    // before the 0.2 s intent gate can be satisfied. Magnitude-only timing would
+    // incorrectly accumulate these samples into a body-heading change.
+    for (let i = 0; i < 30; i++) {
+      camera.rotation.y = THREE.MathUtils.degToRad(i % 2 === 0 ? 20 : -20);
+      composer.update(1 / 72);
+      maxAbsYaw = Math.max(maxAbsYaw, Math.abs(composer.analystAnchor.rotation.y));
+    }
+
+    expect(maxAbsYaw).toBeLessThan(1e-6);
+  });
+
   it('accepts a sustained heading change and damps it using elapsed time', () => {
     const { camera, composer } = makeComposer();
     composer.update(1 / 72);
