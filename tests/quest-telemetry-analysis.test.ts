@@ -11,7 +11,7 @@ describe('Quest telemetry analysis command', () => {
     for (const directory of directories.splice(0)) rmSync(directory, { recursive: true });
   });
 
-  it('validates and aggregates repeated on-device reports', () => {
+  it('validates and aggregates repeated ADB-attributed on-device reports', () => {
     const directory = mkdtempSync(join(tmpdir(), 'nemosyne-quest-telemetry-'));
     directories.push(directory);
     const reportPath = join(directory, 'results.jsonl');
@@ -22,7 +22,7 @@ describe('Quest telemetry analysis command', () => {
       aborted: false,
       device: {
         declaredDeviceTarget: 'META_QUEST_3S',
-        identityBasis: 'investigator-declared',
+        identityBasis: 'adb-system-property',
         userAgent: 'Quest Browser test',
         xr: { nominalFrameRateHz: 72 },
       },
@@ -63,6 +63,51 @@ describe('Quest telemetry analysis command', () => {
     expect(group.totalGovernorThrottleEvents).toBe(4);
   });
 
+  it('continues to analyze explicitly exploratory investigator-declared reports without upgrading them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'nemosyne-quest-telemetry-manual-'));
+    directories.push(directory);
+    const reportPath = join(directory, 'manual.json');
+    writeFileSync(
+      reportPath,
+      JSON.stringify({
+        version: '2',
+        profileName: 'quest-3s-qualification',
+        xrActive: true,
+        aborted: false,
+        device: {
+          declaredDeviceTarget: 'META_QUEST_3S',
+          identityBasis: 'investigator-declared',
+          userAgent: 'Quest Browser exploratory test',
+          xr: { nominalFrameRateHz: 72 },
+        },
+        collection: {
+          rawFrameTraceIncluded: false,
+          datasetRowsIncluded: false,
+          cameraPosesIncluded: false,
+        },
+        visibility: { interruptionCount: 0 },
+        steps: [
+          {
+            frameCadence: { p95Ms: 12, p99Ms: 13, droppedPct: 1 },
+            memory: { jsHeapPeakBytes: null, wasmPeakBytes: 200 },
+            sustainedPerformance: { classification: 'stable', p95DriftPercent: 2 },
+            representation: {
+              governorLodScaleMinimum: 1,
+              renderedFraction: 1,
+              governorThrottleEvents: 0,
+            },
+          },
+        ],
+      })
+    );
+    const output = execFileSync(
+      process.execPath,
+      [resolve('scripts/analyze-quest-telemetry.mjs'), reportPath],
+      { encoding: 'utf8' }
+    );
+    expect(JSON.parse(output).validQuestReportCount).toBe(1);
+  });
+
   it('aggregates 10M Rust boundary evidence without issuing device qualification', () => {
     const directory = mkdtempSync(join(tmpdir(), 'nemosyne-quest-boundary-'));
     directories.push(directory);
@@ -73,7 +118,7 @@ describe('Quest telemetry analysis command', () => {
       xrActive: true,
       device: {
         declaredDeviceTarget: 'META_QUEST_3S',
-        identityBasis: 'investigator-declared',
+        identityBasis: 'adb-system-property',
         buildId: 'abc123',
         declaredFirmwareVersion: 'test-fw',
         userAgent: 'Quest Browser test',

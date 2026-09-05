@@ -15,6 +15,11 @@ export {
   readPostValidationSession,
   resolveLoadTestSink,
 } from './loadtest-server.ts';
+export {
+  validationFinalizationPlugin,
+  createValidationFinalizationHandler,
+  VALIDATION_FINALIZATION_STATUS_ENDPOINT,
+} from './validation-finalization-plugin.ts';
 export { signallingPlugin } from './signalling-dev-server.ts';
 export { demoStreamPlugin } from './demo-stream-server.ts';
 export { wasmServePlugin } from './wasm-serve-server.ts';
