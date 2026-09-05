@@ -1,10 +1,13 @@
 import {
+  FEATURE_DIM,
+  GESTURE_CLASSES,
   TRAJECTORY_CAPACITY,
   type GestureClass,
 } from '../../../modules/gesture-intelligence/src/contracts.ts';
 import {
   DERIVED_GESTURE_AUTHORITY_REFERENCE,
   DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE,
+  DERIVED_GESTURE_LABEL_CODES,
   DERIVED_GESTURE_NOTICE_REFERENCE,
   DERIVED_GESTURE_OBSERVATION_FAMILY_ID,
   DERIVED_GESTURE_RETENTION_REFERENCE,
@@ -36,6 +39,8 @@ import type {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRODUCER_PATTERN = /^piv1_[0-9a-f-]{36}$/i;
 const STREAM_PATTERN = /^strv1_[0-9a-f-]{36}$/i;
+const DERIVED_LABEL_SET = new Set<string>(DERIVED_GESTURE_LABEL_CODES);
+const GESTURE_CLASS_SET = new Set<string>(GESTURE_CLASSES);
 
 export interface GestureLearningGovernanceTransportV1 {
   authorizeCapture(request: GestureLearningCaptureAuthorizationRequestV1): Promise<GestureLearningCaptureAuthorizationV1>;
@@ -100,6 +105,17 @@ function canonicalRecordedAt(value: string): string {
   return value;
 }
 
+function validateDerivedInput(input: DerivedGestureUploadV1): Readonly<{ features: readonly number[]; recordedAt: string }> {
+  const features = Array.from(input.features);
+  if (features.length !== FEATURE_DIM || features.some((value) => !Number.isFinite(value) || value < -1 || value > 1)) {
+    throw new TypeError(`derived gesture features must contain exactly ${FEATURE_DIM} finite values in [-1,1]`);
+  }
+  if (!DERIVED_LABEL_SET.has(input.labelCode)) throw new TypeError('derived gesture labelCode is not a reviewed strong-label code');
+  const evidenceBytes = new TextEncoder().encode(input.evidenceId).byteLength;
+  if (evidenceBytes < 1 || evidenceBytes > 160) throw new TypeError('derived gesture evidenceId must contain 1-160 UTF-8 bytes');
+  return Object.freeze({ features: Object.freeze(features), recordedAt: canonicalRecordedAt(input.recordedAt) });
+}
+
 function normalizeRawTrajectory(
   left: readonly LegacyRawGesturePointV1[],
   right: readonly LegacyRawGesturePointV1[],
@@ -116,9 +132,10 @@ function normalizeRawTrajectory(
     return Object.freeze(points.map((point) => {
       if (
         !Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(point.z) ||
+        point.x < -1_000 || point.x > 1_000 || point.y < -1_000 || point.y > 1_000 || point.z < -1_000 || point.z > 1_000 ||
         !Number.isFinite(point.t) || point.t < prior
       ) {
-        throw new TypeError('raw trajectory coordinates/timestamps must be finite and timestamps non-decreasing');
+        throw new TypeError('raw trajectory coordinates/timestamps must satisfy the reviewed finite bounds and timestamps must be non-decreasing');
       }
       prior = point.t;
       const dtMs = point.t - start;
@@ -161,10 +178,11 @@ export class GovernedGestureCaptureUploaderV1 {
     this.producerInstanceId = options.producerInstanceId;
     this.derivedStreamId = options.derivedStreamId;
     this.rawStreamId = options.rawStreamId;
-    this.uuid = options.uuid ?? (() => crypto.randomUUID());
+    this.uuid = options.uuid ?? (() => globalThis.crypto.randomUUID());
   }
 
   async uploadDerived(input: DerivedGestureUploadV1): Promise<GestureLearningEventDispositionV1> {
+    const validated = validateDerivedInput(input);
     const eventId = this.uuid();
     assertUuid(eventId, 'eventId');
     const request: GestureLearningCaptureAuthorizationRequestV1 = Object.freeze({
@@ -181,10 +199,10 @@ export class GovernedGestureCaptureUploaderV1 {
       featureSchemaId: DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE.id,
       featureSchemaVersion: DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE.version,
       featureSchemaDigest: DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE.digest.value,
-      features: Object.freeze(Array.from(input.features)),
+      features: validated.features,
       labelCode: input.labelCode,
       evidenceId: input.evidenceId,
-      recordedAt: canonicalRecordedAt(input.recordedAt),
+      recordedAt: validated.recordedAt,
     });
     const content: Omit<GovernedEventEnvelopeV1, 'contentDigest'> = {
       schemaVersion: '1',
@@ -226,6 +244,10 @@ export class GovernedGestureCaptureUploaderV1 {
   }
 
   async uploadRaw(input: RawGestureUploadV1): Promise<GestureLearningEventDispositionV1> {
+    const normalized = normalizeRawTrajectory(input.left, input.right);
+    if (input.protocolTargetGesture !== undefined && !GESTURE_CLASS_SET.has(input.protocolTargetGesture)) {
+      throw new TypeError('raw protocolTargetGesture is not a reviewed gesture class');
+    }
     const eventId = this.uuid();
     assertUuid(eventId, 'eventId');
     const request: GestureLearningCaptureAuthorizationRequestV1 = Object.freeze({
@@ -239,7 +261,6 @@ export class GovernedGestureCaptureUploaderV1 {
     });
     const authorization = await this.transport.authorizeCapture(request);
     if (!authorization.protocolEvidence) throw new Error('raw capture authority omitted frozen protocol evidence');
-    const normalized = normalizeRawTrajectory(input.left, input.right);
     const payloadBase: Record<string, JsonValue> = {
       trajectorySchemaId: RAW_GESTURE_TRAJECTORY_SCHEMA_REFERENCE.id,
       trajectorySchemaVersion: RAW_GESTURE_TRAJECTORY_SCHEMA_REFERENCE.version,
