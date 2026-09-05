@@ -18,7 +18,6 @@ import {
   SqliteGestureTrainingSnapshotSourceV1,
 } from '../src/governance-service/SqliteGestureTrainingSnapshotSource.ts';
 import {
-  GestureTrainingMaterializationError,
   materializeGestureTrainingSnapshotV1,
   type GestureTrainingSnapshotSourceV1,
 } from '../src/learning/GestureTrainingSnapshotMaterializer.ts';
@@ -89,7 +88,7 @@ function transportFor(
   governance: SqliteGestureLearningGovernanceV1,
   principal: Readonly<{ issuer: string; subject: string }>,
 ): GestureLearningGovernanceTransportV1 {
-  return Object.freeze({
+  return Object.freeze<GestureLearningGovernanceTransportV1>({
     async authorizeCapture(request) {
       return governance.authorizeCapture(principal, request);
     },
@@ -260,7 +259,7 @@ describe('PT6D immutable governed gesture training snapshots', () => {
     await expect(materializeGestureTrainingSnapshotV1(hostileSource, snapshotOptions())).rejects.toMatchObject({
       name: 'GestureTrainingMaterializationError',
       issues: expect.arrayContaining([expect.objectContaining({ code: 'WRONG_PURPOSE' })]),
-    } satisfies Partial<GestureTrainingMaterializationError>);
+    });
 
     source.close();
     governance.close();
