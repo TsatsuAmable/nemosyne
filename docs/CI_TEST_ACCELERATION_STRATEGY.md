@@ -68,6 +68,30 @@ Long-running workloads remain appropriate for scheduled/manual assurance when de
 
 Any defect found by exploratory fuzz/soak work should become a deterministic PR regression where feasible.
 
+## Phase 4: consolidate the PR workflow surface
+
+**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE.
+
+The PR checks page had accumulated temporary pilots, evidence collectors and governance audits around the canonical merge gate. Several provided useful evidence when introduced, but continuing to run or emit them on every PR duplicated already-required proof and made one underlying condition appear as multiple failures.
+
+The consolidated model is:
+
+- `Node 24` remains the single required aggregate for deterministic application CI: static analysis, complete merged coverage, Rust tests, production build and Chromium smoke.
+- `CodeQL SAST (javascript-typescript)` remains an independent required security signal.
+- `approval-gate` owns only promotion-specific evidence: owner approval authority, exact-head identity, review disposition and the adversarial/promotion marker. GitHub's ruleset composes `Node 24`, CodeQL and `approval-gate`; the approval workflow does not poll the other required checks.
+- `architecture:check` is enforced inside the existing `Static analysis` job. The standalone architecture workflow is retained only as a manual timing/RSS audit.
+- the Q9 promotion-controller workflow is retained as an explicit manual exact-head governance audit rather than a second per-PR copy of `approval-gate`.
+- the Q8 supply-chain pilot runs on PRs only when dependency manifests, lockfiles, toolchain or supply-chain policy files change, while remaining manually runnable.
+- the heavier UV0 instrumented screenshot baseline runs automatically only when its compile-gated evidence seam or harness changes, while ordinary production/browser behavior remains protected by required CI.
+- legacy Q3D and Stream A A1 resource-envelope workflows are manual reproduction tools rather than skipped checks emitted on every PR.
+- wiki publication still watches `src/**` on `main` because the generated codebase index depends on exported TypeScript symbols, but source-only PRs no longer run a validation job that cannot detect drift against a committed wiki artifact.
+
+### Permanent-workflow admission rule
+
+A new permanent PR job must protect a **distinct defect class** that is not already represented by an existing required signal. Experimental jobs must define an exit condition: graduate the minimum useful deterministic check into canonical CI, narrow it to the affected change surface, move it to scheduled/manual assurance, or retire it.
+
+The desired ordinary-PR shape is three required check names (`Node 24`, CodeQL and `approval-gate`) with non-required jobs appearing only when the PR changes their relevant evidence surface.
+
 ## Test flake policy
 
 - Do not use blind automatic retries to turn a required correctness failure green.
@@ -86,17 +110,17 @@ This does not eliminate action supply-chain risk, but it prevents an already-rev
 
 1. **Edit loop:** targeted test or relevant fast project while coding.
 2. **Pre-push:** ownership-aligned type/lint/test checks.
-3. **PR gate:** full authoritative parallel proof, merged global coverage, Rust, CodeQL, and production browser smoke.
-4. **Scheduled assurance:** fuzz, soak, broad performance campaigns, and physical-device qualification.
+3. **PR gate:** full authoritative parallel proof, merged global coverage, Rust, CodeQL, architecture policy, and production browser smoke.
+4. **Scheduled/manual assurance:** fuzz, soak, broad performance campaigns, physical-device qualification, baseline evidence capture and independent governance audits.
 
 Fast feedback is a convenience. It is not promotion evidence.
 
 ## Metrics
 
-Track trends for time to first actionable failure, required fan-in completion, shard balance, cache effectiveness, browser-smoke delay, total runner minutes, flaky rerun rate, and escaped defects that an existing required test should have caught.
+Track trends for time to first actionable failure, required fan-in completion, shard balance, cache effectiveness, browser-smoke delay, total runner minutes, flaky rerun rate, duplicate-failure amplification, unrelated non-required checks per PR, and escaped defects that an existing required test should have caught.
 
-Optimize for feedback latency and resource efficiency while keeping escaped-defect and flake rates flat or improving.
+Target a typical required wall-clock of five minutes or less, three required check names, and near-zero unrelated non-required jobs on an ordinary PR. Optimize for feedback latency and resource efficiency while keeping escaped-defect and flake rates flat or improving.
 
 ## Relationship to RF-033
 
-#437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. The hygiene tranche removes redundant coverage execution and makes external workflow dependencies immutable. Remaining RF-033 review work is operational measurement and duration-aware rebalancing only when multiple normal runs justify it.
+#437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. Subsequent hygiene work removed redundant coverage execution, made external workflow dependencies immutable, and consolidated duplicate PR-time evidence around the canonical required gate. Remaining RF-033 review work is operational measurement and duration-aware rebalancing only when multiple normal runs justify it.
