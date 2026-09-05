@@ -245,6 +245,37 @@ describe('QV4 evidence finalization and custody', () => {
     expect(analysis.cohort.perfPassingRunCount).toBe(0);
     expect(analysis.validationErrors.join(' ')).toContain('exactly one report per session');
   });
+
+  it('ignores a prior mutable session until its custody bundle is verified', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir } = writeRawSession(root);
+    const prior = deriveValidationManifest({
+      sessionId: '4f2504e0-4f89-41d3-9a0c-0305e82c3302',
+      sessionLabel: 'PERF04-4d54a76-20260905T095000',
+      buildId: BUILD,
+      worktree: 'clean',
+      mode: 'quest-perf',
+      createdAt: '2026-09-05T08:50:00.000Z',
+      deviceIdentity: device(),
+    });
+    const priorDir = join(validationRoot, prior.sessionLabel);
+    mkdirSync(priorDir, { recursive: true });
+    writeFileSync(join(priorDir, 'manifest.json'), `${JSON.stringify(prior, null, 2)}\n`);
+    writeFileSync(
+      join(priorDir, 'loadtest-results.jsonl'),
+      `${JSON.stringify(greenReport(prior))}\n`
+    );
+
+    const result = finalizeValidationSession({
+      validationLogRoot: validationRoot,
+      sessionLabel: SESSION.label,
+    });
+    expect(result).toMatchObject({ status: 'finalized', aggregateStatus: 'PARTIAL' });
+
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.cohort.perfCompletedRunCount).toBe(1);
+    expect(analysis.cohort.perfPassingRunCount).toBe(1);
+  });
 });
 
 describe('QV8 dev-server custody guard', () => {
