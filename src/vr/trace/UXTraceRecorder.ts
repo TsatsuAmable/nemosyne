@@ -454,6 +454,7 @@ export class UXTraceRecorder {
             : 'none',
       target: this._describeMesh(info.sceneMesh, info.sceneData),
       pointer: pointer?.handedness ?? (pointer?.index != null ? `#${pointer.index}` : null),
+      rayValid: typeof info.rayValid === 'boolean' ? info.rayValid : null,
       ctx: this._context(),
     });
   }

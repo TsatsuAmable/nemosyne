@@ -84,7 +84,23 @@ export class InputRouter {
   onFocusChange: ((state: { currentLevel: FocusLevel; focusedStructureId: string | null }) => void) | null = null;
 
   activePointer: PointerLike | null;
-  onSelectCallback: ((ray: THREE.Ray) => void) | null;
+  /**
+   * Global fallback selection callback. Kept in sync with the dispatcher's
+   * callback (null when unset) so `SelectionDispatchInfo.hadCallback`
+   * truthfully reports whether a callback actually ran. A permanently
+   * installed forwarding closure would make every empty-space miss look
+   * like a `callback-only` hit in UX traces.
+   */
+  private _onSelectCallback: ((ray: THREE.Ray) => void) | null = null;
+
+  get onSelectCallback(): ((ray: THREE.Ray) => void) | null {
+    return this._onSelectCallback;
+  }
+
+  set onSelectCallback(cb: ((ray: THREE.Ray) => void) | null) {
+    this._onSelectCallback = cb;
+    this.dispatcher.setOnSelectCallback(cb ? (ray) => cb(ray) : null);
+  }
   onSystemToggle: (() => void) | null;
   onHandPinchEdge:
     | ((
@@ -164,9 +180,9 @@ export class InputRouter {
     this.onSelectCallback = null;
     this.onSystemToggle = null;
 
-    // Forward callbacks to the focused subsystems.
+    // Forward callbacks to the focused subsystems. The onSelectCallback
+    // setter keeps the dispatcher in sync (null when unset).
     this.systemDetector.onSystemToggle = () => this.onSystemToggle?.();
-    this.dispatcher.setOnSelectCallback((ray) => this.onSelectCallback?.(ray));
   }
 
   addController(controller: PointerLike): void {
