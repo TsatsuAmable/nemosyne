@@ -60,11 +60,12 @@ describe('Moneta hypothesis hard constraints', () => {
     const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'implicit-dimension-fp', 0);
     const requirements = createDefaultRequirements('overview', 'MEDIUM');
     const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+    const rankedCandidates = decision.rankedCandidates ?? [];
 
-    const density = decision.rankedCandidates.filter(
+    const density = rankedCandidates.filter(
       (candidate) => candidate.candidateId === 'DENSITY_FIELD'
     );
-    const distribution = decision.rankedCandidates.filter(
+    const distribution = rankedCandidates.filter(
       (candidate) => candidate.candidateId === 'DISTRIBUTION_FIELD'
     );
 
@@ -94,27 +95,16 @@ describe('Moneta hypothesis hard constraints', () => {
     requirements.primaryDimensions = ['units', 'revenue'];
 
     const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
-    const density = decision.rankedCandidates.filter(
+    const rankedCandidates = decision.rankedCandidates ?? [];
+    const density = rankedCandidates.filter(
       (candidate) => candidate.candidateId === 'DENSITY_FIELD'
     );
-    const distribution = decision.rankedCandidates.filter(
+    const distribution = rankedCandidates.filter(
       (candidate) => candidate.candidateId === 'DISTRIBUTION_FIELD'
     );
 
-    expect(
-      density.some(
-        (candidate) =>
-          !candidate.disqualified ||
-          candidate.disqualificationCode !== 'analytical-dimensions-required'
-      )
-    ).toBe(true);
-    expect(
-      distribution.some(
-        (candidate) =>
-          !candidate.disqualified ||
-          candidate.disqualificationCode !== 'analytical-dimensions-required'
-      )
-    ).toBe(true);
+    expect(density.length).toBeGreaterThan(0);
+    expect(distribution.length).toBeGreaterThan(0);
     expect(
       density.some((candidate) => candidate.disqualificationCode === 'analytical-dimensions-required')
     ).toBe(false);
@@ -133,7 +123,7 @@ describe('Moneta hypothesis hard constraints', () => {
       const requirements = createDefaultRequirements('overview', 'MEDIUM');
       requirements.primaryDimensions = primaryDimensions;
       const decision = engine.arbitrate(signature, requirements);
-      const density = decision.rankedCandidates.filter(
+      const density = (decision.rankedCandidates ?? []).filter(
         (candidate) => candidate.candidateId === 'DENSITY_FIELD'
       );
 
