@@ -3,13 +3,15 @@
  * Offline analyzer for UX traces recorded by UXTraceRecorder.
  *
  * Usage:
- *   node scripts/analyze-ux-trace.mjs [trace.jsonl] [--timeline] [--session SID]
+ *   node scripts/analyze-ux-trace.mjs [trace.jsonl|trace.json] [--timeline] [--session SID]
  *
- * Defaults to logs/ux-trace.jsonl. With multiple sessions in one file, each
- * session gets its own summary; --session restricts output to one.
+ * Defaults to logs/ux-trace.jsonl. Accepts legacy dev JSONL, legacy production
+ * export envelopes, and the versioned integrity-checked production envelope.
+ * Malformed/truncated evidence is rejected rather than silently skipped.
  *
  * Output per session:
  *   - duration + record counts
+ *   - trace completeness / integrity status
  *   - pinch outcome table (gating x what the ray actually hit)
  *   - selection hit/miss rates, misses while looking at a panel (aim errors)
  *   - head-gaze vs pointer-ray drift stats (median/p90) + target divergence
@@ -20,6 +22,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseUXTraceText, UXTraceInputError } from './lib/ux-trace-input.mjs';
 
 const args = process.argv.slice(2);
 const timelineFlag = args.includes('--timeline');
@@ -30,23 +33,22 @@ const fileArg = args.find((a) => !a.startsWith('--') && a !== sessionFilter);
 const file = path.resolve(fileArg ?? path.join('logs', 'ux-trace.jsonl'));
 if (!fs.existsSync(file)) {
   console.error(`Trace file not found: ${file}`);
-  console.error('Run a dev-server session first (UXTraceRecorder POSTs to /__ux-trace).');
+  console.error('Run a dev-server session or export a local UX trace first.');
   process.exit(1);
 }
 
-const lines = fs.readFileSync(file, 'utf-8').split('\n').filter((l) => l.trim());
-const records = [];
-for (const line of lines) {
-  try {
-    records.push(JSON.parse(line));
-  } catch {
-    // Skip malformed lines.
-  }
+let input;
+try {
+  input = parseUXTraceText(fs.readFileSync(file, 'utf-8'), { source: file });
+} catch (error) {
+  const message = error instanceof UXTraceInputError || error instanceof Error ? error.message : String(error);
+  console.error(`Invalid UX trace evidence: ${message}`);
+  process.exit(1);
 }
+const records = input.records;
 
 const sessions = new Map();
 for (const r of records) {
-  if (!r?.sid || typeof r.t !== 'number') continue;
   if (!sessions.has(r.sid)) sessions.set(r.sid, []);
   sessions.get(r.sid).push(r);
 }
@@ -54,6 +56,15 @@ for (const r of records) {
 if (sessions.size === 0) {
   console.error('No valid records found.');
   process.exit(1);
+}
+
+if (input.envelope) {
+  const env = input.envelope;
+  const schema = env.schemaVersion ?? 'legacy';
+  const integrity = input.integrityVerified ? 'verified' : 'unverified-legacy';
+  console.log(
+    `Input: ${input.format} | schema=${schema} | integrity=${integrity} | records=${records.length}`
+  );
 }
 
 const pct = (arr, p) => {
@@ -66,7 +77,7 @@ const fmtT = (t) => `${t.toFixed(1)}s`.padStart(8);
 
 for (const [sid, recs] of sessions) {
   if (sessionFilter && sid !== sessionFilter) continue;
-  recs.sort((a, b) => a.t - b.t);
+  recs.sort((a, b) => a.t - b.t || (a.seq ?? 0) - (b.seq ?? 0));
   const duration = recs.length > 1 ? recs[recs.length - 1].t - recs[0].t : 0;
 
   const byType = {};
@@ -83,6 +94,7 @@ for (const [sid, recs] of sessions) {
   const perfs = recs.filter((r) => r.type === 'perf');
   const frictions = recs.filter((r) => r.type === 'friction');
   const handsEvents = recs.filter((r) => r.type === 'hands');
+  const lifecycles = recs.filter((r) => r.type === 'trace-lifecycle');
   const meta = recs.find((r) => r.type === 'meta');
   const latestManifest = manifests.length > 0 ? manifests[manifests.length - 1] : null;
 
@@ -100,6 +112,44 @@ for (const [sid, recs] of sessions) {
         .map(([k, v]) => `${k}=${v}`)
         .join(' ')
   );
+
+  // --- Trace completeness / chain of custody ------------------------------
+  console.log('\n--- Trace completeness & integrity ---');
+  const env = input.envelope?.sid === sid ? input.envelope : null;
+  if (env?.schemaVersion === 1) {
+    console.log(
+      `  envelope: schema=v1 integrity=verified seq=${String(env.firstSeq)}..${String(env.lastSeq)} dropped=${env.droppedCount} traceOpen=${env.traceOpen}`
+    );
+    if (env.validationSession) {
+      console.log(
+        `  validation session: ${env.validationSession.label} / ${env.validationSession.id}`
+      );
+    }
+    if (env.buildHash) console.log(`  build: ${env.buildHash}`);
+  } else if (env) {
+    console.log('  envelope: legacy/unversioned (integrity cannot be verified)');
+  } else {
+    console.log('  input: legacy/dev record stream (no export-envelope digest)');
+  }
+
+  const lifecycleCounts = {};
+  for (const event of lifecycles) {
+    lifecycleCounts[event.event ?? 'unknown'] = (lifecycleCounts[event.event ?? 'unknown'] ?? 0) + 1;
+  }
+  if (lifecycles.length > 0) {
+    console.log(
+      `  lifecycle: ${Object.entries(lifecycleCounts)
+        .map(([event, count]) => `${event}=${count}`)
+        .join(' ')}`
+    );
+  } else {
+    console.log('  lifecycle: absent (legacy evidence)');
+  }
+  const dropMarkers = lifecycles.filter((r) => r.event === 'buffer-drop');
+  if (dropMarkers.length > 0) {
+    const latestDrop = dropMarkers[dropMarkers.length - 1];
+    console.log(`  ⚠ buffer truncation observed: cumulative dropped=${latestDrop.droppedCount ?? '?'}`);
+  }
 
   // --- UX Phenomenon Scorecard (UX-001 through UX-012) -------------------
   console.log('\n--- UX Phenomenon Scorecard (UX-001 - UX-012) ---');
