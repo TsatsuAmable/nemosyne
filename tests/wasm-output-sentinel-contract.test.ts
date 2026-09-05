@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 function source(path: string): string {
-  return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  // Coverage runs execute through Vite's transformed module environment, where
+  // import.meta.url is not guaranteed to remain a file:// URL. Resolve these
+  // repository-source contract assertions from the CI working directory.
+  return readFileSync(path, 'utf8');
 }
 
 describe('WASM serialized-output sentinel contract', () => {
