@@ -680,11 +680,11 @@ export class MonetaHypothesisEngine {
       typeof field === 'string' && field.length > 0 && field.trim() === field;
 
     if (candidate.id === 'DISTRIBUTION_FIELD') {
-      if (!isDeclaredDimension(declaredDimensions[0])) {
+      if (declaredDimensions.length !== 1 || !isDeclaredDimension(declaredDimensions[0])) {
         return {
           passed: false,
           reason:
-            'DISTRIBUTION_FIELD requires one explicit primary analytical dimension; dataset numeric-column availability is not analytical intent',
+            'DISTRIBUTION_FIELD requires exactly one explicit primary analytical dimension; dataset numeric-column availability is not analytical intent',
           code: 'analytical-dimensions-required',
         };
       }
@@ -694,6 +694,7 @@ export class MonetaHypothesisEngine {
       const fieldX = declaredDimensions[0];
       const fieldY = declaredDimensions[1];
       if (
+        declaredDimensions.length !== 2 ||
         !isDeclaredDimension(fieldX) ||
         !isDeclaredDimension(fieldY) ||
         fieldX === fieldY
@@ -701,7 +702,7 @@ export class MonetaHypothesisEngine {
         return {
           passed: false,
           reason:
-            'DENSITY_FIELD requires two explicit, distinct primary analytical dimensions; dataset numeric-column availability is not analytical intent',
+            'DENSITY_FIELD requires exactly two explicit, distinct primary analytical dimensions; dataset numeric-column availability is not analytical intent',
           code: 'analytical-dimensions-required',
         };
       }
