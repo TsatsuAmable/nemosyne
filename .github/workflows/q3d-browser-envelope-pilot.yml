@@ -1,10 +1,10 @@
 name: Q3D browser envelope pilot
 
+# Legacy resource-envelope measurement retained for explicit reproduction only.
+# The implementation branches this pilot originally targeted have landed, so
+# ordinary PRs should not emit a skipped Q3D check.
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -16,20 +16,16 @@ concurrency:
 jobs:
   browser-envelope:
     name: Decompose browser operation envelope
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.head_ref == 'fix/rf-061-derived-recompute-coalescing' ||
-      github.head_ref == 'fix/rf-061-q3e-refusal-settlement'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEMOSYNE_SOURCE_HEAD_SHA: ${{ github.sha }}
       NEMOSYNE_Q3D_ROW_COUNTS: '1000,8000,32000'
     steps:
       - name: Checkout exact measurement head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -68,7 +64,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Measure browser-side operation stages
+      - name: Measure browser operation envelope
         run: |
           /usr/bin/time -v -o q3d-results/probe-time.txt \
             env \
@@ -80,7 +76,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: q3d-browser-envelope-pilot
+          name: q3d-browser-envelope
           path: q3d-results
           if-no-files-found: warn
           retention-days: 7
