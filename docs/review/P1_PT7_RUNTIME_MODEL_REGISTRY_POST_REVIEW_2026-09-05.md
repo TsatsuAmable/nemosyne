@@ -28,6 +28,12 @@ The first filesystem artifact-store draft used one metadata record per content d
 
 **Fix:** immutable blobs are now stored once by SHA-256 while logical aliases are stored separately under hashed id/version keys. The same bytes can be reused safely; one logical id/version still cannot be rebound to different content. Reads verify both alias metadata and blob digest/length.
 
+### BLOCKER fixed: byte validation assumed one JavaScript realm
+
+The first artifact-store validator used `instanceof Uint8Array`. The full Vitest shard exercised the store across a separate JavaScript realm, where a genuine `Uint8Array` failed that identity test. The same failure mode can occur at browser/worker boundaries.
+
+**Fix:** byte validation now uses realm-safe `ArrayBuffer.isView` plus the intrinsic `[object Uint8Array]` tag. The store still refuses non-byte views, while accepting genuine typed byte arrays independently of their originating realm.
+
 ### BLOCKER fixed: operational MLOps state could have become a competing model authority
 
 PT7 model entries store immutable references to domain model artifacts plus training lineage. They do not carry gesture parameters, ranking weights, representation semantics or analytical meaning. Existing gesture-intelligence and FitnessModel/Moneta authorities remain canonical.
