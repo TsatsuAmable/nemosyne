@@ -44,6 +44,12 @@ export interface PortablePackageEnvironment {
   userAgent?: string | null;
   platform?: string | null;
   webxrSupported?: boolean | null;
+  /**
+   * Ordinary product exports omit browser identity because userAgent/platform
+   * are privacy-sensitive fingerprinting surfaces. Study/diagnostic workflows
+   * may opt in only when their consent/provenance contract explicitly requires it.
+   */
+  includePrivacySensitiveBrowserIdentity?: boolean;
 }
 
 export interface NemosyneSessionJSON extends AtlasCoreState {
@@ -162,6 +168,12 @@ export class NemosyneSession {
       nilOutcomes: nilOutcomes.outcomes,
       researchContext: this._researchContext,
     });
+    const includeBrowserIdentity = environment.includePrivacySensitiveBrowserIdentity === true;
+    const portableEnvironment: NemosynePackageManifest['environment'] = {
+      userAgent: includeBrowserIdentity ? environment.userAgent ?? null : null,
+      platform: includeBrowserIdentity ? environment.platform ?? null : null,
+      webxrSupported: environment.webxrSupported ?? null,
+    };
 
     const manifest: NemosynePackageManifest = {
       formatVersion: NEMOSYNE_PACKAGE_FORMAT_VERSION,
@@ -199,7 +211,7 @@ export class NemosyneSession {
         findingsCount: core.findings?.length ?? 0,
         annotationsCount: core.annotations?.length ?? 0,
       },
-      environment,
+      environment: portableEnvironment,
     };
 
     return NemosynePackageManager.pack({
