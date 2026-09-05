@@ -7,6 +7,10 @@ import {
 } from '../src/app/devTrace.ts';
 import { parseUXTraceText } from '../scripts/lib/ux-trace-input.mjs';
 import type { UXTraceRecorderOptions } from '../src/vr/trace/UXTraceRecorder.ts';
+import type {
+  SelectionDispatchInfo,
+  SelectionDispatchStartInfo,
+} from '../src/vr/input/SelectionDispatcher.ts';
 
 type Handler = (payload?: unknown) => void;
 
@@ -18,6 +22,18 @@ type ExportedTrace = {
   validationSession?: { label: string; id: string };
   integrity: { algorithm: string; payloadSha256: string };
   records: Array<Record<string, unknown>>;
+};
+
+const SELECTION_START: SelectionDispatchStartInfo = {
+  hudConsumed: false,
+  sceneMesh: null,
+  pointer: null,
+  rayValid: true,
+};
+
+const SELECTION_OUTCOME: SelectionDispatchInfo = {
+  ...SELECTION_START,
+  hadCallback: true,
 };
 
 function makeHarness(options: {
@@ -37,8 +53,12 @@ function makeHarness(options: {
       };
     },
   };
-  const getUIState = vi.fn(() => ({ panel: 'settings' }));
+  let panelState = 'settings';
+  const getUIState = vi.fn(() => ({ panel: panelState }));
   const fetchImpl = vi.fn(async () => ({ ok: true, status: 200 }));
+  const dispatcher: {
+    onDispatchStart: ((info: SelectionDispatchStartInfo) => void) | null;
+  } = { onDispatchStart: null };
   const engine = {
     camera: new THREE.PerspectiveCamera(),
     addUpdatable: vi.fn(),
@@ -47,6 +67,7 @@ function makeHarness(options: {
       hands: [],
       panels: [],
       interactables: [],
+      dispatcher,
     },
   };
   const recorderOptions: UXTraceRecorderOptions = {
@@ -67,8 +88,12 @@ function makeHarness(options: {
 
   return {
     recorder,
+    dispatcher,
     getUIState,
     fetchImpl,
+    setPanelState(value: string) {
+      panelState = value;
+    },
     emit(topic: string, payload?: unknown) {
       for (const handler of [...(handlers.get(topic) ?? [])]) handler(payload);
     },
@@ -126,6 +151,32 @@ describe('production UX trace consent policy', () => {
       )
     ).toBe(false);
     expect(getUIState).not.toHaveBeenCalled();
+  });
+
+  it('freezes selection context before scene/global callbacks can mutate UI state', () => {
+    const { recorder, dispatcher, exported, setPanelState } = makeHarness({ enabled: true });
+
+    setPanelState('before-selection');
+    dispatcher.onDispatchStart?.(SELECTION_START);
+    setPanelState('after-selection');
+    recorder.recordSelection(SELECTION_OUTCOME);
+
+    const selection = exported().records.find((record) => record.type === 'selection') as
+      | { ctx?: { ui?: Record<string, unknown> } }
+      | undefined;
+    expect(selection?.ctx?.ui).toMatchObject({ panel: 'before-selection' });
+  });
+
+  it('does not admit a selection outcome when the dispatch began before consent', () => {
+    const { recorder, dispatcher, exported, getUIState } = makeHarness({ enabled: false });
+
+    dispatcher.onDispatchStart?.(SELECTION_START);
+    expect(getUIState).not.toHaveBeenCalled();
+
+    recorder.setEnabled(true);
+    recorder.recordSelection(SELECTION_OUTCOME);
+
+    expect(exported().records.some((record) => record.type === 'selection')).toBe(false);
   });
 
   it('exports validation correlation only when label and id form one canonical valid pair', () => {
