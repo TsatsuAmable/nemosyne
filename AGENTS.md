@@ -10,7 +10,8 @@ Read these in order when they are relevant:
 2. `docs/ROADMAP.md` - live implementation status, current Streams A-D, collision rules, review findings, and programme order.
 3. `docs/ARCHITECTURE.md` - current technical reference, subordinate to the governing vision while migration is active.
 4. Executable configuration - `package.json`, `.github/workflows/*.yml`, `vitest*.config.ts`, `rust-toolchain.toml`, and source code are authoritative for commands, versions, thresholds, and runtime behavior.
-5. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` - documentation authority and lifecycle.
+5. `governance/production-capabilities.json` and `governance/production-readiness.json` - machine-readable production capability classification plus desired service/deployment/test-readiness obligations; these are subordinate to `docs/ROADMAP.md` for sequencing and completion claims.
+6. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` - documentation authority and lifecycle.
 
 **Executable configuration wins over duplicated prose facts.** Do not copy dependency versions, coverage thresholds, CI job topology, test counts, or other machine-readable values into agent instructions. If prose conflicts with executable configuration, fix or archive the prose.
 
@@ -120,6 +121,7 @@ Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requ
 - Historical reports and superseded plans belong under `docs/archive/`; historical stream names in retained review/evidence documents are provenance, not live ownership.
 - Do not create a new status document when the information belongs in `ROADMAP.md`, the findings ledger, an ADR, or an existing technical reference.
 - Do not duplicate executable facts in prose. Link to the source instead.
+- Service/deployment/test-readiness debt belongs in `governance/production-readiness.json`. Any PR that adds or materially changes a service boundary, production capability requiring a service, deployment dependency, or verification obligation must update that registry and regenerate `docs/PRODUCTION_READINESS.md`; deferral must be explicit rather than omitted.
 - Any change to a canonical document, agent contract, CI policy, or documentation authority must pass `npm run docs:check`.
 - When touching stale documentation, update it or clearly subordinate its status to `docs/ROADMAP.md` rather than preserving contradictory operational truth.
 

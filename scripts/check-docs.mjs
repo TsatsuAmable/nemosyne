@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { renderProductionReadiness } from './render-production-readiness.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -58,9 +59,23 @@ const requiredGovernance = [
   'docs/OWNERSHIP.md',
   'docs/RFC_PROCESS.md',
   'docs/architecture/decisions/README.md',
+  'governance/production-capabilities.json',
+  'governance/production-readiness.json',
+  'docs/PRODUCTION_READINESS.md',
 ];
 for (const file of requiredGovernance) {
   if (!existsSync(resolve(root, file))) fail(`missing governance file: ${file}`);
+}
+
+if (existsSync(resolve(root, 'docs/PRODUCTION_READINESS.md'))) {
+  try {
+    const expected = renderProductionReadiness(root);
+    if (read('docs/PRODUCTION_READINESS.md') !== expected) {
+      fail('docs/PRODUCTION_READINESS.md is stale; run node scripts/render-production-readiness.mjs --write');
+    }
+  } catch (error) {
+    fail(`production readiness projection failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 const instructionFiles = [
@@ -134,6 +149,7 @@ function checkMarkdownLinks(path) {
 
 for (const path of [
   'docs/PROJECT_DOCS_INDEX.md',
+  'docs/PRODUCTION_READINESS.md',
   'CONTRIBUTING.md',
   'SECURITY.md',
   'docs/OWNERSHIP.md',
@@ -150,4 +166,4 @@ if (failures.length > 0) {
 }
 
 console.log('DOCUMENTATION INTEGRITY PASSED');
-console.log('Manifest, governance files, ADR index, stale-instruction guards, and checked links are valid.');
+console.log('Manifest, governance files, readiness projection, ADR index, stale-instruction guards, and checked links are valid.');
