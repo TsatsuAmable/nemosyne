@@ -98,7 +98,7 @@ describe('UX trace lifecycle and export integrity', () => {
     expect(boundaries[1].datasetFingerprint).toBe('fp-b');
   });
 
-  it('exports a versioned canonical-SHA256 envelope directly accepted by the analyzer parser', () => {
+  it('exports the legacy v1 records-only integrity envelope for direct recorder users', () => {
     const recorder = makeRecorder(true);
     recorder.recordSessionManifest({
       buildHash: 'build-abc',
@@ -140,7 +140,9 @@ describe('UX trace lifecycle and export integrity', () => {
 
     const parsed = parseUXTraceText(payload, { source: 'recorder-export.json' });
     expect(parsed.format).toBe('envelope-v1');
-    expect(parsed.integrityVerified).toBe(true);
+    expect(parsed.integrityVerified).toBe(false);
+    expect(parsed.recordIntegrityVerified).toBe(true);
+    expect(parsed.integrityScope).toBe('records');
     expect(parsed.records).toEqual(envelope.records);
   });
 
