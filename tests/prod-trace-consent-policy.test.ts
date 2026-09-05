@@ -1,9 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { setupDevTraceRecorder } from '../src/app/devTrace.ts';
+import {
+  setupDevTraceRecorder,
+  UX_TRACE_APP_EXPORT_SCHEMA_VERSION,
+  UX_TRACE_APP_INTEGRITY_ALGORITHM,
+} from '../src/app/devTrace.ts';
+import { parseUXTraceText } from '../scripts/lib/ux-trace-input.mjs';
 import type { UXTraceRecorderOptions } from '../src/vr/trace/UXTraceRecorder.ts';
 
 type Handler = (payload?: unknown) => void;
+
+type ExportedTrace = {
+  schemaVersion: number;
+  recordCount: number;
+  droppedCount: number;
+  buildHash?: string;
+  validationSession?: { label: string; id: string };
+  integrity: { algorithm: string; payloadSha256: string };
+  records: Array<Record<string, unknown>>;
+};
 
 function makeHarness(options: {
   enabled?: boolean;
@@ -57,11 +72,8 @@ function makeHarness(options: {
     emit(topic: string, payload?: unknown) {
       for (const handler of [...(handlers.get(topic) ?? [])]) handler(payload);
     },
-    exported() {
-      return JSON.parse(recorder.exportJson()) as {
-        recordCount: number;
-        records: Array<Record<string, unknown>>;
-      };
+    exported(): ExportedTrace {
+      return JSON.parse(recorder.exportJson()) as ExportedTrace;
     },
   };
 }
@@ -125,22 +137,84 @@ describe('production UX trace consent policy', () => {
       validationSessionId: 'not-a-uuid',
     });
 
-    const invalidManifest = exported().records.find(
+    const invalidEnvelope = exported();
+    const invalidManifest = invalidEnvelope.records.find(
       (record) => record.type === 'session-manifest'
     );
     expect(invalidManifest?.buildHash).toBe('abc123');
     expect(invalidManifest).not.toHaveProperty('validationSessionLabel');
     expect(invalidManifest).not.toHaveProperty('validationSessionId');
+    expect(invalidEnvelope.buildHash).toBe('abc123');
+    expect(invalidEnvelope.validationSession).toBeUndefined();
 
     recorder.recordSessionManifest({
       validationSessionLabel: 'QV3-abc1234-20260905T170000',
       validationSessionId: '0d4862a0-2c79-4e86-8a71-af6c8d61ba2a',
     });
 
-    const manifests = exported().records.filter((record) => record.type === 'session-manifest');
+    const validEnvelope = exported();
+    const manifests = validEnvelope.records.filter((record) => record.type === 'session-manifest');
     const validManifest = manifests.at(-1);
     expect(validManifest?.validationSessionLabel).toBe('QV3-abc1234-20260905T170000');
     expect(validManifest?.validationSessionId).toBe('0d4862a0-2c79-4e86-8a71-af6c8d61ba2a');
+    expect(validEnvelope.validationSession).toEqual({
+      label: 'QV3-abc1234-20260905T170000',
+      id: '0d4862a0-2c79-4e86-8a71-af6c8d61ba2a',
+    });
+  });
+
+  it('emits v2 whole-envelope integrity on the real application composition path', () => {
+    const { recorder } = makeHarness({ enabled: true });
+    recorder.recordSessionManifest({
+      buildHash: 'build-abc',
+      validationSessionLabel: 'QV3-abc1234-20260905T170000',
+      validationSessionId: '0d4862a0-2c79-4e86-8a71-af6c8d61ba2a',
+    });
+
+    const payload = recorder.exportJson();
+    const envelope = JSON.parse(payload) as ExportedTrace;
+    expect(envelope.schemaVersion).toBe(UX_TRACE_APP_EXPORT_SCHEMA_VERSION);
+    expect(envelope.integrity.algorithm).toBe(UX_TRACE_APP_INTEGRITY_ALGORITHM);
+
+    const parsed = parseUXTraceText(payload, { source: 'policy-export.json' });
+    expect(parsed.format).toBe('envelope-v2');
+    expect(parsed.integrityVerified).toBe(true);
+    expect(parsed.integrityScope).toBe('envelope');
+  });
+
+  it('keeps build and validation attribution after the manifest record is evicted from the bounded ring', () => {
+    const { recorder } = makeHarness({ enabled: true });
+    recorder.recordSessionManifest({
+      buildHash: 'build-stable',
+      validationSessionLabel: 'QV3-abc1234-20260905T170000',
+      validationSessionId: '0d4862a0-2c79-4e86-8a71-af6c8d61ba2a',
+    });
+
+    for (let i = 0; i < 1105; i += 1) recorder.recordSessionManifest({});
+
+    const payload = recorder.exportJson();
+    const envelope = JSON.parse(payload) as ExportedTrace;
+    expect(envelope.droppedCount).toBeGreaterThan(0);
+    expect(
+      envelope.records.some(
+        (record) => record.type === 'session-manifest' && record.buildHash === 'build-stable'
+      )
+    ).toBe(false);
+    expect(envelope.buildHash).toBe('build-stable');
+    expect(envelope.validationSession).toEqual({
+      label: 'QV3-abc1234-20260905T170000',
+      id: '0d4862a0-2c79-4e86-8a71-af6c8d61ba2a',
+    });
+    expect(parseUXTraceText(payload, { source: 'truncated-policy-export.json' }).integrityVerified).toBe(
+      true
+    );
+  });
+
+  it('fails export closed if immutable build or validation attribution changes mid-trace', () => {
+    const { recorder } = makeHarness({ enabled: true });
+    recorder.recordSessionManifest({ buildHash: 'build-a' });
+    recorder.recordSessionManifest({ buildHash: 'build-b' });
+    expect(() => recorder.exportJson()).toThrow(/UX trace provenance conflict/);
   });
 
   it('keeps governed development tracing enabled when the production setting is toggled off', () => {

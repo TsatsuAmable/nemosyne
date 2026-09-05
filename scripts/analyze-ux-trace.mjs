@@ -6,8 +6,8 @@
  *   node scripts/analyze-ux-trace.mjs [trace.jsonl|trace.json] [--timeline] [--session SID]
  *
  * Defaults to logs/ux-trace.jsonl. Accepts legacy dev JSONL, legacy production
- * export envelopes, and the versioned integrity-checked production envelope.
- * Malformed/truncated evidence is rejected rather than silently skipped.
+ * export envelopes, v1 records-only integrity exports, and v2 whole-envelope
+ * integrity exports. Malformed/truncated evidence is rejected rather than silently skipped.
  *
  * Output per session:
  *   - duration + record counts
@@ -61,7 +61,12 @@ if (sessions.size === 0) {
 if (input.envelope) {
   const env = input.envelope;
   const schema = env.schemaVersion ?? 'legacy';
-  const integrity = input.integrityVerified ? 'verified' : 'unverified-legacy';
+  const integrity =
+    input.integrityScope === 'envelope'
+      ? 'verified-envelope'
+      : input.integrityScope === 'records'
+        ? 'verified-records-only'
+        : 'unverified';
   console.log(
     `Input: ${input.format} | schema=${schema} | integrity=${integrity} | records=${records.length}`
   );
@@ -116,9 +121,9 @@ for (const [sid, recs] of sessions) {
   // --- Trace completeness / chain of custody ------------------------------
   console.log('\n--- Trace completeness & integrity ---');
   const env = input.envelope?.sid === sid ? input.envelope : null;
-  if (env?.schemaVersion === 1) {
+  if (env?.schemaVersion === 2) {
     console.log(
-      `  envelope: schema=v1 integrity=verified seq=${String(env.firstSeq)}..${String(env.lastSeq)} dropped=${env.droppedCount} traceOpen=${env.traceOpen}`
+      `  envelope: schema=v2 integrity=verified-envelope seq=${String(env.firstSeq)}..${String(env.lastSeq)} dropped=${env.droppedCount} traceOpen=${env.traceOpen}`
     );
     if (env.validationSession) {
       console.log(
@@ -126,6 +131,17 @@ for (const [sid, recs] of sessions) {
       );
     }
     if (env.buildHash) console.log(`  build: ${env.buildHash}`);
+  } else if (env?.schemaVersion === 1) {
+    console.log(
+      `  envelope: schema=v1 integrity=verified-records-only seq=${String(env.firstSeq)}..${String(env.lastSeq)} dropped=${env.droppedCount} traceOpen=${env.traceOpen}`
+    );
+    console.log('  ⚠ v1 envelope attribution/build/drop metadata is outside the record digest');
+    if (env.validationSession) {
+      console.log(
+        `  validation session (unverified metadata): ${env.validationSession.label} / ${env.validationSession.id}`
+      );
+    }
+    if (env.buildHash) console.log(`  build (unverified metadata): ${env.buildHash}`);
   } else if (env) {
     console.log('  envelope: legacy/unversioned (integrity cannot be verified)');
   } else {

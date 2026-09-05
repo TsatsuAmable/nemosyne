@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 export const UX_TRACE_EXPORT_SCHEMA_VERSION = 1;
 export const UX_TRACE_INTEGRITY_ALGORITHM = 'NEMOSYNE_CANONICAL_JSON_SHA256_V1';
+export const UX_TRACE_APP_EXPORT_SCHEMA_VERSION = 2;
+export const UX_TRACE_APP_INTEGRITY_ALGORITHM = 'NEMOSYNE_UX_TRACE_ENVELOPE_SHA256_V2';
 
 export class UXTraceInputError extends Error {
   constructor(message) {
@@ -96,15 +98,101 @@ function validateRecordStream(records, source, expectedSid = null) {
   return validated;
 }
 
+function validateEnvelopeShape(envelope, records, source) {
+  if (!Number.isInteger(envelope.recordCount) || envelope.recordCount !== records.length) {
+    throw new UXTraceInputError(
+      `${source}: recordCount ${String(envelope.recordCount)} does not match records.length ${records.length}`
+    );
+  }
+  if (!Number.isInteger(envelope.droppedCount) || envelope.droppedCount < 0) {
+    throw new UXTraceInputError(`${source}: droppedCount must be a non-negative integer`);
+  }
+
+  const firstSeq = records.length > 0 && typeof records[0].seq === 'number' ? records[0].seq : null;
+  const lastSeq =
+    records.length > 0 && typeof records[records.length - 1].seq === 'number'
+      ? records[records.length - 1].seq
+      : null;
+  if (envelope.firstSeq !== firstSeq || envelope.lastSeq !== lastSeq) {
+    throw new UXTraceInputError(
+      `${source}: envelope sequence range ${String(envelope.firstSeq)}..${String(envelope.lastSeq)} does not match records ${String(firstSeq)}..${String(lastSeq)}`
+    );
+  }
+}
+
+function validateOptionalAttribution(envelope, source) {
+  if (envelope.buildHash !== undefined && (typeof envelope.buildHash !== 'string' || envelope.buildHash.length === 0)) {
+    throw new UXTraceInputError(`${source}: buildHash must be a non-empty string when present`);
+  }
+  if (envelope.validationSession !== undefined) {
+    if (
+      !isObject(envelope.validationSession) ||
+      typeof envelope.validationSession.label !== 'string' ||
+      envelope.validationSession.label.length === 0 ||
+      typeof envelope.validationSession.id !== 'string' ||
+      envelope.validationSession.id.length === 0
+    ) {
+      throw new UXTraceInputError(`${source}: validationSession must contain non-empty label and id strings`);
+    }
+  }
+}
+
+function verifyV1RecordsIntegrity(envelope, records, source) {
+  if (!isObject(envelope.integrity)) {
+    throw new UXTraceInputError(`${source}: versioned trace envelope requires integrity metadata`);
+  }
+  if (envelope.integrity.algorithm !== UX_TRACE_INTEGRITY_ALGORITHM) {
+    throw new UXTraceInputError(
+      `${source}: unsupported v1 integrity algorithm ${String(envelope.integrity.algorithm)}`
+    );
+  }
+  if (!/^[0-9a-f]{64}$/.test(envelope.integrity.recordsSha256 ?? '')) {
+    throw new UXTraceInputError(`${source}: integrity.recordsSha256 must be 64 lowercase hex characters`);
+  }
+  const actualDigest = canonicalSha256Hex(records);
+  if (actualDigest !== envelope.integrity.recordsSha256) {
+    throw new UXTraceInputError(
+      `${source}: trace record digest mismatch (expected ${envelope.integrity.recordsSha256}, computed ${actualDigest})`
+    );
+  }
+}
+
+function verifyV2EnvelopeIntegrity(envelope, source) {
+  if (!isObject(envelope.integrity)) {
+    throw new UXTraceInputError(`${source}: v2 trace envelope requires integrity metadata`);
+  }
+  if (envelope.integrity.algorithm !== UX_TRACE_APP_INTEGRITY_ALGORITHM) {
+    throw new UXTraceInputError(
+      `${source}: unsupported v2 integrity algorithm ${String(envelope.integrity.algorithm)}`
+    );
+  }
+  if (!/^[0-9a-f]{64}$/.test(envelope.integrity.payloadSha256 ?? '')) {
+    throw new UXTraceInputError(`${source}: integrity.payloadSha256 must be 64 lowercase hex characters`);
+  }
+
+  const { integrity: _integrity, ...payload } = envelope;
+  const actualDigest = canonicalSha256Hex(payload);
+  if (actualDigest !== envelope.integrity.payloadSha256) {
+    throw new UXTraceInputError(
+      `${source}: trace envelope digest mismatch (expected ${envelope.integrity.payloadSha256}, computed ${actualDigest})`
+    );
+  }
+}
+
 function normalizeEnvelope(envelope, source) {
   if (!Array.isArray(envelope.records)) {
     throw new UXTraceInputError(`${source}: trace envelope records must be an array`);
   }
 
-  const isVersioned = envelope.schemaVersion !== undefined;
-  if (isVersioned && envelope.schemaVersion !== UX_TRACE_EXPORT_SCHEMA_VERSION) {
+  const schemaVersion = envelope.schemaVersion;
+  const isVersioned = schemaVersion !== undefined;
+  if (
+    isVersioned &&
+    schemaVersion !== UX_TRACE_EXPORT_SCHEMA_VERSION &&
+    schemaVersion !== UX_TRACE_APP_EXPORT_SCHEMA_VERSION
+  ) {
     throw new UXTraceInputError(
-      `${source}: unsupported trace envelope schemaVersion ${String(envelope.schemaVersion)}`
+      `${source}: unsupported trace envelope schemaVersion ${String(schemaVersion)}`
     );
   }
 
@@ -115,73 +203,65 @@ function normalizeEnvelope(envelope, source) {
 
   const records = validateRecordStream(envelope.records, source, expectedSid);
 
-  if (isVersioned) {
-    if (!Number.isInteger(envelope.recordCount) || envelope.recordCount !== records.length) {
-      throw new UXTraceInputError(
-        `${source}: recordCount ${String(envelope.recordCount)} does not match records.length ${records.length}`
-      );
-    }
-    if (!Number.isInteger(envelope.droppedCount) || envelope.droppedCount < 0) {
-      throw new UXTraceInputError(`${source}: droppedCount must be a non-negative integer`);
-    }
-
-    const firstSeq = records.length > 0 && typeof records[0].seq === 'number' ? records[0].seq : null;
-    const lastSeq =
-      records.length > 0 && typeof records[records.length - 1].seq === 'number'
-        ? records[records.length - 1].seq
-        : null;
-    if (envelope.firstSeq !== firstSeq || envelope.lastSeq !== lastSeq) {
-      throw new UXTraceInputError(
-        `${source}: envelope sequence range ${String(envelope.firstSeq)}..${String(envelope.lastSeq)} does not match records ${String(firstSeq)}..${String(lastSeq)}`
-      );
-    }
-
-    if (!isObject(envelope.integrity)) {
-      throw new UXTraceInputError(`${source}: versioned trace envelope requires integrity metadata`);
-    }
-    if (envelope.integrity.algorithm !== UX_TRACE_INTEGRITY_ALGORITHM) {
-      throw new UXTraceInputError(
-        `${source}: unsupported integrity algorithm ${String(envelope.integrity.algorithm)}`
-      );
-    }
-    if (!/^[0-9a-f]{64}$/.test(envelope.integrity.recordsSha256 ?? '')) {
-      throw new UXTraceInputError(`${source}: integrity.recordsSha256 must be 64 lowercase hex characters`);
-    }
-    const actualDigest = canonicalSha256Hex(records);
-    if (actualDigest !== envelope.integrity.recordsSha256) {
-      throw new UXTraceInputError(
-        `${source}: trace record digest mismatch (expected ${envelope.integrity.recordsSha256}, computed ${actualDigest})`
-      );
-    }
+  if (!isVersioned) {
+    return {
+      records,
+      format: 'legacy-envelope',
+      envelope,
+      integrityVerified: false,
+      recordIntegrityVerified: false,
+      integrityScope: 'none',
+    };
   }
 
+  validateEnvelopeShape(envelope, records, source);
+  validateOptionalAttribution(envelope, source);
+
+  if (schemaVersion === UX_TRACE_EXPORT_SCHEMA_VERSION) {
+    verifyV1RecordsIntegrity(envelope, records, source);
+    return {
+      records,
+      format: 'envelope-v1',
+      envelope,
+      // V1 authenticates records only. Attribution/build/drop metadata is not
+      // covered by the digest and therefore must not be called fully verified.
+      integrityVerified: false,
+      recordIntegrityVerified: true,
+      integrityScope: 'records',
+    };
+  }
+
+  verifyV2EnvelopeIntegrity(envelope, source);
   return {
     records,
-    format: isVersioned ? 'envelope-v1' : 'legacy-envelope',
+    format: 'envelope-v2',
     envelope,
-    integrityVerified: isVersioned,
+    integrityVerified: true,
+    recordIntegrityVerified: true,
+    integrityScope: 'envelope',
+  };
+}
+
+function unverifiedResult(records, format, envelope = null) {
+  return {
+    records,
+    format,
+    envelope,
+    integrityVerified: false,
+    recordIntegrityVerified: false,
+    integrityScope: 'none',
   };
 }
 
 function normalizeJsonValue(value, source) {
   if (Array.isArray(value)) {
-    return {
-      records: validateRecordStream(value, source),
-      format: 'json-array',
-      envelope: null,
-      integrityVerified: false,
-    };
+    return unverifiedResult(validateRecordStream(value, source), 'json-array');
   }
   if (isObject(value) && Array.isArray(value.records)) {
     return normalizeEnvelope(value, source);
   }
   if (isObject(value)) {
-    return {
-      records: validateRecordStream([value], source),
-      format: 'json-record',
-      envelope: null,
-      integrityVerified: false,
-    };
+    return unverifiedResult(validateRecordStream([value], source), 'json-record');
   }
   throw new UXTraceInputError(`${source}: top-level JSON must be a record, record array, or trace envelope`);
 }
@@ -191,7 +271,8 @@ function normalizeJsonValue(value, source) {
  * - dev JSONL (one record per line),
  * - JSONL batches/envelopes containing records[],
  * - legacy production export envelopes from PR #674,
- * - versioned integrity-checked export envelopes.
+ * - v1 records-only integrity envelopes,
+ * - v2 whole-envelope integrity exports from application composition.
  *
  * Malformed/truncated input is rejected explicitly. Evidence is never silently
  * repaired by dropping invalid lines or records.
@@ -230,10 +311,5 @@ export function parseUXTraceText(text, { source = 'UX trace input' } = {}) {
     }
   }
 
-  return {
-    records: validateRecordStream(records, source),
-    format: 'jsonl',
-    envelope: null,
-    integrityVerified: false,
-  };
+  return unverifiedResult(validateRecordStream(records, source), 'jsonl');
 }

@@ -27,39 +27,35 @@ describe('SelectionDispatcher', () => {
     );
   });
 
-  it('reports hadCallback:false and rayValid for empty-space selections without a callback', () => {
+  it('reports hadCallback:false and strict rayValid for empty-space selections without a callback', () => {
     const registry = new InteractableRegistry();
     const dispatcher = new SelectionDispatcher(registry);
     const onDispatch = vi.fn();
     dispatcher.onDispatch = onDispatch;
 
-    // Degenerate direction (tracking loss): finite origin but no direction.
-    dispatcher.triggerSelect({
-      getRay: () => {
-        const ray = new THREE.Ray();
-        ray.origin.set(0, 1.6, 0);
-        ray.direction.set(0, 0, 0);
-        return ray;
-      },
-    });
+    const invalidRays = [
+      new THREE.Ray(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(0, 0, 0)),
+      new THREE.Ray(new THREE.Vector3(0, Number.NaN, 0), new THREE.Vector3(0, 0, -1)),
+      new THREE.Ray(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(Number.POSITIVE_INFINITY, 0, -1)),
+    ];
 
-    expect(onDispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        hudConsumed: false,
-        sceneMesh: null,
-        hadCallback: false,
-        rayValid: false,
-      })
-    );
+    for (const invalidRay of invalidRays) {
+      onDispatch.mockClear();
+      dispatcher.triggerSelect({ getRay: () => invalidRay });
+      expect(onDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hudConsumed: false,
+          sceneMesh: null,
+          hadCallback: false,
+          rayValid: false,
+        })
+      );
+    }
 
     onDispatch.mockClear();
     dispatcher.triggerSelect({
-      getRay: () => {
-        const ray = new THREE.Ray();
-        ray.origin.set(0, 1.6, 0);
-        ray.direction.set(0, 0, -1);
-        return ray;
-      },
+      getRay: () =>
+        new THREE.Ray(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(0, 0, -1)),
     });
 
     expect(onDispatch).toHaveBeenCalledWith(
@@ -68,5 +64,37 @@ describe('SelectionDispatcher', () => {
         rayValid: true,
       })
     );
+  });
+
+  it('does not claim a callback ran when HUD consumption prevents selection callbacks', () => {
+    const registry = new InteractableRegistry();
+    vi.spyOn(registry, 'dispatchHudClick').mockReturnValue(true);
+    const selectCallback = vi.fn();
+    const dispatcher = new SelectionDispatcher(registry, { onSelectCallback: selectCallback });
+    const onDispatch = vi.fn();
+    dispatcher.onDispatch = onDispatch;
+
+    dispatcher.triggerSelect({ getRay: () => new THREE.Ray() });
+
+    expect(selectCallback).not.toHaveBeenCalled();
+    expect(onDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ hudConsumed: true, hadCallback: false })
+    );
+  });
+
+  it('does not emit a successful dispatch record when the callback throws', () => {
+    const registry = new InteractableRegistry();
+    const dispatcher = new SelectionDispatcher(registry, {
+      onSelectCallback: () => {
+        throw new Error('selection failed');
+      },
+    });
+    const onDispatch = vi.fn();
+    dispatcher.onDispatch = onDispatch;
+
+    expect(() => dispatcher.triggerSelect({ getRay: () => new THREE.Ray() })).toThrow(
+      'selection failed'
+    );
+    expect(onDispatch).not.toHaveBeenCalled();
   });
 });
