@@ -1,8 +1,9 @@
 # Participant-Facing UI Treatment Declaration
 
 **Treatment identity (`uiTreatmentVersion`):** `panel-layout/5+intent-wheel/1+frames/body-stable`
-**Declared:** 5 September 2026 · **Authority:** decision record
-`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` revisions 1–5 · **Vision basis:**
+**Declared:** 5 September 2026 · **Authority:** decision records
+`docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` revisions 1–4 plus
+`docs/decisions/VR_PANEL_BODY_FRAME_REVISION_5.md` · **Vision basis:**
 `Nemosyne_Definitive_Vision_and_Roadmap.md` §14 (research safeguards) and §15
 (UI / Analyst Cockpit).
 
