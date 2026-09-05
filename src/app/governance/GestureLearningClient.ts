@@ -2,7 +2,7 @@ import type {
   GestureLearningCaptureAuthorizationRequestV1,
   GestureLearningCaptureAuthorizationV1,
   GestureLearningEventDispositionV1,
-} from '../../governance-service/GestureLearningGovernance.ts';
+} from '../../governance/index.ts';
 import type { GestureLearningGovernanceTransportV1 } from '../../vr/input/GovernedGestureCaptureUploader.ts';
 
 export interface GestureLearningBearerProviderV1 {
