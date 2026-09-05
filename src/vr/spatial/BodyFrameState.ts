@@ -7,15 +7,25 @@ interface BodyFrameRuntimeState {
 
 const BODY_FRAME_STATE_KEY = 'nemosyneBodyFrameState';
 
+type BodyFrameCarrier = THREE.Object3D & {
+  userData?: Record<string, unknown>;
+};
+
 function ensureState(group: THREE.Object3D): BodyFrameRuntimeState {
-  const existing = group.userData[BODY_FRAME_STATE_KEY] as BodyFrameRuntimeState | undefined;
+  // Production callers are Three.js Object3D instances and always expose
+  // `userData`. Several long-standing unit tests intentionally pass structural
+  // Group-like doubles, though, so keep this coordination seam structural too
+  // instead of making panel construction depend on a fully-instantiated Group.
+  const carrier = group as BodyFrameCarrier;
+  const userData = carrier.userData ?? (carrier.userData = {});
+  const existing = userData[BODY_FRAME_STATE_KEY] as BodyFrameRuntimeState | undefined;
   if (existing) return existing;
 
   const state: BodyFrameRuntimeState = {
     activePanelDrags: 0,
     viewerTargetLocal: [0, 0, 0],
   };
-  group.userData[BODY_FRAME_STATE_KEY] = state;
+  userData[BODY_FRAME_STATE_KEY] = state;
   return state;
 }
 
