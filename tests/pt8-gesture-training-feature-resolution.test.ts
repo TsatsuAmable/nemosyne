@@ -87,7 +87,7 @@ function transportFor(
   governance: SqliteGestureLearningGovernanceV1,
   principal: Readonly<{ issuer: string; subject: string }>,
 ): GestureLearningGovernanceTransportV1 {
-  return Object.freeze({
+  return Object.freeze<GestureLearningGovernanceTransportV1>({
     async authorizeCapture(request) {
       return governance.authorizeCapture(principal, request);
     },
