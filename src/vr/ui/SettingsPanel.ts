@@ -287,7 +287,6 @@ export class SettingsPanel extends SpatialPanel {
     );
     this.name = 'settings-panel';
 
-    // Scale uikit pixels to world metres.
     this.scale.setScalar(PANEL_WORLD_WIDTH / PANEL_WIDTH);
 
     this.onChange = options.onChange ?? (() => {});
@@ -312,7 +311,6 @@ export class SettingsPanel extends SpatialPanel {
     this.defaultPosition = new THREE.Vector3(pos[0], pos[1], pos[2]);
     this.position.copy(this.defaultPosition);
 
-    // Header
     const header = new Text({
       text: '// SETTINGS',
       fontSize: 22 * this._textScale,
@@ -322,7 +320,6 @@ export class SettingsPanel extends SpatialPanel {
     this.add(header);
     this._headerText = header;
 
-    // Scrollable settings list
     this._contentContainer = new ScrollContainer({
       scrollHeight: PANEL_HEIGHT - 120,
       flexGrow: 1,
@@ -330,12 +327,8 @@ export class SettingsPanel extends SpatialPanel {
     this.add(this._contentContainer);
 
     this._buildContent();
-
-    // Footer: review-bundle export + exit VR
     this._buildFooter(palette);
   }
-
-  // --- Public data contract (preserved) ---
 
   static _palette(highContrast: boolean, colorblindMode: string): Palette {
     const theme = getTheme(highContrast);
@@ -352,14 +345,33 @@ export class SettingsPanel extends SpatialPanel {
     };
   }
 
+  /**
+   * Governed development/Quest validation tracing is intentionally always on.
+   * The privacy UI must reflect that effective policy instead of persisting an
+   * impossible off-state while the recorder continues collecting evidence.
+   */
+  private _effectiveSetting<K extends keyof SettingsMap & string>(
+    key: K,
+    value: SettingsMap[K]
+  ): SettingsMap[K] {
+    if (key === 'prodTraceEnabled' && import.meta.env.DEV) {
+      return true as SettingsMap[K];
+    }
+    return value;
+  }
+
   private _loadSettings(): SettingsMap {
     try {
       const raw = localStorage.getItem(SettingsPanel.STORAGE_KEY);
-      return raw
+      const loaded = raw
         ? { ...SettingsPanel.DEFAULTS, ...(JSON.parse(raw) as Partial<SettingsMap>) }
         : { ...SettingsPanel.DEFAULTS };
+      if (import.meta.env.DEV) loaded.prodTraceEnabled = true;
+      return loaded;
     } catch {
-      return { ...SettingsPanel.DEFAULTS };
+      const loaded = { ...SettingsPanel.DEFAULTS };
+      if (import.meta.env.DEV) loaded.prodTraceEnabled = true;
+      return loaded;
     }
   }
 
@@ -373,16 +385,16 @@ export class SettingsPanel extends SpatialPanel {
 
   setSetting<K extends keyof SettingsMap & string>(key: K, value: SettingsMap[K]): void {
     if (!(key in this.settings)) return;
-    this.settings[key] = value;
+    const effectiveValue = this._effectiveSetting(key, value);
+    this.settings[key] = effectiveValue;
     this._saveSettings();
-    // Keep the bound control in sync without re-triggering its own onChange.
     const control = this._controls.get(key);
     if (control) {
-      if (control instanceof Toggle) control.value = Boolean(value);
-      else if (control instanceof Slider) control.value = Number(value);
-      else if (control instanceof SegmentedControl) control.value = String(value);
+      if (control instanceof Toggle) control.value = Boolean(effectiveValue);
+      else if (control instanceof Slider) control.value = Number(effectiveValue);
+      else if (control instanceof SegmentedControl) control.value = String(effectiveValue);
     }
-    this.onChange(key, value);
+    this.onChange(key, effectiveValue);
   }
 
   getSetting<K extends keyof SettingsMap & string>(key: K): SettingsMap[K] {
@@ -393,11 +405,6 @@ export class SettingsPanel extends SpatialPanel {
     return { ...this.settings };
   }
 
-  /**
-   * Ordered, de-duplicated section headings the panel renders (the spatial
-   * zonation taxonomy). Exposed so external tooling and tests can verify the
-   * legibility hierarchy without reaching into the rendered component tree.
-   */
   getSettingSections(): readonly string[] {
     const seen = new Set<string>();
     const sections: string[] = [];
@@ -410,16 +417,11 @@ export class SettingsPanel extends SpatialPanel {
     return sections;
   }
 
-  /** Section heading a given setting key is grouped under, if it exists. */
   getSettingSection(key: string): string | undefined {
     return SETTINGS.find((d) => d.key === key)?.section;
   }
 
-  // --- Lifecycle ---
-
   show(): void {
-    // Register with the workspace budget (role: primary) so the live runtime
-    // mediates coexistence with other SpatialPanel surfaces.
     this._budgetController?.open(this, 'primary');
     this.visible = true;
     this.position.copy(this.defaultPosition);
@@ -436,7 +438,6 @@ export class SettingsPanel extends SpatialPanel {
     else this.show();
   }
 
-  /** Orient toward the viewer each frame (mirrors the MovablePanel behaviour). */
   update(delta?: number): void {
     if (!this.visible) return;
     super.update(delta ?? 0);
@@ -461,18 +462,13 @@ export class SettingsPanel extends SpatialPanel {
     if (reduceMotion != null && this.settings.reducedMotion !== reduceMotion) {
       this.settings.reducedMotion = reduceMotion;
       this._saveSettings();
-      // Notify controls
       const control = this._controls.get('reducedMotion');
       if (control instanceof Toggle) control.value = reduceMotion;
     }
 
     if (themeChanged) {
-      // A chrome/colour rebuild is safe — these settings are click-triggered, so
-      // no Slider drag is in progress on the panel when this fires.
       this._rebuildForTheme();
     } else if (textScale != null) {
-      // Live font-size update without rebuilding, so a textScale drag is not
-      // interrupted by a tree reconstruction that would drop pointer capture.
       this._applyTextScale();
     }
   }
@@ -485,8 +481,6 @@ export class SettingsPanel extends SpatialPanel {
     this._labelTexts = [];
     super.dispose();
   }
-
-  // --- Content construction ---
 
   private _buildContent(): void {
     this._contentContainer.clear();
@@ -522,9 +516,6 @@ export class SettingsPanel extends SpatialPanel {
       this._contentContainer.add(row);
     }
 
-    // Re-track the panel header so a textScale change rescales it too; it is
-    // built once in the constructor and is not recreated here, but `_buildContent`
-    // clears `_labelTexts`, so it must be re-registered after each rebuild.
     this._labelTexts.push({ node: this._headerText, baseSize: 22 });
   }
 
@@ -554,7 +545,6 @@ export class SettingsPanel extends SpatialPanel {
       return slider;
     }
 
-    // choice
     const segmented = new SegmentedControl({
       options: desc.choices ?? [],
       value: String(value),
@@ -571,7 +561,6 @@ export class SettingsPanel extends SpatialPanel {
       paddingX: SPACING_TOKENS.grid.x4,
     });
 
-    // Review-bundle row: privacy-level toggle + export button.
     const exportRow = new Container({
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -601,9 +590,7 @@ export class SettingsPanel extends SpatialPanel {
     exportRow.add(this._privacyToggle);
     exportRow.add(this._exportButton);
     footer.add(exportRow);
-    // UX-trace row: user-initiated local download of the in-memory trace
-    // buffer. The exporter is a lazy closure so the panel never holds trace
-    // data itself; nothing is transmitted.
+
     const traceRow = new Container({
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -626,7 +613,6 @@ export class SettingsPanel extends SpatialPanel {
     traceRow.add(this._exportTraceButton);
     footer.add(traceRow);
 
-    // Exit VR button.
     this._exitButton = new Button({
       label: 'EXIT IMMERSIVE VR',
       variant: 'danger',
@@ -643,10 +629,7 @@ export class SettingsPanel extends SpatialPanel {
       backgroundColor: palette.bg,
       borderColor: palette.border,
     });
-    // Rebuild the settings list and footer so labels, section headers and
-    // chrome pick up the new palette. Controls retain their token colours.
     this._buildContent();
-    // Footer carries its own label text; rebuild it by removing and re-adding.
     if (this.children.length > 0) {
       const last = this.children[this.children.length - 1];
       if (last instanceof Container && !(last instanceof ScrollContainer)) {
