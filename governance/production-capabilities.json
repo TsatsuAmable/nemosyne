@@ -18,6 +18,11 @@
       "reason": "Product-intended server substrate with PostgreSQL/OIDC composition but no runnable repository service entrypoint or deployed service evidence yet; P1-W service wiring must promote it deliberately."
     },
     {
+      "root": "learning",
+      "classification": "development-only",
+      "reason": "PT6D training-snapshot materialisation and held-out evaluation are governed offline learning infrastructure; PT7/PT8 must add reproducible jobs, registry lineage and an intentionally promoted runtime before this root can be production-classified."
+    },
+    {
       "root": "judgement",
       "classification": "development-only",
       "reason": "Pairwise representation judgement capture and dataset construction currently serve learned-fitness research rather than the ordinary investigator runtime."
