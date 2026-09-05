@@ -51,13 +51,13 @@
       "id": "learning-plane-jobs",
       "planes": ["learning"],
       "targetState": "REPRODUCIBLE_GOVERNED_JOBS",
-      "implementationState": "PLANNED",
+      "implementationState": "REGISTRY_AND_JOB_CONTRACTS_READY",
       "deploymentState": "NOT_REQUIRED_YET",
-      "verificationState": "MISSING",
+      "verificationState": "REPOSITORY_PARTIAL",
       "roadmapRefs": ["PT6", "PT7", "PT8", "PT9"],
       "capabilityRefs": ["learned-fitness-training"],
-      "sources": ["src/fitness", "src/judgement"],
-      "summary": "Future governed training-snapshot, evaluation, registry and staged-promotion jobs. Current process-local research machinery is intentionally not promoted into an operational learning service by inertia.",
+      "sources": ["src/learning", "src/fitness", "src/judgement"],
+      "summary": "PT6/PT7 now provide governed user-disjoint snapshots, held-out evaluation artifacts, content-addressed learning artifacts, exact runtime/model registry lineage, reproducible job manifests/receipts, signed staged deployment manifests and rollback metadata. PT8/PT9 still own concrete model-update loops and model-specific qualification evidence; no deployed learning service is claimed.",
       "obligationRefs": ["RDO-011", "RDO-012", "RDO-013"]
     }
   ],
@@ -143,24 +143,25 @@
       "id": "RDO-011",
       "serviceRef": "learning-plane-jobs",
       "kind": "AUTOMATED",
-      "state": "MISSING",
-      "expectedEvidence": ["tests/pt6-training-snapshot-governance.test.ts"],
-      "closure": "Build immutable user-disjoint training snapshots with consent scope, label provenance, dataset identity and reproducible manifest checks."
+      "state": "GREEN",
+      "evidence": ["tests/pt6d-gesture-training-snapshot-materialization.test.ts", "tests/pt6d-gesture-evaluation-report.test.ts"],
+      "closure": "Keep immutable user-disjoint training snapshots and held-out evaluation artifacts bound to governed consent, label provenance and exact source identity."
     },
     {
       "id": "RDO-012",
       "serviceRef": "learning-plane-jobs",
       "kind": "AUTOMATED",
-      "state": "MISSING",
-      "expectedEvidence": ["tests/pt7-runtime-model-registry.test.ts"],
-      "closure": "Prove exact artifact lineage, reproducible job inputs, model/runtime registry identity and rollback metadata before promotion workflows are product-composed."
+      "state": "GREEN",
+      "evidence": ["tests/pt7-runtime-model-registry.test.ts"],
+      "closure": "Keep exact artifact lineage, reproducible job inputs/receipts, runtime/model registry identity, signed staged deployment and rollback metadata fail-closed."
     },
     {
       "id": "RDO-013",
       "serviceRef": "learning-plane-jobs",
       "kind": "MANUAL",
-      "state": "MISSING",
-      "closure": "Define and review staged shadow/canary/promotion evidence for gesture and Moneta learning loops, including held-out groups, known-answer falsifiers, abstention/stability gates and human promotion authority."
+      "state": "GREEN",
+      "evidence": ["docs/review-plans/P1_PT7_RUNTIME_MODEL_REGISTRY_2026-09-05.md", "docs/review/P1_PT7_RUNTIME_MODEL_REGISTRY_POST_REVIEW_2026-09-05.md"],
+      "closure": "Keep the staged shadow/canary/production/rollback review contract explicit: model-specific held-out evidence, known-answer/failure/stability evidence, abstention/coverage where applicable, and signed human promotion authority remain prerequisites rather than an automatic scalar gate."
     }
   ]
 }

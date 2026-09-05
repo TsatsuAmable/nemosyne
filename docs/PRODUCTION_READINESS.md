@@ -17,7 +17,7 @@
 | governance-service | product, data | RUNNABLE_AND_DEPLOYABLE | IMPLEMENTATION_INCOMPLETE | DEFERRED_BY_POLICY | REPOSITORY_PARTIAL | PT4, P1-W |
 | collaboration-signalling-service | realtime | RUNNABLE_AND_DEPLOYABLE | READY_TO_DEPLOY | DEFERRED_BY_POLICY | REPOSITORY_VERIFIED | RF-054, P1-W1 |
 | production-live-source-contract | data | CONFIGURABLE_EXTERNAL_SOURCE | CLIENT_READY | DEFERRED_BY_POLICY | REPOSITORY_PARTIAL | RF-054, P1-W |
-| learning-plane-jobs | learning | REPRODUCIBLE_GOVERNED_JOBS | PLANNED | NOT_REQUIRED_YET | MISSING | PT6, PT7, PT8, PT9 |
+| learning-plane-jobs | learning | REPRODUCIBLE_GOVERNED_JOBS | REGISTRY_AND_JOB_CONTRACTS_READY | NOT_REQUIRED_YET | REPOSITORY_PARTIAL | PT6, PT7, PT8, PT9 |
 
 ### governance-service
 
@@ -51,9 +51,9 @@ Production live ingest is a configured external-source contract. The bundled /__
 
 ### learning-plane-jobs
 
-Future governed training-snapshot, evaluation, registry and staged-promotion jobs. Current process-local research machinery is intentionally not promoted into an operational learning service by inertia.
+PT6/PT7 now provide governed user-disjoint snapshots, held-out evaluation artifacts, content-addressed learning artifacts, exact runtime/model registry lineage, reproducible job manifests/receipts, signed staged deployment manifests and rollback metadata. PT8/PT9 still own concrete model-update loops and model-specific qualification evidence; no deployed learning service is claimed.
 
-**Sources:** `src/fitness`, `src/judgement`
+**Sources:** `src/learning`, `src/fitness`, `src/judgement`
 
 **Capability refs:** `learned-fitness-training`
 
@@ -73,9 +73,9 @@ Future governed training-snapshot, evaluation, registry and staged-promotion job
 | RDO-008 | production-live-source-contract | AUTOMATED | GREEN | `tests/rf062f-feature-ports-production-path.test.ts` | Keep configured live-source adapters on the governed production path without silently depending on the bundled development stream. |
 | RDO-009 | production-live-source-contract | MANUAL | GREEN | `dev/demo-stream-server.ts` | Keep /__demo-stream explicitly classified as a development fixture rather than a production service claim. This is a classification assertion, not an executable production-service test. |
 | RDO-010 | production-live-source-contract | EXTERNAL_SERVICE | DEFERRED_BY_POLICY | — | When a real production live source is selected, exercise a clean configured source journey and capture endpoint, reconnect, parsing, bounded-ingest and failure evidence. |
-| RDO-011 | learning-plane-jobs | AUTOMATED | MISSING | expected: `tests/pt6-training-snapshot-governance.test.ts` | Build immutable user-disjoint training snapshots with consent scope, label provenance, dataset identity and reproducible manifest checks. |
-| RDO-012 | learning-plane-jobs | AUTOMATED | MISSING | expected: `tests/pt7-runtime-model-registry.test.ts` | Prove exact artifact lineage, reproducible job inputs, model/runtime registry identity and rollback metadata before promotion workflows are product-composed. |
-| RDO-013 | learning-plane-jobs | MANUAL | MISSING | — | Define and review staged shadow/canary/promotion evidence for gesture and Moneta learning loops, including held-out groups, known-answer falsifiers, abstention/stability gates and human promotion authority. |
+| RDO-011 | learning-plane-jobs | AUTOMATED | GREEN | `tests/pt6d-gesture-training-snapshot-materialization.test.ts`, `tests/pt6d-gesture-evaluation-report.test.ts` | Keep immutable user-disjoint training snapshots and held-out evaluation artifacts bound to governed consent, label provenance and exact source identity. |
+| RDO-012 | learning-plane-jobs | AUTOMATED | GREEN | `tests/pt7-runtime-model-registry.test.ts` | Keep exact artifact lineage, reproducible job inputs/receipts, runtime/model registry identity, signed staged deployment and rollback metadata fail-closed. |
+| RDO-013 | learning-plane-jobs | MANUAL | GREEN | `docs/review-plans/P1_PT7_RUNTIME_MODEL_REGISTRY_2026-09-05.md`, `docs/review/P1_PT7_RUNTIME_MODEL_REGISTRY_POST_REVIEW_2026-09-05.md` | Keep the staged shadow/canary/production/rollback review contract explicit: model-specific held-out evidence, known-answer/failure/stability evidence, abstention/coverage where applicable, and signed human promotion authority remain prerequisites rather than an automatic scalar gate. |
 
 ## State semantics
 
