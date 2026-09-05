@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { PointerRayFilter } from './PointerRayFilter.ts';
+import { isUsablePointerRay } from './pointerRayValidity.ts';
 import type { EngineLike, PointerLike } from '../coordinators/types.ts';
 
 interface FallbackPointer extends PointerLike {
@@ -131,15 +132,19 @@ export class PointerRegistry {
     const activeHand = this.getBestHand();
     if (activeHand) {
       const ray = activeHand.getRay(new THREE.Ray());
-      if (Number.isFinite(ray.origin.x) && ray.direction.lengthSq() > 0) {
-        return this.smoothingEnabled ? this.getRayFilter(activeHand).filter(ray, timestamp) : ray;
+      if (isUsablePointerRay(ray)) {
+        const resolved = this.smoothingEnabled
+          ? this.getRayFilter(activeHand).filter(ray, timestamp)
+          : ray;
+        if (isUsablePointerRay(resolved)) return resolved;
       }
     }
 
     for (const c of this.controllers) {
       const ray = c.getRay(new THREE.Ray());
-      if (Number.isFinite(ray.origin.x) && ray.direction.lengthSq() > 0) {
-        return this.smoothingEnabled ? this.getRayFilter(c).filter(ray, timestamp) : ray;
+      if (isUsablePointerRay(ray)) {
+        const resolved = this.smoothingEnabled ? this.getRayFilter(c).filter(ray, timestamp) : ray;
+        if (isUsablePointerRay(resolved)) return resolved;
       }
     }
 
@@ -162,7 +167,7 @@ export class PointerRegistry {
     if (activeHand) return activeHand;
     for (const c of this.controllers) {
       const ray = c.getRay(new THREE.Ray());
-      if (ray.direction.lengthSq() > 0 && Number.isFinite(ray.origin.x)) return c;
+      if (isUsablePointerRay(ray)) return c;
     }
     return null;
   }
@@ -180,7 +185,7 @@ export class PointerRegistry {
           : hand.jointsValid && hand.ray?.visible;
       if (poseValid) {
         const ray = hand.getRay(new THREE.Ray());
-        if (ray.direction.lengthSq() > 0) return hand;
+        if (isUsablePointerRay(ray)) return hand;
       }
     }
     return null;
