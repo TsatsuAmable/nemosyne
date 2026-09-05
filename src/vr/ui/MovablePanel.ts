@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { CanvasTextureCacheManager } from './CanvasTextureCacheManager.ts';
 import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import {
+  beginBodyFramePanelDrag,
+  endBodyFramePanelDrag,
+  getBodyFrameViewerTargetLocal,
+} from '../spatial/BodyFrameState.ts';
 import type {
   AccessibilityOptions,
   DragState,
@@ -69,6 +74,12 @@ export class MovablePanel implements IPanelContentHandler {
   scrollbarWidth: number;
 
   private _disposed = false;
+  private readonly _readingTargetLocal = new THREE.Vector3();
+  private readonly _dragRay = new THREE.Ray();
+  private readonly _dragTarget = new THREE.Vector3();
+  private readonly _localTarget = new THREE.Vector3();
+  private readonly _parentInverse = new THREE.Matrix4();
+  private readonly _meshWorldQuaternion = new THREE.Quaternion();
 
   constructor(cameraGroup: THREE.Group, options: MovablePanelOptions = {}) {
     const {
@@ -124,7 +135,7 @@ export class MovablePanel implements IPanelContentHandler {
     });
     this.mesh = new THREE.Mesh(geom, this.material);
     this.mesh.position.set(...position);
-    this.mesh.rotation.x = -tilt;
+    this.mesh.rotation.order = 'YXZ';
 
     if (this.parentGroup && typeof this.parentGroup.add === 'function') {
       this.parentGroup.add(this.mesh);
@@ -153,6 +164,7 @@ export class MovablePanel implements IPanelContentHandler {
     this.totalContentHeight = 0;
     this.scrollbarWidth = 32;
 
+    this._orientTowardBodyFrame();
     this._resizeMinimizeButton();
     this.render();
   }
@@ -165,25 +177,32 @@ export class MovablePanel implements IPanelContentHandler {
     this.render();
   }
 
-  show() {
+  /** Restore visibility without changing the user-authored placement. */
+  show(): void {
     this.mesh.visible = true;
     this.isMinimized = false;
-    if (this.defaultPosition) {
-      this.mesh.position.copy(this.defaultPosition);
-    }
-    this._clampDistance();
+    this._orientTowardBodyFrame();
     this.render();
     this.cameraGroup?.engine?.telemetry?.recordPanelAction?.(this.title, 'show');
   }
 
-  hide() {
+  /** Explicit reset operation; visibility restoration never implies recentering. */
+  resetToDefaultPosition(): void {
+    this.mesh.position.copy(this.defaultPosition);
+    this._clampDistance();
+    this._orientTowardBodyFrame();
+    this.cameraGroup?.engine?.telemetry?.recordPanelAction?.(this.title, 'reset-position');
+  }
+
+  hide(): void {
+    if (this.drag.active) this._endDrag();
     this.mesh.visible = false;
     this.isMinimized = true;
     if (this.onHide) this.onHide();
     this.cameraGroup?.engine?.telemetry?.recordPanelAction?.(this.title, 'hide');
   }
 
-  toggle() {
+  toggle(): void {
     if (this.mesh.visible) this.hide();
     else this.show();
   }
@@ -252,52 +271,33 @@ export class MovablePanel implements IPanelContentHandler {
 
   handleContentClick?(_worldRaycaster: THREE.Raycaster): void;
 
+  /**
+   * Keep a stable local reading yaw toward the body-frame viewer target. This is
+   * deliberately local-space math: headset/world movement must not make a panel
+   * counter-rotate toward the playspace origin.
+   */
   update(_delta?: number): void {
     if (!this.mesh || !this.mesh.visible) return;
-    // Always orient panels towards the viewer (parent local origin) for optimal 3D reading angle
-    this.mesh.lookAt(0, 0, 0);
-    this.mesh.rotation.x = -this.tilt;
+    this._orientTowardBodyFrame();
   }
 
   handlePointerMove(_worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
     if (!this.drag.active || this.drag.pointer !== pointer) return;
-
-    const worldRay = pointer.getRay(new THREE.Ray());
-    const planeTarget = this._intersectDragPlane(worldRay);
-    
-    // Free 3D ray target: allows moving panels unconstrained in depth and 3D space
-    const rayDist = this.drag.distance || 0.8;
-    const rayTarget = worldRay.origin.clone().add(worldRay.direction.clone().multiplyScalar(rayDist));
-    const target = planeTarget || rayTarget;
-
-    if (this.onDragDelta) {
-      const delta = new THREE.Vector3().subVectors(target, this.drag.lastTarget);
-      this.onDragDelta(delta);
-      this.drag.lastTarget.copy(target);
-      return;
-    }
-
-    // Convert the 3D drag target into the panel's parent local space.
-    const localTarget = target.clone();
-    if (this.parentGroup && typeof this.parentGroup.updateMatrixWorld === 'function') {
-      this.parentGroup.updateMatrixWorld(true);
-      localTarget.applyMatrix4(new THREE.Matrix4().copy(this.parentGroup.matrixWorld).invert());
-    }
-    const targetPos = localTarget.clone().add(this.drag.offset);
-    // Smooth lerp movement so 3D panel motion feels natural and fluid
-    this.mesh.position.lerp(targetPos, 0.35);
-    this._clampDistance();
-    // Keep panels facing the viewer (the parent group's origin in local space).
-    this.mesh.lookAt(0, 0, 0);
-    this.mesh.rotation.x = -this.tilt;
+    const target = this._resolveDragTarget(pointer);
+    if (!target) return;
+    this._applyDragTarget(target);
   }
 
   handlePointerUp(_worldRaycaster: THREE.Raycaster, pointer: PointerLike): void {
     if (!this.drag.active || this.drag.pointer !== pointer) return;
+    // Commit the exact final pointer target before closing the grab. The old
+    // smoothed path stopped short of the release point.
+    const target = this._resolveDragTarget(pointer);
+    if (target) this._applyDragTarget(target);
     this._endDrag();
   }
 
-  _resizeMinimizeButton() {
+  _resizeMinimizeButton(): void {
     const btnSize = 40 * this.textScale;
     this.minimizeBtn = {
       x: this.width - btnSize - 4,
@@ -332,6 +332,7 @@ export class MovablePanel implements IPanelContentHandler {
   dispose(): void {
     if (this._disposed) return;
     this._disposed = true;
+    if (this.drag.active) this._endDrag();
     this.mesh.parent?.remove(this.mesh);
     this.mesh.geometry.dispose();
     this.material.dispose();
@@ -340,7 +341,7 @@ export class MovablePanel implements IPanelContentHandler {
     this.canvas.height = 1;
   }
 
-  render() {
+  render(): void {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
@@ -388,7 +389,7 @@ export class MovablePanel implements IPanelContentHandler {
       try {
         if (typeof ctx?.save === 'function') ctx.save();
         if (typeof ctx?.translate === 'function') ctx.translate(0, this.titleBarHeight + 4);
-        
+
         // Clip content viewport if scrollbar is active
         if (maxScroll > 0 && typeof ctx?.beginPath === 'function') {
           ctx.beginPath();
@@ -401,7 +402,11 @@ export class MovablePanel implements IPanelContentHandler {
         if (typeof ctx?.restore === 'function') ctx.restore();
       } catch {
         if (typeof ctx?.restore === 'function') {
-          try { ctx.restore(); } catch { /* ignore nested restore failure */ }
+          try {
+            ctx.restore();
+          } catch {
+            /* ignore nested restore failure */
+          }
         }
       }
     }
@@ -437,7 +442,10 @@ export class MovablePanel implements IPanelContentHandler {
       // Thumb
       const thumbAreaH = sbH - 64;
       const thumbH = Math.max(36, (containerH / this.totalContentHeight) * thumbAreaH);
-      const thumbY = sbY + 32 + (maxScroll > 0 ? (this.scrollOffset / maxScroll) * (thumbAreaH - thumbH) : 0);
+      const thumbY =
+        sbY +
+        32 +
+        (maxScroll > 0 ? (this.scrollOffset / maxScroll) * (thumbAreaH - thumbH) : 0);
 
       ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
       ctx.fillRect(sbX + 4, thumbY, sbW - 8, thumbH);
@@ -456,45 +464,100 @@ export class MovablePanel implements IPanelContentHandler {
   }
 
   _startDrag(pointer: PointerLike, hitPoint: THREE.Vector3): void {
-    const worldRay = pointer.getRay(new THREE.Ray());
+    if (this.drag.active) return;
+    const worldRay = pointer.getRay(this._dragRay);
     const distance = hitPoint.distanceTo(worldRay.origin);
 
     this.drag.active = true;
     this.drag.pointer = pointer;
-    this.drag.distance = Math.max(this.minDistance, Math.min(this.maxDistance, distance));
+    // Preserve the actual grab depth. Free-floating manipulation uses this as a
+    // ray parameter, so moving the hand/controller in 3D moves the panel in 3D.
+    this.drag.distance = Math.max(0.05, distance);
 
     if (!this.drag.planePoint) this.drag.planePoint = new THREE.Vector3();
     if (!this.drag.planeNormal) this.drag.planeNormal = new THREE.Vector3(0, 0, 1);
 
     this.drag.planePoint.copy(hitPoint);
-    this.drag.planeNormal.set(0, 0, 1);
-    if (this.parentGroup && typeof this.parentGroup.getWorldQuaternion === 'function') {
-      this.drag.planeNormal.applyQuaternion(
-        this.parentGroup.getWorldQuaternion(new THREE.Quaternion())
-      );
-    }
+    this.mesh.updateWorldMatrix(true, false);
+    this.mesh.getWorldQuaternion(this._meshWorldQuaternion);
+    this.drag.planeNormal.set(0, 0, 1).applyQuaternion(this._meshWorldQuaternion).normalize();
 
-    const localPlaneHit = hitPoint.clone();
-    if (this.parentGroup && typeof this.parentGroup.updateMatrixWorld === 'function') {
-      this.parentGroup.updateMatrixWorld(true);
-      localPlaneHit.applyMatrix4(new THREE.Matrix4().copy(this.parentGroup.matrixWorld).invert());
-    }
-    this.drag.offset.subVectors(this.mesh.position, localPlaneHit);
+    const localGrabPoint = this._worldToParentLocal(hitPoint, this._localTarget);
+    this.drag.offset.subVectors(this.mesh.position, localGrabPoint);
     this.drag.lastTarget.copy(hitPoint);
+    beginBodyFramePanelDrag(this.parentGroup);
   }
 
   _endDrag(): void {
     const wasActive = this.drag.active;
+    if (!wasActive) return;
+
+    if (!this.onDragDelta) {
+      // Safety bounds are a commit-time policy. Applying this every move creates
+      // the rubber-band/jitter behavior that makes manipulation feel sticky.
+      this._clampDistance();
+      this._orientTowardBodyFrame();
+    }
+
     this.drag.active = false;
     this.drag.pointer = null;
     this.drag.distance = 0;
     this.drag.offset.set(0, 0, 0);
-    if (wasActive && this.onDragEnd) this.onDragEnd();
+    endBodyFramePanelDrag(this.parentGroup);
+    if (this.onDragEnd) this.onDragEnd();
+  }
+
+  private _resolveDragTarget(pointer: PointerLike): THREE.Vector3 | null {
+    const worldRay = pointer.getRay(this._dragRay);
+    const rayDistance = this.drag.distance || 0.8;
+    this._dragTarget
+      .copy(worldRay.direction)
+      .multiplyScalar(rayDistance)
+      .add(worldRay.origin);
+
+    // Production free-floating panels use a ray-parametric grab, which preserves
+    // genuine 3D hand/controller translation including depth. Anchored-layout
+    // mode reports deltas instead; for that legacy path use a stable plane whose
+    // normal is the panel's own world normal captured at grab time.
+    if (!this.onDragDelta) return this._dragTarget;
+    return this._intersectDragPlane(worldRay) ?? this._dragTarget;
+  }
+
+  private _applyDragTarget(target: THREE.Vector3): void {
+    if (this.onDragDelta) {
+      const delta = this._localTarget.subVectors(target, this.drag.lastTarget);
+      this.onDragDelta(delta);
+      this.drag.lastTarget.copy(target);
+      return;
+    }
+
+    const localTarget = this._worldToParentLocal(target, this._localTarget);
+    this.mesh.position.copy(localTarget).add(this.drag.offset);
+    this.drag.lastTarget.copy(target);
+    this._orientTowardBodyFrame();
+  }
+
+  private _worldToParentLocal(worldPoint: THREE.Vector3, target: THREE.Vector3): THREE.Vector3 {
+    target.copy(worldPoint);
+    if (this.parentGroup && typeof this.parentGroup.updateMatrixWorld === 'function') {
+      this.parentGroup.updateMatrixWorld(true);
+      this._parentInverse.copy(this.parentGroup.matrixWorld).invert();
+      target.applyMatrix4(this._parentInverse);
+    }
+    return target;
+  }
+
+  private _orientTowardBodyFrame(): void {
+    getBodyFrameViewerTargetLocal(this.parentGroup, this._readingTargetLocal);
+    const dx = this._readingTargetLocal.x - this.mesh.position.x;
+    const dz = this._readingTargetLocal.z - this.mesh.position.z;
+    const yaw = dx * dx + dz * dz > 1e-8 ? Math.atan2(dx, dz) : this.mesh.rotation.y;
+    this.mesh.rotation.set(-this.tilt, yaw, 0, 'YXZ');
   }
 
   /**
-   * Intersect the pointer ray with the stable drag plane stored at drag start.
-   * Solves: t = ((planePoint - rayOrigin) . planeNormal) / (rayDir . planeNormal)
+   * Intersect the pointer ray with the stable panel-parallel drag plane stored
+   * at drag start. This path is used by anchored-mode delta dragging.
    */
   _intersectDragPlane(worldRay: THREE.Ray): THREE.Vector3 | null {
     if (!this.drag.planePoint || !this.drag.planeNormal) return null;
@@ -502,11 +565,11 @@ export class MovablePanel implements IPanelContentHandler {
     const denom = worldRay.direction.dot(this.drag.planeNormal);
     if (Math.abs(denom) < 1e-6) return null;
 
-    const toPlane = new THREE.Vector3().subVectors(this.drag.planePoint, worldRay.origin);
+    const toPlane = this._localTarget.subVectors(this.drag.planePoint, worldRay.origin);
     const t = toPlane.dot(this.drag.planeNormal) / denom;
     if (t < 0) return null;
 
-    return worldRay.origin.clone().add(worldRay.direction.clone().multiplyScalar(t));
+    return this._dragTarget.copy(worldRay.direction).multiplyScalar(t).add(worldRay.origin);
   }
 
   _clampDistance(): void {
@@ -521,13 +584,20 @@ export class MovablePanel implements IPanelContentHandler {
     pos.multiplyScalar(target / dist);
   }
 
-  _scaleFont(sizeOrFont: number | string, weight = 'normal', family = '"Courier New", Courier, monospace'): string {
+  _scaleFont(
+    sizeOrFont: number | string,
+    weight = 'normal',
+    family = '"Courier New", Courier, monospace'
+  ): string {
     if (typeof sizeOrFont === 'number') {
       const scaled = Math.round(sizeOrFont * this.textScale);
       return `${weight} ${scaled}px ${family}`;
     }
     if (typeof sizeOrFont === 'string') {
-      return sizeOrFont.replace(/(\d+)px/g, (_, px) => `${Math.round(parseInt(px, 10) * this.textScale)}px`);
+      return sizeOrFont.replace(
+        /(\d+)px/g,
+        (_, px) => `${Math.round(parseInt(px, 10) * this.textScale)}px`
+      );
     }
     return String(sizeOrFont);
   }
