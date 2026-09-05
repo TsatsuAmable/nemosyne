@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { NetworkManager } from '../../../src/network/NetworkManager.ts';
-import { datasetToFlatBuffer, flatBufferToDataset } from '../../../src/data/serializers/FlatBuffersSerializer.ts';
+import {
+  datasetToFlatBuffer,
+  flatBufferToDataset,
+} from '../../../src/data/serializers/FlatBuffersSerializer.ts';
 import { WorldSceneComposer } from '../../../src/vr/coordinators/WorldSceneComposer.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { disposeObject } from '../../../src/utils/Dispose.ts';
 
-describe('Tier 4 — Scenario 2: Collaborative WebXR Spatial Analytics Session with Damped Headset Tracking', () => {
-  it('Executes collaborative session workflow: peer network init, pose sync, FlatBuffer state transmission, torso anchor update, and clean disposal', () => {
+describe('Tier 4 — Scenario 2: Collaborative WebXR Spatial Analytics Session with Stable Body Frame', () => {
+  it('Executes collaborative session workflow: peer network init, pose sync, FlatBuffer state transmission, body-frame update, and clean disposal', () => {
     // Step 1: Initialize NetworkManager for local analyst
     const netManager = new NetworkManager({ peerName: 'Analyst_1', roomId: 'collab-room-alpha' });
     expect(netManager.roomId).toBe('collab-room-alpha');
@@ -24,7 +27,9 @@ describe('Tier 4 — Scenario 2: Collaborative WebXR Spatial Analytics Session w
     const receivedDataset = flatBufferToDataset(binaryBuffer);
     expect(receivedDataset.rows[0].metric).toBe(99.5);
 
-    // Step 3: Headset tracking & torso anchor damping
+    // Step 3: Physical headset pose informs body height/heading, but X/Z lean
+    // does not masquerade as locomotion. The body frame already inherits actual
+    // locomotion from cameraGroup.
     const camera = new THREE.PerspectiveCamera();
     camera.position.set(2.0, 1.7, -3.0);
     camera.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 6);
@@ -42,8 +47,10 @@ describe('Tier 4 — Scenario 2: Collaborative WebXR Spatial Analytics Session w
     const composer = new WorldSceneComposer(mockEngine);
     composer.update(0.016);
 
-    expect(composer.analystAnchor.position.x).toBe(2.0);
-    expect(composer.analystAnchor.position.z).toBe(-3.0);
+    expect(composer.analystAnchor.position.x).toBeCloseTo(0, 6);
+    expect(composer.analystAnchor.position.z).toBeCloseTo(0, 6);
+    expect(composer.analystAnchor.position.y).toBeCloseTo(1.45, 6);
+    expect(composer.analystAnchor.rotation.y).toBeCloseTo(Math.PI / 6, 6);
 
     // Step 4: Disconnect and clean resources
     netManager.disconnect();

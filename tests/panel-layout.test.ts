@@ -8,7 +8,7 @@ import {
 
 const dist = (p: readonly number[]) => Math.hypot(p[0], p[2]);
 
-describe('panelLayout (role-aware depth tiers, torso-locked)', () => {
+describe('panelLayout (role-aware depth tiers, stable body frame)', () => {
   it('fanSlot places panels on the forward −Z arc', () => {
     const p = fanSlot(30, 1.15, 0.2);
     expect(p[0]).toBeCloseTo(0.575, 2);
@@ -17,7 +17,14 @@ describe('panelLayout (role-aware depth tiers, torso-locked)', () => {
   });
 
   it('keeps the forward center cone (±12°) clear in the mid tier', () => {
-    const midFan = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'statusStrip'] as const;
+    const midFan = [
+      'legacyMenu',
+      'operationLogPanel',
+      'recommendationPanel',
+      'monetaExplainerPanel',
+      'settingsPanel',
+      'statusStrip',
+    ] as const;
     for (const key of midFan) {
       const p = PANEL_LAYOUT[key];
       const angle = Math.abs(Math.atan2(p[0], -p[2])) * (180 / Math.PI);
@@ -32,11 +39,20 @@ describe('panelLayout (role-aware depth tiers, torso-locked)', () => {
     expect(angle).toBeCloseTo(45, 5);
     expect(dist(p)).toBeCloseTo(1.15, 5);
     expect(worldY).toBeCloseTo(0.77, 5);
-    expect(UI_TREATMENT_VERSION).toBe('panel-layout/4+intent-wheel/1+frames/torso-locked');
+    expect(UI_TREATMENT_VERSION).toBe('panel-layout/5+intent-wheel/1+frames/body-stable');
   });
 
   it('keeps mid-tier panels inside the 0.9–1.4 m comfort band', () => {
-    const mid = ['legacyMenu', 'operationLogPanel', 'recommendationPanel', 'monetaExplainerPanel', 'settingsPanel', 'vrConsole', 'narrativeStrip', 'statusStrip'] as const;
+    const mid = [
+      'legacyMenu',
+      'operationLogPanel',
+      'recommendationPanel',
+      'monetaExplainerPanel',
+      'settingsPanel',
+      'vrConsole',
+      'narrativeStrip',
+      'statusStrip',
+    ] as const;
     for (const key of mid) {
       expect(dist(PANEL_LAYOUT[key])).toBeGreaterThanOrEqual(0.9);
       expect(dist(PANEL_LAYOUT[key])).toBeLessThanOrEqual(1.4);
@@ -44,7 +60,16 @@ describe('panelLayout (role-aware depth tiers, torso-locked)', () => {
   });
 
   it('parks diagnostic tooling in the far tier at r ≥ 1.4 m', () => {
-    const far = ['loadTestPanel', 'schemaMappingPanel', 'monetaDiagnosticHUD', 'telemetryPanel', 'inputTelemetry', 'networkPanel', 'performancePanel', 'gestureConfidenceHUD'] as const;
+    const far = [
+      'loadTestPanel',
+      'schemaMappingPanel',
+      'monetaDiagnosticHUD',
+      'telemetryPanel',
+      'inputTelemetry',
+      'networkPanel',
+      'performancePanel',
+      'gestureConfidenceHUD',
+    ] as const;
     for (const key of far) {
       expect(dist(PANEL_LAYOUT[key])).toBeGreaterThanOrEqual(1.4);
     }
@@ -59,9 +84,9 @@ describe('panelLayout (role-aware depth tiers, torso-locked)', () => {
     }
   });
 
-  it('is expressed uniformly in torso-anchor-local space (single reference frame)', () => {
-    // Anchor-local heights must map into a comfortable world band:
-    // world y = ANCHOR_TORSO_WORLD_Y (≈1.35) + local y ∈ [0.75, 1.70] m.
+  it('is expressed uniformly in body-workspace-anchor local space', () => {
+    // Anchor-local heights must map into a comfortable world band at the nominal
+    // standing baseline: world y = ANCHOR_TORSO_WORLD_Y (≈1.35) + local y.
     for (const [key, p] of Object.entries(PANEL_LAYOUT)) {
       const worldY = ANCHOR_TORSO_WORLD_Y + p[1];
       expect(worldY, `${key} renders at ${worldY} m`).toBeGreaterThanOrEqual(0.75);

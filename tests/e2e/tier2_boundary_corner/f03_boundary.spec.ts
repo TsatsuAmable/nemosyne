@@ -39,7 +39,11 @@ describe('Tier 2 — Feature 3: God Object Refactoring (World.ts Sub-Managers Bo
     const artifact = { group: new THREE.Group(), nodeMeshes: [] as THREE.Mesh[] };
     const doc = new DataOperationController({ eventBus: bus, getArtifact: () => artifact });
 
-    const dataset = new Dataset('TestDS', [{ name: 'val', type: 'NUMERIC' }], [{ val: 10 }, { val: 20 }]);
+    const dataset = new Dataset(
+      'TestDS',
+      [{ name: 'val', type: 'NUMERIC' }],
+      [{ val: 10 }, { val: 20 }]
+    );
     doc.setOriginalDataset(dataset);
 
     expect(doc.originalDataset?.rowCount).toBe(2);
@@ -49,7 +53,7 @@ describe('Tier 2 — Feature 3: God Object Refactoring (World.ts Sub-Managers Bo
     expect(doc.analysisHistory.length).toBeGreaterThan(0);
   });
 
-  it('F3-BC4: WorldSceneComposer updates analystAnchor tracking under camera motion', () => {
+  it('F3-BC4: WorldSceneComposer keeps body frame rig-relative under physical camera lean', () => {
     const camera = new THREE.PerspectiveCamera();
     camera.position.set(5.0, 2.0, -10.0);
     const cameraGroup = new THREE.Group();
@@ -65,8 +69,10 @@ describe('Tier 2 — Feature 3: God Object Refactoring (World.ts Sub-Managers Bo
     const composer = new WorldSceneComposer(mockEngine);
     composer.update(0.016);
 
-    expect(composer.analystAnchor.position.x).toBe(5.0);
-    expect(composer.analystAnchor.position.z).toBe(-10.0);
+    // Horizontal headset translation is physical head motion, not locomotion;
+    // the anchor already inherits real locomotion from cameraGroup.
+    expect(composer.analystAnchor.position.x).toBeCloseTo(0, 6);
+    expect(composer.analystAnchor.position.z).toBeCloseTo(0, 6);
     expect(composer.analystAnchor.position.y).toBeCloseTo(1.75, 2);
   });
 

@@ -13,11 +13,20 @@ import { IceVaultNode } from '../artifacts/IceVaultNode.ts';
 import { WorldTheme } from '../WorldTheme.ts';
 import type { Engine } from '../Engine.ts';
 import { disposeObject } from '../../utils/Dispose.ts';
+import {
+  hasActiveBodyFramePanelDrag,
+  setBodyFrameViewerTargetLocal,
+} from '../spatial/BodyFrameState.ts';
 
 export interface WorldSceneComposerCallbacks {
   onWarp?: (zone: string, pos: number[], operation: string | null) => void;
   onSemanticWarp?: (target: PortalSemanticTarget) => void;
 }
+
+const BODY_YAW_ENTER_DEADBAND = THREE.MathUtils.degToRad(18);
+const BODY_YAW_EXIT_DEADBAND = THREE.MathUtils.degToRad(8);
+const BODY_YAW_INTENT_SECONDS = 0.2;
+const BODY_YAW_DAMPING_LAMBDA = 2.5;
 
 export class WorldSceneComposer {
   engine: Engine;
@@ -29,15 +38,23 @@ export class WorldSceneComposer {
   portalA: FarcasterPortal;
   portalB: FarcasterPortal;
   /**
-   * Forward offset (metres, along the anchor's local -Z) applied to the
-   * analystAnchor each frame so the workspace sits at the user's configured
-   * panel distance. Defaults to 0 (behaviour-preserving) until
-   * `setPanelDistance` is called by the comfort controller; without this, the
-   * per-frame torso tracking overwrites any one-shot `position.z` the comfort
-   * controller writes, silently making the Panel Distance setting a no-op.
+   * Forward offset (metres) from the locomotion rig origin to the analyst
+   * workspace. The offset is applied along the stable body-frame heading, not
+   * the rig's raw -Z axis.
    */
   panelDistance = 0;
   private _disposed = false;
+  private _bodyYaw = 0;
+  private _bodyYawInitialized = false;
+  private _bodyYawTracking = false;
+  private _bodyYawIntentSeconds = 0;
+  private _bodyYawIntentDirection = 0;
+  private readonly _viewerPosition = new THREE.Vector3();
+  private readonly _viewerQuaternion = new THREE.Quaternion();
+  private readonly _viewerEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  private readonly _forward = new THREE.Vector3();
+  private readonly _viewerTargetLocal = new THREE.Vector3();
+  private readonly _yawAxis = new THREE.Vector3(0, 1, 0);
 
   /**
    * @param engine
@@ -46,13 +63,14 @@ export class WorldSceneComposer {
   constructor(engine: Engine, callbacks: WorldSceneComposerCallbacks = {}) {
     this.engine = engine;
 
-    // Explicit analyst anchor: all HUD panels, dashboard, and wheel menu are
-    // parented here so the workspace clusters around the user rather than the
-    // world origin. It sits at the camera rig origin by default so local
-    // coordinates remain compatible with existing panel defaults.
+    // Explicit analyst anchor: all persistent HUD panels are parented here. It
+    // is already a child of the locomotion rig, so rig/world locomotion moves
+    // the workspace automatically. Physical HMD X/Z translation is deliberately
+    // not copied into this anchor; a head lean must not drag the whole cockpit.
     this.analystAnchor = new THREE.Group();
     this.analystAnchor.name = 'analystAnchor';
     this.engine.cameraGroup.add(this.analystAnchor);
+    setBodyFrameViewerTargetLocal(this.analystAnchor, this._viewerTargetLocal.set(0, 0, 0));
 
     // Shared substrate.
     this.datum = new DatumPlane();
@@ -84,7 +102,7 @@ export class WorldSceneComposer {
     // buttons are inert in production. The inspector is a SpatialPanel
     // (handlePointerDown/Move/Up + mesh), so it satisfies PanelLike. The real
     // `Engine` always provides `input`; the optional chain tolerates the
-    // minimal stub engines used by torso-anchor unit tests.
+    // minimal stub engines used by body-frame unit tests.
     this.engine.input?.addPanel?.(this.inspector);
 
     // Farcaster portals: semantic travel portals.
@@ -110,46 +128,150 @@ export class WorldSceneComposer {
     this.engine.scene.add(this.portalB.group);
     this.engine.addUpdatable(this.portalB);
 
-    // Register scene composer for live torso tracking
     this.engine.addUpdatable(this);
   }
 
   /**
-   * Continuously update analystAnchor to track the user's torso position and facing direction.
+   * Update the analyst body frame.
    *
-   * The yaw is damped toward the headset yaw via a short-arc lerp (factor 0.15)
-   * so micro-rotations of the headset do not snap the entire HUD workspace
-   * instantly, eliminating jitter while still converging to the target heading.
+   * Translation is rig-relative: physical HMD X/Z motion is head motion, not
+   * locomotion, so it cannot pull the persistent workspace around. Heading uses
+   * hysteresis plus a sustained-turn gate; ordinary gaze scanning inside the
+   * deadband leaves the workspace fixed. Once a real heading change is accepted,
+   * damping is delta-time independent. While a panel is being manipulated the
+   * anchor transform is frozen so the user's coordinate frame cannot move under
+   * the pointer.
    */
-  update(_delta?: number): void {
+  update(delta = 1 / 72): void {
     if (!this.engine?.camera || !this.analystAnchor) return;
-    const cam = this.engine.camera;
+    if (hasActiveBodyFramePanelDrag(this.analystAnchor)) return;
 
-    // Torso position tracking: follows headset position in X and Z,
-    // positioned at torso level (~0.25m below headset eye level). The configured
-    // panelDistance is applied as a forward (-Z) offset so the workspace sits at
-    // the user's chosen reading distance rather than at the headset.
-    const torsoY = Math.max(0.8, cam.position.y - 0.25);
-    this.analystAnchor.position.set(cam.position.x, torsoY, cam.position.z - this.panelDistance);
+    this._readCurrentViewerPose();
+    const dt = Math.max(0, Math.min(Number.isFinite(delta) ? delta : 1 / 72, 0.1));
 
-    // Torso orientation tracking: damped lerp toward headset yaw (Y-axis).
-    const headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-    headEuler.setFromQuaternion(cam.quaternion);
-    const targetYaw = headEuler.y;
-    let delta = targetYaw - this.analystAnchor.rotation.y;
-    // Wrap the angular delta to the shortest path in [-PI, PI] so a near-PI
-    // rotation does not take the long way around the circle.
-    delta = THREE.MathUtils.euclideanModulo(delta + Math.PI, Math.PI * 2) - Math.PI;
-    this.analystAnchor.rotation.y += delta * 0.15;
+    this._viewerEuler.setFromQuaternion(this._viewerQuaternion);
+    const targetYaw = this._viewerEuler.y;
+
+    if (!this._bodyYawInitialized) {
+      // The initial body frame should agree with the direction the user entered
+      // the experience facing. Damping is for subsequent heading changes, not
+      // for an artificial startup sweep from zero.
+      this._bodyYaw = targetYaw;
+      this._bodyYawInitialized = true;
+    } else {
+      const yawError = this._shortestYawDelta(targetYaw, this._bodyYaw);
+      const absError = Math.abs(yawError);
+
+      if (!this._bodyYawTracking) {
+        if (absError >= BODY_YAW_ENTER_DEADBAND) {
+          const intentDirection = Math.sign(yawError);
+          if (intentDirection !== this._bodyYawIntentDirection) {
+            // A sustained body turn must persist in one direction. Alternating
+            // left/right gaze excursions outside the deadband are scanning, not
+            // evidence that the torso heading changed.
+            this._bodyYawIntentDirection = intentDirection;
+            this._bodyYawIntentSeconds = dt;
+          } else {
+            this._bodyYawIntentSeconds += dt;
+          }
+          if (this._bodyYawIntentSeconds >= BODY_YAW_INTENT_SECONDS) {
+            this._bodyYawTracking = true;
+            this._bodyYawIntentSeconds = 0;
+            this._bodyYawIntentDirection = 0;
+          }
+        } else {
+          this._bodyYawIntentSeconds = 0;
+          this._bodyYawIntentDirection = 0;
+        }
+      }
+
+      if (this._bodyYawTracking) {
+        if (absError <= BODY_YAW_EXIT_DEADBAND) {
+          this._bodyYawTracking = false;
+          this._bodyYawIntentSeconds = 0;
+          this._bodyYawIntentDirection = 0;
+        } else if (dt > 0) {
+          const alpha = 1 - Math.exp(-BODY_YAW_DAMPING_LAMBDA * dt);
+          this._bodyYaw = this._wrapYaw(this._bodyYaw + yawError * alpha);
+        }
+      }
+    }
+
+    this.analystAnchor.rotation.set(0, this._bodyYaw, 0);
+
+    // Eye height still determines a useful torso-height baseline, but horizontal
+    // HMD translation is intentionally ignored. The anchor is already inside
+    // cameraGroup, so locomotion/snap-turn transforms arrive through the parent.
+    const torsoY = Math.max(0.8, this._viewerPosition.y - 0.25);
+    this._forward.set(0, 0, -1).applyAxisAngle(this._yawAxis, this._bodyYaw);
+    this.analystAnchor.position.set(
+      this._forward.x * this.panelDistance,
+      torsoY,
+      this._forward.z * this.panelDistance
+    );
+
+    // Panels orient toward the body/rig origin in anchor-local coordinates.
+    // With the workspace translated forward by panelDistance this point lies on
+    // local +Z, not at the anchor origin itself.
+    setBodyFrameViewerTargetLocal(
+      this.analystAnchor,
+      this._viewerTargetLocal.set(0, 0, this.panelDistance)
+    );
   }
 
   /**
-   * Set the forward panel-distance offset (metres) applied each frame. Takes
-   * effect on the next `update()` tick, so it survives the per-frame torso
-   * tracking that previously overwrote a one-shot `position.z` write.
+   * Prefer the current XRFrame viewer pose because Engine exposes it before
+   * updatables run. This avoids depending on Three.js applying the HMD camera
+   * transform later during renderer.render(). Desktop/simulator paths fall back
+   * to the camera transform.
+   */
+  private _readCurrentViewerPose(): void {
+    const frame = this.engine.xrFrame;
+    const refSpace = this.engine.xrRefSpace;
+    if (frame && refSpace) {
+      try {
+        const pose = frame.getViewerPose(refSpace);
+        if (pose) {
+          const { position, orientation } = pose.transform;
+          this._viewerPosition.set(position.x, position.y, position.z);
+          this._viewerQuaternion.set(
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w
+          );
+          return;
+        }
+      } catch {
+        // Fall through to camera state when a mocked/ending XR frame cannot
+        // provide a viewer pose.
+      }
+    }
+
+    this._viewerPosition.copy(this.engine.camera.position);
+    this._viewerQuaternion.copy(this.engine.camera.quaternion);
+  }
+
+  private _shortestYawDelta(target: number, current: number): number {
+    return THREE.MathUtils.euclideanModulo(target - current + Math.PI, Math.PI * 2) - Math.PI;
+  }
+
+  private _wrapYaw(yaw: number): number {
+    return THREE.MathUtils.euclideanModulo(yaw + Math.PI, Math.PI * 2) - Math.PI;
+  }
+
+  /**
+   * Set the configured workspace offset. The offset is interpreted along the
+   * body-frame heading, so turning the body rotates the reading zone rather than
+   * leaving it stranded on the locomotion rig's original -Z axis.
    */
   setPanelDistance(distance: number): void {
-    this.panelDistance = distance;
+    if (!Number.isFinite(distance)) return;
+    this.panelDistance = Math.max(0, distance);
+    setBodyFrameViewerTargetLocal(
+      this.analystAnchor,
+      this._viewerTargetLocal.set(0, 0, this.panelDistance)
+    );
   }
 
   dispose(): void {
