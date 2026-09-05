@@ -34,8 +34,13 @@ describe('Quest validation process launch portability', () => {
     ]);
   });
 
-  it('falls back to npm.cmd for direct Windows launcher execution', () => {
-    expect(resolveNpmInvocation({}, 'win32')).toEqual({ command: 'npm.cmd', args: [] });
+  it('uses the Windows command processor for direct launcher execution', () => {
+    expect(
+      resolveNpmInvocation({ ComSpec: 'C:\\Windows\\System32\\cmd.exe' }, 'win32')
+    ).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', 'npm'],
+    });
   });
 
   it('keeps the normal npm executable fallback on non-Windows platforms', () => {
