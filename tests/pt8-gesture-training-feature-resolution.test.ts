@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE,
   DERIVED_GESTURE_NOTICE_REFERENCE,
   GOVERNED_PURPOSES,
   type AuthorizationEvidenceV1,
@@ -13,8 +14,8 @@ import {
 import { SqliteGestureLearningGovernanceV1 } from '../src/governance-service/GestureLearningGovernance.ts';
 import { SqliteGestureTrainingSnapshotSourceV1 } from '../src/governance-service/SqliteGestureTrainingSnapshotSource.ts';
 import {
-  resolveGestureTrainingFeatureDatasetV1,
   GestureTrainingFeatureDatasetError,
+  resolveGestureTrainingFeatureDatasetV1,
 } from '../src/learning/GestureTrainingFeatureDataset.ts';
 import {
   materializeGestureTrainingSnapshotV1,
@@ -162,12 +163,14 @@ describe('PT8 governed feature resolution', () => {
     const actualCount = (['train', 'validation', 'test'] as const)
       .reduce((sum, split) => sum + dataset.splits[split].length, 0);
     expect(actualCount).toBe(expectedCount);
-    expect(dataset.featureSchema.id).toBe('gesture-derived-feature-vector');
+    expect(dataset.featureSchema).toEqual(DERIVED_GESTURE_FEATURE_SCHEMA_REFERENCE);
     expect(dataset.splits.train.every((row) => row.features.length === 56)).toBe(true);
     expect(dataset.datasetDigest.value).toMatch(/^[0-9a-f]{64}$/);
 
     const projected = await source.readDerivedLearningRecords({
-      schemaVersion: '1', asOf: CREATED_AT, maxRecords: expectedCount,
+      schemaVersion: '1',
+      asOf: CREATED_AT,
+      maxRecords: expectedCount,
     });
     const reboundSource: GestureTrainingSnapshotSourceV1 = Object.freeze({
       async readDerivedLearningRecords() {
