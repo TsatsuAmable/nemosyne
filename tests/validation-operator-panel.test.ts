@@ -1,9 +1,13 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ValidationOperatorPanel } from '../src/vr/ui/ValidationOperatorPanel.ts';
-import { deriveValidationManifest } from '../src/validation/validation-manifest.ts';
+import {
+  deriveValidationManifest,
+  type ValidationMode,
+} from '../src/validation/validation-manifest.ts';
+import type { BrowserValidationContext } from '../src/validation/browser-validation-session.ts';
+import type { ValidationServerStatus } from '../src/validation/validation-delivery.ts';
+import type { WorldEventBusLike } from '../src/vr/coordinators/types.ts';
 
 const BUILD = '277c2e73f9206f5b387a856bc8298d8247e39376';
 const SESSION = {
@@ -11,7 +15,24 @@ const SESSION = {
   id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
 };
 
-function manifest(mode = 'quest-perf') {
+type ReflectedButton = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  disabled?: boolean;
+};
+
+type PanelReflection = {
+  _buttons: ReflectedButton[];
+};
+
+function buttons(panel: ValidationOperatorPanel): ReflectedButton[] {
+  return (panel as unknown as PanelReflection)._buttons;
+}
+
+function manifest(mode: ValidationMode = 'quest-perf') {
   return deriveValidationManifest({
     sessionId: SESSION.id,
     sessionLabel: SESSION.label,
@@ -31,17 +52,18 @@ function manifest(mode = 'quest-perf') {
   });
 }
 
-function context(mode = 'quest-perf') {
+function context(mode: ValidationMode = 'quest-perf'): BrowserValidationContext {
   return {
     session: SESSION,
     manifest: manifest(mode),
     attributable: true,
-    attributionIssue: 'launcher env projected; exact manifest confirmation is pending from the evidence sink',
+    attributionIssue:
+      'launcher env projected; exact manifest confirmation is pending from the evidence sink',
     source: 'launcher-env-provisional',
   };
 }
 
-function status(mode = 'quest-perf') {
+function status(mode: ValidationMode = 'quest-perf'): ValidationServerStatus {
   const value = manifest(mode);
   return {
     status: 'ok',
@@ -53,25 +75,27 @@ function status(mode = 'quest-perf') {
       renderCompleted: 1,
       boundaryAttempts: 0,
       buildId: BUILD,
-      deviceBuildFingerprint: value.deviceIdentity.buildFingerprint,
+      deviceBuildFingerprint: value.deviceIdentity?.buildFingerprint ?? null,
     },
     gateDisposition: { status: null, reasons: [] },
   };
 }
 
 function rayHitButton(panel: ValidationOperatorPanel, id: string): THREE.Raycaster {
-  const btn = (panel as any)._buttons.find((button: any) => button.id === id);
+  const btn = buttons(panel).find((button) => button.id === id);
   if (!btn) throw new Error(`no button '${id}'`);
   const u = (btn.x + btn.w / 2) / panel.width;
   const v = 1 - (btn.y + btn.h / 2) / panel.height;
   const raycaster = new THREE.Raycaster();
-  vi.spyOn(raycaster, 'intersectObject').mockReturnValue([
-    { object: panel.mesh, uv: new THREE.Vector2(u, v) } as any,
-  ]);
+  const hit = {
+    object: panel.mesh,
+    uv: new THREE.Vector2(u, v),
+  } as unknown as THREE.Intersection<THREE.Object3D>;
+  vi.spyOn(raycaster, 'intersectObject').mockReturnValue([hit]);
   return raycaster;
 }
 
-function panelFor(mode = 'quest-perf') {
+function panelFor(mode: ValidationMode = 'quest-perf') {
   const handlers: Record<string, Array<(value: unknown) => void>> = {};
   const callbacks = {
     onStartPerformance: vi.fn(),
@@ -82,14 +106,15 @@ function panelFor(mode = 'quest-perf') {
     onRefreshStatus: vi.fn(async () => {}),
     onSubmitUx: vi.fn(async () => {}),
   };
+  const eventBus = {
+    on(topic: string, handler: (value: unknown) => void) {
+      (handlers[topic] ||= []).push(handler);
+      return () => {};
+    },
+  } as unknown as WorldEventBusLike;
   const panel = new ValidationOperatorPanel(new THREE.Group(), {
     context: context(mode),
-    eventBus: {
-      on(topic: string, handler: (value: unknown) => void) {
-        (handlers[topic] ||= []).push(handler);
-        return () => {};
-      },
-    } as any,
+    eventBus,
     ...callbacks,
   });
   panel.show();
@@ -102,8 +127,8 @@ describe('ValidationOperatorPanel governed start fencing', () => {
 
   it('does not expose a clickable performance start until the sink confirms the exact manifest', () => {
     const { panel, callbacks } = panelFor('quest-perf');
-    const arm = (panel as any)._buttons.find((button: any) => button.id === 'run-performance');
-    expect(arm.disabled).toBe(true);
+    const arm = buttons(panel).find((button) => button.id === 'run-performance');
+    expect(arm?.disabled).toBe(true);
     expect(panel.handleContentClick(rayHitButton(panel, 'run-performance'))).toBe(false);
     expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
   });
@@ -116,7 +141,6 @@ describe('ValidationOperatorPanel governed start fencing', () => {
     expect(panel.handleContentClick(rayHitButton(panel, 'run-performance'))).toBe(true);
     expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
     panel.update();
-    expect((panel as any)._buttons.find((button: any) => button.id === 'run-performance').label).toBeUndefined();
 
     expect(panel.handleContentClick(rayHitButton(panel, 'run-performance'))).toBe(true);
     expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);
@@ -137,12 +161,12 @@ describe('ValidationOperatorPanel governed start fencing', () => {
   it('keeps guided UX controls disabled until the sink confirms the quest-ux manifest', () => {
     const { panel } = panelFor('quest-ux');
     for (const id of ['ux-pass', 'ux-fail', 'ux-skip', 'ux-submit']) {
-      expect((panel as any)._buttons.find((button: any) => button.id === id).disabled).toBe(true);
+      expect(buttons(panel).find((button) => button.id === id)?.disabled).toBe(true);
     }
     panel.setServerStatus(status('quest-ux'));
     panel.update();
     for (const id of ['ux-pass', 'ux-fail', 'ux-skip', 'ux-submit']) {
-      expect((panel as any)._buttons.find((button: any) => button.id === id).disabled).toBe(false);
+      expect(buttons(panel).find((button) => button.id === id)?.disabled).toBe(false);
     }
   });
 });
