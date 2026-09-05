@@ -10,11 +10,11 @@ Every review finding must begin with exactly one disposition:
 
 Do not use blocking language for speculation, naming/style preferences, broad refactors, future-proofing, optional diagnostics, or test expansion without a demonstrated risk. Prefer silence over low-confidence review noise and do not repeat an existing finding in a new form.
 
-## Adversarial implementation protocol review
+## Risk-tiered adversarial review
 
-Apply the pre/post adversarial implementation protocol from `AGENTS.md` to implementation PRs.
+Apply the risk-tiered adversarial implementation protocol from `AGENTS.md` to implementation PRs.
 
-For a high-risk change, verify that the PR or linked working material identifies:
+For a **high-risk** change, verify that the PR or linked working material identifies:
 
 - the invariant the change is intended to establish or preserve;
 - the canonical authority and real production path that must enforce it;
@@ -25,9 +25,13 @@ For a high-risk change, verify that the PR or linked working material identifies
 
 A missing or content-free adversarial contract on high-risk work is a required-process failure. Do not accept checkbox text that merely paraphrases the implementation. The contract must be capable of falsifying the design.
 
-For a claimed low-risk exemption, verify that the change is genuinely editorial, formatting-only, comment-only, or mechanically non-semantic. If the diff affects runtime behavior, authority, evidence, persistence, security, performance, or interaction semantics, the exemption is invalid.
+For a **standard-risk** change, do not demand a pre-implementation contract. Verify instead that the PR states the changed behavior/failure mode, shows focused evidence through the nearest real production path, and contains one bounded post-implementation falsification pass. A standalone review-plan/review document is not required.
 
-The post-implementation pass should attack the final production call path and test strength. Look specifically for a failure mode that the original pre-review did not anticipate. Green CI does not substitute for this review.
+For a claimed **low-risk exemption**, verify that the change is genuinely editorial, formatting-only, comment-only, or mechanically non-semantic. If the diff affects runtime behavior, authority, evidence, persistence, security, performance, or interaction semantics, the exemption is invalid.
+
+The post-implementation pass should attack the final production call path and test strength. High-risk work should look for at least one failure mode the original pre-review did not anticipate. Green CI does not substitute for required adversarial review.
+
+Do not multiply assurance by repeating substantially the same review. A second specialist review is useful only when it attacks a distinct failure class, such as security versus statistical validity, or XR interaction versus persistence/replay.
 
 ## Review priorities
 
@@ -71,7 +75,7 @@ The post-implementation pass should attack the final production call path and te
    - Require regression coverage for blocker-class bug fixes when feasible.
    - Prefer boundary, property, differential, invariant, and real production-path tests over snapshots or mock-only existence proofs.
    - For JS/Rust boundaries, tests should prove one semantic authority rather than two implementations agreeing accidentally.
-   - Check that the tests would fail if the failure mode named in the pre-implementation adversarial contract were reintroduced.
+   - Check that tests would fail if the stated forbidden behavior were reintroduced.
 
 ## Scope
 

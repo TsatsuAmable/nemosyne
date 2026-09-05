@@ -26,14 +26,15 @@ For checked areas, briefly state the main failure mode considered and how it was
 
 Follow the risk classification in `AGENTS.md`. **Select exactly one** of the following:
 
-- [ ] **High-risk change:** the pre-implementation adversarial contract below was completed before implementation.
+- [ ] **High-risk change:** a production/evidence authority or other high-risk boundary is affected. The pre-implementation adversarial contract below was completed before implementation, and a distinct post-implementation adversarial review is required.
+- [ ] **Standard-risk change:** behavior changes without crossing a high-risk authority/evidence boundary. No formal pre-review is required; focused verification plus one bounded post-implementation falsification pass is required.
 - [ ] **Low-risk exemption:** this change is purely editorial/formatting/comment-only or demonstrably mechanical with unchanged semantics. Explain why below.
 
-Selecting both or neither is not a valid disposition for an implementation PR.
+Selecting more than one or none is not a valid disposition for an implementation PR.
 
-### Pre-implementation adversarial contract
+### High-risk pre-implementation adversarial contract
 
-For high-risk changes, record the design contract that existed before implementation:
+For high-risk changes only, record the design contract that existed before implementation:
 
 - **Invariant:** What exact property must be true when the change is correct?
 - **Authority / production path:** Which canonical owner and real entry point/call path must enforce it?
@@ -41,7 +42,7 @@ For high-risk changes, record the design contract that existed before implementa
 - **Falsifying evidence:** Which tests/checks would disprove the design if those assumptions are false?
 - **Non-goals / dependencies:** What is deliberately out of scope, and which downstream claims must not be promoted by this PR?
 
-For a low-risk exemption, state the reason here instead.
+For a standard-risk change, state the intended behavior and primary failure mode in the risk-surface section instead. For a low-risk exemption, state the exemption reason there.
 
 ## Architecture governance
 
@@ -49,7 +50,7 @@ For a low-risk exemption, state the reason here instead.
 - [ ] An existing ADR governs this change: `ADR-____`.
 - [ ] This change requires/implements an RFC or new ADR; link it here.
 
-Follow `docs/RFC_PROCESS.md` for the small set of changes that require an RFC. If the pre-implementation adversarial review reveals that a bounded fix actually changes a governed architecture/trust/scientific/public-format/interaction boundary, stop and use the RFC/ADR process before implementation.
+Follow `docs/RFC_PROCESS.md` for the small set of changes that require an RFC. If a high-risk pre-implementation review reveals that a bounded fix actually changes a governed architecture/trust/scientific/public-format/interaction boundary, stop and use the RFC/ADR process before implementation.
 
 ## Focused verification
 
@@ -64,7 +65,7 @@ Run the smallest ownership-aligned checks that prove this PR's claims. The full 
 - [ ] Benchmark/performance evidence when a hot path materially changed
 - [ ] `npm run docs:check` when governance/canonical docs changed
 
-List the exact commands/checks run and their results. For high-risk work, connect the evidence back to the failure modes in the adversarial contract.
+List the exact commands/checks run and their results. For high-risk work, connect the evidence back to the failure modes in the adversarial contract. For standard-risk work, show that the changed behavior and its nearest production path were exercised.
 
 ## Correctness evidence
 
@@ -72,16 +73,18 @@ What invariant, expected behavior, or acceptance criterion demonstrates that thi
 
 ## Post-implementation adversarial review
 
-For high-risk changes, complete a distinct adversarial pass after focused verification and before claiming completion.
+Required for **high-risk** and **standard-risk** implementation changes. Keep standard-risk review compact; the purpose is falsification, not ceremony.
 
-- **Production path attacked:** What real call path/boundary was re-reviewed?
-- **Original failure modes:** What happened when the pre-implementation failure cases were exercised?
-- **Newly inferred failure mode:** What additional way could the final implementation fail that was not in the original plan, and how was it checked?
+- **Production path attacked:** What real call path/boundary or changed behavior was re-reviewed?
+- **Failure mode exercised:** What plausible failure was checked and what happened?
+- **Newly inferred failure mode:** Required for high-risk work; optional for standard-risk work when one is material.
 - **Test falsifiability:** Why would the relevant regression/boundary tests fail if the forbidden behavior returned?
 - **Disposition:** Which `BLOCKER` findings were fixed? Which valid findings were `DEFER`red or left as `SUGGESTION`?
 - **Completion/status check:** Does the implementation/evidence really satisfy the roadmap/PR claim, or should it remain `IMPLEMENTATION PARTIAL` / `IMPLEMENTATION LANDED / REVIEW ACTIVE`?
 
-Prefer an independent reviewer/agent for this pass when available. Green CI alone is not the post-implementation adversarial review.
+Record the useful result here. Do **not** create a standalone `docs/review*` file merely to prove that this pass happened. Separate review artifacts are for durable programme/research evidence, milestone/finding closure, or future audit needs.
+
+Use independent review when it adds a genuinely different challenge. Multiple reviewers should attack materially different failure classes rather than repeat the same general review.
 
 ## Review disposition
 
