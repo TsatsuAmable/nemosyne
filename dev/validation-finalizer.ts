@@ -18,6 +18,8 @@ export const VALIDATION_CUSTODY_SCHEMA_VERSION = '1';
 const MAX_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_REPORT_LINES = 512;
 const MAX_COHORT_SESSIONS = 256;
+const QUEST_10M_NONQUALIFICATION_INVALIDATION =
+  'quest-10m boundary probe is not final 10M device qualification';
 
 const RAW_EVIDENCE_NAMES = [
   'manifest.json',
@@ -153,6 +155,16 @@ function sameBuildDevice(a: ValidationManifest, b: ValidationManifest): boolean 
   );
 }
 
+function cohortManifestEligible(manifest: ValidationManifest): boolean {
+  if (manifest.validationMode === 'quest-perf') return manifest.invalidations.length === 0;
+  if (manifest.validationMode === 'quest-10m') {
+    return manifest.invalidations.every(
+      (reason) => reason === QUEST_10M_NONQUALIFICATION_INVALIDATION
+    );
+  }
+  return false;
+}
+
 function scanCohort(
   validationLogRoot: string,
   activeManifest: ValidationManifest
@@ -163,6 +175,7 @@ function scanCohort(
     boundaryCompletedRunCount: 0,
     boundaryAttemptCount: 0,
   };
+  const seenSessionIds = new Set<string>();
   let entries: fs.Dirent[] = [];
   try {
     entries = fs
@@ -176,24 +189,39 @@ function scanCohort(
   for (const entry of entries) {
     const evidenceDir = path.join(validationLogRoot, entry.name);
     const manifest = readManifest(evidenceDir);
-    if (!manifest || manifest.worktree !== 'clean' || !sameBuildDevice(activeManifest, manifest)) {
+    if (
+      !manifest ||
+      manifest.worktree !== 'clean' ||
+      !sameBuildDevice(activeManifest, manifest) ||
+      !cohortManifestEligible(manifest) ||
+      seenSessionIds.has(manifest.sessionId)
+    ) {
       continue;
     }
-    for (const report of readBoundedJsonLines(path.join(evidenceDir, 'loadtest-results.jsonl'))) {
-      if (isRecord(report) && report.profileName === 'quest-3s-qualification') {
-        const checked = validateQuestPerformanceReport(report, manifest);
-        if (checked.ok && !checked.aborted) {
-          cohort.perfCompletedRunCount += 1;
-          if (checked.corePass) cohort.perfPassingRunCount += 1;
-        }
+    seenSessionIds.add(manifest.sessionId);
+
+    const reports = readBoundedJsonLines(path.join(evidenceDir, 'loadtest-results.jsonl'));
+    if (manifest.validationMode === 'quest-perf') {
+      const perfReports = reports.filter(
+        (report) => isRecord(report) && report.profileName === 'quest-3s-qualification'
+      );
+      if (perfReports.length !== 1) continue;
+      const checked = validateQuestPerformanceReport(perfReports[0], manifest);
+      if (checked.ok && !checked.aborted) {
+        cohort.perfCompletedRunCount += 1;
+        if (checked.corePass) cohort.perfPassingRunCount += 1;
       }
-      if (isRecord(report) && report.profileName === 'quest-3s-rust-boundary-10m') {
-        const checked = validateQuestBoundaryReport(report, manifest);
-        if (checked.ok && checked.outcome) {
-          cohort.boundaryAttemptCount += 1;
-          if (checked.outcome === 'completed') cohort.boundaryCompletedRunCount += 1;
-        }
-      }
+      continue;
+    }
+
+    const boundaryReports = reports.filter(
+      (report) => isRecord(report) && report.profileName === 'quest-3s-rust-boundary-10m'
+    );
+    if (boundaryReports.length !== 1) continue;
+    const checked = validateQuestBoundaryReport(boundaryReports[0], manifest);
+    if (checked.ok && checked.outcome) {
+      cohort.boundaryAttemptCount += 1;
+      if (checked.outcome === 'completed') cohort.boundaryCompletedRunCount += 1;
     }
   }
   return cohort;
