@@ -7,7 +7,7 @@ interface EngineInternals {
 }
 
 class FakeXrSession extends EventTarget {
-  visibilityState: XRVisibilityState = 'hidden';
+  visibilityState: 'visible' | 'visible-blurred' | 'hidden' = 'hidden';
   inputSources: XRInputSource[] = [];
 }
 
