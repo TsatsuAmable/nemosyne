@@ -46,17 +46,10 @@ export class Engine {
   frameGovernor: AdaptiveFrameGovernor;
   _lastBudgetCheck = 0;
 
-  /**
-   * Explicit lifecycle state machine.
-   */
+  /** Explicit lifecycle state machine. */
   state: EngineState = 'running';
 
-  /**
-   * Shared event bus. Created by the engine so the AdaptiveFrameGovernor can
-   * emit WorldTopics.PERFORMANCE_THROTTLE from the moment it is constructed.
-   * `World` reuses this same instance for all coordinators so the governor's
-   * throttle events reach every subscriber.
-   */
+  /** Shared event bus used by the engine and World coordinators. */
   eventBus: WorldEventBus;
 
   cameraGroup: THREE.Group;
@@ -69,30 +62,23 @@ export class Engine {
   desktop: DesktopControls;
   timer: THREE.Timer;
 
-  // Optional undo/redo callbacks for desktop/VR keyboard shortcuts.
   onUndo: (() => void) | null = null;
   onRedo: (() => void) | null = null;
   onPauseInput: (() => void) | null = null;
   onResetView: (() => void) | null = null;
-  // Optional dev-evidence callbacks installed outside the core World graph.
   onToggleLoadTestPanel: (() => void) | null = null;
   onStartLoadTest: (() => void) | null = null;
   onStopLoadTest: (() => void) | null = null;
 
   _vrButtonElement: HTMLElement;
   headWorldPos: THREE.Vector3;
-
   _vignetteMesh: THREE.Mesh;
 
   xrFrame: XRFrame | null = null;
   xrRefSpace: XRReferenceSpace | null = null;
   xrSession: XRSession | null = null;
 
-  /**
-   * Last frame's wall-clock duration in ms (frameEnd - frameStart from `_tick`).
-   * Exposed so the load-test collector (an Engine updatable) can read per-frame
-   * timing without re-instrumenting the frame loop. 0 until the first tick.
-   */
+  /** Last frame's wall-clock duration in ms. */
   lastFrameMs = 0;
   frameIntervalMs = 0;
   private _lastFrameStartedAt = 0;
@@ -101,10 +87,6 @@ export class Engine {
   private readonly _onSessionStart = () => this._handleSessionStart();
   private readonly _onSessionEnd = () => this._handleSessionEnd();
 
-  // Retained per-session XR visibility handler so it can be detached on
-  // session end / engine disposal. Previously an anonymous arrow was passed
-  // to addEventListener and the reference was lost, leaking the listener if
-  // the XRSession outlived the Engine.
   private _xrVisibilityHandler: ((event: XRSessionEvent) => void) | null = null;
   private _xrVisibilitySession: XRSession | null = null;
   private _sessionStartBound = false;
@@ -129,8 +111,6 @@ export class Engine {
     this.camera.position.set(0, 1.6, 0);
     this.cameraGroup.add(this.camera);
 
-    // Neon origin marker so we can see *something* even if the rest of the
-    // scene is black or the camera is at the wrong height.
     this._addOriginMarker();
 
     this.renderer = new THREE.WebGLRenderer({
@@ -142,7 +122,6 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.xr.enabled = true;
     this.renderer.xr.setReferenceSpaceType('local-floor');
-    // Set explicit scene background color so WebXR framebuffers don't clear to transparent black.
     this.scene.background = new THREE.Color(0x020208);
     this.renderer.setClearColor(0x020208, 1);
     document.body.appendChild(this.renderer.domElement);
@@ -159,9 +138,6 @@ export class Engine {
     this.locomotion = new Locomotion(this);
     this.desktop = new DesktopControls(this);
     this.timer = new THREE.Timer();
-    // Zero out large deltas when the tab is hidden so resume does not inject
-    // a single huge frame into locomotion/updatables. THREE.Timer handles
-    // this via the Page Visibility API once connected.
     try {
       if (typeof document !== 'undefined') this.timer.connect(document);
     } catch (_) {
@@ -193,9 +169,7 @@ export class Engine {
   }
 
   addUpdatable(obj: FrameTask): void {
-    if (obj) {
-      this.updatables.add(obj);
-    }
+    if (obj) this.updatables.add(obj);
   }
 
   removeUpdatable(obj: FrameTask): void {
@@ -218,13 +192,17 @@ export class Engine {
     this.input.removeHudObject(obj);
   }
 
+  private _resetFrameTimingBaseline(): void {
+    this.timer.reset();
+    this._lastFrameStartedAt = 0;
+    this.frameIntervalMs = 0;
+  }
+
   start(): void {
     if (this.state === 'disposed') return;
     if (this.state === 'running' && this._sessionStartBound) return;
     this.state = 'running';
-    // Timer has no start/stop: reset the baseline so a pause does not inject
-    // one large catch-up delta on resume.
-    this.timer.reset();
+    this._resetFrameTimingBaseline();
     this.renderer.setAnimationLoop(() => this._tick());
     if (!this._sessionStartBound) {
       this.renderer.xr.addEventListener('sessionstart', this._onSessionStart);
@@ -237,19 +215,12 @@ export class Engine {
     if (this.state === 'disposed' || this.state === 'paused') return;
     this.state = 'paused';
     this.renderer.setAnimationLoop(null);
-    // No timer.stop() on THREE.Timer: the loop is halted so update() is no
-    // longer called; start() resets the baseline on resume.
   }
 
   private _handleSessionStart(): void {
-    this._lastFrameStartedAt = 0;
-    this.frameIntervalMs = 0;
+    this._resetFrameTimingBaseline();
     const session = this.renderer.xr.getSession();
     if (session && this._xrVisibilitySession !== session) {
-      // Detach any previous session's visibility listener before binding the
-      // new one (defensive: should not normally happen because _handleSessionEnd
-      // clears the fields, but guards against a second sessionstart without an
-      // intervening sessionend).
       this._detachXrVisibility();
 
       try {
@@ -260,11 +231,17 @@ export class Engine {
           (this.renderer.xr as unknown as { setFoveation: (f: number) => void }).setFoveation(1.0);
         }
       } catch (_) {
-        // Ignored if foveation is unsupported in environment
+        // Ignored if foveation is unsupported in environment.
       }
 
       const handler = (event: XRSessionEvent) => {
         void event;
+        if (session.visibilityState === 'visible') {
+          // XR compositor visibility can change without document.visibilityState.
+          // Reset the timer explicitly so a hidden compositor interval cannot
+          // become one giant locomotion/updatable delta on the resume frame.
+          this._resetFrameTimingBaseline();
+        }
         this._reportSessionStatus(
           session.visibilityState === 'visible'
             ? 'session resumed'
@@ -305,8 +282,6 @@ export class Engine {
     this.frameIntervalMs = this._lastFrameStartedAt > 0 ? frameStart - this._lastFrameStartedAt : 0;
     this._lastFrameStartedAt = frameStart;
     try {
-      // Timer latches one delta per update(); query after update so every
-      // consumer in this tick observes identical values.
       this.timer.update();
       const delta = this.timer.getDelta();
       const time = this.timer.getElapsed();
@@ -317,9 +292,7 @@ export class Engine {
       this.xrFrame = frame;
       this.xrRefSpace = refSpace;
       this.xrSession = session;
-      if (frame && refSpace) {
-        this.input.update(frame, refSpace, session, time);
-      }
+      if (frame && refSpace) this.input.update(frame, refSpace, session, time);
 
       this.camera.getWorldPosition(this.headWorldPos);
 
@@ -341,7 +314,6 @@ export class Engine {
       this.frameGovernor.recordFrame(frameMs);
       this.lastFrameMs = frameMs;
 
-      // Evaluate performance budget once per second to avoid overhead.
       const now = performance.now();
       if (now - this._lastBudgetCheck >= 1000) {
         this._lastBudgetCheck = now;
@@ -368,13 +340,6 @@ export class Engine {
     }
   }
 
-  /**
-   * Gracefully ends the active WebXR session if one is running, returning the
-   * user to desktop mode. Resolves with `true` when the session ended cleanly
-   * (or none was active), `false` when `session.end()` failed so the caller
-   * (UI / telemetry / study instrumentation) can surface the failure instead
-   * of presenting a dead button.
-   */
   async exitVR(): Promise<boolean> {
     const session = this.renderer.xr.getSession();
     if (!session) return true;
@@ -387,9 +352,6 @@ export class Engine {
     }
   }
 
-  /**
-   * Returns true if currently presenting in an active WebXR session.
-   */
   isInVR(): boolean {
     return this.renderer.xr.isPresenting;
   }
@@ -404,11 +366,7 @@ export class Engine {
   }
 
   _createVignetteMesh(): THREE.Mesh {
-    // A full-screen quad that is always centered in front of the camera.
-    // Used as a tunnel-vision / peripheral darkening comfort aid during
-    // locomotion. Hidden by default.
     const geom = new THREE.PlaneGeometry(2, 2, 1, 1);
-    // Radial gradient in UV space.
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
@@ -447,7 +405,6 @@ export class Engine {
   _addOriginMarker(): void {
     const markerGroup = new THREE.Group();
 
-    // 1. Center pulsing core (small sphere).
     const coreGeom = new THREE.SphereGeometry(0.04, 16, 16);
     const coreMat = new THREE.MeshBasicMaterial({
       color: 0x00ffff,
@@ -459,7 +416,6 @@ export class Engine {
     core.position.set(0, 0.05, 0);
     markerGroup.add(core);
 
-    // 2. Floor alignment ring.
     const ringGeom = new THREE.RingGeometry(0.2, 0.22, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xff0055,
@@ -472,7 +428,6 @@ export class Engine {
     ring.position.y = 0.01;
     markerGroup.add(ring);
 
-    // 3. Compact coordinate axes at ground level.
     const axes = new THREE.AxesHelper(0.3);
     axes.position.y = 0.01;
     markerGroup.add(axes);
@@ -484,7 +439,6 @@ export class Engine {
   _onWindowResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    // Do not call setSize() while the XR compositor owns the framebuffer.
     if (!this.renderer.xr.isPresenting) {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
@@ -495,17 +449,13 @@ export class Engine {
     this.state = 'context_lost';
     console.warn('[Engine] WebGL context lost');
     this._reportSessionStatus('GPU context lost — pausing render', '#ffaa00');
-    // Stop the animation loop; the renderer will resume automatically once the
-    // context is restored. three.js does not require manual resource recreation
-    // for a simple context restoration, but we clear transient state.
     this.renderer.setAnimationLoop(null);
   }
 
   _contextRestored(): void {
-    // A context-restored event arriving after dispose() would resurrect a
-    // disposed Engine. Bail before touching state or restarting the loop.
     if (this.state === 'disposed' || this.state === 'paused') return;
     this.state = 'running';
+    this._resetFrameTimingBaseline();
     console.warn('[Engine] WebGL context restored');
     this._reportSessionStatus('GPU context restored', '#00ffcc');
     this.renderer.setAnimationLoop(() => this._tick());
@@ -521,16 +471,12 @@ export class Engine {
       // Timer may never have connected in test environments.
     }
 
-    // Clean up window & XR event listeners
     window.removeEventListener('resize', this._onResize);
     this.renderer.xr.removeEventListener('sessionstart', this._onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this._onSessionEnd);
     this._sessionStartBound = false;
     this.renderer.domElement.removeEventListener('webglcontextlost', this._contextLost);
     this.renderer.domElement.removeEventListener('webglcontextrestored', this._contextRestored);
-    // Detach any retained per-session XR visibility listener so an XRSession
-    // that outlives the Engine does not keep the handler (and the Engine
-    // closure) alive.
     this._detachXrVisibility();
 
     this.updatables.clear();
