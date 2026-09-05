@@ -49,8 +49,8 @@ export class PointerEventMachine {
    */
   press(pointer: PointerLike): boolean {
     const ray = pointer.getRay(new THREE.Ray());
-    this.registry.raycaster.ray.copy(ray);
     if (!isUsablePointerRay(ray)) return false;
+    this.registry.raycaster.ray.copy(ray);
 
     // Launcher ring takes precedence when visible.
     if (this.panelManager?.isLauncherVisible?.()) {
