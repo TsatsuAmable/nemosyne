@@ -17,7 +17,7 @@
 | governance-service | product, data | RUNNABLE_AND_DEPLOYABLE | IMPLEMENTATION_INCOMPLETE | DEFERRED_BY_POLICY | REPOSITORY_PARTIAL | PT4, P1-W |
 | collaboration-signalling-service | realtime | RUNNABLE_AND_DEPLOYABLE | READY_TO_DEPLOY | DEFERRED_BY_POLICY | REPOSITORY_VERIFIED | RF-054, P1-W1 |
 | production-live-source-contract | data | CONFIGURABLE_EXTERNAL_SOURCE | CLIENT_READY | DEFERRED_BY_POLICY | REPOSITORY_PARTIAL | RF-054, P1-W |
-| learning-plane-jobs | learning | REPRODUCIBLE_GOVERNED_JOBS | REGISTRY_AND_JOB_CONTRACTS_READY | NOT_REQUIRED_YET | REPOSITORY_PARTIAL | PT6, PT7, PT8, PT9 |
+| learning-plane-jobs | learning | REPRODUCIBLE_GOVERNED_JOBS | GESTURE_UPDATE_LOOP_READY | NOT_REQUIRED_YET | REPOSITORY_PARTIAL | PT6, PT7, PT8, PT9 |
 
 ### governance-service
 
@@ -51,13 +51,13 @@ Production live ingest is a configured external-source contract. The bundled /__
 
 ### learning-plane-jobs
 
-PT6/PT7 now provide governed user-disjoint snapshots, held-out evaluation artifacts, content-addressed learning artifacts, exact runtime/model registry lineage, reproducible job manifests/receipts, signed staged deployment manifests and rollback metadata. PT8/PT9 still own concrete model-update loops and model-specific qualification evidence; no deployed learning service is claimed.
+PT6/PT7 provide governed user-disjoint snapshots, held-out evaluation artifacts, content-addressed learning artifacts, exact runtime/model lineage, reproducible job manifests/receipts and signed staged deployment/rollback. PT8 now adds the gesture-specific model update loop with exact held-out qualification, stability/failure/resource evidence, shadow/canary evidence and explicit human promotion authority. PT9 still owns the learned-Moneta update loop; no deployed learning service or live-human gesture-quality claim is made.
 
 **Sources:** `src/learning`, `src/fitness`, `src/judgement`
 
 **Capability refs:** `learned-fitness-training`
 
-**Verification obligations:** `RDO-011`, `RDO-012`, `RDO-013`
+**Verification obligations:** `RDO-011`, `RDO-012`, `RDO-013`, `RDO-014`, `RDO-015`
 
 ## Verification obligations
 
@@ -76,6 +76,8 @@ PT6/PT7 now provide governed user-disjoint snapshots, held-out evaluation artifa
 | RDO-011 | learning-plane-jobs | AUTOMATED | GREEN | `tests/pt6d-gesture-training-snapshot-materialization.test.ts`, `tests/pt6d-gesture-evaluation-report.test.ts` | Keep immutable user-disjoint training snapshots and held-out evaluation artifacts bound to governed consent, label provenance and exact source identity. |
 | RDO-012 | learning-plane-jobs | AUTOMATED | GREEN | `tests/pt7-runtime-model-registry.test.ts` | Keep exact artifact lineage, reproducible job inputs/receipts, runtime/model registry identity, signed staged deployment and rollback metadata fail-closed. |
 | RDO-013 | learning-plane-jobs | MANUAL | GREEN | `docs/review-plans/P1_PT7_RUNTIME_MODEL_REGISTRY_2026-09-05.md`, `docs/review/P1_PT7_RUNTIME_MODEL_REGISTRY_POST_REVIEW_2026-09-05.md` | Keep the staged shadow/canary/production/rollback review contract explicit: model-specific held-out evidence, known-answer/failure/stability evidence, abstention/coverage where applicable, and signed human promotion authority remain prerequisites rather than an automatic scalar gate. |
+| RDO-014 | learning-plane-jobs | AUTOMATED | GREEN | `tests/pt8-gesture-model-update-loop.test.ts` | Keep gesture retraining bound to the exact PT6 snapshot and PT7 receipt/model lineage; require exact validation/test reports, stage-specific qualification evidence, Product-mode adaptive treatment, human review, signed shadow/canary/production sequencing and exact rollback. |
+| RDO-015 | learning-plane-jobs | MANUAL | GREEN | `docs/review-plans/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_2026-09-05.md`, `docs/review/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_POST_REVIEW_2026-09-05.md` | Keep PT8 model-specific qualification scientifically honest: derived metrics are evidence rather than automatic authority, frozen/Research treatments cannot adapt, and repository shadow/canary contracts are not promoted into live-cohort or physical human-performance claims. |
 
 ## State semantics
 
