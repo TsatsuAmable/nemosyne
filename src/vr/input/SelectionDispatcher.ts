@@ -18,24 +18,33 @@ type DwellTarget =
   | { type: 'panel'; value: PanelLike }
   | { type: 'scene'; value: InteractableEntry };
 
-export interface SelectionDispatchInfo {
+export interface SelectionDispatchStartInfo {
   hudConsumed: boolean;
   sceneMesh: THREE.Object3D | null;
   sceneData?: unknown;
-  /** True only when a scene/global selection callback completed successfully. */
-  hadCallback: boolean;
   pointer: PointerLike | null;
   /**
    * Whether the selecting pointer produced a finite, non-degenerate ray.
-   * Lets traces separate tracking-loss misses (no ray) from aimed misses
-   * (valid ray, no hovered target).
+   * Lets traces separate tracking-loss misses from aimed misses.
    */
   rayValid: boolean;
+}
+
+export interface SelectionDispatchInfo extends SelectionDispatchStartInfo {
+  /** True only when a scene/global selection callback completed successfully. */
+  hadCallback: boolean;
 }
 
 export class SelectionDispatcher {
   registry: InteractableRegistry;
   onSelectCallback: ((ray: THREE.Ray) => void) | null;
+  /**
+   * Fires after HUD/target resolution but before scene/global callbacks. This
+   * gives evidence sinks one pre-action snapshot boundary without weakening the
+   * outcome truthfulness of `onDispatch`.
+   */
+  onDispatchStart: ((info: SelectionDispatchStartInfo) => void) | null = null;
+  /** Fires only after the observable selection outcome is known. */
   onDispatch: ((info: SelectionDispatchInfo) => void) | null = null;
 
   feedback: SelectionFeedback;
@@ -95,9 +104,10 @@ export class SelectionDispatcher {
    * Trigger selection on the currently hovered scene object or HUD under the
    * active pointer, honoring pinch recoil lock when active.
    *
-   * Dispatch telemetry is emitted after callbacks complete. That makes
-   * `hadCallback` an observed outcome rather than a pre-dispatch guess; a
-   * callback that throws cannot be recorded as a successful callback-only hit.
+   * The start hook fires before scene/global callbacks. Outcome telemetry fires
+   * after callbacks complete, so `hadCallback` is an observed outcome rather
+   * than a pre-dispatch guess; a callback that throws cannot be recorded as a
+   * successful callback-only hit.
    */
   triggerSelect(activePointer: PointerLike | null) {
     if (!activePointer) return;
@@ -122,16 +132,18 @@ export class SelectionDispatcher {
       this._pinchLockTarget && performance.now() < this._pinchLockExpiry
         ? this._pinchLockTarget
         : this.registry.hovered;
+    const startInfo: SelectionDispatchStartInfo = {
+      hudConsumed,
+      sceneMesh: hudConsumed ? null : effectiveHovered?.mesh ?? null,
+      sceneData: hudConsumed ? undefined : effectiveHovered?.data,
+      pointer: activePointer,
+      rayValid,
+    };
+
+    this.onDispatchStart?.(startInfo);
 
     if (hudConsumed) {
-      this.onDispatch?.({
-        hudConsumed: true,
-        sceneMesh: null,
-        sceneData: undefined,
-        hadCallback: false,
-        pointer: activePointer,
-        rayValid,
-      });
+      this.onDispatch?.({ ...startInfo, hadCallback: false });
       return;
     }
 
@@ -146,14 +158,7 @@ export class SelectionDispatcher {
       callbackCompleted = true;
     }
 
-    this.onDispatch?.({
-      hudConsumed: false,
-      sceneMesh: effectiveHovered?.mesh ?? null,
-      sceneData: effectiveHovered?.data,
-      hadCallback: callbackCompleted,
-      pointer: activePointer,
-      rayValid,
-    });
+    this.onDispatch?.({ ...startInfo, hadCallback: callbackCompleted });
     this.clearPinchLock();
   }
 
