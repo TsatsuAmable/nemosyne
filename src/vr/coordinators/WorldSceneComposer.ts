@@ -48,6 +48,7 @@ export class WorldSceneComposer {
   private _bodyYawInitialized = false;
   private _bodyYawTracking = false;
   private _bodyYawIntentSeconds = 0;
+  private _bodyYawIntentDirection = 0;
   private readonly _viewerPosition = new THREE.Vector3();
   private readonly _viewerQuaternion = new THREE.Quaternion();
   private readonly _viewerEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -163,13 +164,24 @@ export class WorldSceneComposer {
 
       if (!this._bodyYawTracking) {
         if (absError >= BODY_YAW_ENTER_DEADBAND) {
-          this._bodyYawIntentSeconds += dt;
+          const intentDirection = Math.sign(yawError);
+          if (intentDirection !== this._bodyYawIntentDirection) {
+            // A sustained body turn must persist in one direction. Alternating
+            // left/right gaze excursions outside the deadband are scanning, not
+            // evidence that the torso heading changed.
+            this._bodyYawIntentDirection = intentDirection;
+            this._bodyYawIntentSeconds = dt;
+          } else {
+            this._bodyYawIntentSeconds += dt;
+          }
           if (this._bodyYawIntentSeconds >= BODY_YAW_INTENT_SECONDS) {
             this._bodyYawTracking = true;
             this._bodyYawIntentSeconds = 0;
+            this._bodyYawIntentDirection = 0;
           }
         } else {
           this._bodyYawIntentSeconds = 0;
+          this._bodyYawIntentDirection = 0;
         }
       }
 
@@ -177,6 +189,7 @@ export class WorldSceneComposer {
         if (absError <= BODY_YAW_EXIT_DEADBAND) {
           this._bodyYawTracking = false;
           this._bodyYawIntentSeconds = 0;
+          this._bodyYawIntentDirection = 0;
         } else if (dt > 0) {
           const alpha = 1 - Math.exp(-BODY_YAW_DAMPING_LAMBDA * dt);
           this._bodyYaw = this._wrapYaw(this._bodyYaw + yawError * alpha);
