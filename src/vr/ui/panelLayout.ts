@@ -1,17 +1,18 @@
 /**
  * Central VR panel default layout — C1′ role-aware depth-tier zoning.
  *
- * Authority: docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md revision 4 (role-aware
+ * Authority: docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md revision 5 (role-aware
  * tiers grounded in the vision doc §9 "UI / Analyst Cockpit", §4.3 interaction
  * ontology, and docs/archive/USER_STORIES_AND_UX_ANALYSIS_2026-08-19.md).
  *
  * Reference-frame decision (revision 3): every persistent panel is
- * BODY_LOCKED — parented to the torso anchor (WorldSceneComposer.analystAnchor,
- * damped yaw, y ≈ 1.35 m at eye height 1.6 m) — never head/camera-locked.
- * Revision 4 brings the persistent C2 Status Strip under this same authority.
- * Rationale: body-fixed slots build landmark/survey knowledge, damped yaw
- * avoids visual-vestibular conflict while scanning, snap turns ease instead
- * of jumping, and drag-to-reposition remains the user override.
+ * BODY_LOCKED — parented to the torso/body workspace anchor
+ * (WorldSceneComposer.analystAnchor) — never head/camera-locked. Revision 4
+ * brings the persistent C2 Status Strip under this same authority. Revision 5
+ * tightens BODY_LOCKED semantics: rig locomotion owns translation, physical HMD
+ * X/Z lean is ignored, heading uses deadband/hysteresis plus delta-time damping,
+ * active panel grabs freeze the body frame, and panel facing is local rather
+ * than world-origin billboarding.
  *
  * Vision-directed principles baked into this layout:
  *  1. The forward center cone (±12°, mid field) is RESERVED for data. The palace
@@ -22,8 +23,9 @@
  *     at their slot; this module defines *where they appear*, nothing more.
  *  4. Tiers encode interaction proximity, NOT analytical importance (skill §15).
  *
- * ALL coordinates are torso-anchor-LOCAL. Do not subtract ANCHOR_TORSO_WORLD_Y
- * here or at call sites — the table below is already in the anchor frame.
+ * ALL coordinates are body-workspace-anchor-LOCAL. Do not subtract
+ * ANCHOR_TORSO_WORLD_Y here or at call sites — the table below is already in the
+ * anchor frame.
  */
 
 export const ANCHOR_TORSO_WORLD_Y = 1.35; // eye 1.6 − 0.25 (WorldSceneComposer)
@@ -93,10 +95,10 @@ export type PanelLayoutKey = keyof typeof PANEL_LAYOUT;
 
 /**
  * Participant-facing UI treatment identity for the vision §14 freeze contract:
- * panel defaults = revision 4 (torso-locked, C2 status grounding governed),
- * command surface = intent wheel v1 (+ SUPERUSER annex), reference-frame policy
- * = BODY_LOCKED with head lock reserved for transient alerts. Bump whenever any
- * participant-facing spatial arrangement changes and record it in
- * docs/study/UI_TREATMENT.md.
+ * panel defaults = revision 5 (stable body frame + C2 grounding), command
+ * surface = intent wheel v1 (+ SUPERUSER annex), reference-frame policy =
+ * BODY_LOCKED with head lock reserved for transient alerts. Bump whenever any
+ * participant-facing spatial arrangement or reference-frame behavior changes
+ * and record it in docs/study/UI_TREATMENT.md.
  */
-export const UI_TREATMENT_VERSION = 'panel-layout/4+intent-wheel/1+frames/torso-locked' as const;
+export const UI_TREATMENT_VERSION = 'panel-layout/5+intent-wheel/1+frames/body-stable' as const;
