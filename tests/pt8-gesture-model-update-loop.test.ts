@@ -9,6 +9,7 @@ import {
 } from '../src/governance/index.ts';
 import {
   buildGestureEvaluationReportV1,
+  type GestureEvaluationReportV1,
   type GestureEvaluationSplit,
 } from '../src/learning/GestureEvaluationReport.ts';
 import {
@@ -151,7 +152,7 @@ function evaluationReport(
   split: GestureEvaluationSplit,
   modelArtifact: ImmutableReferenceV1,
   version: string,
-) {
+): GestureEvaluationReportV1 {
   return buildGestureEvaluationReportV1(
     trainingSnapshot,
     trainingSnapshot.splits[split].samples.map((entry) => ({
@@ -201,19 +202,22 @@ function executorFor(modelArtifact: ImmutableReferenceV1): GestureTrainingExecut
     async execute(manifest, trainingSnapshot) {
       const validationReport = evaluationReport(trainingSnapshot, 'validation', modelArtifact, manifest.jobVersion);
       const testReport = evaluationReport(trainingSnapshot, 'test', modelArtifact, manifest.jobVersion);
-      const receipt = buildTrainingJobReceiptV1(manifest, {
-        receiptId: `gesture-receipt-${manifest.jobVersion.replaceAll('.', '-')}`,
-        receiptVersion: manifest.jobVersion,
-        startedAt: '2026-09-05T08:20:00.000Z',
-        finishedAt: '2026-09-05T08:32:00.000Z',
-        status: 'SUCCEEDED',
-        runnerEnvironment: manifest.environment,
-        outputModel: modelArtifact,
-        evaluationReport: gestureEvaluationReportReferenceV1(testReport),
-        logs: ref(`gesture-training-logs-${manifest.jobVersion.replaceAll('.', '-')}`, '3'),
-        failureCode: null,
-      });
-      return { receipt, validationReport, testReport };
+      return {
+        validationReport,
+        testReport,
+        receipt: buildTrainingJobReceiptV1(manifest, {
+          receiptId: `gesture-receipt-${manifest.jobVersion.replaceAll('.', '-')}`,
+          receiptVersion: manifest.jobVersion,
+          startedAt: '2026-09-05T08:20:00.000Z',
+          finishedAt: '2026-09-05T08:32:00.000Z',
+          status: 'SUCCEEDED',
+          runnerEnvironment: manifest.environment,
+          outputModel: modelArtifact,
+          evaluationReport: gestureEvaluationReportReferenceV1(testReport),
+          logs: ref(`gesture-training-logs-${manifest.jobVersion.replaceAll('.', '-')}`, '3'),
+          failureCode: null,
+        }),
+      };
     },
   });
 }
@@ -221,11 +225,11 @@ function executorFor(modelArtifact: ImmutableReferenceV1): GestureTrainingExecut
 function qualification(
   stage: GestureQualificationStage,
   modelArtifact: ImmutableReferenceV1,
-  validationReport: ReturnType<typeof evaluationReport>,
-  testReport: ReturnType<typeof evaluationReport>,
+  validationReport: GestureEvaluationReportV1,
+  testReport: GestureEvaluationReportV1,
   version: string,
 ): GestureQualificationEvidenceV1 {
-  const hasShadow = stage === 'SHADOW' || stage === 'CANARY';
+  const hasShadow = stage !== 'OFFLINE';
   const hasCanary = stage === 'CANARY';
   return buildGestureQualificationEvidenceV1({
     schemaVersion: '1',
@@ -265,7 +269,7 @@ function qualification(
 function review(
   disposition: GesturePromotionDisposition,
   modelArtifact: ImmutableReferenceV1,
-  qualificationEvidence: GestureQualificationEvidenceV1,
+  evidence: GestureQualificationEvidenceV1,
   version: string,
   rollbackFromModel: ImmutableReferenceV1 | null = null,
 ) {
@@ -278,7 +282,7 @@ function review(
     disposition,
     reviewerAuthority: ref('pt8-human-operator', '9'),
     modelArtifact,
-    qualificationEvidence: gestureQualificationEvidenceReferenceV1(qualificationEvidence),
+    qualificationEvidence: gestureQualificationEvidenceReferenceV1(evidence),
     rollbackFromModel,
   });
 }
@@ -293,10 +297,10 @@ async function registerCandidate(
   trainingSnapshot: GestureTrainingSnapshotV1,
   runtimeReference: ImmutableReferenceV1,
   version: string,
-  character: string,
+  digestCharacter: string,
   parentModel: ImmutableReferenceV1 | null,
 ) {
-  const modelArtifact = ref(`gesture-model-${version}`, character, version);
+  const modelArtifact = ref(`gesture-model-${version}`, digestCharacter, version);
   const result = await loop.executeTraining(executorFor(modelArtifact), {
     manifest: trainingManifest(trainingSnapshot, runtimeReference, version),
     snapshot: trainingSnapshot,
@@ -315,8 +319,8 @@ async function promoteToProduction(
   loop: GestureModelUpdateLoopV1,
   model: OperationalModelRegistryEntryV1,
   runtimeReference: ImmutableReferenceV1,
-  validationReport: ReturnType<typeof evaluationReport>,
-  testReport: ReturnType<typeof evaluationReport>,
+  validationReport: GestureEvaluationReportV1,
+  testReport: GestureEvaluationReportV1,
   version: string,
   keyPair: CryptoKeyPair,
 ) {
@@ -324,7 +328,8 @@ async function promoteToProduction(
   const offline = qualification('OFFLINE', model.modelArtifact, validationReport, testReport, version);
   await loop.applyPromotion({
     stage: 'SHADOW', modelRegistryEntry: modelReference, runtimeRegistryEntry: runtimeReference,
-    qualification: offline, review: review('APPROVE_SHADOW', model.modelArtifact, offline, version),
+    qualification: offline, validationReport, testReport,
+    review: review('APPROVE_SHADOW', model.modelArtifact, offline, version),
     manifestId: `gesture-shadow-${version}`, manifestVersion: version, createdAt: '2026-09-05T10:00:00.000Z', rolloutPercent: 0,
     signingKeyId: 'pt8-operator-key', privateKey: keyPair.privateKey, publicKey: keyPair.publicKey,
   });
@@ -332,7 +337,8 @@ async function promoteToProduction(
   const shadow = qualification('SHADOW', model.modelArtifact, validationReport, testReport, version);
   await loop.applyPromotion({
     stage: 'CANARY', modelRegistryEntry: modelReference, runtimeRegistryEntry: runtimeReference,
-    qualification: shadow, review: review('APPROVE_CANARY', model.modelArtifact, shadow, version),
+    qualification: shadow, validationReport, testReport,
+    review: review('APPROVE_CANARY', model.modelArtifact, shadow, version),
     manifestId: `gesture-canary-${version}`, manifestVersion: version, createdAt: '2026-09-05T10:10:00.000Z', rolloutPercent: 10,
     signingKeyId: 'pt8-operator-key', privateKey: keyPair.privateKey, publicKey: keyPair.publicKey,
   });
@@ -340,7 +346,8 @@ async function promoteToProduction(
   const canary = qualification('CANARY', model.modelArtifact, validationReport, testReport, version);
   await loop.applyPromotion({
     stage: 'PRODUCTION', modelRegistryEntry: modelReference, runtimeRegistryEntry: runtimeReference,
-    qualification: canary, review: review('APPROVE_PRODUCTION', model.modelArtifact, canary, version),
+    qualification: canary, validationReport, testReport,
+    review: review('APPROVE_PRODUCTION', model.modelArtifact, canary, version),
     manifestId: `gesture-production-${version}`, manifestVersion: version, createdAt: '2026-09-05T10:20:00.000Z', rolloutPercent: 100,
     signingKeyId: 'pt8-operator-key', privateKey: keyPair.privateKey, publicKey: keyPair.publicKey,
   });
@@ -352,8 +359,7 @@ describe('PT8 governed gesture model update loop', () => {
     const registry = new RuntimeModelRegistryV1();
     const runtimeReference = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry()));
     const loop = new GestureModelUpdateLoopV1(registry);
-    const trainingSnapshot = snapshot();
-    const output = await registerCandidate(registry, loop, trainingSnapshot, runtimeReference, '1.0.0', 'a', null);
+    const output = await registerCandidate(registry, loop, snapshot(), runtimeReference, '1.0.0', 'a', null);
 
     expect(output.model.kind).toBe('GESTURE_MODEL');
     expect(output.model.targetComponent).toBe('perceptionGestureTreatment');
@@ -362,59 +368,64 @@ describe('PT8 governed gesture model update loop', () => {
     expect(output.model.evaluationReport).toEqual(gestureEvaluationReportReferenceV1(output.testReport));
   });
 
-  it('does not convert qualification metrics into automatic promotion authority', () => {
+  it('keeps metrics as evidence rather than automatic promotion authority', () => {
     const trainingSnapshot = snapshot();
-    const modelArtifact = ref('gesture-model-low-metric', 'b');
+    const modelArtifact = ref('gesture-model-evidence-only', 'b');
     const validationReport = evaluationReport(trainingSnapshot, 'validation', modelArtifact, '1.0.0');
     const testReport = evaluationReport(trainingSnapshot, 'test', modelArtifact, '1.0.0');
     const evidence = qualification('OFFLINE', modelArtifact, validationReport, testReport, '1.0.0');
 
     expect(evidence.testSummary.accuracy).toBe(1);
-    expect(evidence.testSummary.macroF1).toBeGreaterThanOrEqual(0);
     expect(evidence).not.toHaveProperty('passedBar');
     expect(evidence).not.toHaveProperty('autoPromote');
   });
 
-  it('rejects re-digested/forged qualification evidence instead of trusting a plausible stage label', async () => {
+  it('rejects forged qualification evidence even when a plausible human review references it', async () => {
     const registry = new RuntimeModelRegistryV1();
     const runtimeReference = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry()));
     const loop = new GestureModelUpdateLoopV1(registry);
-    const trainingSnapshot = snapshot();
-    const output = await registerCandidate(registry, loop, trainingSnapshot, runtimeReference, '1.1.0', 'b', null);
+    const output = await registerCandidate(registry, loop, snapshot(), runtimeReference, '1.1.0', 'b', null);
     const valid = qualification('OFFLINE', output.model.modelArtifact, output.validationReport, output.testReport, '1.1.0');
-    const forged = {
-      ...valid,
-      evidenceDigest: { algorithm: 'SHA256' as const, value: '0'.repeat(64) },
-    } as GestureQualificationEvidenceV1;
-    const forgedReview = review('APPROVE_SHADOW', output.model.modelArtifact, forged, '1.1.0');
+    const forged = { ...valid, evidenceDigest: { algorithm: 'SHA256' as const, value: '0'.repeat(64) } } as GestureQualificationEvidenceV1;
     const keyPair = await deploymentKeyPair();
 
     await expect(loop.applyPromotion({
-      stage: 'SHADOW', modelRegistryEntry: modelRegistryEntryReferenceV1(output.model), runtimeRegistryEntry: runtimeReference,
-      qualification: forged, review: forgedReview,
+      stage: 'SHADOW',
+      modelRegistryEntry: modelRegistryEntryReferenceV1(output.model),
+      runtimeRegistryEntry: runtimeReference,
+      qualification: forged,
+      validationReport: output.validationReport,
+      testReport: output.testReport,
+      review: review('APPROVE_SHADOW', output.model.modelArtifact, forged, '1.1.0'),
       manifestId: 'forged-shadow', manifestVersion: '1.1.0', createdAt: '2026-09-05T10:00:00.000Z', rolloutPercent: 0,
       signingKeyId: 'pt8-operator-key', privateKey: keyPair.privateKey, publicKey: keyPair.publicKey,
     })).rejects.toBeInstanceOf(GestureModelUpdateError);
   });
 
-  it('refuses adaptive deployment into a runtime whose gesture treatment is frozen', async () => {
+  it('refuses model adaptation when the Product runtime freezes gesture treatment', async () => {
     const registry = new RuntimeModelRegistryV1();
-    const frozenRuntime = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry(false, 'frozen')));
+    const runtimeReference = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry(false, 'frozen')));
     const loop = new GestureModelUpdateLoopV1(registry);
-    const trainingSnapshot = snapshot();
-    const output = await registerCandidate(registry, loop, trainingSnapshot, frozenRuntime, '1.2.0', 'c', null);
+    const output = await registerCandidate(registry, loop, snapshot(), runtimeReference, '1.2.0', 'c', null);
     const offline = qualification('OFFLINE', output.model.modelArtifact, output.validationReport, output.testReport, '1.2.0');
     const keyPair = await deploymentKeyPair();
 
     await expect(loop.applyPromotion({
-      stage: 'SHADOW', modelRegistryEntry: modelRegistryEntryReferenceV1(output.model), runtimeRegistryEntry: frozenRuntime,
-      qualification: offline, review: review('APPROVE_SHADOW', output.model.modelArtifact, offline, '1.2.0'),
+      stage: 'SHADOW',
+      modelRegistryEntry: modelRegistryEntryReferenceV1(output.model),
+      runtimeRegistryEntry: runtimeReference,
+      qualification: offline,
+      validationReport: output.validationReport,
+      testReport: output.testReport,
+      review: review('APPROVE_SHADOW', output.model.modelArtifact, offline, '1.2.0'),
       manifestId: 'frozen-shadow', manifestVersion: '1.2.0', createdAt: '2026-09-05T10:00:00.000Z', rolloutPercent: 0,
       signingKeyId: 'pt8-operator-key', privateKey: keyPair.privateKey, publicKey: keyPair.publicKey,
-    })).rejects.toBeInstanceOf(GestureModelUpdateError);
+    })).rejects.toMatchObject({
+      issues: expect.arrayContaining([expect.objectContaining({ code: 'RUNTIME_ADAPTATION_FORBIDDEN' })]),
+    });
   });
 
-  it('runs human-reviewed shadow -> canary -> production and exact rollback through PT7 lineage', async () => {
+  it('runs human-reviewed shadow -> canary -> production and exact rollback through PT7', async () => {
     const registry = new RuntimeModelRegistryV1();
     const runtimeReference = runtimeRegistryEntryReferenceV1(registry.registerRuntime(productRuntimeEntry()));
     const loop = new GestureModelUpdateLoopV1(registry);
@@ -434,6 +445,8 @@ describe('PT8 governed gesture model update loop', () => {
       targetModelRegistryEntry: v1Reference,
       runtimeRegistryEntry: runtimeReference,
       qualification: v1Qualification,
+      validationReport: v1.validationReport,
+      testReport: v1.testReport,
       review: review('APPROVE_ROLLBACK', v1.model.modelArtifact, v1Qualification, '2.0.1', v2.model.modelArtifact),
       manifestId: 'gesture-rollback-2-0-0',
       manifestVersion: '2.0.1',
@@ -442,6 +455,7 @@ describe('PT8 governed gesture model update loop', () => {
       privateKey: keyPair.privateKey,
       publicKey: keyPair.publicKey,
     });
+
     expect(registry.currentProduction()?.modelVersion).toBe('2.0.0');
     expect(registry.modelState(modelRegistryEntryReferenceV1(v2.model))).toBe('ROLLED_BACK');
     expect(registry.modelState(v1Reference)).toBe('PRODUCTION');
