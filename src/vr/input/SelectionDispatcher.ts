@@ -106,7 +106,6 @@ export class SelectionDispatcher {
   triggerSelect(activePointer: PointerLike | null) {
     if (!activePointer) return;
     const ray = activePointer.getRay(new THREE.Ray());
-    this.registry.raycaster.ray.copy(ray);
     const rayValid = isUsablePointerRay(ray);
 
     if (!rayValid) {
@@ -122,6 +121,7 @@ export class SelectionDispatcher {
       return;
     }
 
+    this.registry.raycaster.ray.copy(ray);
     this.feedback.playSelect();
     this.feedback.flashPointer(activePointer);
     this.feedback.playHaptic(
