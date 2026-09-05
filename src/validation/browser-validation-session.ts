@@ -154,6 +154,56 @@ export function readBrowserValidationContext(
   };
 }
 
+/**
+ * Verify that the sink-owned manifest confirms the same promotion-critical
+ * identity the browser received from the launcher. Session ID/label alone are
+ * not enough: a stale browser on the same session must not be upgraded to a
+ * confirmed governed run if build, lane, worktree or ADB device identity drift.
+ */
+export function validationManifestConfirmationIssue(
+  context: BrowserValidationContext,
+  sinkManifest: ValidationManifest
+): string | null {
+  if (!context.attributable) {
+    return context.attributionIssue ?? 'browser validation context is not attributable';
+  }
+
+  const browserManifest = context.manifest;
+  if (
+    sinkManifest.sessionId !== context.session.id ||
+    sinkManifest.sessionLabel !== context.session.label
+  ) {
+    return 'sink manifest session identity does not match the active browser session';
+  }
+  if (sinkManifest.buildId !== browserManifest.buildId) {
+    return 'sink manifest build does not match the launcher-projected browser build';
+  }
+  if (sinkManifest.validationMode !== browserManifest.validationMode) {
+    return 'sink manifest validation lane does not match the launcher-projected browser lane';
+  }
+  if (sinkManifest.worktree !== browserManifest.worktree) {
+    return 'sink manifest worktree state does not match the launcher-projected browser state';
+  }
+
+  const browserDevice = browserManifest.deviceIdentity;
+  const sinkDevice = sinkManifest.deviceIdentity;
+  if (Boolean(browserDevice) !== Boolean(sinkDevice)) {
+    return 'sink manifest device identity availability does not match the launcher projection';
+  }
+  if (
+    browserDevice &&
+    sinkDevice &&
+    (sinkDevice.captureBasis !== browserDevice.captureBasis ||
+      sinkDevice.model !== browserDevice.model ||
+      sinkDevice.buildIncremental !== browserDevice.buildIncremental ||
+      sinkDevice.buildFingerprint !== browserDevice.buildFingerprint)
+  ) {
+    return 'sink manifest ADB device identity does not match the launcher projection';
+  }
+
+  return null;
+}
+
 export function validationContextSummary(context: BrowserValidationContext): string {
   const { manifest } = context;
   const device = manifest.deviceIdentity;
