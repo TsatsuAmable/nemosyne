@@ -1,3 +1,4 @@
+import { readBrowserValidationContext } from '../../validation/browser-validation-session.ts';
 import { percentile } from './LoadTestThresholds.ts';
 
 export type QuestDeviceTarget =
@@ -10,7 +11,7 @@ export type QuestDeviceTarget =
 export interface QuestRuntimeEnvironment {
   buildId: string;
   declaredDeviceTarget: QuestDeviceTarget;
-  identityBasis: 'investigator-declared';
+  identityBasis: 'adb-system-property' | 'investigator-declared' | 'unavailable';
   investigatorRunLabel: string | null;
   declaredFirmwareVersion: string | null;
   userAgent: string;
@@ -152,13 +153,28 @@ export function captureQuestRuntimeEnvironment(
   const brands = nav?.userAgentData?.brands
     ?.map((item) => [item.brand, item.version].filter(Boolean).join('/'))
     .filter(Boolean) ?? [];
+  const validation = readBrowserValidationContext(import.meta.env);
+  const validationDevice = validation?.manifest.deviceIdentity ?? null;
+  const fallbackRunLabel = queryValue('questRun');
+  const fallbackFirmware = queryValue('questFirmware');
+  const identityBasis: QuestRuntimeEnvironment['identityBasis'] = validationDevice
+    ? 'adb-system-property'
+    : fallbackRunLabel || fallbackFirmware
+      ? 'investigator-declared'
+      : 'unavailable';
 
   return {
-    buildId: import.meta.env.VITE_NEMOSYNE_BUILD_ID || 'unversioned-local-build',
+    buildId:
+      validation?.manifest.buildId ||
+      import.meta.env.VITE_NEMOSYNE_BUILD_ID ||
+      'unversioned-local-build',
     declaredDeviceTarget,
-    identityBasis: 'investigator-declared',
-    investigatorRunLabel: queryValue('questRun'),
-    declaredFirmwareVersion: queryValue('questFirmware'),
+    identityBasis,
+    investigatorRunLabel: validation?.session.label ?? fallbackRunLabel,
+    declaredFirmwareVersion:
+      validationDevice?.buildIncremental ??
+      validation?.manifest.declaredFirmwareVersion ??
+      fallbackFirmware,
     userAgent: nav?.userAgent ?? 'unknown',
     platform: textValue(nav?.userAgentData?.platform),
     mobile: typeof nav?.userAgentData?.mobile === 'boolean' ? nav.userAgentData.mobile : null,
