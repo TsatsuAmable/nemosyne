@@ -12,7 +12,10 @@ import {
   validateValidationManifest,
   type ValidationManifest,
 } from '../src/validation/validation-manifest.ts';
-import type { GuidedUxSubmission } from '../src/validation/guided-ux-validation.ts';
+import {
+  validateGuidedUxSubmission,
+  type GuidedUxSubmission,
+} from '../src/validation/guided-ux-validation.ts';
 
 export const VALIDATION_CUSTODY_SCHEMA_VERSION = '1';
 const MAX_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024;
@@ -20,6 +23,8 @@ const MAX_REPORT_LINES = 512;
 const MAX_COHORT_SESSIONS = 256;
 const QUEST_10M_NONQUALIFICATION_INVALIDATION =
   'quest-10m boundary probe is not final 10M device qualification';
+const P1_U9_MISSING_PREREQUISITE_REASON =
+  'P1-U9 prerequisite state is missing; explicit preflight attestation is required before adjudication';
 
 const RAW_EVIDENCE_NAMES = [
   'manifest.json',
@@ -180,7 +185,7 @@ function priorSessionCustodyMatches(
   );
 }
 
-function scanCohort(
+export function scanValidationCohort(
   validationLogRoot: string,
   activeManifest: ValidationManifest
 ): ValidationAdjudicationCohort {
@@ -274,20 +279,25 @@ function readGuidedUxSubmission(
 }
 
 function readPrerequisites(
-  evidenceDir: string
+  evidenceDir: string,
+  manifest: ValidationManifest
 ): Record<string, ValidationPrerequisiteState[]> | undefined {
   const raw = readJson(path.join(evidenceDir, 'prerequisites.json'));
-  if (!isRecord(raw)) return undefined;
   const result: Record<string, ValidationPrerequisiteState[]> = {};
-  for (const [gate, value] of Object.entries(raw)) {
-    if (!Array.isArray(value)) continue;
-    const states = value.flatMap((item) => {
-      if (!isRecord(item) || typeof item.satisfied !== 'boolean' || typeof item.reason !== 'string') {
-        return [];
-      }
-      return [{ satisfied: item.satisfied, reason: item.reason.slice(0, 512) }];
-    });
-    if (states.length > 0) result[gate] = states;
+  if (isRecord(raw)) {
+    for (const [gate, value] of Object.entries(raw)) {
+      if (!Array.isArray(value)) continue;
+      const states = value.flatMap((item) => {
+        if (!isRecord(item) || typeof item.satisfied !== 'boolean' || typeof item.reason !== 'string') {
+          return [];
+        }
+        return [{ satisfied: item.satisfied, reason: item.reason.slice(0, 512) }];
+      });
+      if (states.length > 0) result[gate] = states;
+    }
+  }
+  if (manifest.gates.includes('P1-U9') && !result['P1-U9']) {
+    result['P1-U9'] = [{ satisfied: false, reason: P1_U9_MISSING_PREREQUISITE_REASON }];
   }
   return Object.keys(result).length > 0 ? result : undefined;
 }
@@ -297,9 +307,13 @@ function finalizationReady(manifest: ValidationManifest, evidenceDir: string): b
     return readBoundedJsonLines(path.join(evidenceDir, 'loadtest-results.jsonl')).length > 0;
   }
   if (manifest.validationMode === 'quest-ux') {
-    return (
-      fs.existsSync(path.join(evidenceDir, 'ux-results.json')) &&
-      fs.existsSync(path.join(evidenceDir, 'comfort-observation.json'))
+    const submission = readGuidedUxSubmission(evidenceDir, manifest);
+    if (!submission || validateGuidedUxSubmission(submission).length > 0) return false;
+    return Boolean(
+      submission.sessionId === manifest.sessionId &&
+        submission.sessionLabel === manifest.sessionLabel &&
+        submission.buildId === manifest.buildId &&
+        submission.deviceBuildFingerprint === (manifest.deviceIdentity?.buildFingerprint ?? null)
     );
   }
   return false;
@@ -370,26 +384,37 @@ function writeLocalLedger(validationLogRoot: string): void {
     return;
   }
   for (const entry of entries.slice(0, MAX_COHORT_SESSIONS)) {
-    const custody = readJson(path.join(validationLogRoot, entry.name, 'custody.json'));
-    if (!isRecord(custody) || custody.state !== 'finalized') continue;
+    const evidenceDir = path.join(validationLogRoot, entry.name);
+    if (!fs.existsSync(path.join(evidenceDir, 'custody.json'))) continue;
+    const verified = verifyFinalizedCustody(evidenceDir);
+    if (!verified.ok) {
+      rows.push({
+        finalizedAt: '',
+        label: entry.name,
+        buildId: 'UNVERIFIED',
+        status: 'TAMPER-DETECTED',
+        bundle: 'UNVERIFIED',
+      });
+      continue;
+    }
     rows.push({
-      finalizedAt: String(custody.finalizedAt ?? ''),
+      finalizedAt: verified.custody.finalizedAt,
       label: entry.name,
-      buildId: String(custody.buildId ?? ''),
-      status: readDispositionStatus(path.join(validationLogRoot, entry.name)) ?? 'UNKNOWN',
-      bundle: String(custody.bundleDigest ?? ''),
+      buildId: verified.custody.buildId,
+      status: readDispositionStatus(evidenceDir) ?? 'UNKNOWN',
+      bundle: verified.custody.bundleDigest,
     });
   }
   rows.sort((a, b) => a.finalizedAt.localeCompare(b.finalizedAt));
   const body = rows
     .map(
       (row) =>
-        `| ${row.finalizedAt} | \`${row.label}\` | \`${row.buildId.slice(0, 12)}\` | ${row.status} | \`${row.bundle.slice(0, 16)}…\` |`
+        `| ${row.finalizedAt || 'UNVERIFIED'} | \`${row.label}\` | \`${row.buildId.slice(0, 12)}\` | ${row.status} | \`${row.bundle === 'UNVERIFIED' ? row.bundle : `${row.bundle.slice(0, 16)}…`}\` |`
     )
     .join('\n');
   atomicWrite(
     path.join(validationLogRoot, 'VALIDATION_LEDGER.md'),
-    `# Local validation ledger\n\nMachine-generated from finalized custody records. This file is a projection, not a promotion authority.\n\n| Finalized | Session | Build | Status | Bundle |\n| --- | --- | --- | --- | --- |\n${body || '| — | — | — | — | — |'}\n`
+    `# Local validation ledger\n\nMachine-generated from custody-verified finalized records. Tampered finalized sessions are surfaced explicitly and are never projected as valid evidence. This file is a projection, not a promotion authority.\n\n| Finalized | Session | Build | Status | Bundle |\n| --- | --- | --- | --- | --- |\n${body || '| — | — | — | — | — |'}\n`
   );
 }
 
@@ -519,10 +544,10 @@ export function finalizeValidationSession(options: {
   try {
     const rawEvidence = hashRawEvidence(evidenceDir);
     const rawEvidenceDigest = rawDigest(rawEvidence);
-    const cohort = scanCohort(options.validationLogRoot, manifest);
+    const cohort = scanValidationCohort(options.validationLogRoot, manifest);
     const loadTestReports = readBoundedJsonLines(path.join(evidenceDir, 'loadtest-results.jsonl'));
     const guidedUxSubmission = readGuidedUxSubmission(evidenceDir, manifest);
-    const prerequisites = readPrerequisites(evidenceDir);
+    const prerequisites = readPrerequisites(evidenceDir, manifest);
     const adjudication = adjudicateValidationEvidence({
       manifest,
       loadTestReports,
