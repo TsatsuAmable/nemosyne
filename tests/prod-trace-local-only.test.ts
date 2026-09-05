@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { setupDevTraceRecorder } from '../src/app/devTrace.ts';
@@ -36,6 +35,8 @@ describe('production UX trace transport boundary', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     const exported = JSON.parse(recorder.exportJson());
     expect(exported.recordCount).toBeGreaterThan(0);
-    expect(exported.records.some((record: { type: string }) => record.type === 'session-manifest')).toBe(true);
+    expect(
+      exported.records.some((record: { type: string }) => record.type === 'session-manifest')
+    ).toBe(true);
   });
 });
