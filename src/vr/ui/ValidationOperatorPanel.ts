@@ -79,8 +79,11 @@ export class ValidationOperatorPanel extends MovablePanel {
   private _dirty = true;
   private _sample: LoadTestSample | null = null;
   private _boundary: BoundaryProgress | null = null;
-  private _runMessage = 'Idle';
-  private _delivery: ValidationDeliveryUiState = { status: 'idle', message: 'No evidence delivered yet.' };
+  private _runMessage = 'Confirming validation session with evidence sink…';
+  private _delivery: ValidationDeliveryUiState = {
+    status: 'idle',
+    message: 'No evidence delivered yet.',
+  };
   private _serverStatus: ValidationServerStatus | null = null;
   private _progress: QualificationProgress | null = null;
   private _armed: 'performance' | 'boundary' | null = null;
@@ -186,13 +189,20 @@ export class ValidationOperatorPanel extends MovablePanel {
   }
 
   setDownloaded(message = 'Fallback file download requested.'): void {
-    this._delivery = { status: 'downloaded', message, receivedAt: new Date().toISOString() };
+    this._delivery = {
+      status: 'downloaded',
+      message,
+      receivedAt: new Date().toISOString(),
+    };
     this._dirty = true;
   }
 
   setServerStatus(status: ValidationServerStatus): void {
     this._serverStatus = status;
     this._progress = status.progress;
+    if (this._runMessage.startsWith('Confirming validation session')) {
+      this._runMessage = 'Validation session confirmed by evidence sink.';
+    }
     this._dirty = true;
   }
 
@@ -201,8 +211,9 @@ export class ValidationOperatorPanel extends MovablePanel {
     const lineH = 25;
     let y = pad;
     this._buttons = [];
-    const manifest = this._context.manifest;
+    const manifest = this._serverStatus?.manifest ?? this._context.manifest;
     const device = manifest.deviceIdentity;
+    const sinkConfirmed = this._serverStatus !== null;
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
@@ -213,18 +224,29 @@ export class ValidationOperatorPanel extends MovablePanel {
     y += lineH + 4;
 
     ctx.font = this._scaleFont('15px monospace');
-    const eligible = manifest.promotionEligible && this._context.attributable;
+    const eligible = sinkConfirmed && manifest.promotionEligible && this._context.attributable;
+    const statusLabel = sinkConfirmed
+      ? eligible
+        ? 'ELIGIBLE'
+        : 'NOT ELIGIBLE'
+      : 'PENDING CONFIRMATION';
     ctx.fillStyle = eligible
       ? cssHex(COLOR_TOKENS.status.verified)
-      : cssHex(COLOR_TOKENS.danger.destructive);
+      : sinkConfirmed
+        ? cssHex(COLOR_TOKENS.danger.destructive)
+        : cssHex(COLOR_TOKENS.epistemic.uncertain);
     ctx.fillText(
-      `${eligible ? 'ELIGIBLE' : 'NOT ELIGIBLE'} · ${manifest.validationMode} · ${manifest.gates.join(', ') || 'no gate'}`,
+      `${statusLabel} · ${manifest.validationMode} · ${manifest.gates.join(', ') || 'no gate'}`,
       pad + 8,
       y + lineH
     );
     ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillText(`Session: ${manifest.sessionLabel}`, pad + 8, y + lineH * 2);
-    ctx.fillText(`Build: ${manifest.buildId.slice(0, 12)} · tree ${manifest.worktree.toUpperCase()}`, pad + 8, y + lineH * 3);
+    ctx.fillText(
+      `Build: ${manifest.buildId.slice(0, 12)} · tree ${manifest.worktree.toUpperCase()}`,
+      pad + 8,
+      y + lineH * 3
+    );
     ctx.fillText(
       `Device: ${device?.model ?? 'UNAVAILABLE'} · firmware/build ${device?.buildIncremental ?? manifest.declaredFirmwareVersion ?? 'UNAVAILABLE'}`,
       pad + 8,
@@ -237,10 +259,18 @@ export class ValidationOperatorPanel extends MovablePanel {
     );
     y += lineH * 5 + 8;
 
-    if (!this._context.attributable || manifest.invalidations.length > 0) {
+    if (!sinkConfirmed || !this._context.attributable || manifest.invalidations.length > 0) {
       ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
-      const reason = this._context.attributionIssue ?? manifest.invalidations[0] ?? 'Run cannot support promotion-grade claims.';
-      ctx.fillText(this._truncate(ctx, `Reason: ${reason}`, w - pad * 2 - 8), pad + 8, y + lineH);
+      const reason = !sinkConfirmed
+        ? 'Exact launcher manifest has not yet been confirmed by the evidence sink.'
+        : this._context.attributionIssue ??
+          manifest.invalidations[0] ??
+          'Run cannot support promotion-grade claims.';
+      ctx.fillText(
+        this._truncate(ctx, `Reason: ${reason}`, w - pad * 2 - 8),
+        pad + 8,
+        y + lineH
+      );
       y += lineH + 6;
     }
 
@@ -258,16 +288,22 @@ export class ValidationOperatorPanel extends MovablePanel {
       pad + 8,
       y + lineH
     );
-    const deliveryColor = this._delivery.status === 'captured'
-      ? cssHex(COLOR_TOKENS.status.verified)
-      : this._delivery.status === 'failed'
-        ? cssHex(COLOR_TOKENS.danger.destructive)
-        : cssHex(COLOR_TOKENS.text.secondary);
+    const deliveryColor =
+      this._delivery.status === 'captured'
+        ? cssHex(COLOR_TOKENS.status.verified)
+        : this._delivery.status === 'failed'
+          ? cssHex(COLOR_TOKENS.danger.destructive)
+          : cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillStyle = deliveryColor;
-    const deliveredAt = 'receivedAt' in this._delivery
-      ? ` · ${this._delivery.receivedAt.slice(11, 19)}Z`
-      : '';
-    ctx.fillText(this._truncate(ctx, `${this._delivery.message}${deliveredAt}`, w - pad * 2 - 8), pad + 8, y + lineH * 2);
+    const deliveredAt =
+      'receivedAt' in this._delivery
+        ? ` · ${this._delivery.receivedAt.slice(11, 19)}Z`
+        : '';
+    ctx.fillText(
+      this._truncate(ctx, `${this._delivery.message}${deliveredAt}`, w - pad * 2 - 8),
+      pad + 8,
+      y + lineH * 2
+    );
     const disposition = this._serverStatus?.gateDisposition;
     ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillText(
@@ -285,7 +321,10 @@ export class ValidationOperatorPanel extends MovablePanel {
     ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
     ctx.fillText(this._runMessage, pad + 8, y + lineH);
     if (this._sample) {
-      const pct = Math.min(100, (this._sample.elapsedMs / (this._sample.spec.durationSec * 1000)) * 100);
+      const pct = Math.min(
+        100,
+        (this._sample.elapsedMs / (this._sample.spec.durationSec * 1000)) * 100
+      );
       ctx.fillText(
         `Rows ${this._sample.spec.rowCount} · ${pct.toFixed(0)}% · p95 ${this._sample.frames.p95Ms.toFixed(1)}ms · ${this._sample.frames.fpsAvg.toFixed(0)}fps · drop ${this._sample.frames.droppedPct.toFixed(1)}%`,
         pad + 8,
@@ -293,7 +332,11 @@ export class ValidationOperatorPanel extends MovablePanel {
       );
       y += lineH;
     } else if (this._boundary) {
-      ctx.fillText(`10M ${this._boundary.phase} · ${this._boundary.progressPercent.toFixed(1)}%`, pad + 8, y + lineH * 2);
+      ctx.fillText(
+        `10M ${this._boundary.phase} · ${this._boundary.progressPercent.toFixed(1)}%`,
+        pad + 8,
+        y + lineH * 2
+      );
       y += lineH;
     }
     y += lineH + 10;
@@ -301,31 +344,45 @@ export class ValidationOperatorPanel extends MovablePanel {
     if (manifest.validationMode === 'quest-ux') {
       y = this._renderUxRunner(ctx, w, y, lineH);
     } else {
-      this._renderRunGuidance(ctx, w, y, lineH);
+      this._renderRunGuidance(ctx, w, y, lineH, manifest.validationMode);
     }
 
-    this._renderButtons(ctx, w, contentH);
+    this._renderButtons(ctx, w, contentH, manifest.validationMode);
   }
 
-  private _renderRunGuidance(ctx: CanvasRenderingContext2D, w: number, y: number, lineH: number): void {
+  private _renderRunGuidance(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    y: number,
+    lineH: number,
+    mode: string
+  ): void {
     const pad = 20;
     ctx.font = this._scaleFont('15px monospace');
     ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
-    const mode = this._context.manifest.validationMode;
     let text = 'This mode does not own a governed on-device run. Restart with an explicit validation lane.';
-    if (mode === 'quest-perf') {
-      text = this._armed === 'performance'
-        ? 'CONFIRM within 10 seconds: run the governed Quest 3S staircase. Evidence must land to count.'
-        : 'Quest 3S performance staircase. Arm first, then confirm. Protocol requires ≥3 captured runs.';
+    if (!this._serverStatus) {
+      text = 'Governed start is locked until the evidence sink confirms the exact launcher manifest. Use REFRESH if confirmation does not arrive.';
+    } else if (mode === 'quest-perf') {
+      text =
+        this._armed === 'performance'
+          ? 'CONFIRM within 10 seconds: run the governed Quest 3S staircase. Evidence must land to count.'
+          : 'Quest 3S performance staircase. Arm first, then confirm. Protocol requires ≥3 captured runs.';
     } else if (mode === 'quest-10m') {
-      text = this._armed === 'boundary'
-        ? 'CONFIRM within 10 seconds: allocate/build the 10M synthetic boundary workload. Browser termination is possible.'
-        : '10M synthetic boundary exercise: large allocation, non-qualification evidence. Arm first, then confirm.';
+      text =
+        this._armed === 'boundary'
+          ? 'CONFIRM within 10 seconds: allocate/build the 10M synthetic boundary workload. Browser termination is possible.'
+          : '10M synthetic boundary exercise: large allocation, non-qualification evidence. Arm first, then confirm.';
     }
     this._wrapText(ctx, text, pad + 8, y, w - pad * 2 - 8, lineH, y + lineH * 3);
   }
 
-  private _renderUxRunner(ctx: CanvasRenderingContext2D, w: number, y: number, lineH: number): number {
+  private _renderUxRunner(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    y: number,
+    lineH: number
+  ): number {
     const pad = 20;
     ctx.font = this._scaleFont('bold 18px monospace');
     ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
@@ -333,59 +390,106 @@ export class ValidationOperatorPanel extends MovablePanel {
     y += lineH + 4;
     ctx.font = this._scaleFont('15px monospace');
     ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    ctx.fillText(`Input modality: ${this._uxModality.toUpperCase()} (investigator-selected)`, pad + 8, y + lineH);
+    if (!this._serverStatus) {
+      ctx.fillText('Guided UX input is locked until the exact session manifest is confirmed.', pad + 8, y + lineH);
+      return y + lineH * 2;
+    }
+    ctx.fillText(
+      `Input modality: ${this._uxModality.toUpperCase()} (investigator-selected)`,
+      pad + 8,
+      y + lineH
+    );
     if (this._uxIndex < GUIDED_UX_TASKS.length) {
       const task = GUIDED_UX_TASKS[this._uxIndex];
-      ctx.fillText(`Task ${this._uxIndex + 1}/${GUIDED_UX_TASKS.length}: ${task.label}`, pad + 8, y + lineH * 2);
-      this._wrapText(ctx, task.instruction, pad + 8, y + lineH * 2, w - pad * 2 - 8, lineH, y + lineH * 4);
+      ctx.fillText(
+        `Task ${this._uxIndex + 1}/${GUIDED_UX_TASKS.length}: ${task.label}`,
+        pad + 8,
+        y + lineH * 2
+      );
+      this._wrapText(
+        ctx,
+        task.instruction,
+        pad + 8,
+        y + lineH * 2,
+        w - pad * 2 - 8,
+        lineH,
+        y + lineH * 4
+      );
       y += lineH * 4;
     } else {
-      ctx.fillText(`Tasks recorded: ${this._uxResults.length}/${GUIDED_UX_TASKS.length}`, pad + 8, y + lineH * 2);
-      ctx.fillText(`Comfort: ${this._comfort?.toUpperCase() ?? 'NOT RECORDED'}`, pad + 8, y + lineH * 3);
-      ctx.fillText(this._uxSubmitted ? 'Guided UX evidence delivered.' : 'Record comfort, then SUBMIT.', pad + 8, y + lineH * 4);
+      ctx.fillText(
+        `Tasks recorded: ${this._uxResults.length}/${GUIDED_UX_TASKS.length}`,
+        pad + 8,
+        y + lineH * 2
+      );
+      ctx.fillText(
+        `Comfort: ${this._comfort?.toUpperCase() ?? 'NOT RECORDED'}`,
+        pad + 8,
+        y + lineH * 3
+      );
+      ctx.fillText(
+        this._uxSubmitted ? 'Guided UX evidence delivered.' : 'Record comfort, then SUBMIT.',
+        pad + 8,
+        y + lineH * 4
+      );
       y += lineH * 4;
     }
     return y;
   }
 
-  private _renderButtons(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
+  private _renderButtons(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    contentH: number,
+    mode: string
+  ): void {
     const pad = 20;
     const gap = 8;
     const btnH = 40;
     const y1 = contentH - btnH * 2 - pad - gap;
     const y2 = contentH - btnH - pad;
-    const mode = this._context.manifest.validationMode;
+    const confirmed = this._serverStatus !== null;
 
     if (mode === 'quest-ux') {
       const row1 = [
-        { id: 'modality-controller', label: 'CONTROLLER' },
-        { id: 'modality-hand', label: 'HAND' },
-        { id: 'ux-pass', label: 'PASS' },
-        { id: 'ux-fail', label: 'FAIL' },
-        { id: 'ux-skip', label: 'NOT RUN' },
+        { id: 'modality-controller', label: 'CONTROLLER', disabled: !confirmed },
+        { id: 'modality-hand', label: 'HAND', disabled: !confirmed },
+        { id: 'ux-pass', label: 'PASS', disabled: !confirmed },
+        { id: 'ux-fail', label: 'FAIL', disabled: !confirmed },
+        { id: 'ux-skip', label: 'NOT RUN', disabled: !confirmed },
       ];
       this._drawRow(ctx, row1, y1, w, pad, gap, btnH);
       const row2 = [
-        { id: 'comfort-ok', label: 'COMFORT OK' },
-        { id: 'comfort-issue', label: 'COMFORT ISSUE' },
-        { id: 'comfort-skip', label: 'COMFORT N/R' },
-        { id: 'ux-submit', label: 'SUBMIT' },
+        { id: 'comfort-ok', label: 'COMFORT OK', disabled: !confirmed },
+        { id: 'comfort-issue', label: 'COMFORT ISSUE', disabled: !confirmed },
+        { id: 'comfort-skip', label: 'COMFORT N/R', disabled: !confirmed },
+        { id: 'ux-submit', label: 'SUBMIT', disabled: !confirmed },
         { id: 'refresh', label: 'REFRESH' },
       ];
       this._drawRow(ctx, row2, y2, w, pad, gap, btnH);
       return;
     }
 
-    const runId = mode === 'quest-perf' ? 'run-performance' : mode === 'quest-10m' ? 'run-boundary' : 'run-disabled';
-    const runLabel = mode === 'quest-perf'
-      ? this._armed === 'performance' ? 'CONFIRM PERF' : 'ARM PERF'
-      : mode === 'quest-10m'
-        ? this._armed === 'boundary' ? 'CONFIRM 10M' : 'ARM 10M'
-        : 'NO RUN';
+    const runId =
+      mode === 'quest-perf'
+        ? 'run-performance'
+        : mode === 'quest-10m'
+          ? 'run-boundary'
+          : 'run-disabled';
+    const runLabel =
+      mode === 'quest-perf'
+        ? this._armed === 'performance'
+          ? 'CONFIRM PERF'
+          : 'ARM PERF'
+        : mode === 'quest-10m'
+          ? this._armed === 'boundary'
+            ? 'CONFIRM 10M'
+            : 'ARM 10M'
+          : 'NO RUN';
     this._drawRow(
       ctx,
       [
-        { id: runId, label: runLabel, disabled: runId === 'run-disabled' },
+        { id: runId, label: runLabel, disabled: runId === 'run-disabled' || !confirmed },
         { id: 'stop', label: 'STOP' },
         { id: 'flush', label: 'FLUSH' },
         { id: 'download', label: 'DOWNLOAD' },
@@ -429,13 +533,22 @@ export class ValidationOperatorPanel extends MovablePanel {
       ctx.lineWidth = 2;
       ctx.strokeRect(x, y, width, btnH);
       ctx.font = this._scaleFont('bold 13px monospace');
-      ctx.fillStyle = item.disabled ? cssHex(COLOR_TOKENS.text.secondary) : cssHex(COLOR_TOKENS.interaction.focus);
+      ctx.fillStyle = item.disabled
+        ? cssHex(COLOR_TOKENS.text.secondary)
+        : cssHex(COLOR_TOKENS.interaction.focus);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(item.label, x + width / 2, y + btnH / 2);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      this._buttons.push({ id: item.id, x, y, w: width, h: btnH, disabled: item.disabled });
+      this._buttons.push({
+        id: item.id,
+        x,
+        y,
+        w: width,
+        h: btnH,
+        disabled: item.disabled,
+      });
     }
   }
 
@@ -515,6 +628,11 @@ export class ValidationOperatorPanel extends MovablePanel {
   }
 
   private _confirmOrRun(action: 'performance' | 'boundary'): void {
+    if (!this._serverStatus) {
+      this._runMessage = 'Start blocked: exact validation manifest is not yet confirmed.';
+      void this._refresh();
+      return;
+    }
     const now = performance.now();
     if (this._armed !== action || now > this._armedUntil) {
       this._armed = action;
@@ -529,7 +647,9 @@ export class ValidationOperatorPanel extends MovablePanel {
   }
 
   private _recordUx(outcome: GuidedUxOutcome): void {
-    if (this._uxIndex >= GUIDED_UX_TASKS.length || this._uxSubmitted) return;
+    if (!this._serverStatus || this._uxIndex >= GUIDED_UX_TASKS.length || this._uxSubmitted) {
+      return;
+    }
     const task = GUIDED_UX_TASKS[this._uxIndex];
     this._uxResults.push({
       taskId: task.id,
@@ -544,13 +664,15 @@ export class ValidationOperatorPanel extends MovablePanel {
 
   private async _submitUx(): Promise<void> {
     if (
+      !this._serverStatus ||
       this._uxSubmitted ||
       this._uxResults.length !== GUIDED_UX_TASKS.length ||
       this._comfort === null
     ) {
+      if (!this._serverStatus) void this._refresh();
       return;
     }
-    const manifest = this._context.manifest;
+    const manifest = this._serverStatus.manifest;
     const now = new Date().toISOString();
     const submission: GuidedUxSubmission = {
       schemaVersion: GUIDED_UX_SCHEMA_VERSION,
@@ -560,7 +682,11 @@ export class ValidationOperatorPanel extends MovablePanel {
       deviceBuildFingerprint: manifest.deviceIdentity?.buildFingerprint ?? null,
       evidenceKind: 'guided-physical-ux',
       results: [...this._uxResults],
-      comfortObservation: { outcome: this._comfort, recordedAt: now, note: null },
+      comfortObservation: {
+        outcome: this._comfort,
+        recordedAt: now,
+        note: null,
+      },
       completedAt: now,
     };
     this.setDeliverySending('Delivering guided UX evidence…');
@@ -585,14 +711,18 @@ export class ValidationOperatorPanel extends MovablePanel {
     try {
       await this._onRefreshStatus();
     } catch (error) {
-      this.setDeliveryFailure(`Status refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.setDeliveryFailure(
+        `Status refresh failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   private _truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
     if (ctx.measureText(text).width <= maxWidth) return text;
     let value = text;
-    while (value.length > 1 && ctx.measureText(value + '…').width > maxWidth) value = value.slice(0, -1);
+    while (value.length > 1 && ctx.measureText(value + '…').width > maxWidth) {
+      value = value.slice(0, -1);
+    }
     return value + '…';
   }
 
