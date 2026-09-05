@@ -186,7 +186,11 @@ export class FileLearningArtifactStoreV1 {
   }
 
   private verifyBytes(dataPath: string, descriptor: LearningArtifactDescriptorV1): Uint8Array {
-    const bytes = readFileSync(dataPath);
+    // Node's readFileSync returns Buffer. Buffer is structurally Uint8Array-like,
+    // but the audited cross-runtime hash primitive deliberately accepts only a
+    // plain Uint8Array. Normalize the filesystem boundary before hashing so the
+    // same byte contract is enforced in Node and browser runtimes.
+    const bytes = Uint8Array.from(readFileSync(dataPath));
     if (bytes.byteLength !== descriptor.byteLength || sha256Hex(bytes) !== descriptor.digest.value) {
       throw new LearningArtifactStoreError('CORRUPT_STORE', `artifact bytes do not match ${descriptor.digest.value}`);
     }
