@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,7 +18,7 @@ function records() {
   ];
 }
 
-function envelope(overrides = {}) {
+function envelope(overrides: Record<string, unknown> = {}) {
   const recs = records();
   return {
     schemaVersion: UX_TRACE_EXPORT_SCHEMA_VERSION,
@@ -115,7 +114,10 @@ describe('UX trace canonical input parser', () => {
   });
 
   it('rejects digest tampering', () => {
-    const tampered = envelope();
+    const tampered = envelope() as {
+      records: Array<Record<string, unknown>>;
+      integrity: { recordsSha256: string };
+    };
     tampered.records[1].hit = 'none';
     expect(() => parseUXTraceText(JSON.stringify(tampered), { source: 'tampered.json' })).toThrow(
       /trace record digest mismatch/
@@ -129,7 +131,10 @@ describe('UX trace canonical input parser', () => {
   });
 
   it('rejects cross-session records inside one versioned envelope', () => {
-    const mixed = envelope();
+    const mixed = envelope() as {
+      records: Array<Record<string, unknown>>;
+      integrity: { recordsSha256: string };
+    };
     mixed.records[1].sid = 'other-trace';
     mixed.integrity.recordsSha256 = canonicalSha256Hex(mixed.records);
     expect(() => parseUXTraceText(JSON.stringify(mixed), { source: 'mixed.json' })).toThrow(

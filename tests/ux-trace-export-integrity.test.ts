@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, expect, it, vi } from 'vitest';
 import {
   UX_TRACE_EXPORT_SCHEMA_VERSION,
@@ -109,14 +108,25 @@ describe('UX trace lifecycle and export integrity', () => {
     });
 
     const payload = recorder.exportJson();
-    const envelope = JSON.parse(payload);
+    const envelope = JSON.parse(payload) as {
+      schemaVersion: number;
+      recordCount: number;
+      firstSeq: number | null;
+      lastSeq: number | null;
+      buildHash?: string;
+      validationSession?: { label: string; id: string };
+      droppedCount: number;
+      traceOpen: boolean;
+      integrity: { algorithm: string; recordsSha256: string };
+      records: Array<Record<string, unknown>>;
+    };
 
     expect(envelope.schemaVersion).toBe(UX_TRACE_EXPORT_SCHEMA_VERSION);
     expect(envelope.integrity.algorithm).toBe(UX_TRACE_INTEGRITY_ALGORITHM);
     expect(envelope.integrity.recordsSha256).toBe(canonicalSha256Hex(envelope.records));
     expect(envelope.recordCount).toBe(envelope.records.length);
     expect(envelope.firstSeq).toBe(envelope.records[0].seq);
-    expect(envelope.lastSeq).toBe(envelope.records.at(-1).seq);
+    expect(envelope.lastSeq).toBe(envelope.records.at(-1)?.seq);
     expect(envelope.buildHash).toBe('build-abc');
     expect(envelope.validationSession).toEqual({
       label: 'quest-gate-a',
@@ -124,7 +134,7 @@ describe('UX trace lifecycle and export integrity', () => {
     });
     expect(
       envelope.records.some(
-        (r: Record<string, unknown>) => r.type === 'trace-lifecycle' && r.event === 'export-requested'
+        (r) => r.type === 'trace-lifecycle' && r.event === 'export-requested'
       )
     ).toBe(true);
 
@@ -140,17 +150,23 @@ describe('UX trace lifecycle and export integrity', () => {
       recorder.recordSessionManifest({});
     }
 
-    const envelope = JSON.parse(recorder.exportJson());
+    const envelope = JSON.parse(recorder.exportJson()) as {
+      recordCount: number;
+      droppedCount: number;
+      firstSeq: number | null;
+      lastSeq: number | null;
+      records: Array<Record<string, unknown>>;
+    };
     expect(envelope.records.length).toBeLessThanOrEqual(1000);
     expect(envelope.recordCount).toBe(envelope.records.length);
     expect(envelope.droppedCount).toBeGreaterThan(0);
     const dropMarker = envelope.records.find(
-      (r: Record<string, unknown>) => r.type === 'trace-lifecycle' && r.event === 'buffer-drop'
+      (r) => r.type === 'trace-lifecycle' && r.event === 'buffer-drop'
     );
     expect(dropMarker).toBeDefined();
-    expect(dropMarker.droppedCount).toBe(envelope.droppedCount);
+    expect(dropMarker?.droppedCount).toBe(envelope.droppedCount);
     expect(envelope.firstSeq).toBe(envelope.records[0].seq);
-    expect(envelope.lastSeq).toBe(envelope.records.at(-1).seq);
+    expect(envelope.lastSeq).toBe(envelope.records.at(-1)?.seq);
     expect(() => parseUXTraceText(JSON.stringify(envelope), { source: 'bounded.json' })).not.toThrow();
   });
 
@@ -159,7 +175,10 @@ describe('UX trace lifecycle and export integrity', () => {
     recorder.recordSessionManifest({ datasetFingerprint: 'fp-a' });
     recorder.setEnabled(false);
     const before = recordsOf(recorder).length;
-    const envelope = JSON.parse(recorder.exportJson());
+    const envelope = JSON.parse(recorder.exportJson()) as {
+      traceOpen: boolean;
+      records: Array<Record<string, unknown>>;
+    };
 
     expect(recordsOf(recorder)).toHaveLength(before);
     expect(envelope.traceOpen).toBe(false);

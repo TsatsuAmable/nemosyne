@@ -102,7 +102,17 @@ describe('production UX trace consent policy', () => {
     emit('gesture:recognized', { name: 'pinch' });
     emit('interaction', { action: 'open-panel' });
 
-    expect(exported().recordCount).toBe(beforeWithdrawal);
+    const withdrawn = exported();
+    expect(withdrawn.recordCount).toBe(beforeWithdrawal + 2);
+    expect(withdrawn.records.slice(-2)).toEqual([
+      expect.objectContaining({ type: 'trace-lifecycle', event: 'consent-disabled' }),
+      expect.objectContaining({ type: 'trace-lifecycle', event: 'trace-end' }),
+    ]);
+    expect(
+      withdrawn.records.slice(beforeWithdrawal).some(
+        (record) => record.type === 'gesture' || record.type === 'interaction'
+      )
+    ).toBe(false);
     expect(getUIState).not.toHaveBeenCalled();
   });
 
