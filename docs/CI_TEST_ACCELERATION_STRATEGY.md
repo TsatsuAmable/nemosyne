@@ -92,6 +92,37 @@ A new permanent PR job must protect a **distinct defect class** that is not alre
 
 The desired ordinary-PR shape is three required check names (`Node 24`, CodeQL and `approval-gate`) with non-required jobs appearing only when the PR changes their relevant evidence surface.
 
+## Phase 5: make assurance earn its cost
+
+**Status:** POLICY LANDED; operational measurement is ongoing.
+
+Nemosyne treats review and CI mechanisms as engineering components with maintenance cost, not as permanent rituals. A mechanism remains in the default PR path only while it protects a distinct failure class or enforces a necessary merge invariant.
+
+For every permanent PR-time assurance mechanism, be able to answer:
+
+1. **What unique failure class does it protect?** If the answer is identical to another required mechanism, consolidate them.
+2. **What is its cheapest authoritative form?** Prefer one deterministic regression inside canonical CI over a second workflow that proves the same property.
+3. **Does every PR need it?** If only a path, dependency, research treatment or platform surface can trigger the defect, path-scope it or move it to scheduled/manual assurance.
+4. **What makes it retire?** Pilots and temporary gates need an explicit graduation, narrowing or deletion condition.
+
+Review depth follows the same rule. High-risk changes retain pre-implementation plus post-implementation adversarial review. Standard-risk behavior changes receive one bounded post-implementation falsification pass. Low-risk non-semantic changes may use the exemption. Additional reviewers are justified only when they attack materially different failure classes.
+
+Documentation is evidence only when it preserves durable truth. Routine review narration belongs in the PR body; separate review-plan/review files are reserved for programme/research evidence, milestone/finding closure, or future audit needs. `ROADMAP.md` changes only when status, sequence, a durable finding or completion truth changes.
+
+### Periodic value review
+
+Evaluate the default assurance surface over rolling batches of roughly **30-50 merged PRs** rather than reacting to one anomalous run. Use repository history and Actions data already emitted by GitHub; do not add another always-on workflow solely to measure the workflows.
+
+A permanent mechanism is a candidate for consolidation, scoping or retirement when, over that window:
+
+- it catches no distinct actionable failure and another required mechanism exercises the same property;
+- most failures are duplicates of one underlying condition already surfaced earlier;
+- it is regularly skipped/unrelated to the changed surface;
+- its flake/non-actionable failure rate creates more rework than useful signal;
+- or its latency/runner cost is material while the protected property can be enforced more cheaply at an authoritative layer.
+
+Do not retire a mechanism merely because it has been green. A low-frequency security, scientific-integrity or recovery invariant may be valuable precisely because it prevents rare high-impact regressions. Retirement requires evidence of **redundancy**, not simply absence of recent failure.
+
 ## Test flake policy
 
 - Do not use blind automatic retries to turn a required correctness failure green.
@@ -119,8 +150,10 @@ Fast feedback is a convenience. It is not promotion evidence.
 
 Track trends for time to first actionable failure, required fan-in completion, shard balance, cache effectiveness, browser-smoke delay, total runner minutes, flaky rerun rate, duplicate-failure amplification, unrelated non-required checks per PR, and escaped defects that an existing required test should have caught.
 
+For assurance-value reviews, also classify whether a failure was **distinct/actionable**, **duplicate of an already surfaced root cause**, **infrastructure/flake**, or **unrelated/skipped**. The goal is not to maximize defect counts; it is to identify mechanisms that add independent information.
+
 Target a typical required wall-clock of five minutes or less, three required check names, and near-zero unrelated non-required jobs on an ordinary PR. Optimize for feedback latency and resource efficiency while keeping escaped-defect and flake rates flat or improving.
 
 ## Relationship to RF-033
 
-#437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. Subsequent hygiene work removed redundant coverage execution, made external workflow dependencies immutable, and consolidated duplicate PR-time evidence around the canonical required gate. Remaining RF-033 review work is operational measurement and duration-aware rebalancing only when multiple normal runs justify it.
+#437 landed the independent proof graph; #438 landed three-way sharding, one shared WASM build, and merged authoritative coverage. Subsequent hygiene work removed redundant coverage execution, made external workflow dependencies immutable, consolidated duplicate PR-time evidence around the canonical required gate, and introduced an explicit assurance-value/retirement policy. Remaining RF-033 review work is operational measurement and duration-aware rebalancing only when multiple normal runs justify it.
