@@ -58,14 +58,18 @@ export class SystemGestureDetector {
     // construction order does not make the callback permanently dead. Tests
     // and specialized hosts may still replace `onSuppressedHint` explicitly.
     this.onSuppressedHint = (hint) => {
-      const engine = this.registry.engine as unknown as {
-        uiManager?: {
-          interactionCoach?: {
-            log?: (entry: { action: string; result: string }) => void;
-          } | null;
-        } | null;
-      };
-      engine.uiManager?.interactionCoach?.log?.({
+      const engine = (
+        this.registry as unknown as {
+          engine?: {
+            uiManager?: {
+              interactionCoach?: {
+                log?: (entry: { action: string; result: string }) => void;
+              } | null;
+            } | null;
+          };
+        }
+      ).engine;
+      engine?.uiManager?.interactionCoach?.log?.({
         action: 'System gesture blocked',
         result: hint,
       });
