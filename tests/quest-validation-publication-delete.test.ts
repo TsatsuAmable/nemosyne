@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   deriveValidationManifest,
   type QuestDeviceIdentity,
@@ -14,6 +13,7 @@ import { finalizeValidationSession } from '../dev/validation-finalizer.ts';
 
 const roots: string[] = [];
 const BUILD = '4d54a76c49ebb57ae8cac5a5166fe8a3dfd7c318';
+const PUBLISH_VALIDATION_SCRIPT = join(process.cwd(), 'scripts', 'publish-validation-docs.mjs');
 
 function tempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'nemosyne-qv-publish-delete-'));
@@ -91,8 +91,10 @@ describe('validation publication omission resistance', () => {
     expect(existsSync(join(evidenceDir, 'evidence-index.json'))).toBe(true);
     unlinkSync(join(evidenceDir, 'custody.json'));
 
-    const script = fileURLToPath(new URL('../scripts/publish-validation-docs.mjs', import.meta.url));
-    const published = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+    const published = spawnSync(process.execPath, [PUBLISH_VALIDATION_SCRIPT], {
+      cwd: root,
+      encoding: 'utf8',
+    });
     expect(published.status).not.toBe(0);
     expect(published.stderr).toContain('custody.json is missing or invalid');
     expect(existsSync(join(root, 'docs', 'validation', 'generated'))).toBe(false);
