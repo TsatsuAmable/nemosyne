@@ -455,5 +455,12 @@ export function installDevEvidence({
     },
   };
 
+  // A governed physical-validation launch must expose its confirmation surface
+  // without depending on the legacy developer wheel or a keyboard shortcut.
+  // This only runs inside the DEV-gated installer and does not start any test.
+  if (validationContext) {
+    uiManager.showPanel(getOrCreateValidationPanel());
+  }
+
   return handle;
 }
