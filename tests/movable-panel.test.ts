@@ -4,9 +4,7 @@ import * as THREE from 'three';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 import type { PointerLike } from '../src/vr/coordinators/types.ts';
 
-/**
- * Create a raycaster that hits the panel mesh at the given UV coordinates.
- */
+/** Create a raycaster that hits the panel mesh at the given UV coordinates. */
 function makeRaycasterForUV(panel: MovablePanel, u: number, v: number): THREE.Raycaster {
   const geom = panel.mesh.geometry;
   const posAttr = geom.attributes.position;
@@ -32,9 +30,6 @@ function makeRaycasterForUV(panel: MovablePanel, u: number, v: number): THREE.Ra
   return new THREE.Raycaster(origin, direction);
 }
 
-/**
- * Simple mock pointer whose ray can be set per test.
- */
 type MockPointer = PointerLike & { _origin: THREE.Vector3; _direction: THREE.Vector3 };
 
 function makeMockPointer({
@@ -47,7 +42,7 @@ function makeMockPointer({
     _direction: direction.clone(),
     getRay(target: THREE.Ray) {
       target.origin.copy(this._origin);
-      target.direction.copy(this._direction);
+      target.direction.copy(this._direction).normalize();
       return target;
     },
     setRayLength() {},
@@ -75,7 +70,6 @@ describe('MovablePanel', () => {
   });
 
   it('hides when minimize button is clicked', () => {
-    // Minimize button is at top-right of canvas (y near 0 in canvas coords).
     const raycaster = makeRaycasterForUV(panel, 0.97, 0.96);
     const pointer = makeMockPointer();
     const mode = panel.handlePointerDown(raycaster, pointer);
@@ -95,93 +89,101 @@ describe('MovablePanel', () => {
     expect(panel.drag.pointer).toBe(pointer);
   });
 
-  it('moves the panel while dragging', () => {
-    const startPos = panel.mesh.position.clone();
-
+  it('moves the panel 1:1 with the free-floating grab ray instead of lerping', () => {
     const pointer = makeMockPointer();
-    // Start drag on title bar.
     panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
-    expect(panel.drag.active).toBe(true);
 
-    // Move the *same* pointer slightly.
-    pointer._origin.set(0.1, 0.05, 0);
-    panel.handlePointerMove(makeRaycasterForUV(panel, 0.15, 0.95), pointer);
+    pointer._origin.set(0.2, 0.1, 0);
+    panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
 
-    expect(panel.mesh.position.distanceTo(startPos)).toBeGreaterThan(0.001);
+    expect(panel.mesh.position.x).toBeCloseTo(0.2, 2);
+    expect(panel.mesh.position.y).toBeCloseTo(0.1, 2);
+  });
+
+  it('allows depth movement when the controller/hand ray origin moves in depth', () => {
+    const pointer = makeMockPointer();
+    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    const startZ = panel.mesh.position.z;
+
+    pointer._origin.set(0, 0, -0.35);
+    panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+
+    expect(panel.mesh.position.z).toBeLessThan(startZ - 0.2);
+  });
+
+  it('uses the visible panel world normal for the anchored drag plane', () => {
+    panel.mesh.rotation.set(-0.2, 0.65, 0, 'YXZ');
+    panel.mesh.updateMatrixWorld(true);
+    const pointer = makeMockPointer();
+    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+
+    const expected = new THREE.Vector3(0, 0, 1)
+      .applyQuaternion(panel.mesh.getWorldQuaternion(new THREE.Quaternion()))
+      .normalize();
+    expect(panel.drag.planeNormal?.angleTo(expected)).toBeLessThan(1e-6);
   });
 
   it('applies a tilt so the panel does not feel flat', () => {
     expect(panel.mesh.rotation.x).not.toBe(0);
   });
 
-  it('keeps distance within comfortable bounds when shown', () => {
-    panel.mesh.position.set(0, 0, -0.2);
-    panel.show();
-    const dist = panel.mesh.position.length();
-    expect(dist).toBeGreaterThanOrEqual(panel.minDistance);
-    expect(dist).toBeLessThanOrEqual(panel.maxDistance);
-  });
-
-  it('drags at a fixed depth using a plane facing the viewer', () => {
-    const pointer = makeMockPointer({
-      origin: new THREE.Vector3(0, 0, 0),
-      direction: new THREE.Vector3(0, 0, -1),
-    });
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
-    const startDistance = panel.mesh.position.length();
-
-    pointer._origin.set(0.05, 0.02, 0);
-    pointer._direction.set(0, 0, -1);
-    panel.handlePointerMove(makeRaycasterForUV(panel, 0.12, 0.95), pointer);
-
-    // With a straight-ahead ray the panel stays at roughly the same distance.
-    const endDistance = panel.mesh.position.length();
-    expect(Math.abs(endDistance - startDistance)).toBeLessThan(0.15);
-  });
-
-  it('ends drag on pointer up', () => {
-    const pointer = makeMockPointer();
-    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
-    expect(panel.drag.active).toBe(true);
-
-    panel.handlePointerUp(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
-    expect(panel.drag.active).toBe(false);
-    expect(panel.drag.pointer).toBeNull();
-  });
-
-  it('toggle restores a hidden panel', () => {
-    panel.hide();
-    expect(panel.mesh.visible).toBe(false);
-
-    panel.toggle();
-    expect(panel.mesh.visible).toBe(true);
-    expect(panel.isMinimized).toBe(false);
-  });
-
-  it('returns null for clicks outside the mesh', () => {
-    // Ray aimed far to the side.
-    const raycaster = new THREE.Raycaster(
-      new THREE.Vector3(10, 10, 0),
-      new THREE.Vector3(0, 0, -1)
-    );
-    const mode = panel.handlePointerDown(raycaster, makeMockPointer());
-    expect(mode).toBeNull();
-  });
-
-  it('resets to default position when shown after being hidden', () => {
-    panel.mesh.position.set(5, 5, 5);
+  it('restoring visibility preserves the user-authored position', () => {
+    panel.mesh.position.set(0.7, 0.4, -1.4);
     panel.hide();
     panel.show();
+
+    expect(panel.mesh.position.toArray()).toEqual([0.7, 0.4, -1.4]);
+  });
+
+  it('resetToDefaultPosition is the explicit reset-to-home operation', () => {
+    panel.mesh.position.set(0.7, 0.4, -1.4);
+    panel.resetToDefaultPosition();
 
     expect(panel.mesh.position.x).toBeCloseTo(panel.defaultPosition.x, 3);
     expect(panel.mesh.position.y).toBeCloseTo(panel.defaultPosition.y, 3);
     expect(panel.mesh.position.z).toBeCloseTo(panel.defaultPosition.z, 3);
   });
 
-  it('clamps the panel within max distance on show', () => {
-    panel.defaultPosition.set(0, 0, -3);
+  it('does not clamp during manipulation but clamps once on release', () => {
+    const pointer = makeMockPointer();
+    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+
+    pointer._origin.set(0, 0, -2.5);
+    panel.handlePointerMove(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    expect(panel.mesh.position.length()).toBeGreaterThan(panel.maxDistance);
+
+    panel.handlePointerUp(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+    expect(panel.mesh.position.length()).toBeLessThanOrEqual(panel.maxDistance + 1e-6);
+  });
+
+  it('commits the exact final pointer target on release', () => {
+    const pointer = makeMockPointer();
+    panel.handlePointerDown(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+
+    pointer._origin.set(0.3, 0.15, 0);
+    panel.handlePointerUp(makeRaycasterForUV(panel, 0.1, 0.95), pointer);
+
+    expect(panel.mesh.position.x).toBeCloseTo(0.3, 2);
+    expect(panel.mesh.position.y).toBeCloseTo(0.15, 2);
+    expect(panel.drag.active).toBe(false);
+  });
+
+  it('toggle restores a hidden panel without recentering it', () => {
+    panel.mesh.position.set(0.4, 0.2, -1.3);
     panel.hide();
-    panel.show();
-    expect(panel.mesh.position.length()).toBeLessThanOrEqual(panel.maxDistance);
+    panel.toggle();
+
+    expect(panel.mesh.visible).toBe(true);
+    expect(panel.isMinimized).toBe(false);
+    expect(panel.mesh.position.toArray()).toEqual([0.4, 0.2, -1.3]);
+  });
+
+  it('returns null for clicks outside the mesh', () => {
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(10, 10, 0),
+      new THREE.Vector3(0, 0, -1)
+    );
+    const mode = panel.handlePointerDown(raycaster, makeMockPointer());
+    expect(mode).toBeNull();
   });
 });
