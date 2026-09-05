@@ -48,6 +48,11 @@ export interface GateDisposition {
   reasons: string[];
 }
 
+export interface ProcessInvocation {
+  command: string;
+  args: string[];
+}
+
 export declare function runGit(
   args: string[],
   options?: { execFileSyncFn?: typeof execFileSync }
@@ -61,6 +66,14 @@ export declare function generateSessionLabel(
   buildId: string,
   now?: () => Date
 ): string;
+export declare function resolveNpmInvocation(
+  env?: ProcessEnv,
+  platform?: NodeJS.Platform
+): ProcessInvocation;
+export declare function resolveViteInvocation(
+  root?: string,
+  platform?: NodeJS.Platform
+): ProcessInvocation;
 
 export declare function readDeviceDeclaration(root?: string): DeviceDeclaration;
 export declare function mergeDeviceDeclaration(

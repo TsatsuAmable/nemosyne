@@ -45,6 +45,62 @@ export const FALLBACK_BUILD_ID = 'unversioned-local-build';
 const GIT_SHA_RE = /^[0-9a-f]{40}$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Resolve npm without depending on an executable shell shim.
+ *
+ * `npm run dev:quest` provides `npm_execpath`, so prefer launching that JS CLI
+ * through the current Node executable. Direct Windows launcher usage falls back
+ * to `cmd.exe /c npm`, which is the supported way to execute npm's `.cmd` shim.
+ */
+export function resolveNpmInvocation(env = process.env, platform = process.platform) {
+  const npmExecPath =
+    typeof env.npm_execpath === 'string' && env.npm_execpath.trim().length > 0
+      ? env.npm_execpath.trim()
+      : null;
+  if (npmExecPath) {
+    return { command: process.execPath, args: [npmExecPath] };
+  }
+  if (platform === 'win32') {
+    const comspec =
+      typeof env.ComSpec === 'string' && env.ComSpec.trim().length > 0
+        ? env.ComSpec.trim()
+        : typeof env.COMSPEC === 'string' && env.COMSPEC.trim().length > 0
+          ? env.COMSPEC.trim()
+          : 'cmd.exe';
+    return { command: comspec, args: ['/d', '/s', '/c', 'npm'] };
+  }
+  return { command: 'npm', args: [] };
+}
+
+/**
+ * Prefer Vite's JS entry point over `.cmd`/shell shims so the launcher behaves
+ * the same on Windows, macOS and Linux. The shim fallback remains for unusual
+ * installations where the package CLI path is unavailable.
+ */
+export function resolveViteInvocation(root = process.cwd(), platform = process.platform) {
+  const viteCli = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js');
+  if (fs.existsSync(viteCli)) {
+    return { command: process.execPath, args: [viteCli] };
+  }
+  const bin = platform === 'win32' ? 'vite.cmd' : 'vite';
+  const local = path.join(root, 'node_modules', '.bin', bin);
+  return { command: fs.existsSync(local) ? local : 'vite', args: [] };
+}
+
+function runWasmDevBuild({
+  root = process.cwd(),
+  env = process.env,
+  platform = process.platform,
+  spawnSyncFn = spawnSync,
+} = {}) {
+  const invocation = resolveNpmInvocation(env, platform);
+  return spawnSyncFn(invocation.command, [...invocation.args, 'run', 'wasm:dev'], {
+    stdio: 'inherit',
+    cwd: root,
+    env,
+  });
+}
+
 export function runGit(args, { execFileSyncFn = execFileSync } = {}) {
   try {
     const stdout = execFileSyncFn('git', args, {
@@ -372,12 +428,6 @@ export function printSessionSummary(manifest) {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-function resolveViteCommand(root = process.cwd()) {
-  const bin = process.platform === 'win32' ? 'vite.cmd' : 'vite';
-  const local = path.join(root, 'node_modules', '.bin', bin);
-  return fs.existsSync(local) ? local : 'vite';
-}
-
 export function main(argv = process.argv, env = process.env, root = process.cwd()) {
   const mode = argv[2];
   if (!(mode in VALIDATION_MODE_TABLE)) {
@@ -424,13 +474,16 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
   }
 
   if (spec.wasmRequired) {
-    const wasm = spawnSync('npm', ['run', 'wasm:dev'], { stdio: 'inherit', cwd: root });
-    if (wasm.status !== 0) {
-      process.stderr.write('[quest-validation] WASM dev build failed; aborting session\n');
+    const wasm = runWasmDevBuild({ root, env });
+    if (wasm.error || wasm.status !== 0) {
+      const reason = wasm.error
+        ? `failed to launch npm for WASM dev build: ${wasm.error instanceof Error ? wasm.error.message : String(wasm.error)}`
+        : `WASM dev build exited with status ${wasm.status ?? 'unknown'}`;
+      process.stderr.write(`[quest-validation] ${reason}; aborting session\n`);
       try {
         const disposition = writeDispositionFile(
           validated.manifest,
-          { status: 'FAIL', reasons: ['WASM dev build failed; session aborted before Vite start'] },
+          { status: 'FAIL', reasons: [`${reason}; session aborted before Vite start`] },
           root
         );
         process.stderr.write(`[quest-validation] aborted disposition recorded to ${disposition}\n`);
@@ -439,12 +492,13 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
           `[quest-validation] failed to record aborted disposition: ${error instanceof Error ? error.message : String(error)}\n`
         );
       }
-      return wasm.status ?? 1;
+      return typeof wasm.status === 'number' ? wasm.status : 1;
     }
   }
 
   const identity = validated.manifest.deviceIdentity;
-  const child = spawn(resolveViteCommand(root), ['--host'], {
+  const vite = resolveViteInvocation(root);
+  const child = spawn(vite.command, [...vite.args, '--host'], {
     stdio: 'inherit',
     cwd: root,
     env: {
@@ -463,8 +517,12 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
       VITE_NEMOSYNE_QUEST_SECURITY_PATCH: identity?.securityPatch ?? '',
     },
   });
+  child.on('error', (error) => {
+    process.stderr.write(`[quest-validation] failed to launch Vite: ${error.message}\n`);
+    process.exitCode = 1;
+  });
   child.on('exit', (code) => {
-    process.exitCode = code ?? 0;
+    if (typeof code === 'number') process.exitCode = code;
   });
   return undefined;
 }
