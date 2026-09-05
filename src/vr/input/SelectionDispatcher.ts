@@ -95,6 +95,10 @@ export class SelectionDispatcher {
    * Trigger selection on the currently hovered scene object or HUD under the
    * active pointer, honoring pinch recoil lock when active.
    *
+   * A non-finite or degenerate pointer ray is tracking-loss evidence, not a
+   * selectable position. It is reported to telemetry but refused before any
+   * feedback, HUD, scene or callback side effect can fire.
+   *
    * Dispatch telemetry is emitted after callbacks complete. That makes
    * `hadCallback` an observed outcome rather than a pre-dispatch guess; a
    * callback that throws cannot be recorded as a successful callback-only hit.
@@ -102,9 +106,22 @@ export class SelectionDispatcher {
   triggerSelect(activePointer: PointerLike | null) {
     if (!activePointer) return;
     const ray = activePointer.getRay(new THREE.Ray());
-    this.registry.raycaster.ray.copy(ray);
     const rayValid = isUsablePointerRay(ray);
 
+    if (!rayValid) {
+      this.onDispatch?.({
+        hudConsumed: false,
+        sceneMesh: null,
+        sceneData: undefined,
+        hadCallback: false,
+        pointer: activePointer,
+        rayValid: false,
+      });
+      this.clearPinchLock();
+      return;
+    }
+
+    this.registry.raycaster.ray.copy(ray);
     this.feedback.playSelect();
     this.feedback.flashPointer(activePointer);
     this.feedback.playHaptic(

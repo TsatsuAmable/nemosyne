@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { SelectionDispatcher } from '../src/vr/input/SelectionDispatcher.ts';
 import { InteractableRegistry } from '../src/vr/input/InteractableRegistry.ts';
@@ -92,7 +92,7 @@ describe('Sprint 25.1: Quest Spatial Tracking & Aim-Drift Ergonomics Hardening',
 
       detector.update(null);
 
-      expect(capturedHint).toContain('Align hands horizontally');
+      expect(capturedHint).toContain('Lower both hands');
     });
   });
 });

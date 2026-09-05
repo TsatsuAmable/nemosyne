@@ -18,7 +18,7 @@ export class SystemGestureDetector {
   registry: PointerRegistry;
   onSystemToggle: (() => void) | null = null;
   onTrace: ((info: SystemGestureTraceInfo) => void) | null = null;
-  onSuppressedHint: ((hint: string) => void) | null = null;
+  onSuppressedHint: ((hint: string) => void) | null;
 
   private _lastRawBothPinched = false;
   private _invalidBothPinchHeld = false;
@@ -52,6 +52,28 @@ export class SystemGestureDetector {
     }
     this._reachZoneY = reachZoneY;
     this._now = options.now ?? (() => performance.now());
+
+    // Production-default guidance sink. PointerRegistry owns the live Engine,
+    // whose UI manager is attached later by World. Resolve it at call time so
+    // construction order does not make the callback permanently dead. Tests
+    // and specialized hosts may still replace `onSuppressedHint` explicitly.
+    this.onSuppressedHint = (hint) => {
+      const engine = (
+        this.registry as unknown as {
+          engine?: {
+            uiManager?: {
+              interactionCoach?: {
+                log?: (entry: { action: string; result: string }) => void;
+              } | null;
+            } | null;
+          };
+        }
+      ).engine;
+      engine?.uiManager?.interactionCoach?.log?.({
+        action: 'System gesture blocked',
+        result: hint,
+      });
+    };
   }
 
   /**
@@ -121,7 +143,9 @@ export class SystemGestureDetector {
         y0: origin0.y,
         y1: origin1.y,
       });
-      this.onSuppressedHint?.('Both-pinch: Align hands horizontally to scale palace');
+      this.onSuppressedHint?.(
+        'Both-pinch unavailable in the upper reach zone. Lower both hands and pinch again.'
+      );
     }
     this._lastSuppressedBothPinched = rawBothPinched && systemGestureZoneSuppressed;
 
