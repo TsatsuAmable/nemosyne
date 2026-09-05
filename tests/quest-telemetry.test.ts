@@ -22,7 +22,7 @@ describe('Quest telemetry', () => {
     expect(degrading.p95DriftPercent).toBeGreaterThan(40);
   });
 
-  it('captures declared device, XR framebuffer, refresh rate, and WebGL identity', () => {
+  it('captures XR framebuffer, refresh rate, and WebGL identity without inventing an attribution basis', () => {
     const gl = {
       VENDOR: 1,
       RENDERER: 2,
@@ -43,7 +43,9 @@ describe('Quest telemetry', () => {
       'META_QUEST_3S'
     );
     expect(environment.declaredDeviceTarget).toBe('META_QUEST_3S');
-    expect(environment.identityBasis).toBe('investigator-declared');
+    expect(environment.identityBasis).toBe('unavailable');
+    expect(environment.investigatorRunLabel).toBeNull();
+    expect(environment.declaredFirmwareVersion).toBeNull();
     expect(environment.xr.nominalFrameRateHz).toBe(72);
     expect(environment.xr.framebufferWidth).toBe(1832);
     expect(environment.webgl.renderer).toBe('Adreno');
