@@ -28,6 +28,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 - [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) - developer onboarding and codebase mental model.
 - [`MIGRATION.md`](MIGRATION.md) - migration reference where still applicable.
 - [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) - CI evidence/latency strategy and measured sharding work.
+- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) - generated human projection of desired service boundaries, implementation/deployment states, and verification obligations. `governance/production-readiness.json` is its machine-readable source; `ROADMAP.md` still governs sequencing and completion claims.
 - [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) - quality-process contract created under the previous A/B/C wave; still useful as engineering guidance but not the current Stream A mission.
 - [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) - security/live-path finding set created under the previous A/B/C wave; unresolved findings are now owned by current Stream D.
 - [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) - governed statistical method inventory.
@@ -78,3 +79,4 @@ If information in the Wiki conflicts with repository documentation or executable
 5. Any change to documentation authority or engineering instructions must pass `npm run docs:check`.
 6. If an active document conflicts with a governing authority, update it, clearly subordinate its operational status to `ROADMAP.md`, or archive it as part of the next touching change.
 7. GitHub Wiki pages are generated projections and must not be edited as independent sources of truth.
+8. Service/deployment/test-readiness debt belongs in `governance/production-readiness.json`; update the generated `PRODUCTION_READINESS.md` with `node scripts/render-production-readiness.mjs --write` rather than maintaining a parallel hand-written status list.
