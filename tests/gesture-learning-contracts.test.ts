@@ -10,7 +10,6 @@ import {
   validateGestureTrainingSnapshotV1,
   type GestureLearningConsentEvidenceV1,
   type GestureLearningSampleRefV1,
-  type GestureTrainingSnapshotV1,
 } from '../src/vr/input/GestureLearningContracts.ts';
 
 const CREATED_AT = '2026-09-05T03:20:00Z';
@@ -136,7 +135,9 @@ describe('PT6A gesture-learning evidence contracts', () => {
     expect(forward.snapshotDigest).toEqual(reversed.snapshotDigest);
     expect(forward.splits).toEqual(reversed.splits);
     expect(forward.splitSeedId).toBe(SPLIT_SEED);
-    expect(forward.splitFractions).toEqual({ train: 0.6, validation: 0.2, test: 0.2 });
+    expect(forward.splitFractions.train).toBeCloseTo(0.6, 12);
+    expect(forward.splitFractions.validation).toBe(0.2);
+    expect(forward.splitFractions.test).toBe(0.2);
     expect(Object.isFrozen(forward)).toBe(true);
 
     const owner = new Map<string, string>();
@@ -187,7 +188,14 @@ describe('PT6A gesture-learning evidence contracts', () => {
 
   it('detects a re-digested snapshot whose memberships violate the declared split policy', () => {
     const original = build();
-    const forged = JSON.parse(JSON.stringify(original)) as GestureTrainingSnapshotV1;
+    const forged = JSON.parse(JSON.stringify(original)) as {
+      snapshotDigest: { algorithm: 'SHA256'; value: string };
+      splits: Record<'train' | 'validation' | 'test', {
+        profilePseudonymIds: string[];
+        samples: GestureLearningSampleRefV1[];
+      }>;
+      [key: string]: unknown;
+    };
 
     const trainProfile = forged.splits.train.profilePseudonymIds[0];
     const validationProfile = forged.splits.validation.profilePseudonymIds[0];
@@ -217,7 +225,7 @@ describe('PT6A gesture-learning evidence contracts', () => {
       value: canonicalSha256Hex(content),
     };
 
-    const issues = validateGestureTrainingSnapshotV1(forged);
+    const issues = validateGestureTrainingSnapshotV1(forged as never);
     expect(issues.some((issue) => issue.code === 'SNAPSHOT_DIGEST_MISMATCH')).toBe(false);
     expect(issues.some((issue) => issue.code === 'SPLIT_POLICY_MISMATCH')).toBe(true);
   });
