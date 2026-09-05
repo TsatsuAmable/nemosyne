@@ -153,6 +153,10 @@ function buildEnvelope(
   return Object.freeze({ ...content, contentDigest: computeGovernedEventContentDigestV1(content) });
 }
 
+function committed(disposition: GestureLearningEventDispositionV1): boolean {
+  return disposition.status === 'STORED' || disposition.status === 'EXACT_DUPLICATE';
+}
+
 export class GovernedGestureCaptureUploaderV1 {
   private readonly transport: GestureLearningGovernanceTransportV1;
   private readonly runtime: RuntimeProvenanceV1;
@@ -162,6 +166,8 @@ export class GovernedGestureCaptureUploaderV1 {
   private readonly uuid: () => string;
   private derivedSequence = 0;
   private rawSequence = 0;
+  private pendingDerivedEnvelope: string | null = null;
+  private pendingRawEnvelope: string | null = null;
 
   constructor(options: GovernedGestureCaptureUploaderOptionsV1) {
     assertRuntime(options.runtime);
@@ -182,6 +188,7 @@ export class GovernedGestureCaptureUploaderV1 {
   }
 
   async uploadDerived(input: DerivedGestureUploadV1): Promise<GestureLearningEventDispositionV1> {
+    if (this.pendingDerivedEnvelope !== null) return this.flushDerivedPending();
     const validated = validateDerivedInput(input);
     const eventId = this.uuid();
     assertUuid(eventId, 'eventId');
@@ -238,12 +245,12 @@ export class GovernedGestureCaptureUploaderV1 {
       payload,
       payloadDigest: computeGovernedPayloadDigestV1(payload),
     };
-    const disposition = await this.transport.ingestLine(JSON.stringify(buildEnvelope(content)));
-    if (disposition.status === 'STORED' || disposition.status === 'EXACT_DUPLICATE') this.derivedSequence += 1;
-    return disposition;
+    this.pendingDerivedEnvelope = JSON.stringify(buildEnvelope(content));
+    return this.flushDerivedPending();
   }
 
   async uploadRaw(input: RawGestureUploadV1): Promise<GestureLearningEventDispositionV1> {
+    if (this.pendingRawEnvelope !== null) return this.flushRawPending();
     const normalized = normalizeRawTrajectory(input.left, input.right);
     if (input.protocolTargetGesture !== undefined && !GESTURE_CLASS_SET.has(input.protocolTargetGesture)) {
       throw new TypeError('raw protocolTargetGesture is not a reviewed gesture class');
@@ -315,8 +322,33 @@ export class GovernedGestureCaptureUploaderV1 {
       payload,
       payloadDigest: computeGovernedPayloadDigestV1(payload),
     };
-    const disposition = await this.transport.ingestLine(JSON.stringify(buildEnvelope(content)));
-    if (disposition.status === 'STORED' || disposition.status === 'EXACT_DUPLICATE') this.rawSequence += 1;
+    this.pendingRawEnvelope = JSON.stringify(buildEnvelope(content));
+    return this.flushRawPending();
+  }
+
+  private async flushDerivedPending(): Promise<GestureLearningEventDispositionV1> {
+    const encoded = this.pendingDerivedEnvelope;
+    if (encoded === null) throw new Error('no derived gesture envelope is pending');
+    const disposition = await this.transport.ingestLine(encoded);
+    if (committed(disposition)) {
+      this.pendingDerivedEnvelope = null;
+      this.derivedSequence += 1;
+    } else if (disposition.status !== 'STORAGE_FAILURE') {
+      this.pendingDerivedEnvelope = null;
+    }
+    return disposition;
+  }
+
+  private async flushRawPending(): Promise<GestureLearningEventDispositionV1> {
+    const encoded = this.pendingRawEnvelope;
+    if (encoded === null) throw new Error('no raw gesture envelope is pending');
+    const disposition = await this.transport.ingestLine(encoded);
+    if (committed(disposition)) {
+      this.pendingRawEnvelope = null;
+      this.rawSequence += 1;
+    } else if (disposition.status !== 'STORAGE_FAILURE') {
+      this.pendingRawEnvelope = null;
+    }
     return disposition;
   }
 }
