@@ -205,7 +205,8 @@ describe('UXTraceRecorder', () => {
     const ctx = buffer.find((r) => r.type === 'context')?.ctx as {
       gaze: { target: string | null; kind: string | null; dist: number | null };
     };
-    // Default camera looks down -Z: panel (2m) is dead ahead, node (1.5m) is off-axis.    expect(ctx.gaze.target).toBe('GUIDED TOUR');
+    // Default camera looks down -Z: panel (2m) is dead ahead, node (1.5m) is off-axis.
+    expect(ctx.gaze.target).toBe('GUIDED TOUR');
     expect(ctx.gaze.kind).toBe('panel');
     expect(ctx.gaze.dist).toBeCloseTo(2, 1);
   });
@@ -387,16 +388,24 @@ describe('UXTraceRecorder feature-flag gating (prodTraceEnabled)', () => {
     expect(exported.endpointDead).toBe(true);
   });
 
-  it('setEnabled(false) stops all sampling work', () => {
+  it('setEnabled(false) stops all sampling work after bounded lifecycle markers', () => {
     const { recorder, update } = makeRecorder();
     update(0.2);
     const before = bufferOf(recorder).length;
     expect(before).toBeGreaterThan(0);
+
     recorder.setEnabled(false);
     expect(recorder.enabled).toBe(false);
+    const afterDisable = bufferOf(recorder).length;
+    expect(afterDisable).toBe(before + 2);
+    expect(bufferOf(recorder).slice(-2)).toEqual([
+      expect.objectContaining({ type: 'trace-lifecycle', event: 'consent-disabled' }),
+      expect.objectContaining({ type: 'trace-lifecycle', event: 'trace-end' }),
+    ]);
+
     update(1.0);
     update(2.0);
-    expect(bufferOf(recorder).length).toBe(before);
+    expect(bufferOf(recorder).length).toBe(afterDisable);
   });
 
   it('ships prodTraceEnabled default-off in the governed settings contract', async () => {

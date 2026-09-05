@@ -1,29 +1,13 @@
 /**
- * Dev-only UX trace recorder for on-device input debugging.
+ * UX trace recorder for on-device interaction debugging and validation evidence.
  *
- * Records one unified timeline that correlates hand input with what the
- * analyst is looking at, so post-hoc analysis can answer questions like
- * "the user pinched while looking at the tour panel — did anything respond?".
- *
- * Data sources:
- *  - Head pose + head-gaze raycast (camera forward against panels, scene
- *    interactables, and extra targets such as the tour card). Quest 3S has no
- *    eye tracking, so head gaze is an approximation of "what am I looking at".
- *  - Best pointer ray + its raycast target, plus the angular drift between
- *    head gaze and pointer ray (a UX signal in its own right).
- *  - Per-hand pinch state (distance, pinched, tracking validity).
- *  - UI state snapshot supplied by the wiring layer (wheel menu, tour, etc).
- *  - Event taps: pinch edges with their actual routing decision (select /
- *    wheel toggle / system-suppressed), selection dispatch hit-or-miss,
- *    recognized gestures, system gesture fired/suppressed, wheel visibility.
- *
- * Records are buffered and flushed as JSON batches to the dev-server endpoint
- * `/__ux-trace`, which appends them to `logs/ux-trace.jsonl`. The recorder
- * disables itself when the endpoint is missing (production builds) and keeps
- * retrying (with a capped buffer) through transient network failures.
+ * Development may flush records to the dev-server endpoint. Production
+ * composition replaces that transport and keeps records in a bounded local
+ * buffer for explicit user export only.
  */
 
 import * as THREE from 'three';
+import { canonicalSha256Hex } from '../../security/CryptoHash.ts';
 import type { HandLike, PanelLike } from '../coordinators/types.ts';
 import type { SelectionDispatchInfo } from '../input/SelectionDispatcher.ts';
 import type { SystemGestureTraceInfo } from '../input/SystemGestureDetector.ts';
@@ -32,6 +16,9 @@ import {
   type WorldLandmarkTarget,
   type WorldSpatialSnapshot,
 } from './WorldSpatialContext.ts';
+
+export const UX_TRACE_EXPORT_SCHEMA_VERSION = 1 as const;
+export const UX_TRACE_INTEGRITY_ALGORITHM = 'NEMOSYNE_CANONICAL_JSON_SHA256_V1' as const;
 
 export type UXTraceHandPinchGating =
   | 'select'
@@ -83,6 +70,35 @@ export interface HandsLifecycleTraceInfo {
   ttfrMs?: number;
 }
 
+export interface UXTraceExportEnvelopeV1 {
+  schemaVersion: typeof UX_TRACE_EXPORT_SCHEMA_VERSION;
+  createdAt: string;
+  exportedAt: string;
+  sid: string;
+  recordCount: number;
+  droppedCount: number;
+  firstSeq: number | null;
+  lastSeq: number | null;
+  traceOpen: boolean;
+  endpointDead: boolean;
+  buildHash?: string;
+  validationSession?: { label: string; id: string };
+  integrity: {
+    algorithm: typeof UX_TRACE_INTEGRITY_ALGORITHM;
+    recordsSha256: string;
+  };
+  records: TraceRecord[];
+}
+
+type TraceLifecycleEvent =
+  | 'trace-start'
+  | 'consent-enabled'
+  | 'consent-disabled'
+  | 'dataset-boundary'
+  | 'buffer-drop'
+  | 'export-requested'
+  | 'trace-end';
+
 interface TraceEngineDeps {
   camera?: THREE.Camera;
   headWorldPos?: THREE.Vector3;
@@ -111,10 +127,8 @@ export interface UXTraceRecorderOptions {
   flushMs?: number;
   endpoint?: string;
   /**
-   * Explicit recording switch. Defaults to true (historical behavior: record
-   * and flush to the dev-server endpoint). Production wiring constructs the
-   * recorder always but starts disabled until the investigator opts in via
-   * the `prodTraceEnabled` setting; `setEnabled()` flips it at runtime.
+   * Explicit recording switch. Defaults to true for the historical dev path.
+   * Production composition supplies false until explicit opt-in.
    */
   enabled?: boolean;
   now?: () => number;
@@ -173,6 +187,7 @@ export class UXTraceRecorder {
   private _fetch: NonNullable<UXTraceRecorderOptions['fetchImpl']>;
 
   private _sessionId: string;
+  private _createdAt: string;
   private _seq = 0;
   private _time = 0;
   private _frame = 0;
@@ -183,18 +198,19 @@ export class UXTraceRecorder {
   /**
    * Dev-server endpoint confirmed absent (HTTP 404, e.g. production build).
    * Flushing stops, but recording continues into the bounded in-memory
-   * buffer so a user-initiated export still captures the session. Never
-   * implies network transmission: there is no fallback endpoint.
+   * buffer so a user-initiated export still captures the session.
    */
   private _endpointDead = false;
   private _endpointDeadWarned = false;
   private _disposed = false;
+  private _traceOpen = false;
   private _errorCount = 0;
   private _lastSampleAt = -Infinity;
   private _lastFlushAt = 0;
   private _flushing = false;
   private _unsubs: Array<() => void> = [];
   private _lastTourKey: string | null = null;
+  private _lastDatasetBoundaryKey: string | null = null;
   private _metaEmitted = false;
   private _warnedSections = new Set<string>();
 
@@ -224,12 +240,16 @@ export class UXTraceRecorder {
         fetch(url, init as RequestInit) as unknown as Promise<{ ok: boolean; status: number }>);
 
     this._sessionId = crypto.randomUUID();
+    this._createdAt = new Date().toISOString();
     this._disabled = !(options.enabled ?? true);
+
+    if (!this._disabled) this._openTrace('initial-enabled');
 
     if (options.eventBus) {
       const bus = options.eventBus;
       this._unsubs.push(
         bus.on('gesture:recognized', (payload) => {
+          if (this._disabled || this._disposed) return;
           const p = payload as { name?: string; ctx?: Record<string, unknown> } | undefined;
           this._push({
             type: 'gesture',
@@ -243,6 +263,7 @@ export class UXTraceRecorder {
       );
       this._unsubs.push(
         bus.on('interaction', (payload) => {
+          if (this._disabled || this._disposed) return;
           const p = payload as Record<string, unknown> | undefined;
           this._push({ type: 'interaction', payload: p ?? {}, ctx: this._context() });
         })
@@ -275,37 +296,86 @@ export class UXTraceRecorder {
     return !this._disabled;
   }
 
-  /** True once at least one record is buffered (manifest counts). */
+  /** True once at least one record is buffered (lifecycle records count). */
   get hasRecords(): boolean {
     return this._buffer.length > 0;
   }
 
   /**
-   * Runtime switch for the production-trace feature flag. Enabling never
-   * transmits: with a dead endpoint, records accumulate in the bounded
-   * in-memory buffer until exported. Disabling stops all sampling work.
+   * Runtime switch for the production-trace feature flag. Consent transitions
+   * are bounded lifecycle evidence with no spatial/UI context. Once disabled,
+   * no subsequent user/runtime observation is admitted.
    */
   setEnabled(value: boolean): void {
-    this._disabled = !value;
+    if (this._disposed) return;
+    const nextEnabled = !!value;
+    if (nextEnabled === !this._disabled) return;
+
+    if (nextEnabled) {
+      this._disabled = false;
+      this._emitLifecycle('consent-enabled');
+      this._openTrace('consent-enabled');
+      return;
+    }
+
+    this._emitLifecycle('consent-disabled');
+    this._closeTrace('consent-withdrawn');
+    this._disabled = true;
   }
 
   /**
    * Local-only snapshot of buffered records for user-initiated download.
-   * Non-destructive; never transmits.
+   * Non-destructive; never transmits. Versioned metadata makes truncation,
+   * misassociation and accidental record corruption detectable.
    */
   exportJson(): string {
-    return JSON.stringify(
-      {
-        exportedAt: new Date().toISOString(),
-        sid: this._sessionId,
-        recordCount: this._buffer.length,
-        droppedCount: this._droppedCount,
-        endpointDead: this._endpointDead,
-        records: [...this._buffer],
+    if (!this._disabled && !this._disposed) this._emitLifecycle('export-requested');
+
+    // Normalize through JSON once before hashing so the digest covers exactly
+    // the JSON-compatible records that are emitted in the envelope.
+    const records = JSON.parse(JSON.stringify(this._buffer)) as TraceRecord[];
+    const firstSeq = records.length > 0 ? records[0].seq : null;
+    const lastSeq = records.length > 0 ? records[records.length - 1].seq : null;
+    let latestManifest: TraceRecord | null = null;
+    for (let i = records.length - 1; i >= 0; i -= 1) {
+      if (records[i].type === 'session-manifest') {
+        latestManifest = records[i];
+        break;
+      }
+    }
+
+    const validationSession =
+      typeof latestManifest?.validationSessionLabel === 'string' &&
+      typeof latestManifest?.validationSessionId === 'string'
+        ? {
+            label: latestManifest.validationSessionLabel,
+            id: latestManifest.validationSessionId,
+          }
+        : undefined;
+    const buildHash =
+      typeof latestManifest?.buildHash === 'string' ? latestManifest.buildHash : undefined;
+
+    const envelope: UXTraceExportEnvelopeV1 = {
+      schemaVersion: UX_TRACE_EXPORT_SCHEMA_VERSION,
+      createdAt: this._createdAt,
+      exportedAt: new Date().toISOString(),
+      sid: this._sessionId,
+      recordCount: records.length,
+      droppedCount: this._droppedCount,
+      firstSeq,
+      lastSeq,
+      traceOpen: this._traceOpen,
+      endpointDead: this._endpointDead,
+      ...(buildHash ? { buildHash } : {}),
+      ...(validationSession ? { validationSession } : {}),
+      integrity: {
+        algorithm: UX_TRACE_INTEGRITY_ALGORITHM,
+        recordsSha256: canonicalSha256Hex(records),
       },
-      null,
-      2
-    );
+      records,
+    };
+
+    return JSON.stringify(envelope, null, 2);
   }
 
   get droppedCount(): number {
@@ -414,6 +484,7 @@ export class UXTraceRecorder {
   /** Emit session manifest linking UX trace sid with dataset and engine identity. */
   recordSessionManifest(manifest: Partial<SessionManifestInfo> = {}): void {
     if (this._disabled) return;
+    this._recordDatasetBoundaryIfChanged(manifest);
     this._push({
       type: 'session-manifest',
       sid: this._sessionId,
@@ -455,6 +526,7 @@ export class UXTraceRecorder {
   }
 
   dispose(): void {
+    if (!this._disabled && !this._disposed) this._closeTrace('disposed');
     this._disposed = true;
     for (const unsub of this._unsubs) {
       try {
@@ -469,6 +541,46 @@ export class UXTraceRecorder {
     } catch {
       // Engine may already be gone during teardown.
     }
+  }
+
+  private _openTrace(reason: string): void {
+    if (this._traceOpen || this._disabled || this._disposed) return;
+    this._traceOpen = true;
+    this._emitLifecycle('trace-start', { reason });
+  }
+
+  private _closeTrace(reason: string): void {
+    if (!this._traceOpen || this._disabled || this._disposed) return;
+    this._emitLifecycle('trace-end', { reason });
+    this._traceOpen = false;
+  }
+
+  private _emitLifecycle(event: TraceLifecycleEvent, fields: Record<string, unknown> = {}): void {
+    this._push({
+      type: 'trace-lifecycle',
+      event,
+      droppedCount: this._droppedCount,
+      ...fields,
+    });
+  }
+
+  private _recordDatasetBoundaryIfChanged(manifest: Partial<SessionManifestInfo>): void {
+    const parts = [
+      manifest.datasetFingerprint,
+      manifest.datasetVersion,
+      manifest.datasetName,
+      manifest.topology,
+    ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+    if (parts.length === 0) return;
+    const key = parts.join('|');
+    if (key === this._lastDatasetBoundaryKey) return;
+    this._lastDatasetBoundaryKey = key;
+    this._emitLifecycle('dataset-boundary', {
+      datasetFingerprint: manifest.datasetFingerprint,
+      datasetVersion: manifest.datasetVersion,
+      datasetName: manifest.datasetName,
+      topology: manifest.topology,
+    });
   }
 
   private _maybeEmitMeta(): void {
@@ -490,20 +602,65 @@ export class UXTraceRecorder {
     });
   }
 
-  private _push(fields: TraceRecordBase): void {
-    const record: TraceRecord = {
+  private _makeRecord(fields: TraceRecordBase): TraceRecord {
+    return {
       t: round(this._time, 3),
       sid: this._sessionId,
       seq: ++this._seq,
       type: '',
       ...fields,
     };
-    this._buffer.push(record);
-    if (this._buffer.length > MAX_BUFFER) {
-      const overflow = this._buffer.length - MAX_BUFFER;
-      this._buffer.splice(0, overflow);
-      this._droppedCount += overflow;
+  }
+
+  private _push(fields: TraceRecordBase): void {
+    if (this._disabled || this._disposed) return;
+    this._buffer.push(this._makeRecord(fields));
+    this._capBuffer();
+  }
+
+  /**
+   * Keep bounded memory while preserving an explicit truncation signal. One
+   * retained buffer-drop marker is updated rather than emitting a marker for
+   * every subsequent dropped record (which would otherwise amplify loss).
+   */
+  private _capBuffer(): void {
+    if (this._buffer.length <= MAX_BUFFER) return;
+
+    let droppedNow = this._buffer.length - MAX_BUFFER;
+    this._buffer.splice(0, droppedNow);
+    this._droppedCount += droppedNow;
+
+    let dropMarker: TraceRecord | null = null;
+    for (let i = this._buffer.length - 1; i >= 0; i -= 1) {
+      const record = this._buffer[i];
+      if (record.type === 'trace-lifecycle' && record.event === 'buffer-drop') {
+        dropMarker = record;
+        break;
+      }
     }
+
+    if (dropMarker) {
+      dropMarker.droppedNow = (typeof dropMarker.droppedNow === 'number' ? dropMarker.droppedNow : 0) + droppedNow;
+      dropMarker.droppedCount = this._droppedCount;
+      dropMarker.lastDroppedAt = round(this._time, 3);
+      return;
+    }
+
+    // Reserve one bounded slot for the first explicit drop marker.
+    if (this._buffer.length >= MAX_BUFFER) {
+      this._buffer.shift();
+      this._droppedCount++;
+      droppedNow++;
+    }
+    this._buffer.push(
+      this._makeRecord({
+        type: 'trace-lifecycle',
+        event: 'buffer-drop',
+        droppedNow,
+        droppedCount: this._droppedCount,
+        lastDroppedAt: round(this._time, 3),
+      })
+    );
   }
 
   /** Build (and cache per frame) the current world-view + input context. */
@@ -750,15 +907,12 @@ export class UXTraceRecorder {
 
   private _requeue(batch: TraceRecord[]): void {
     this._buffer = [...batch, ...this._buffer];
-    if (this._buffer.length > MAX_BUFFER) {
-      const overflow = this._buffer.length - MAX_BUFFER;
-      this._buffer.splice(0, overflow);
-      this._droppedCount += overflow;
-    }
+    this._capBuffer();
   }
 
   private _disable(reason: string): void {
     if (this._disabled) return;
+    this._closeTrace(`disabled:${reason}`);
     this._disabled = true;
     console.warn(`[UXTraceRecorder] disabled: ${reason}`);
   }
