@@ -8,6 +8,8 @@ import {
 } from '../src/vr/input/XRInputProvider.ts';
 import type { PointerLike } from '../src/vr/coordinators/types.ts';
 
+type Handedness = 'left' | 'right' | 'none';
+
 const unavailable = (): XRInputButtonState => ({
   available: false,
   pressed: false,
@@ -20,7 +22,7 @@ function makeGamepadButton(pressed = false): GamepadButton {
 }
 
 function makeSource(options: {
-  handedness: XRHandedness;
+  handedness: Handedness;
   hand?: boolean;
   pressed?: boolean;
   profiles?: string[];
@@ -52,7 +54,7 @@ function makeSession(sources: XRInputSource[]): XRSession {
   return { inputSources: sources } as unknown as XRSession;
 }
 
-function makePointer(handedness: XRHandedness, y = 1.1): PointerLike & { pinched: boolean } {
+function makePointer(handedness: Handedness, y = 1.1): PointerLike & { pinched: boolean } {
   return {
     handedness,
     pinched: false,
@@ -202,9 +204,9 @@ describe('InputRouter XR provider authority', () => {
 
     router.addHand(left);
     router.addHand(right);
-    const edges: Array<{ hand: XRHandedness; phase: string; gating: string }> = [];
+    const edges: Array<{ hand: Handedness; phase: string; gating: string }> = [];
     router.onHandPinchEdge = (hand, phase, gating) => {
-      const handedness: XRHandedness =
+      const handedness: Handedness =
         hand.handedness === 'left' || hand.handedness === 'right' ? hand.handedness : 'none';
       edges.push({ hand: handedness, phase, gating });
     };
@@ -222,6 +224,28 @@ describe('InputRouter XR provider authority', () => {
       { hand: 'left', phase: 'start', gating: 'system-suppressed' },
       { hand: 'right', phase: 'start', gating: 'system-suppressed' },
     ]);
+  });
+
+  it('uses provider hand edges even when legacy pinch memory is stale', () => {
+    const provider = new FakeProvider();
+    const router = makeRouter(provider);
+    const hand = makePointer('left', 1.1);
+    const source = makeSource({ handedness: 'left', hand: true });
+    provider.select.set(source, { available: true, pressed: true, down: true, up: false });
+
+    router.addHand(hand);
+    // Deliberately poison the legacy edge memory. A normalized `down` edge must
+    // remain authoritative and still drive the start + selection.
+    router.pointers.lastHandPinched.set(hand, true);
+    const edges: string[] = [];
+    router.onHandPinchEdge = (_hand, phase, gating) => edges.push(`${phase}:${gating}`);
+    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => true);
+
+    router._pollSelection(makeSession([source]));
+
+    expect(edges).toEqual(['start:select']);
+    expect(press).toHaveBeenCalledOnce();
+    expect(press).toHaveBeenCalledWith(hand);
   });
 
   it('retains legacy hand selection when the provider cannot normalize the source', () => {
