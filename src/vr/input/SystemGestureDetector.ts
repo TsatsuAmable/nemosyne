@@ -101,9 +101,14 @@ export class SystemGestureDetector {
   }
 
   private _handSelectPressed(hand: PointerLike, sources: XRInputSource[]): boolean {
+    // HandPointer remains the canonical hand-pinch authority unless an explicit
+    // provider is installed. This keeps legacy/synthetic hosts and the proven
+    // joint-derived hand path independent of controller-profile normalization.
+    if (!this._inputProvider) return hand.isPinched?.() === true;
+
     const source = this.registry.findSourceForHand(hand, sources);
-    const normalized = this._inputProvider?.getSelect(source);
-    if (normalized?.available) return normalized.pressed;
+    const normalized = this._inputProvider.getSelect(source);
+    if (normalized.available) return normalized.pressed;
     return hand.isPinched?.() === true;
   }
 
