@@ -56,11 +56,15 @@ export class IWSDKXRInputProvider implements XRInputProvider {
     const sources = Array.from(session.inputSources).filter(Boolean);
     const live = new Set(sources);
 
+    // Button snapshots are frame-local. Clear them before rebuilding so a
+    // source that disappears without ever producing a StatefulGamepad cannot
+    // remain strongly referenced by an unavailable-state entry.
+    this._select.clear();
+    this._squeeze.clear();
+
     for (const source of this._devices.keys()) {
       if (!live.has(source)) {
         this._devices.delete(source);
-        this._select.delete(source);
-        this._squeeze.delete(source);
       }
     }
 
