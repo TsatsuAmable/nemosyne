@@ -360,13 +360,15 @@ describe('InputRouter event-path pinch tracing', () => {
     expect(dispatches).toHaveLength(0);
 
     // Frame-generated end callbacks must also leave lastHandPinched untouched
-    // until the poll sees the falling edges.
+    // until the poll sees both falling edges. Release gating reflects the
+    // release routing branch (wheel hand vs ordinary hand), while UX analysis
+    // uses start-edge gating for pinch outcome classification.
     pressed = false;
     router.update(null, null, engine.session as never);
     expect(edges).toEqual([
       { phase: 'start', gating: 'system-suppressed' },
       { phase: 'start', gating: 'system-suppressed' },
-      { phase: 'end', gating: 'passive-release' },
+      { phase: 'end', gating: 'wheel-release' },
       { phase: 'end', gating: 'passive-release' },
     ]);
   });
