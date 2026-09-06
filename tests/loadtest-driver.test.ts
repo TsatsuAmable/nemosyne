@@ -183,10 +183,14 @@ describe('LoadTestDriver state machine', () => {
     expect(summary.steps.length).toBe(1);
   });
 
-  it('default profile is the documented 1k→250k TABULAR staircase', () => {
-    const rowCounts = DEFAULT_LOAD_TEST_PROFILE.steps.map((s) => s.rowCount);
-    expect(rowCounts).toEqual([1_000, 8_000, 65_000, 100_000, 250_000]);
-    expect(DEFAULT_LOAD_TEST_PROFILE.steps.every((s) => s.topology === 'TABULAR')).toBe(true);
+  it('default profile is the documented warmup + 1k→250k TABULAR staircase', () => {
+    const steps = DEFAULT_LOAD_TEST_PROFILE.steps;
+    const rowCounts = steps.map((s) => s.rowCount);
+    expect(rowCounts).toEqual([1_000, 1_000, 8_000, 65_000, 100_000, 250_000]);
+    expect(steps.every((s) => s.topology === 'TABULAR')).toBe(true);
+    // The lead step absorbs cold-start transients and is excluded from verdicts.
+    expect(steps[0].warmup).toBe(true);
+    expect(steps.slice(1).every((s) => s.warmup !== true)).toBe(true);
   });
 
   it('declares the physical Quest 3S soak profile and emits privacy-bounded metadata', async () => {

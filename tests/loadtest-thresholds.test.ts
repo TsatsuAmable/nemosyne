@@ -233,6 +233,47 @@ describe('computeOverallVerdict', () => {
     expect(v.jsPathSufficientTo).toBe(1_000);
     expect(v.commandBufferWarrantedAt).toBe(65_000);
   });
+
+  it('excludes flagged warmup steps from the verdict while keeping them graded', () => {
+    const warmupSpec: LoadTestStepSpec = { ...spec(1_000), label: 'warmup (ungraded)', warmup: true };
+    const steps = [
+      makeStep(warmupSpec, computeFrameStats(Array(200).fill(40)), { grade: 'red' }),
+      makeStep(spec(1_000), computeFrameStats(Array(200).fill(8)), { grade: 'green' }),
+      makeStep(spec(8_000), computeFrameStats(Array(200).fill(9)), { grade: 'green' }),
+      makeStep(spec(65_000), computeFrameStats(Array(200).fill(20)), { grade: 'red' }),
+    ];
+    const v = computeOverallVerdict(steps);
+    // The red warmup step must not drive the recommendation...
+    expect(v.jsPathSufficientTo).toBe(8_000);
+    expect(v.commandBufferWarrantedAt).toBe(65_000);
+    // ...but stays visible: excluded rows are reported, grades cover graded only.
+    expect(v.warmupExcludedRowCounts).toEqual([1_000]);
+    expect(v.grades).toEqual([
+      { rowCount: 1_000, grade: 'green' },
+      { rowCount: 8_000, grade: 'green' },
+      { rowCount: 65_000, grade: 'red' },
+    ]);
+  });
+
+  it('returns null verdict bounds when every step is warmup', () => {
+    const steps = [
+      makeStep({ ...spec(1_000), warmup: true }, computeFrameStats(Array(200).fill(40)), { grade: 'red' }),
+    ];
+    const v = computeOverallVerdict(steps);
+    expect(v.jsPathSufficientTo).toBeNull();
+    expect(v.commandBufferWarrantedAt).toBeNull();
+    expect(v.warmupExcludedRowCounts).toEqual([1_000]);
+  });
+
+  it('behaves exactly as before when no step is flagged', () => {
+    const steps = [
+      makeStep(spec(1_000), computeFrameStats(Array(200).fill(25)), { grade: 'red' }),
+    ];
+    const v = computeOverallVerdict(steps);
+    expect(v.jsPathSufficientTo).toBeNull();
+    expect(v.commandBufferWarrantedAt).toBe(1_000);
+    expect(v.warmupExcludedRowCounts).toEqual([]);
+  });
 });
 
 describe('threshold constants are fixed and reviewable', () => {
