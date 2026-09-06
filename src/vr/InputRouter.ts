@@ -430,6 +430,14 @@ export class InputRouter {
 
     if (!session || !session.inputSources) {
       this._lastSuppressSelection = false;
+      this.systemDetector.reset();
+      for (const controller of this.pointers.controllers) {
+        this.pointers.controllerTriggerPressed.set(controller, false);
+        this.pointers.controllerGripPressed.set(controller, false);
+      }
+      for (const hand of this.pointers.hands) {
+        this.pointers.lastHandPinched.set(hand, false);
+      }
       return;
     }
     const sources = Array.from(session.inputSources);
