@@ -11,6 +11,10 @@ import { SystemGestureDetector } from './input/SystemGestureDetector.ts';
 import { SelectionDispatcher } from './input/SelectionDispatcher.ts';
 import { ControllerGestureBridge } from './input/ControllerGestureBridge.ts';
 import { SemanticTargetResolver } from './input/SemanticTargetResolver.ts';
+import {
+  IWSDKXRInputProvider,
+  type XRInputProvider,
+} from './input/XRInputProvider.ts';
 import { FocusContextController, type FocusLevel } from './interactions/FocusContextController.ts';
 import { NearFieldInteractor } from './interactions/near/NearFieldInteractor.ts';
 import type {
@@ -26,24 +30,9 @@ import type {
 /**
  * Routes WebXR controller and hand pointer input.
  *
- * This class is now a thin facade that delegates pointer bookkeeping to focused
- * state-machine classes:
- *
- *   - PointerRegistry          – controllers, hands, pointer rays, XR source mapping
- *   - InteractableRegistry     – interactables, panels, HUD objects, hover state
- *   - PointerEventMachine      – press / move / release state machine for pointers
- *   - SystemGestureDetector    – both-hands pinch / both-grips system toggle
- *   - SelectionDispatcher      – selection feedback, callbacks, and dwell selection
- *   - ControllerGestureBridge  – controller gesture vocabulary bridge
- *
- * Selection is detected by polling controller trigger buttons and hand pinch
- * state each frame. Event-based selection is kept as a fallback, but some Meta
- * Quest Browser builds do not dispatch 'selectstart' on the controller Object3D,
- * so polling is the primary path.
- *
- * Panels registered with addPanel() take precedence over scene objects and can be
- * dragged or minimized. A controller grip or two-hand pinch can be wired to a
- * system-level callback (e.g. recalling hidden panels).
+ * Commodity XR button/profile normalization is delegated to XRInputProvider
+ * (IWSDK by default). Nemosyne continues to own semantic routing, interaction
+ * modes, suppression policy, tracing and explicit legacy fallbacks.
  */
 export class InputRouter {
   engine: EngineLike;
@@ -55,6 +44,7 @@ export class InputRouter {
   systemDetector: SystemGestureDetector;
   gestureBridge: ControllerGestureBridge;
   nearInteractor: NearFieldInteractor;
+  xrInputProvider: XRInputProvider;
 
   // Legacy public aliases so existing callers and tests continue to work.
   controllers: PointerLike[];
@@ -74,36 +64,17 @@ export class InputRouter {
    * RF-025: optional semantic targeting layer. When installed, the per-frame
    * picking path resolves the full scene hit list through the resolver (with
    * coercion + hysteresis) instead of using the bare nearest hit, and a
-   * structure-kind selection drives the focus/context controller. Both fields
-   * default to `null` so the legacy nearest-hit picking path is unchanged when
-   * the layer is not installed.
+   * structure-kind selection drives the focus/context controller.
    */
   semanticResolver: SemanticTargetResolver | null = null;
   focusContext: FocusContextController | null = null;
-  /** Notified whenever the focus/context state changes so the World/session can navigate + persist. */
   onFocusChange: ((state: { currentLevel: FocusLevel; focusedStructureId: string | null }) => void) | null = null;
 
   activePointer: PointerLike | null;
-  /**
-   * Suppression verdict from the most recent `_pollSelection` pass. Used only
-   * by the true out-of-band fallback path; frame-generated HandPointer callbacks
-   * are deferred to polling so they cannot race a newly changed suppression state.
-   */
+  /** Last completed poll suppression verdict for the true out-of-band fallback path. */
   private _lastSuppressSelection = false;
-  /**
-   * True only while `updateHands` is running and a pollable XR session exists.
-   * HandPointer emits pinch callbacks synchronously from that update. Those
-   * callbacks must not mutate `lastHandPinched` or dispatch selection before
-   * `_pollSelection` has seen the final state of both hands for the frame.
-   */
+  /** True while updateHands is producing callbacks that the poll pass owns. */
   private _pollOwnsHandCallbacks = false;
-  /**
-   * Global fallback selection callback. Kept in sync with the dispatcher's
-   * callback (null when unset) so `SelectionDispatchInfo.hadCallback`
-   * truthfully reports whether a callback actually ran. A permanently
-   * installed forwarding closure would make every empty-space miss look
-   * like a `callback-only` hit in UX traces.
-   */
   private _onSelectCallback: ((ray: THREE.Ray) => void) | null = null;
 
   get onSelectCallback(): ((ray: THREE.Ray) => void) | null {
@@ -114,6 +85,7 @@ export class InputRouter {
     this._onSelectCallback = cb;
     this.dispatcher.setOnSelectCallback(cb ? (ray) => cb(ray) : null);
   }
+
   onSystemToggle: (() => void) | null;
   onHandPinchEdge:
     | ((
@@ -129,7 +101,7 @@ export class InputRouter {
       ) => void)
     | null = null;
 
-  constructor(engine: EngineLike) {
+  constructor(engine: EngineLike, options: { xrInputProvider?: XRInputProvider } = {}) {
     this.engine = engine;
 
     this.pointers = new PointerRegistry(engine);
@@ -140,7 +112,10 @@ export class InputRouter {
         this._dispatchSelect(pointer);
       },
     });
-    this.systemDetector = new SystemGestureDetector(this.pointers);
+    this.xrInputProvider = options.xrInputProvider ?? new IWSDKXRInputProvider();
+    this.systemDetector = new SystemGestureDetector(this.pointers, {
+      inputProvider: this.xrInputProvider,
+    });
     this.gestureBridge = new ControllerGestureBridge();
     this.nearInteractor = new NearFieldInteractor();
 
@@ -153,8 +128,6 @@ export class InputRouter {
     this.feedback = this.dispatcher.feedback;
     this.hovered = this.registry.hovered;
 
-    // Facade properties that keep external array mutations in sync with the
-    // focused registries they delegate to.
     Object.defineProperty(this, 'panels', {
       get: () => this.registry.panels,
       set: (value: PanelLike[]) => {
@@ -176,7 +149,6 @@ export class InputRouter {
       },
       configurable: true,
     });
-
     Object.defineProperty(this, 'hovered', {
       get: () => this.registry.hovered,
       set: (value: InteractableEntry | null) => {
@@ -188,20 +160,15 @@ export class InputRouter {
     this.panelManager = null;
     this.handWheelMenu = null;
     this.controllerGestureMapper = null;
-
     this.activePointer = null;
     this.onSelectCallback = null;
     this.onSystemToggle = null;
 
-    // Forward callbacks to the focused subsystems. The onSelectCallback
-    // setter keeps the dispatcher in sync (null when unset).
     this.systemDetector.onSystemToggle = () => this.onSystemToggle?.();
   }
 
   addController(controller: PointerLike): void {
     this.pointers.addController(controller);
-
-    // Fallback path when polling misses a select event.
     controller.onSelect = (pointer) => {
       this._dispatchSelect(pointer);
     };
@@ -210,15 +177,8 @@ export class InputRouter {
   addHand(hand: PointerLike): void {
     this.pointers.addHand(hand);
 
-    // HandPointer emits these callbacks synchronously from updateHands(). When
-    // a pollable XR session exists, polling must own the edge because only the
-    // poll pass sees the final state of both hands for this frame. Otherwise a
-    // first-hand callback can dispatch before the second hand turns the frame
-    // into a system-suppressed both-pinch, and an end callback can erase the
-    // poller's release edge by clearing lastHandPinched too early.
-    //
-    // Keep the legacy callback behavior only as a true out-of-band fallback
-    // (for hosts that invoke the callback without a pollable XR frame).
+    // HandPointer callbacks are synchronous. During a pollable XR frame the
+    // provider + poll pass own edges after both hands have reached final state.
     hand.onPinchStart = (pointer) => {
       if (this._pollOwnsHandCallbacks) return;
       if (this.pointers.lastHandPinched.get(pointer)) return;
@@ -262,7 +222,7 @@ export class InputRouter {
     this.registry.addHudObject(obj);
   }
 
-  removeHudObject(obj: HudObject): void {
+  removeHudObject(obj: THREE.Object3D): void {
     this.registry.removeHudObject(obj);
   }
 
@@ -295,6 +255,7 @@ export class InputRouter {
   dispose(): void {
     const pointers = new Set([...this.pointers.controllers, ...this.pointers.hands]);
     for (const pointer of pointers) pointer.dispose?.();
+    this.xrInputProvider.reset();
     this.pointers.clear();
     this.feedback.dispose?.();
     this.registry.clear();
@@ -312,12 +273,6 @@ export class InputRouter {
     this.onFocusChange = null;
   }
 
-  /**
-   * RF-025: install the semantic targeting + focus/context layer. Pass `null`
-   * to revert to the legacy nearest-hit picking path. Installing a resolver
-   * does not remove the precision escape hatch — the resolver only re-ranks
-   * the existing hit list; when it returns no target the nearest hit is used.
-   */
   setSemanticTargeting(
     resolver: SemanticTargetResolver | null,
     focusController: FocusContextController | null
@@ -326,12 +281,6 @@ export class InputRouter {
     this.focusContext = focusController;
   }
 
-  /**
-   * RF-025: resolve the scene hit for the current ray. When a semantic resolver
-   * is installed, rank ALL scene hits and coerce structure targets over raw
-   * observations with hysteresis; otherwise fall back to the bare nearest hit.
-   * Returns `null` when nothing is hit.
-   */
   private _resolveSceneHit(): SceneHit | null {
     if (!this.semanticResolver) {
       return this.registry.raycastScene();
@@ -346,11 +295,6 @@ export class InputRouter {
     return matched ?? { entry: resolved.entry, distance: 0 };
   }
 
-  /**
-   * RF-025: trigger selection and propagate any structure-kind selection into
-   * the focus/context controller, notifying subscribers so the World/session
-   * can navigate to the focused structure and persist the state.
-   */
   private _dispatchSelect(pointer: PointerLike): void {
     this.activePointer = pointer;
     this.dispatcher.triggerSelect(pointer);
@@ -365,8 +309,6 @@ export class InputRouter {
     const semantic = entry?.semantic;
     if (!semantic?.structureId) return;
 
-    // Only structure-kind selections advance focus; observations stay at the
-    // current context so data-node inspection does not hijack Memory Palace navigation.
     const isStructure =
       semantic.kind === 'mapper-node' ||
       semantic.kind === 'cluster-region' ||
@@ -385,7 +327,6 @@ export class InputRouter {
     }
   }
 
-  /** Return the pointer object that triggered the most recent selection. */
   getActivePointer(): PointerLike | null {
     return this.activePointer;
   }
@@ -394,18 +335,10 @@ export class InputRouter {
     this.dispatcher.setDwellSelection(enabled, thresholdMs);
   }
 
-  /**
-   * Desktop / synthetic pointer press entry point. Delegates to the pointer
-   * event machine so mouse clicks produce the same selection/drag path as
-   * controller trigger pulls.
-   */
   _onPointerDown(pointer: PointerLike): void {
     this.machine.press(pointer);
   }
 
-  /**
-   * Desktop / synthetic pointer release entry point.
-   */
   _onPointerUp(pointer: PointerLike): void {
     this.machine.release(pointer);
   }
@@ -419,9 +352,6 @@ export class InputRouter {
   ): void {
     const pollSession = session ?? this.engine.renderer?.xr?.getSession?.() ?? null;
 
-    // HandPointer pinch callbacks fire synchronously during updateHands. If a
-    // pollable XR session exists, defer those callbacks to the poll pass so it
-    // classifies the final two-hand state and owns edge memory for the frame.
     this._pollOwnsHandCallbacks = Boolean(pollSession?.inputSources);
     try {
       this.pointers.updateHands(frame, referenceSpace, session);
@@ -429,10 +359,8 @@ export class InputRouter {
       this._pollOwnsHandCallbacks = false;
     }
 
-    // Hide controller placeholder rays when hand tracking is active.
     this.pointers.updateControllerRayVisibilities();
 
-    // Update near field direct touch interactor
     const activePointers: PointerLike[] = [];
     for (const hand of this.pointers.hands) {
       if (hand.jointsValid) activePointers.push(hand);
@@ -442,23 +370,18 @@ export class InputRouter {
     }
     this.nearInteractor.update(activePointers, this.registry.panels);
 
-    // Apply near-field ray suppression overrides on top of standard registry visibility rules
     const activeHand = this.pointers.getBestHand();
     for (const ctrl of this.pointers.controllers) {
       const touchState = this.nearInteractor.getTouchState(ctrl);
       const isNear = touchState && touchState.phase !== 'FAR';
       ctrl.setRayVisible?.(!activeHand && !isNear);
-      if (isNear && touchState) {
-        ctrl.setRayLength?.(touchState.distance);
-      }
+      if (isNear && touchState) ctrl.setRayLength?.(touchState.distance);
     }
     for (const hand of this.pointers.hands) {
       const touchState = this.nearInteractor.getTouchState(hand);
       const isNear = touchState && touchState.phase !== 'FAR';
       hand.setRayVisible?.(!isNear);
-      if (isNear && touchState) {
-        hand.setRayLength?.(touchState.distance);
-      }
+      if (isNear && touchState) hand.setRayLength?.(touchState.distance);
     }
 
     const ray = this.pointers.getBestPointerRay();
@@ -469,16 +392,12 @@ export class InputRouter {
     }
 
     this.registry.raycaster.ray.copy(ray);
-    if (this.engine?.camera) {
-      this.registry.raycaster.camera = this.engine.camera;
-    }
+    if (this.engine?.camera) this.registry.raycaster.camera = this.engine.camera;
 
-    // Determine if active pointer is in near touch mode to suppress far raycasting
     const pointer = this.pointers.getActivePointerObject();
     const touchState = pointer ? this.nearInteractor.getTouchState(pointer) : undefined;
     const isNear = touchState && touchState.phase !== 'FAR';
 
-    // Panels take precedence over scene objects.
     const panelHit = isNear ? null : this.registry.raycastPanels();
     const sceneHit = isNear ? null : this._resolveSceneHit();
 
@@ -494,30 +413,22 @@ export class InputRouter {
 
     this.registry.updateHover(panelHit, sceneHit, this.dispatcher.feedback);
 
-    // Route drag movement for captured panels every frame.
-    if (this.machine.downPointer) {
-      this.machine.move(this.machine.downPointer);
-    }
-
-    if (!this.machine.downPointer) {
-      this.dispatcher.updateDwell(panelHit, sceneHit, pointer);
-    }
+    if (this.machine.downPointer) this.machine.move(this.machine.downPointer);
+    if (!this.machine.downPointer) this.dispatcher.updateDwell(panelHit, sceneHit, pointer);
 
     this._pollSelection(pollSession);
-
-    // Controller gesture equivalents: emit the same gesture names as hand
-    // tracking so the rest of the application only sees one input vocabulary.
     this.gestureBridge.update(this.pointers.controllers, pollSession, time);
   }
 
   /**
-   * Poll controllers and hands for trigger/pinch edges and feed them into the
-   * pointer event state machine.
+   * Sample normalized XR state, then route controller/hand select edges into
+   * Nemosyne semantics. Legacy raw state is used only when the provider marks a
+   * source unavailable.
    */
   _pollSelection(session: XRSession | null): void {
+    this.xrInputProvider.update(session);
+
     if (!session || !session.inputSources) {
-      // No session, no system gesture: never leave a stale suppression
-      // verdict cached for the event fallback path.
       this._lastSuppressSelection = false;
       return;
     }
@@ -526,12 +437,21 @@ export class InputRouter {
     const { suppressSelection } = this.systemDetector.update(session);
     this._lastSuppressSelection = suppressSelection;
 
-    // Controller buttons.
     for (const controller of this.pointers.controllers) {
       const source = this.pointers.findSourceForController(controller, sources);
-      const wasTriggerPressed = this.pointers.controllerTriggerPressed.get(controller);
+      const normalized = this.xrInputProvider.getSelect(source);
+      const wasTriggerPressed = this.pointers.controllerTriggerPressed.get(controller) ?? false;
 
-      if (!source || !source.gamepad || !source.gamepad.buttons) {
+      if (normalized.available) {
+        const touchState = this.nearInteractor.getTouchState(controller);
+        const isNear = touchState && touchState.phase !== 'FAR';
+        if (normalized.down && !isNear) this.machine.press(controller);
+        if (normalized.up) this.machine.release(controller);
+        this.pointers.controllerTriggerPressed.set(controller, normalized.pressed);
+        continue;
+      }
+
+      if (!source?.gamepad?.buttons) {
         if (wasTriggerPressed && this.machine.downPointer === controller) {
           this.machine.release(controller);
         }
@@ -542,26 +462,21 @@ export class InputRouter {
       const triggerPressed = !!source.gamepad.buttons[0]?.pressed;
       const touchState = this.nearInteractor.getTouchState(controller);
       const isNear = touchState && touchState.phase !== 'FAR';
-
-      if (triggerPressed && !wasTriggerPressed) {
-        if (!isNear) {
-          this.machine.press(controller);
-        }
+      if (triggerPressed && !wasTriggerPressed && !isNear) {
+        this.machine.press(controller);
       } else if (!triggerPressed && wasTriggerPressed) {
         this.machine.release(controller);
       }
-
       this.pointers.controllerTriggerPressed.set(controller, triggerPressed);
     }
 
-    // Hand pinches.
     for (const hand of this.pointers.hands) {
-      const pinched = hand.isPinched?.() ?? false;
-      const wasPinched = this.pointers.lastHandPinched.get(hand);
+      const source = this.pointers.findSourceForHand(hand, sources);
+      const normalized = this.xrInputProvider.getSelect(source);
+      const pinched = normalized.available ? normalized.pressed : (hand.isPinched?.() ?? false);
+      const wasPinched = this.pointers.lastHandPinched.get(hand) ?? false;
 
       if (suppressSelection) {
-        // Two-hand pinch is reserved for the system gesture; do not fire
-        // per-hand selection while it is held.
         if (pinched && !wasPinched) {
           this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
         } else if (!pinched && wasPinched) {
@@ -571,7 +486,6 @@ export class InputRouter {
         continue;
       }
 
-      // The hand holding the radial wheel toggles the menu on pinch.
       if (this.handWheelMenu && hand === this.handWheelMenu.hand) {
         if (pinched && !wasPinched) {
           this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
@@ -585,28 +499,19 @@ export class InputRouter {
 
       const touchState = this.nearInteractor.getTouchState(hand);
       const isNear = touchState && touchState.phase !== 'FAR';
-
       if (pinched && !wasPinched) {
         this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
-        if (!isNear) {
-          this.machine.press(hand);
-        }
+        if (!isNear) this.machine.press(hand);
       } else if (!pinched && wasPinched && this.machine.downPointer === hand) {
         this.onHandPinchEdge?.(hand, 'end', 'select-release');
         this.machine.release(hand);
       } else if (!pinched && wasPinched) {
         this.onHandPinchEdge?.(hand, 'end', 'passive-release');
       }
-
       this.pointers.lastHandPinched.set(hand, pinched);
     }
   }
 
-  /**
-   * Single classification for pinch-start edges, shared by the poll path and
-   * the event fallback so both report identical gating. Suppression wins over
-   * the wheel binding, matching `_pollSelection` branch order.
-   */
   private _classifyPinchStart(
     hand: PointerLike,
     suppressSelection: boolean
