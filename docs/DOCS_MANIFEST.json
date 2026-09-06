@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-09-05",
+  "lastReviewed": "2026-09-06",
   "statuses": ["canonical", "active", "historical"],
   "documents": [
     {
@@ -8,6 +8,12 @@
       "status": "canonical",
       "authority": "product-research-architecture",
       "owner": "product-research"
+    },
+    {
+      "path": "docs/NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md",
+      "status": "active",
+      "authority": "product-ux-design-doctrine",
+      "owner": "product-design"
     },
     {
       "path": "docs/ROADMAP.md",
