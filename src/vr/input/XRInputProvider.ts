@@ -39,7 +39,10 @@ interface DeviceEntry {
  *
  * This intentionally does not instantiate `XRInputManager`: Nemosyne keeps its
  * existing Three.js scene, pointer visuals and semantic routing while IWSDK
- * becomes the commodity authority for WebXR button/profile normalization.
+ * becomes the commodity authority for WebXR controller button/profile
+ * normalization. Hand pinch remains joint-derived in HandPointer; a hand source
+ * is therefore explicitly unavailable here rather than being misclassified as
+ * a controller profile by a simulator or browser implementation.
  */
 export class IWSDKXRInputProvider implements XRInputProvider {
   private readonly _devices = new Map<XRInputSource, DeviceEntry>();
@@ -69,6 +72,18 @@ export class IWSDKXRInputProvider implements XRInputProvider {
     }
 
     for (const source of sources) {
+      // IWSDK's profile-aware StatefulGamepad is used here only for controller
+      // input. Nemosyne's hand selection authority is the tracked-joint pinch
+      // state in HandPointer. Some simulators expose a gamepad-like object on a
+      // hand source, so checking `source.hand` first prevents a false profile
+      // mapping from suppressing a real joint-derived pinch edge.
+      if (source.hand) {
+        this._devices.delete(source);
+        this._select.set(source, { ...UNAVAILABLE_BUTTON });
+        this._squeeze.set(source, { ...UNAVAILABLE_BUTTON });
+        continue;
+      }
+
       const gamepad = source.gamepad;
       if (!gamepad) {
         this._devices.delete(source);
