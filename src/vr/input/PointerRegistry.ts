@@ -99,9 +99,7 @@ export class PointerRegistry {
     this._rayFilters.clear();
   }
 
-  /**
-   * Update each hand pointer for the current XR frame.
-   */
+  /** Update each hand pointer for the current XR frame. */
   updateHands(
     frame: XRFrame | null,
     referenceSpace: XRReferenceSpace | null,
@@ -112,11 +110,7 @@ export class PointerRegistry {
     }
   }
 
-  /**
-   * Hide controller placeholder rays when hand tracking is active. Quest Browser
-   * reports both hand and controller input sources for the same tracked hands,
-   * which would otherwise show two lasers.
-   */
+  /** Hide controller placeholder rays while a usable hand pointer is active. */
   updateControllerRayVisibilities() {
     const activeHand = this.getBestHand();
     for (const c of this.controllers) {
@@ -124,10 +118,7 @@ export class PointerRegistry {
     }
   }
 
-  /**
-   * Return the best pointer ray for hover/scene raycasting, preferring a
-   * tracked hand over controllers. Applies adaptive jitter filtering when enabled.
-   */
+  /** Return the best usable pointer ray, preferring hands over controllers. */
   getBestPointerRay(timestamp?: number): THREE.Ray | null {
     const activeHand = this.getBestHand();
     if (activeHand) {
@@ -159,9 +150,7 @@ export class PointerRegistry {
     return panelHit !== null && panelHit !== undefined;
   }
 
-  /**
-   * Return the pointer object that currently owns the best ray.
-   */
+  /** Return the pointer object that currently owns the best ray. */
   getActivePointerObject(): PointerLike | null {
     const activeHand = this.getBestHand();
     if (activeHand) return activeHand;
@@ -172,11 +161,7 @@ export class PointerRegistry {
     return null;
   }
 
-  /**
-   * Prefer a hand with a usable pose (live or last-known). A transient frame of
-   * missing joints should not force the pointer back to a controller fallback
-   * that may have no real pose on Quest Browser.
-   */
+  /** Prefer a hand with a usable pose (live or last-known). */
   getBestHand(): PointerLike | null {
     for (const hand of this.hands) {
       const poseValid =
@@ -209,9 +194,23 @@ export class PointerRegistry {
   }
 
   /**
-   * Return the current XR session input sources as a normal array.
-   * XRInputSourceArray is array-like but may not implement Array methods.
+   * Match a HandPointer to its WebXR hand input source. Handedness is the
+   * primary identity; index order is retained only for synthetic/unknown hosts.
    */
+  findSourceForHand(hand: PointerLike, sources: XRInputSource[]): XRInputSource | null {
+    if (!Array.isArray(sources)) return null;
+    if (hand.handedness && hand.handedness !== 'none') {
+      const match = sources.find(
+        (source) => Boolean(source) && Boolean(source.hand) && source.handedness === hand.handedness
+      );
+      if (match) return match;
+    }
+    const handSources = sources.filter((source) => Boolean(source) && Boolean(source.hand));
+    const index = this.hands.indexOf(hand);
+    return handSources[index] ?? null;
+  }
+
+  /** Return the current XR session input sources as a normal array. */
   getInputSources(): XRInputSource[] {
     const session = this.engine.renderer?.xr?.getSession?.();
     return session && session.inputSources ? Array.from(session.inputSources) : [];

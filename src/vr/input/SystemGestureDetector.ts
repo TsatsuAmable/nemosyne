@@ -1,12 +1,15 @@
 /**
- * Detects system-level toggle gestures from both hands pinching or both
+ * Detects system-level toggle gestures from both hands selecting or both
  * controller grips being pressed.
  *
- * The gesture fires once per press and is debounced by tracking the prior
- * combined state.
+ * Commodity WebXR button/profile state is supplied by XRInputProvider when
+ * available. Nemosyne retains only the semantic/context policy and an explicit
+ * legacy fallback for runtimes that do not expose a compatible profile.
  */
 
 import type { PointerRegistry } from './PointerRegistry.ts';
+import type { XRInputProvider } from './XRInputProvider.ts';
+import type { PointerLike } from '../coordinators/types.ts';
 
 export interface SystemGestureTraceInfo {
   kind: 'both-pinch' | 'both-pinch-suppressed' | 'grips';
@@ -20,6 +23,7 @@ export class SystemGestureDetector {
   onTrace: ((info: SystemGestureTraceInfo) => void) | null = null;
   onSuppressedHint: ((hint: string) => void) | null;
 
+  private readonly _inputProvider: XRInputProvider | null;
   private _lastRawBothPinched = false;
   private _invalidBothPinchHeld = false;
   private _lastRawGrip = false;
@@ -41,9 +45,16 @@ export class SystemGestureDetector {
 
   constructor(
     pointerRegistry: PointerRegistry,
-    options: { bothPinchHoldMs?: number; toggleCooldownMs?: number; reachZoneY?: number; now?: () => number } = {}
+    options: {
+      bothPinchHoldMs?: number;
+      toggleCooldownMs?: number;
+      reachZoneY?: number;
+      now?: () => number;
+      inputProvider?: XRInputProvider | null;
+    } = {}
   ) {
     this.registry = pointerRegistry;
+    this._inputProvider = options.inputProvider ?? null;
     this._bothPinchHoldMs = options.bothPinchHoldMs ?? 400;
     this._toggleCooldownMs = options.toggleCooldownMs ?? 1000;
     const reachZoneY = options.reachZoneY ?? 1.5;
@@ -76,6 +87,41 @@ export class SystemGestureDetector {
     };
   }
 
+  /** Return the semantic gesture state machine to a neutral XR-session boundary. */
+  reset(): void {
+    this._lastRawBothPinched = false;
+    this._invalidBothPinchHeld = false;
+    this._lastRawGrip = false;
+    this._invalidGripHeld = false;
+    this._lastSuppressedBothPinched = false;
+    this._bothPinchStartAt = null;
+    this._lastBothPinchToggleAt = -Infinity;
+    this._lastSystemToggleAt = -Infinity;
+    this.registry.lastBothPinched = false;
+  }
+
+  private _handSelectPressed(hand: PointerLike, sources: XRInputSource[]): boolean {
+    // HandPointer remains the canonical hand-pinch authority unless an explicit
+    // provider is installed. This keeps legacy/synthetic hosts and the proven
+    // joint-derived hand path independent of controller-profile normalization.
+    if (!this._inputProvider) return hand.isPinched?.() === true;
+
+    const source = this.registry.findSourceForHand(hand, sources);
+    const normalized = this._inputProvider.getSelect(source);
+    if (normalized.available) return normalized.pressed;
+    return hand.isPinched?.() === true;
+  }
+
+  private _controllerSqueezePressed(
+    controller: PointerLike,
+    sources: XRInputSource[]
+  ): boolean {
+    const source = this.registry.findSourceForController(controller, sources);
+    const normalized = this._inputProvider?.getSqueeze(source);
+    if (normalized?.available) return normalized.pressed;
+    return !!source?.gamepad?.buttons?.[1]?.pressed;
+  }
+
   /**
    * Check the current controller and hand states and fire `onSystemToggle` once
    * when a system gesture starts. Suppress system gesture if hands are in a reach zone
@@ -85,8 +131,6 @@ export class SystemGestureDetector {
   update(session: XRSession | null): { bothPinched: boolean; suppressSelection: boolean } {
     const sources = session?.inputSources ? Array.from(session.inputSources) : [];
 
-    // Suppress system gesture when either hand is in a reach zone (high Y) to avoid
-    // blocking user grab input in the upper interaction space.
     const origin0 = this.registry.hands[0]?.rayOrigin as unknown as { y?: number } | undefined;
     const origin1 = this.registry.hands[1]?.rayOrigin as unknown as { y?: number } | undefined;
     const systemGestureZoneSuppressed =
@@ -97,12 +141,11 @@ export class SystemGestureDetector {
 
     const rawBothPinched =
       this.registry.hands.length >= 2 &&
-      this.registry.hands[0].isPinched?.() === true &&
-      this.registry.hands[1].isPinched?.() === true;
+      this._handSelectPressed(this.registry.hands[0], sources) &&
+      this._handSelectPressed(this.registry.hands[1], sources);
     const now = this._now();
     const pointerOverPanel = this.registry.isBestPointerOverPanel?.() ?? false;
 
-    // Track rising edge of both-pinch gesture
     if (rawBothPinched && !this._lastRawBothPinched) {
       this._invalidBothPinchHeld = systemGestureZoneSuppressed || pointerOverPanel;
     } else if (!rawBothPinched) {
@@ -163,23 +206,13 @@ export class SystemGestureDetector {
     }
     this.registry.lastBothPinched = bothPinched;
 
-    // Controller buttons: trigger is handled by the pointer event machine;
-    // here we only watch the grip for the system toggle.
     const gripStates: boolean[] = [];
     for (const controller of this.registry.controllers) {
-      const source = this.registry.findSourceForController(controller, sources);
-      if (!source?.gamepad?.buttons) {
-        gripStates.push(false);
-        continue;
-      }
-
-      const gripPressed = !!source.gamepad.buttons[1]?.pressed;
+      const gripPressed = this._controllerSqueezePressed(controller, sources);
       this.registry.controllerGripPressed.set(controller, gripPressed);
       gripStates.push(gripPressed);
     }
 
-    // System gesture on controllers: both grips pressed together. When only
-    // one controller is available, a single grip works as a fallback.
     const bothGrips = gripStates.length >= 2 && gripStates.every(Boolean);
     const singleGrip = gripStates.length === 1 && gripStates[0];
     const rawGrip = bothGrips || singleGrip;
