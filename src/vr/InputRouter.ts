@@ -85,6 +85,19 @@ export class InputRouter {
 
   activePointer: PointerLike | null;
   /**
+   * Suppression verdict from the most recent `_pollSelection` pass. Used only
+   * by the true out-of-band fallback path; frame-generated HandPointer callbacks
+   * are deferred to polling so they cannot race a newly changed suppression state.
+   */
+  private _lastSuppressSelection = false;
+  /**
+   * True only while `updateHands` is running and a pollable XR session exists.
+   * HandPointer emits pinch callbacks synchronously from that update. Those
+   * callbacks must not mutate `lastHandPinched` or dispatch selection before
+   * `_pollSelection` has seen the final state of both hands for the frame.
+   */
+  private _pollOwnsHandCallbacks = false;
+  /**
    * Global fallback selection callback. Kept in sync with the dispatcher's
    * callback (null when unset) so `SelectionDispatchInfo.hadCallback`
    * truthfully reports whether a callback actually ran. A permanently
@@ -197,10 +210,22 @@ export class InputRouter {
   addHand(hand: PointerLike): void {
     this.pointers.addHand(hand);
 
-    // Fallback path when polling misses a pinch.
+    // HandPointer emits these callbacks synchronously from updateHands(). When
+    // a pollable XR session exists, polling must own the edge because only the
+    // poll pass sees the final state of both hands for this frame. Otherwise a
+    // first-hand callback can dispatch before the second hand turns the frame
+    // into a system-suppressed both-pinch, and an end callback can erase the
+    // poller's release edge by clearing lastHandPinched too early.
+    //
+    // Keep the legacy callback behavior only as a true out-of-band fallback
+    // (for hosts that invoke the callback without a pollable XR frame).
     hand.onPinchStart = (pointer) => {
+      if (this._pollOwnsHandCallbacks) return;
       if (this.pointers.lastHandPinched.get(pointer)) return;
       this.pointers.lastHandPinched.set(pointer, true);
+      const gating = this._classifyPinchStart(pointer, this._lastSuppressSelection);
+      this.onHandPinchEdge?.(pointer, 'start', gating);
+      if (gating === 'system-suppressed') return;
       if (this.handWheelMenu && pointer === this.handWheelMenu.hand) {
         this.handWheelMenu.toggle();
         return;
@@ -209,6 +234,7 @@ export class InputRouter {
     };
 
     hand.onPinchEnd = (pointer) => {
+      if (this._pollOwnsHandCallbacks) return;
       this.pointers.lastHandPinched.set(pointer, false);
     };
   }
@@ -391,8 +417,17 @@ export class InputRouter {
     session: XRSession | null,
     time = 0
   ): void {
-    // Update hand tracking.
-    this.pointers.updateHands(frame, referenceSpace, session);
+    const pollSession = session ?? this.engine.renderer?.xr?.getSession?.() ?? null;
+
+    // HandPointer pinch callbacks fire synchronously during updateHands. If a
+    // pollable XR session exists, defer those callbacks to the poll pass so it
+    // classifies the final two-hand state and owns edge memory for the frame.
+    this._pollOwnsHandCallbacks = Boolean(pollSession?.inputSources);
+    try {
+      this.pointers.updateHands(frame, referenceSpace, session);
+    } finally {
+      this._pollOwnsHandCallbacks = false;
+    }
 
     // Hide controller placeholder rays when hand tracking is active.
     this.pointers.updateControllerRayVisibilities();
@@ -429,7 +464,7 @@ export class InputRouter {
     const ray = this.pointers.getBestPointerRay();
     if (!ray) {
       this.registry.clearHover();
-      this._pollSelection(session);
+      this._pollSelection(pollSession);
       return;
     }
 
@@ -468,7 +503,6 @@ export class InputRouter {
       this.dispatcher.updateDwell(panelHit, sceneHit, pointer);
     }
 
-    const pollSession = session ?? this.engine.renderer?.xr?.getSession?.() ?? null;
     this._pollSelection(pollSession);
 
     // Controller gesture equivalents: emit the same gesture names as hand
@@ -481,10 +515,16 @@ export class InputRouter {
    * pointer event state machine.
    */
   _pollSelection(session: XRSession | null): void {
-    if (!session || !session.inputSources) return;
+    if (!session || !session.inputSources) {
+      // No session, no system gesture: never leave a stale suppression
+      // verdict cached for the event fallback path.
+      this._lastSuppressSelection = false;
+      return;
+    }
     const sources = Array.from(session.inputSources);
 
     const { suppressSelection } = this.systemDetector.update(session);
+    this._lastSuppressSelection = suppressSelection;
 
     // Controller buttons.
     for (const controller of this.pointers.controllers) {
@@ -523,7 +563,7 @@ export class InputRouter {
         // Two-hand pinch is reserved for the system gesture; do not fire
         // per-hand selection while it is held.
         if (pinched && !wasPinched) {
-          this.onHandPinchEdge?.(hand, 'start', 'system-suppressed');
+          this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
         } else if (!pinched && wasPinched) {
           this.onHandPinchEdge?.(hand, 'end', 'system-suppressed');
         }
@@ -534,7 +574,7 @@ export class InputRouter {
       // The hand holding the radial wheel toggles the menu on pinch.
       if (this.handWheelMenu && hand === this.handWheelMenu.hand) {
         if (pinched && !wasPinched) {
-          this.onHandPinchEdge?.(hand, 'start', 'wheel-toggle');
+          this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
           this.handWheelMenu.toggle();
         } else if (!pinched && wasPinched) {
           this.onHandPinchEdge?.(hand, 'end', 'wheel-release');
@@ -547,7 +587,7 @@ export class InputRouter {
       const isNear = touchState && touchState.phase !== 'FAR';
 
       if (pinched && !wasPinched) {
-        this.onHandPinchEdge?.(hand, 'start', 'select');
+        this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
         if (!isNear) {
           this.machine.press(hand);
         }
@@ -560,6 +600,20 @@ export class InputRouter {
 
       this.pointers.lastHandPinched.set(hand, pinched);
     }
+  }
+
+  /**
+   * Single classification for pinch-start edges, shared by the poll path and
+   * the event fallback so both report identical gating. Suppression wins over
+   * the wheel binding, matching `_pollSelection` branch order.
+   */
+  private _classifyPinchStart(
+    hand: PointerLike,
+    suppressSelection: boolean
+  ): 'select' | 'wheel-toggle' | 'system-suppressed' {
+    if (suppressSelection) return 'system-suppressed';
+    if (this.handWheelMenu && hand === this.handWheelMenu.hand) return 'wheel-toggle';
+    return 'select';
   }
 
   _clearHover(): void {
