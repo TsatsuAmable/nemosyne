@@ -39,6 +39,7 @@ These documents may describe current implementation but must not override the go
 
 ## Product and spatial interaction reference
 
+- [`NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md`](NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md) - normative UX doctrine for semantic fidelity, semantic level of detail, progressive streaming, bounded resource use, long-session stability, and hardware-scaled headroom; subordinate to the Definitive Vision.
 - [`Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md`](Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md)
 - [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md)
 - [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)
