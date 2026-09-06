@@ -475,11 +475,13 @@ export class InputRouter {
       const normalized = this.xrInputProvider.getSelect(source);
       const pinched = normalized.available ? normalized.pressed : (hand.isPinched?.() ?? false);
       const wasPinched = this.pointers.lastHandPinched.get(hand) ?? false;
+      const started = normalized.available ? normalized.down : pinched && !wasPinched;
+      const ended = normalized.available ? normalized.up : !pinched && wasPinched;
 
       if (suppressSelection) {
-        if (pinched && !wasPinched) {
+        if (started) {
           this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
-        } else if (!pinched && wasPinched) {
+        } else if (ended) {
           this.onHandPinchEdge?.(hand, 'end', 'system-suppressed');
         }
         this.pointers.lastHandPinched.set(hand, pinched);
@@ -487,10 +489,10 @@ export class InputRouter {
       }
 
       if (this.handWheelMenu && hand === this.handWheelMenu.hand) {
-        if (pinched && !wasPinched) {
+        if (started) {
           this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
           this.handWheelMenu.toggle();
-        } else if (!pinched && wasPinched) {
+        } else if (ended) {
           this.onHandPinchEdge?.(hand, 'end', 'wheel-release');
         }
         this.pointers.lastHandPinched.set(hand, pinched);
@@ -499,13 +501,13 @@ export class InputRouter {
 
       const touchState = this.nearInteractor.getTouchState(hand);
       const isNear = touchState && touchState.phase !== 'FAR';
-      if (pinched && !wasPinched) {
+      if (started) {
         this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
         if (!isNear) this.machine.press(hand);
-      } else if (!pinched && wasPinched && this.machine.downPointer === hand) {
+      } else if (ended && this.machine.downPointer === hand) {
         this.onHandPinchEdge?.(hand, 'end', 'select-release');
         this.machine.release(hand);
-      } else if (!pinched && wasPinched) {
+      } else if (ended) {
         this.onHandPinchEdge?.(hand, 'end', 'passive-release');
       }
       this.pointers.lastHandPinched.set(hand, pinched);
