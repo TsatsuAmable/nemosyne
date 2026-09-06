@@ -162,9 +162,9 @@ describe('IWSDKXRInputProvider', () => {
       targetRaySpace: {} as XRSpace,
       gripSpace: {} as XRSpace,
       profiles: ['generic-trigger'],
-      gamepad: null,
+      gamepad: undefined,
       hand: {} as XRHand,
-    } as XRInputSource;
+    } as unknown as XRInputSource;
 
     expect(() => provider.update(makeSession([source]))).not.toThrow();
     expect(provider.getSelect(source)).toEqual(unavailable());
@@ -180,7 +180,7 @@ describe('InputRouter XR provider authority', () => {
     provider.select.set(source, { available: true, pressed: true, down: true, up: false });
 
     router.addController(controller);
-    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => {});
+    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => true);
 
     router._pollSelection(makeSession([source]));
 
@@ -204,9 +204,11 @@ describe('InputRouter XR provider authority', () => {
     router.addHand(right);
     const edges: Array<{ hand: XRHandedness; phase: string; gating: string }> = [];
     router.onHandPinchEdge = (hand, phase, gating) => {
-      edges.push({ hand: hand.handedness ?? 'none', phase, gating });
+      const handedness: XRHandedness =
+        hand.handedness === 'left' || hand.handedness === 'right' ? hand.handedness : 'none';
+      edges.push({ hand: handedness, phase, gating });
     };
-    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => {});
+    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => true);
 
     // Local heuristic state deliberately disagrees. Provider state must govern
     // both the system detector and per-hand router for this frame.
@@ -230,7 +232,7 @@ describe('InputRouter XR provider authority', () => {
     const source = makeSource({ handedness: 'left', hand: true });
 
     router.addHand(hand);
-    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => {});
+    const press = vi.spyOn(router.machine, 'press').mockImplementation(() => true);
 
     router._pollSelection(makeSession([source]));
 
