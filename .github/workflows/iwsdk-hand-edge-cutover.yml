@@ -1,0 +1,43 @@
+name: IWSDK hand-edge cutover
+
+on:
+  push:
+    branches:
+      - refactor/iwsdk-input-provider
+
+permissions:
+  contents: write
+
+jobs:
+  cutover:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: refactor/iwsdk-input-provider
+      - name: Make normalized hand edges authoritative
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/vr/InputRouter.ts')
+          text = path.read_text()
+          old = """      const pinched = normalized.available ? normalized.pressed : (hand.isPinched?.() ?? false);\n      const wasPinched = this.pointers.lastHandPinched.get(hand) ?? false;\n\n      if (suppressSelection) {\n        if (pinched && !wasPinched) {\n          this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));\n        } else if (!pinched && wasPinched) {\n          this.onHandPinchEdge?.(hand, 'end', 'system-suppressed');\n        }\n"""
+          new = """      const pinched = normalized.available ? normalized.pressed : (hand.isPinched?.() ?? false);\n      const wasPinched = this.pointers.lastHandPinched.get(hand) ?? false;\n      const started = normalized.available ? normalized.down : pinched && !wasPinched;\n      const ended = normalized.available ? normalized.up : !pinched && wasPinched;\n\n      if (suppressSelection) {\n        if (started) {\n          this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));\n        } else if (ended) {\n          this.onHandPinchEdge?.(hand, 'end', 'system-suppressed');\n        }\n"""
+          if old not in text:
+              raise SystemExit('expected suppression block not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('        if (pinched && !wasPinched) {', '        if (started) {', 1)
+          text = text.replace('        } else if (!pinched && wasPinched) {', '        } else if (ended) {', 1)
+          text = text.replace('      if (pinched && !wasPinched) {', '      if (started) {', 1)
+          text = text.replace('      } else if (!pinched && wasPinched && this.machine.downPointer === hand) {', '      } else if (ended && this.machine.downPointer === hand) {', 1)
+          text = text.replace('      } else if (!pinched && wasPinched) {', '      } else if (ended) {', 1)
+          path.write_text(text)
+          PY
+          git rm .github/workflows/iwsdk-hand-edge-cutover.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/vr/InputRouter.ts
+          git commit -m "refactor(input): trust IWSDK hand edges"
+          git push origin HEAD:refactor/iwsdk-input-provider
