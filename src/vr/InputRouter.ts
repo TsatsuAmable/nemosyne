@@ -85,12 +85,18 @@ export class InputRouter {
 
   activePointer: PointerLike | null;
   /**
-   * Suppression verdict from the most recent `_pollSelection` pass. The
-   * event-based pinch path (addHand callbacks) has no session to evaluate
-   * the system-gesture gate, so it reuses this cache (stale by at most one
-   * frame — the same freshness as the hover `triggerSelect` consumes).
+   * Suppression verdict from the most recent `_pollSelection` pass. Used only
+   * by the true out-of-band fallback path; frame-generated HandPointer callbacks
+   * are deferred to polling so they cannot race a newly changed suppression state.
    */
   private _lastSuppressSelection = false;
+  /**
+   * True only while `updateHands` is running and a pollable XR session exists.
+   * HandPointer emits pinch callbacks synchronously from that update. Those
+   * callbacks must not mutate `lastHandPinched` or dispatch selection before
+   * `_pollSelection` has seen the final state of both hands for the frame.
+   */
+  private _pollOwnsHandCallbacks = false;
   /**
    * Global fallback selection callback. Kept in sync with the dispatcher's
    * callback (null when unset) so `SelectionDispatchInfo.hadCallback`
@@ -204,11 +210,17 @@ export class InputRouter {
   addHand(hand: PointerLike): void {
     this.pointers.addHand(hand);
 
-    // Fallback path when polling misses a pinch. Classified and traced
-    // exactly like a poll-path edge; the shared lastHandPinched guard
-    // guarantees the poll pass stays silent for this pinch, so one physical
-    // pinch never dispatches twice.
+    // HandPointer emits these callbacks synchronously from updateHands(). When
+    // a pollable XR session exists, polling must own the edge because only the
+    // poll pass sees the final state of both hands for this frame. Otherwise a
+    // first-hand callback can dispatch before the second hand turns the frame
+    // into a system-suppressed both-pinch, and an end callback can erase the
+    // poller's release edge by clearing lastHandPinched too early.
+    //
+    // Keep the legacy callback behavior only as a true out-of-band fallback
+    // (for hosts that invoke the callback without a pollable XR frame).
     hand.onPinchStart = (pointer) => {
+      if (this._pollOwnsHandCallbacks) return;
       if (this.pointers.lastHandPinched.get(pointer)) return;
       this.pointers.lastHandPinched.set(pointer, true);
       const gating = this._classifyPinchStart(pointer, this._lastSuppressSelection);
@@ -222,6 +234,7 @@ export class InputRouter {
     };
 
     hand.onPinchEnd = (pointer) => {
+      if (this._pollOwnsHandCallbacks) return;
       this.pointers.lastHandPinched.set(pointer, false);
     };
   }
@@ -404,8 +417,17 @@ export class InputRouter {
     session: XRSession | null,
     time = 0
   ): void {
-    // Update hand tracking.
-    this.pointers.updateHands(frame, referenceSpace, session);
+    const pollSession = session ?? this.engine.renderer?.xr?.getSession?.() ?? null;
+
+    // HandPointer pinch callbacks fire synchronously during updateHands. If a
+    // pollable XR session exists, defer those callbacks to the poll pass so it
+    // classifies the final two-hand state and owns edge memory for the frame.
+    this._pollOwnsHandCallbacks = Boolean(pollSession?.inputSources);
+    try {
+      this.pointers.updateHands(frame, referenceSpace, session);
+    } finally {
+      this._pollOwnsHandCallbacks = false;
+    }
 
     // Hide controller placeholder rays when hand tracking is active.
     this.pointers.updateControllerRayVisibilities();
@@ -442,7 +464,7 @@ export class InputRouter {
     const ray = this.pointers.getBestPointerRay();
     if (!ray) {
       this.registry.clearHover();
-      this._pollSelection(session);
+      this._pollSelection(pollSession);
       return;
     }
 
@@ -481,7 +503,6 @@ export class InputRouter {
       this.dispatcher.updateDwell(panelHit, sceneHit, pointer);
     }
 
-    const pollSession = session ?? this.engine.renderer?.xr?.getSession?.() ?? null;
     this._pollSelection(pollSession);
 
     // Controller gesture equivalents: emit the same gesture names as hand
