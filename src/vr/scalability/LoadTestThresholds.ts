@@ -77,6 +77,15 @@ export interface LoadTestStepSpec {
   rowCount: number;
   durationSec: number;
   label?: string;
+  /**
+   * Warmup steps absorb one-time cold-start transients (WASM/JIT compile,
+   * shader compilation, first-load allocation) before graded measurement.
+   * They are executed, measured, graded and recorded like any step, but
+   * excluded from the overall verdict and from adjudication policy
+   * alignment. The flag is explicit per step — never inferred — so real
+   * small-N regressions in graded steps cannot hide behind it.
+   */
+  warmup?: boolean;
 }
 
 export interface StepResult {
@@ -109,6 +118,8 @@ export interface OverallVerdict {
   commandBufferWarrantedAt: number | null;
   requiredPerfLevel: string;
   recommendation: string;
+  /** Row counts measured but excluded from the verdict as flagged warmup steps. */
+  warmupExcludedRowCounts: number[];
 }
 
 /**
@@ -229,12 +240,21 @@ export function computeVerdict(
  * - `commandBufferWarrantedAt` = first row count that went red.
  * - `requiredPerfLevel` = the perf gap to restore at the red step (or "no buffer
  *   warranted" if the JS path held across all tested sizes).
+ *
+ * Steps flagged `warmup` are measured, graded and kept in the summary, but
+ * excluded here: one-time cold-start transients must not drive the
+ * command-buffer recommendation. Runs without any flagged step behave
+ * exactly as before.
  */
 export function computeOverallVerdict(steps: StepResult[]): OverallVerdict {
-  const grades = steps.map((s) => ({ rowCount: s.spec.rowCount, grade: s.grade }));
+  const warmupExcludedRowCounts = steps
+    .filter((s) => s.spec.warmup === true)
+    .map((s) => s.spec.rowCount);
+  const graded = steps.filter((s) => s.spec.warmup !== true);
+  const grades = graded.map((s) => ({ rowCount: s.spec.rowCount, grade: s.grade }));
 
-  const greenSteps = steps.filter((s) => s.grade === 'green');
-  const redSteps = steps.filter((s) => s.grade === 'red');
+  const greenSteps = graded.filter((s) => s.grade === 'green');
+  const redSteps = graded.filter((s) => s.grade === 'red');
   const jsPathSufficientTo = greenSteps.length ? Math.max(...greenSteps.map((s) => s.spec.rowCount)) : null;
   const commandBufferWarrantedAt = redSteps.length ? Math.min(...redSteps.map((s) => s.spec.rowCount)) : null;
 
@@ -245,7 +265,7 @@ export function computeOverallVerdict(steps: StepResult[]): OverallVerdict {
     recommendation =
       'No command buffer warranted by this run. Defer/descope the WASM command-buffer; revisit only if target dataset sizes grow or frame budget tightens.';
   } else {
-    const redStep = steps.find((s) => s.spec.rowCount === commandBufferWarrantedAt)!;
+    const redStep = graded.find((s) => s.spec.rowCount === commandBufferWarrantedAt)!;
     requiredPerfLevel =
       `Restore p95 <= ${LOAD_TEST_THRESHOLDS.FRAME_GREEN_MS} ms and dropped < ${LOAD_TEST_THRESHOLDS.DROPPED_GREEN_PCT}% ` +
       `at ${redStep.spec.rowCount} rows (measured p95 ${redStep.frames.p95Ms.toFixed(1)} ms, ` +
@@ -257,5 +277,5 @@ export function computeOverallVerdict(steps: StepResult[]): OverallVerdict {
     recommendation = `${where} Command buffer (or InstancedPointCloud LOD throttle) warranted at >= ${commandBufferWarrantedAt} rows. ${requiredPerfLevel}`;
   }
 
-  return { grades, jsPathSufficientTo, commandBufferWarrantedAt, requiredPerfLevel, recommendation };
+  return { grades, jsPathSufficientTo, commandBufferWarrantedAt, requiredPerfLevel, recommendation, warmupExcludedRowCounts };
 }

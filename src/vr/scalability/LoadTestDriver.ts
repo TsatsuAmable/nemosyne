@@ -108,11 +108,18 @@ export interface LoadTestDriverEngineLike extends LoadTestEngineLike {
   };
 }
 
-/** Default staircase: TABULAR 1k → 8k → 65k → 100k → 250k (stretch). */
+/** Default staircase: warmup + TABULAR 1k → 8k → 65k → 100k → 250k (stretch). */
 export const DEFAULT_LOAD_TEST_PROFILE: LoadTestProfile = {
   name: 'tabular-staircase',
   settleSec: 2,
   steps: [
+    {
+      topology: 'TABULAR',
+      rowCount: 1_000,
+      durationSec: 10,
+      label: 'warmup (ungraded)',
+      warmup: true,
+    },
     { topology: 'TABULAR', rowCount: 1_000, durationSec: 20, label: '1k' },
     { topology: 'TABULAR', rowCount: 8_000, durationSec: 20, label: '8k' },
     { topology: 'TABULAR', rowCount: 65_000, durationSec: 30, label: '65k' },
@@ -126,6 +133,13 @@ export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
   deviceTarget: 'META_QUEST_3S',
   settleSec: 5,
   steps: [
+    {
+      topology: 'TABULAR',
+      rowCount: 1_000,
+      durationSec: 15,
+      label: 'warmup (ungraded)',
+      warmup: true,
+    },
     { topology: 'TABULAR', rowCount: 1_000, durationSec: 30, label: '1k baseline' },
     { topology: 'TABULAR', rowCount: 8_000, durationSec: 30, label: '8k baseline' },
     { topology: 'TABULAR', rowCount: 65_000, durationSec: 45, label: '65k scale' },

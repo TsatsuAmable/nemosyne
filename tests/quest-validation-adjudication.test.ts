@@ -157,6 +157,10 @@ function uxSubmission(
 
 describe('QV4 governed policy binding', () => {
   it('keeps the adjudicator staircase signature synchronized with the production Quest profile', () => {
+    const gradedProfileSteps = QUEST_3S_QUALIFICATION_PROFILE.steps.filter((s) => s.warmup !== true);
+    // The profile leads with exactly one ungraded warmup step; policy aligns
+    // with the graded steps only.
+    expect(QUEST_3S_QUALIFICATION_PROFILE.steps[0].warmup).toBe(true);
     expect(
       QUEST_PERF_STEP_POLICY.map(({ rowCount, durationSec, label }) => ({
         rowCount,
@@ -164,12 +168,50 @@ describe('QV4 governed policy binding', () => {
         label,
       }))
     ).toEqual(
-      QUEST_3S_QUALIFICATION_PROFILE.steps.map(({ rowCount, durationSec, label }) => ({
+      gradedProfileSteps.map(({ rowCount, durationSec, label }) => ({
         rowCount,
         durationSec,
         label,
       }))
     );
+  });
+
+  it('grades from the same XR-cadence signal the device uses (65k dispute parity)', () => {
+    const value = manifest();
+    const report = perfReport(value);
+    // Observed device numbers: app frames read green while XR cadence reads
+    // yellow. The device grades cadence; the recompute must agree.
+    // (Assertion via unknown: the adjudicator reads steps structurally, and
+    // frameCadence is intentionally absent from the legacy helper's shape.)
+    report.steps[2] = {
+      spec: { topology: 'TABULAR', rowCount: 65_000, durationSec: 45 },
+      frames: { p95Ms: 6.275, p99Ms: 9.03, droppedPct: 0.0285 },
+      frameCadence: { frameCount: 2343, p95Ms: 16.67, p99Ms: 16.85, droppedPct: 4.99 },
+      criticalViolations: 0,
+      grade: 'yellow',
+    } as unknown as (typeof report.steps)[number];
+    const checked = validateQuestPerformanceReport(report, value);
+    expect(
+      checked.errors.filter((error) => error.includes('does not match recomputed'))
+    ).toEqual([]);
+    expect(checked.ok).toBe(true);
+  });
+
+  it('skips flagged warmup steps in positional policy alignment', () => {
+    const value = manifest();
+    const report = perfReport(value);
+    report.steps = [
+      {
+        spec: { topology: 'TABULAR', rowCount: 1_000, durationSec: 10, label: 'warmup', warmup: true },
+        frames: { p95Ms: 40, p99Ms: 60, droppedPct: 50 },
+        criticalViolations: 2,
+        grade: 'red',
+      },
+      ...report.steps,
+    ] as unknown as typeof report.steps;
+    const checked = validateQuestPerformanceReport(report, value);
+    expect(checked.errors).toEqual([]);
+    expect(checked.ok).toBe(true);
   });
 
   it('separates analyzer validity from a PERF-04 gate failure', () => {
