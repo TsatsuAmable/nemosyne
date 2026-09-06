@@ -708,3 +708,139 @@ The governing principle is:
 > **Nemosyne must not encode a fixed theory of what constitutes a useful representation. It must provide an explicit, inspectable mechanism through which analytical evidence, human judgement, interaction experience and validated discovery outcomes progressively refine that theory.**
 
 **The destination is a reproducible system that becomes progressively better at helping researchers discover things that matter.**
+
+---
+
+# Appendix A. Governing user experience and semantic-efficiency doctrine
+
+**Incorporated:** 6 September 2026  
+**Detailed normative companion:** [`NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md`](NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md)
+
+Nemosyne is a research instrument, not a game, movie or virtual showroom. Its user experience must optimise for **investigable meaning rather than visual abundance**.
+
+The governing UX question is:
+
+> **What is the cheapest perceptually effective representation that preserves the information the researcher needs to understand, challenge and investigate the data?**
+
+This adds the following product-level requirements to the V3 vision.
+
+## A.1 Semantic fidelity precedes scene fidelity
+
+A representation is not better because it renders more rows, objects or polygons. It is better when it preserves the analytical structure, uncertainty, provenance, important exceptions and relevant alternatives needed for the investigation while minimising unnecessary perceptual and computational cost.
+
+The required priority order is:
+
+1. semantic fidelity;
+2. perceptual legibility;
+3. natural and predictable interaction;
+4. responsive, comfortable frame pacing;
+5. computational and memory economy;
+6. visual richness only where it improves understanding, orientation or confidence.
+
+Decorative fidelity MUST NOT consume resources needed for the first five goals.
+
+## A.2 Dataset scale MUST be decoupled from live scene scale
+
+The full authoritative dataset may remain resident or addressable through Atlas and Rust/WASM without becoming an equivalent population of live scene objects.
+
+The target architecture is:
+
+```text
+authoritative dataset
+  -> analytical hierarchy
+  -> representation hierarchy
+  -> intent-dependent perceptual working set
+  -> small interactive scene projection
+```
+
+Millions of rows may legitimately become thousands of analytical aggregates, hundreds of visible semantic structures, tens of high-detail structures and only a few actively manipulated objects, provided the abstraction preserves the information required for the current investigation.
+
+## A.3 Semantic level of detail is a first-class representation primitive
+
+Nemosyne MUST support progressive semantic resolution, not merely graphical polygon LOD. A structure may move between population, subpopulation, distribution, group and individual-observation levels according to researcher intent, focus, uncertainty, anomaly importance, comparison context, investigation history and available resource headroom.
+
+The researcher must be able to expand detail and collapse back to a cheaper abstraction without losing investigation meaning or provenance.
+
+## A.4 Full Moneta should optimise information preservation under perceptual and resource budgets
+
+Moneta's long-term role is broader than selecting a named layout. It should evolve toward an adaptive semantic compression and embodiment engine that determines:
+
+- what structure must remain explicit;
+- what may be safely aggregated or summarised;
+- what uncertainty and exceptions must survive abstraction;
+- what semantic detail is sufficient for the current task;
+- which representation best preserves relevant relationships;
+- when to refine, collapse, stream, cache or evict detail;
+- how to spend available hardware headroom without changing analytical truth.
+
+Moneta MUST abstain or narrow scope rather than silently destroy meaning to satisfy a resource budget.
+
+## A.5 Progressive crystallisation SHOULD replace monolithic loading
+
+Large investigations should become useful progressively:
+
+```text
+open
+  -> inspect schema and metadata
+  -> establish coarse analytical summaries
+  -> show a meaningful initial representation
+  -> stream and refine additional evidence
+  -> expose deeper detail and alternatives
+```
+
+Nemosyne SHOULD prioritise the earliest useful answer over the earliest complete answer when provisional state and provenance remain explicit.
+
+## A.6 Spatial objects are disposable projections; semantic investigation state is durable
+
+A Three.js object, GPU buffer, texture, label, BVH or UI surface MUST NOT be the sole owner of scientifically meaningful state.
+
+If presentation resources are evicted, the investigation must remain reconstructable from durable semantic state, including dataset identity, analytical evidence, Moneta decision, RepresentationGraph, abstraction level, findings, evidence, relevant alternatives and replay provenance.
+
+This separation allows WebGL, WebGPU, future WebXR renderers or native clients to embody the same investigation without changing its scientific meaning.
+
+## A.7 Resource use MUST remain bounded over long sessions
+
+Nemosyne SHOULD manage presentation and analytical resources through a bounded lifecycle such as:
+
+```text
+ACTIVE -> WARM -> COLD -> EVICTED
+```
+
+Cleanup must be incremental where possible. Pools and caches must remain bounded. Steady-state XR paths should minimise avoidable allocations before relying on garbage collection or disposal.
+
+Long-session quality is a product property. Frame-time tails, dropped frames, JS heap, Worker/WASM capacity, GPU resources, scene-object counts, cache growth and interaction latency should remain stable over time.
+
+## A.8 Hardware headroom expands capability, not baseline usability
+
+Quest 3S-class standalone hardware is an efficiency crucible, not the definition of Nemosyne's maximum scale.
+
+The weakest supported hardware should receive the same core semantic and interaction-quality contract. Stronger hardware should turn surplus capacity into a larger resident working set, deeper semantic detail, more comparisons, faster refinement, more prefetched alternatives and longer stable sessions.
+
+Higher-end hardware MUST NOT be required merely to recover responsiveness lost to avoidable baseline inefficiency.
+
+## A.9 Rendering technology is subordinate to measured UX
+
+Nemosyne SHOULD use batching, instancing, culling, foveation, multiview, bounded label density and GPU-side presentation work when they measurably improve the target experience.
+
+WebGL/WebXR remains valid while it provides the best supported measured result. WebGPU should be adopted where real-device evidence demonstrates better frame stability, resource use, memory behaviour, compute-assisted presentation or scale.
+
+The analytical authority boundary remains:
+
+> **Rust/WASM decides what the data means. GPU computation may accelerate how that meaning becomes visible.**
+
+## A.10 Experience invariants govern optimisation
+
+Across hardware classes and dataset sizes Nemosyne MUST protect:
+
+1. trustworthy meaning;
+2. natural and predictable interaction;
+3. perceptually immediate acknowledgement of user intent;
+4. stable session quality over time.
+
+When resource pressure rises, Nemosyne should first reduce background work, speculative prefetch, distant update frequency, redundant semantic detail and cold resident resources. It should protect interaction fidelity, frame pacing, semantic truth and perceptual legibility before decorative richness.
+
+The implementation test for future world-building and performance work is:
+
+> **Does this change make Nemosyne better at retaining and exposing meaning, or does it merely make the virtual world more elaborate?**
+
+If the answer is primarily the latter, it should not receive the resource budget.
