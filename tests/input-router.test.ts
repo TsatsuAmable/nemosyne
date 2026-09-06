@@ -231,7 +231,7 @@ describe('InputRouter event-path pinch tracing', () => {
     router.dispatcher.onDispatch = ((info: unknown) => {
       dispatches.push(info);
     }) as never;
-    return { router, edges, dispatches };
+    return { router, engine, edges, dispatches };
   }
 
   it('traces event-path pinch starts and does not double-dispatch on the poll pass', () => {
@@ -239,7 +239,7 @@ describe('InputRouter event-path pinch tracing', () => {
     const hand = makePinchHand('left', 1.2);
     router.addHand(hand as never);
 
-    // Event wins the race (Quest Browser delivers the pinch callback).
+    // True out-of-band fallback: no poll frame is active yet.
     (hand as unknown as { onPinchStart: (p: unknown) => void }).onPinchStart(hand);
     expect(edges).toEqual([{ phase: 'start', gating: 'select' }]);
     expect(dispatches).toHaveLength(1);
@@ -273,7 +273,7 @@ describe('InputRouter event-path pinch tracing', () => {
     ]);
     edges.length = 0;
 
-    // Simulate the race the other way: poll missed handA, event fires first.
+    // Simulate a true out-of-band fallback after the poll has latched suppression.
     router.pointers.lastHandPinched.set(handA as never, false);
     (handA as unknown as { onPinchStart: (p: unknown) => void }).onPinchStart(handA);
     expect(edges).toEqual([{ phase: 'start', gating: 'system-suppressed' }]);
@@ -318,5 +318,56 @@ describe('InputRouter event-path pinch tracing', () => {
     (handA as unknown as { onPinchStart: (p: unknown) => void }).onPinchStart(handA);
     expect(edges).toEqual([{ phase: 'start', gating: 'select' }]);
     expect(dispatches).toHaveLength(1);
+  });
+
+  it('lets the poll own frame-generated callbacks so a same-frame both-pinch leaks neither wheel/select nor release edges', () => {
+    const { router, engine, edges, dispatches } = makeRouter();
+    const handA = makePinchHand('left', 1.2);
+    const handB = makePinchHand('right', 1.1);
+    const menu = { hand: handA, toggle: vi.fn() };
+    router.setHandWheelMenu(menu as never);
+    router.addHand(handA as never);
+    router.addHand(handB as never);
+
+    let pressed = true;
+    for (const hand of [handA, handB]) {
+      (hand as unknown as { update: () => void }).update = () => {
+        const callbackTarget = hand as unknown as {
+          onPinchStart?: (p: unknown) => void;
+          onPinchEnd?: (p: unknown) => void;
+        };
+        if (pressed && !hand.pinched) {
+          hand.pinched = true;
+          callbackTarget.onPinchStart?.(hand);
+        } else if (!pressed && hand.pinched) {
+          hand.pinched = false;
+          callbackTarget.onPinchEnd?.(hand);
+        }
+      };
+    }
+
+    engine.session = { inputSources: [] };
+
+    // Both hands transition during the same updateHands pass. The first
+    // callback must not toggle the wheel or select before the second hand has
+    // made this a system-suppressed frame.
+    router.update(null, null, engine.session as never);
+    expect(edges).toEqual([
+      { phase: 'start', gating: 'system-suppressed' },
+      { phase: 'start', gating: 'system-suppressed' },
+    ]);
+    expect(menu.toggle).not.toHaveBeenCalled();
+    expect(dispatches).toHaveLength(0);
+
+    // Frame-generated end callbacks must also leave lastHandPinched untouched
+    // until the poll sees the falling edges.
+    pressed = false;
+    router.update(null, null, engine.session as never);
+    expect(edges).toEqual([
+      { phase: 'start', gating: 'system-suppressed' },
+      { phase: 'start', gating: 'system-suppressed' },
+      { phase: 'end', gating: 'passive-release' },
+      { phase: 'end', gating: 'passive-release' },
+    ]);
   });
 });
