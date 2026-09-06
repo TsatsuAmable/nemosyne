@@ -87,6 +87,19 @@ export class SystemGestureDetector {
     };
   }
 
+  /** Return the semantic gesture state machine to a neutral XR-session boundary. */
+  reset(): void {
+    this._lastRawBothPinched = false;
+    this._invalidBothPinchHeld = false;
+    this._lastRawGrip = false;
+    this._invalidGripHeld = false;
+    this._lastSuppressedBothPinched = false;
+    this._bothPinchStartAt = null;
+    this._lastBothPinchToggleAt = -Infinity;
+    this._lastSystemToggleAt = -Infinity;
+    this.registry.lastBothPinched = false;
+  }
+
   private _handSelectPressed(hand: PointerLike, sources: XRInputSource[]): boolean {
     const source = this.registry.findSourceForHand(hand, sources);
     const normalized = this._inputProvider?.getSelect(source);
