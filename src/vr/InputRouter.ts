@@ -222,7 +222,7 @@ export class InputRouter {
     this.registry.addHudObject(obj);
   }
 
-  removeHudObject(obj: THREE.Object3D): void {
+  removeHudObject(obj: HudObject): void {
     this.registry.removeHudObject(obj);
   }
 
