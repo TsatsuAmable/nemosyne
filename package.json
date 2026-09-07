@@ -70,7 +70,7 @@
     "architecture:check": "npm run architecture:deps && npm run architecture:ast:test && npm run architecture:ast"
   },
   "devDependencies": {
-    "@ast-grep/cli": "0.45.2",
+    "@ast-grep/cli": "0.45.3",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@types/three": "^0.185.4",
