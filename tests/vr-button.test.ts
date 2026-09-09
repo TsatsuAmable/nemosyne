@@ -1,7 +1,7 @@
 // @ts-nocheck
 // @vitest-environment jsdom
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { NemosyneVRButton } from '../src/vr/VRButton.ts';
 
 function makeMockRenderer() {
@@ -16,21 +16,15 @@ function makeMockRenderer() {
 }
 
 describe('NemosyneVRButton', () => {
-  let originalNavigator;
-
-  beforeEach(() => {
-    originalNavigator = globalThis.navigator;
-  });
-
   afterEach(() => {
-    globalThis.navigator = originalNavigator;
+    vi.unstubAllGlobals();
     const button = document.getElementById('nemosyne-vr-button');
     if (button?.parentNode) button.parentNode.removeChild(button);
     vi.restoreAllMocks();
   });
 
   it('creates a disabled button when XR is unsupported', () => {
-    globalThis.navigator = {};
+    vi.stubGlobal('navigator', {});
     const renderer = makeMockRenderer();
     const button = NemosyneVRButton.createButton(renderer);
 
@@ -39,11 +33,11 @@ describe('NemosyneVRButton', () => {
   });
 
   it('creates an enabled ENTER VR button when XR is supported', () => {
-    globalThis.navigator = {
+    vi.stubGlobal('navigator', {
       xr: {
         isSessionSupported: vi.fn().mockResolvedValue(true),
       },
-    };
+    });
     const renderer = makeMockRenderer();
     const button = NemosyneVRButton.createButton(renderer);
 
@@ -52,11 +46,11 @@ describe('NemosyneVRButton', () => {
   });
 
   it('disables the button if the session is not supported', async () => {
-    globalThis.navigator = {
+    vi.stubGlobal('navigator', {
       xr: {
         isSessionSupported: vi.fn().mockResolvedValue(false),
       },
-    };
+    });
     const renderer = makeMockRenderer();
     const button = NemosyneVRButton.createButton(renderer);
 
@@ -67,12 +61,15 @@ describe('NemosyneVRButton', () => {
   });
 
   it('requests an immersive-vr session on click', async () => {
-    globalThis.XRWebGLLayer = class XRWebGLLayer {
-      constructor(session, gl) {
-        this.session = session;
-        this.gl = gl;
+    vi.stubGlobal(
+      'XRWebGLLayer',
+      class XRWebGLLayer {
+        constructor(session, gl) {
+          this.session = session;
+          this.gl = gl;
+        }
       }
-    };
+    );
 
     const session = {
       mode: 'immersive-vr',
@@ -81,12 +78,12 @@ describe('NemosyneVRButton', () => {
       addEventListener: vi.fn(),
     };
 
-    globalThis.navigator = {
+    vi.stubGlobal('navigator', {
       xr: {
         isSessionSupported: vi.fn().mockResolvedValue(true),
         requestSession: vi.fn().mockResolvedValue(session),
       },
-    };
+    });
 
     const renderer = makeMockRenderer();
     const button = NemosyneVRButton.createButton(renderer);
@@ -100,24 +97,22 @@ describe('NemosyneVRButton', () => {
     });
     expect(renderer.xr.setSession).toHaveBeenCalledWith(session);
     expect(button.textContent).toBe('IN VR');
-
-    delete globalThis.XRWebGLLayer;
   });
 
   it('shows an error when XRWebGLLayer is unavailable', async () => {
-    delete globalThis.XRWebGLLayer;
+    vi.stubGlobal('XRWebGLLayer', undefined);
 
     const session = {
       updateRenderState: vi.fn().mockResolvedValue(undefined),
       addEventListener: vi.fn(),
     };
 
-    globalThis.navigator = {
+    vi.stubGlobal('navigator', {
       xr: {
         isSessionSupported: vi.fn().mockResolvedValue(true),
         requestSession: vi.fn().mockResolvedValue(session),
       },
-    };
+    });
 
     const renderer = makeMockRenderer();
     const button = NemosyneVRButton.createButton(renderer);
