@@ -70,14 +70,14 @@
     "architecture:check": "npm run architecture:deps && npm run architecture:ast:test && npm run architecture:ast"
   },
   "devDependencies": {
-    "@ast-grep/cli": "0.45.2",
+    "@ast-grep/cli": "0.45.3",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@types/three": "^0.185.4",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^5.0.0",
     "@vitest/eslint-plugin": "^1.6.27",
     "dependency-cruiser": "18.2.0",
     "eslint": "^10.8.1",
@@ -85,13 +85,13 @@
     "eslint-plugin-import-x": "^4.17.1",
     "fast-check": "4.9.0",
     "globals": "^17.11.0",
+    "iwer": "^2.3.0",
     "jsdom": "^30.0.1",
     "prettier": "^3.5.0",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
-    "vitest": "^4.1.10",
-    "wasm-pack": "^0.15.0",
-    "iwer": "^2.3.0"
+    "vitest": "^5.0.0",
+    "wasm-pack": "^0.15.0"
   },
   "keywords": [
     "webxr",
