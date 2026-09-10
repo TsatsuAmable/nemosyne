@@ -50,6 +50,7 @@ describe('UXR0 replacement qualification contract', () => {
     expect(comparison.disposition).toBe('evidence-comparable');
     expect(comparison.identityMismatches).toEqual([]);
     expect(comparison.parityIssues).toEqual([]);
+    expect(comparison.metricIssues).toEqual([]);
     expect(comparison.deltas.frameP95Ms).toBe(-2);
     expect(comparison.deltas.bundleBytes).toBe(10_000);
     expect(comparison.deltas.dependencyCount).toBe(1);
@@ -65,6 +66,19 @@ describe('UXR0 replacement qualification contract', () => {
     expect(comparison.identityMismatches).toContain('scenario.datasetFingerprint');
   });
 
+  it('refuses matching-but-empty scenario identity instead of treating blanks as parity', () => {
+    const baseline = observation('baseline');
+    const candidate = observation('candidate');
+    baseline.scenario = { ...baseline.scenario, taskScriptId: '', representationStateHash: '   ' };
+    candidate.scenario = { ...candidate.scenario, taskScriptId: '', representationStateHash: '   ' };
+    const comparison = compareUxr0ReplacementEvidence(baseline, candidate);
+    expect(comparison.disposition).toBe('not-comparable');
+    expect(comparison.identityMismatches).toContain('baseline.scenario.taskScriptId');
+    expect(comparison.identityMismatches).toContain('candidate.scenario.taskScriptId');
+    expect(comparison.identityMismatches).toContain('baseline.scenario.representationStateHash');
+    expect(comparison.identityMismatches).toContain('candidate.scenario.representationStateHash');
+  });
+
   it('refuses comparability when semantic or interaction parity digests diverge', () => {
     const candidate = observation('candidate', {
       semanticDigest: 'semantic-different',
@@ -73,5 +87,21 @@ describe('UXR0 replacement qualification contract', () => {
     const comparison = compareUxr0ReplacementEvidence(observation('baseline'), candidate);
     expect(comparison.disposition).toBe('not-comparable');
     expect(comparison.parityIssues).toEqual(['semanticDigest', 'interactionDigest']);
+  });
+
+  it('refuses non-finite or impossible metrics and does not emit poisoned deltas', () => {
+    const candidate = observation('candidate');
+    candidate.metrics = {
+      ...candidate.metrics,
+      frameP95Ms: Number.NaN,
+      bundleBytes: -1,
+      dependencyCount: 1.5,
+    };
+    const comparison = compareUxr0ReplacementEvidence(observation('baseline'), candidate);
+    expect(comparison.disposition).toBe('not-comparable');
+    expect(comparison.metricIssues).toContain('candidate.metrics.frameP95Ms');
+    expect(comparison.metricIssues).toContain('candidate.metrics.bundleBytes');
+    expect(comparison.metricIssues).toContain('candidate.metrics.dependencyCount.integer');
+    expect(comparison.deltas.frameP95Ms).toBeNull();
   });
 });
