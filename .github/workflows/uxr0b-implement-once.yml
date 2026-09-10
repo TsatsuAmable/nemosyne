@@ -1,0 +1,43 @@
+name: uxr0b-implement-once
+
+on:
+  push:
+    branches:
+      - uxr/uxr0b-worker-transfer-ab-contract
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: uxr/uxr0b-worker-transfer-ab-contract
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Apply UXR0B patch
+        run: python .github/uxr0b_patch.py
+
+      - name: Verify focused UXR0B falsifiers
+        run: |
+          npm ci
+          npx vitest run tests/uxr0-worker-transfer-diagnostics.test.ts tests/uxr0-replacement-qualification.test.ts
+          npm run typecheck
+          npm run lint
+          git diff --check
+
+      - name: Remove temporary patch tooling and push implementation
+        run: |
+          rm .github/uxr0b_patch.py .github/workflows/uxr0b-implement-once.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(uxr): add Worker transfer and replacement evidence contracts'
+          git push origin HEAD:uxr/uxr0b-worker-transfer-ab-contract
