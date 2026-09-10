@@ -93,6 +93,14 @@ export class ContextualTaskSurface extends SpatialPanel {
   private _buttons: Map<string, Button> = new Map();
   private _activeData: Record<string, unknown> | null = null;
   private _activeNode: THREE.Object3D | null = null;
+  // UXR0C1: steady-state anchoring scratch. These objects are owned by this
+  // synchronous surface update and are never retained by Three.js callers.
+  private readonly _nodeWorld = new THREE.Vector3();
+  private readonly _anchorWorld = new THREE.Vector3();
+  private readonly _cameraWorld = new THREE.Vector3();
+  private readonly _towardCamera = new THREE.Vector3();
+  private readonly _anchorLocal = new THREE.Vector3();
+  private readonly _anchorOffset = new THREE.Vector3(0, 0.18, 0);
   public callbacks: ContextualTaskSurfaceCallbacks;
 
   constructor(engine: EngineLike, callbacks: ContextualTaskSurfaceCallbacks = {}) {
@@ -294,34 +302,32 @@ export class ContextualTaskSurface extends SpatialPanel {
   private _updateAnchorTransform(): void {
     if (!this._activeNode) return;
 
-    const nodeWorld = new THREE.Vector3();
-    this._activeNode.getWorldPosition(nodeWorld);
+    this._activeNode.getWorldPosition(this._nodeWorld);
 
     // Keep the rail just above the evidence and slightly toward the viewer so
     // it remains readable without sitting directly on top of the selected mark.
-    const anchorWorld = nodeWorld.clone().add(new THREE.Vector3(0, 0.18, 0));
-    const cameraWorld = new THREE.Vector3();
+    this._anchorWorld.copy(this._nodeWorld).add(this._anchorOffset);
     if (this.engine.camera) {
-      this.engine.camera.getWorldPosition(cameraWorld);
-      const towardCamera = cameraWorld.clone().sub(nodeWorld);
-      towardCamera.y = 0;
-      if (towardCamera.lengthSq() > 1e-6) {
-        anchorWorld.add(towardCamera.normalize().multiplyScalar(0.08));
+      this.engine.camera.getWorldPosition(this._cameraWorld);
+      this._towardCamera.subVectors(this._cameraWorld, this._nodeWorld);
+      this._towardCamera.y = 0;
+      if (this._towardCamera.lengthSq() > 1e-6) {
+        this._anchorWorld.add(this._towardCamera.normalize().multiplyScalar(0.08));
       }
     }
 
-    // The surface is parented beneath analystAnchor. Convert from the selected
-    // node's world-space locus into the parent's local coordinates instead of
-    // copying world coordinates into a moving local frame.
+    // worldToLocal mutates its argument, so copy into a dedicated scratch
+    // vector rather than mutating the world-space anchor used by the fallback.
     if (this.parent) {
       this.parent.updateWorldMatrix(true, false);
-      this.position.copy(this.parent.worldToLocal(anchorWorld.clone()));
+      this._anchorLocal.copy(this._anchorWorld);
+      this.position.copy(this.parent.worldToLocal(this._anchorLocal));
     } else {
-      this.position.copy(anchorWorld);
+      this.position.copy(this._anchorWorld);
     }
 
     if (this.engine.camera) {
-      this.lookAt(cameraWorld);
+      this.lookAt(this._cameraWorld);
     }
   }
 
