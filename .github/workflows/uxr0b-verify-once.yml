@@ -24,6 +24,7 @@ jobs:
       - name: Verify UXR0B and Worker regression contracts
         run: |
           npm ci
+          npm run wasm:dev
           npm run test:fast -- tests/uxr0-worker-transfer-diagnostics.test.ts tests/uxr0-replacement-qualification.test.ts
           npm run test:integration -- tests/atlas-async-execution.test.ts
           npm run typecheck
