@@ -25,27 +25,26 @@ const DEFAULT_CONFIG: PointerRayFilterConfig = {
 };
 
 class LowPassFilter3D {
-  private _hatx: THREE.Vector3 | null = null;
+  private readonly _hatx = new THREE.Vector3();
+  private _initialized = false;
 
-  filter(val: THREE.Vector3, alpha: number): THREE.Vector3 {
-    if (!this._hatx) {
-      this._hatx = val.clone();
-      return this._hatx.clone();
+  filterInto(val: THREE.Vector3, alpha: number, target: THREE.Vector3): THREE.Vector3 {
+    if (!this._initialized) {
+      this._hatx.copy(val);
+      this._initialized = true;
+    } else {
+      this._hatx.lerp(val, alpha);
     }
-    this._hatx.lerp(val, alpha);
-    return this._hatx.clone();
+    return target.copy(this._hatx);
   }
 
-  hasLast(): boolean {
-    return this._hatx !== null;
-  }
-
-  last(): THREE.Vector3 {
-    return this._hatx ? this._hatx.clone() : new THREE.Vector3();
+  lastInto(target: THREE.Vector3): THREE.Vector3 {
+    return this._initialized ? target.copy(this._hatx) : target.set(0, 0, 0);
   }
 
   reset(): void {
-    this._hatx = null;
+    this._hatx.set(0, 0, 0);
+    this._initialized = false;
   }
 }
 
@@ -62,44 +61,66 @@ export class PointerRayFilter {
   private _dFilter = new LowPassFilter3D();
   private _ddFilter = new LowPassFilter3D();
   private _lastTime: number | null = null;
+  private readonly _prevOrigin = new THREE.Vector3();
+  private readonly _originDerivative = new THREE.Vector3();
+  private readonly _filteredOriginDerivative = new THREE.Vector3();
+  private readonly _prevDirection = new THREE.Vector3();
+  private readonly _directionDerivative = new THREE.Vector3();
+  private readonly _filteredDirectionDerivative = new THREE.Vector3();
 
   constructor(config: Partial<PointerRayFilterConfig> = {}) {
     this._config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
-   * Filter an input THREE.Ray and return a smoothed copy.
+   * Filter into caller-owned storage. The returned object is `target`.
+   * This is the steady-state XR path and allocates no vectors or rays.
    */
-  filter(ray: THREE.Ray, timestamp: number = performance.now()): THREE.Ray {
+  filterInto(ray: THREE.Ray, target: THREE.Ray, timestamp: number = performance.now()): THREE.Ray {
     if (this._lastTime === null || timestamp <= this._lastTime) {
       this._lastTime = timestamp;
-      this._xFilter.filter(ray.origin, 1.0);
-      this._dFilter.filter(ray.direction, 1.0);
-      return new THREE.Ray(ray.origin.clone(), ray.direction.clone().normalize());
+      this._xFilter.filterInto(ray.origin, 1.0, target.origin);
+      this._dFilter.filterInto(ray.direction, 1.0, target.direction);
+      target.direction.normalize();
+      return target;
     }
 
     const dt = (timestamp - this._lastTime) / 1000.0;
     this._lastTime = timestamp;
     const rate = 1.0 / Math.max(dt, 0.001);
 
-    // Filter origin
-    const prevOrigin = this._xFilter.last();
-    const dOrigin = new THREE.Vector3().subVectors(ray.origin, prevOrigin).multiplyScalar(rate);
-    const edOrigin = this._dxFilter.filter(dOrigin, calculateAlpha(rate, this._config.dCutoff));
-    const originSpeed = edOrigin.length();
-    const originCutoff = this._config.minCutoff + this._config.beta * originSpeed;
-    const filteredOrigin = this._xFilter.filter(ray.origin, calculateAlpha(rate, originCutoff));
+    this._xFilter.lastInto(this._prevOrigin);
+    this._originDerivative.subVectors(ray.origin, this._prevOrigin).multiplyScalar(rate);
+    this._dxFilter.filterInto(
+      this._originDerivative,
+      calculateAlpha(rate, this._config.dCutoff),
+      this._filteredOriginDerivative
+    );
+    const originCutoff =
+      this._config.minCutoff + this._config.beta * this._filteredOriginDerivative.length();
+    this._xFilter.filterInto(ray.origin, calculateAlpha(rate, originCutoff), target.origin);
 
-    // Filter direction
-    const prevDir = this._dFilter.last();
-    const dDir = new THREE.Vector3().subVectors(ray.direction, prevDir).multiplyScalar(rate);
-    const edDir = this._ddFilter.filter(dDir, calculateAlpha(rate, this._config.dCutoff));
-    const dirSpeed = edDir.length();
-    const dirCutoff = this._config.minCutoff + this._config.beta * dirSpeed;
-    const filteredDir = this._dFilter.filter(ray.direction, calculateAlpha(rate, dirCutoff));
-    filteredDir.normalize();
+    this._dFilter.lastInto(this._prevDirection);
+    this._directionDerivative.subVectors(ray.direction, this._prevDirection).multiplyScalar(rate);
+    this._ddFilter.filterInto(
+      this._directionDerivative,
+      calculateAlpha(rate, this._config.dCutoff),
+      this._filteredDirectionDerivative
+    );
+    const directionCutoff =
+      this._config.minCutoff + this._config.beta * this._filteredDirectionDerivative.length();
+    this._dFilter.filterInto(
+      ray.direction,
+      calculateAlpha(rate, directionCutoff),
+      target.direction
+    );
+    target.direction.normalize();
+    return target;
+  }
 
-    return new THREE.Ray(filteredOrigin, filteredDir);
+  /** Filter an input ray and return an independent smoothed copy. */
+  filter(ray: THREE.Ray, timestamp: number = performance.now()): THREE.Ray {
+    return this.filterInto(ray, new THREE.Ray(), timestamp);
   }
 
   reset(): void {

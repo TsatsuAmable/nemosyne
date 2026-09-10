@@ -34,7 +34,7 @@ describe('PointerRayFilter (One-Euro Adaptive Smoothing)', () => {
     let maxJitterFiltered = 0;
     for (let frame = 1; frame <= 30; frame++) {
       const time = 1000 + frame * 16.66;
-      const noise = (Math.sin(frame * 1.5) * 0.04); // ±0.04 rad angular jitter
+      const noise = Math.sin(frame * 1.5) * 0.04; // ±0.04 rad angular jitter
       const jitteredDir = new THREE.Vector3(noise, 0, -1).normalize();
       const rawRay = new THREE.Ray(baseOrigin, jitteredDir);
 
@@ -49,6 +49,49 @@ describe('PointerRayFilter (One-Euro Adaptive Smoothing)', () => {
     expect(maxJitterFiltered).toBeLessThan(0.02);
   });
 
+  it('filterInto preserves the pre-C2 smoothing trajectory while reusing its target', () => {
+    const target = new THREE.Ray();
+    const samples = [
+      [1000, [0, 1.5, 0], [0, 0, -1]],
+      [1016, [0.01, 1.5, 0], [0.02, 0, -1]],
+      [1033, [0.02, 1.49, 0], [0.15, 0.01, -1]],
+      [1050, [0.03, 1.49, 0], [0.35, 0.02, -1]],
+    ] as const;
+    const legacyExpected = [
+      [
+        [0, 1.5, 0],
+        [0, 0, -1],
+      ],
+      [
+        [0.0011656632696049921, 1.5, 0],
+        [0.0028078256680052357, 0, -0.9999960580497396],
+      ],
+      [
+        [0.00351928137169002, 1.4987503578513137, 0],
+        [0.028243114800339045, 0.0017281084662529472, -0.9995995898896236],
+      ],
+      [
+        [0.0069252812137684475, 1.4976248703644355, 0],
+        [0.097768105977405, 0.005675726883407861, -0.9951930383488099],
+      ],
+    ] as const;
+
+    samples.forEach(([time, origin, direction], index) => {
+      const raw = new THREE.Ray(
+        new THREE.Vector3(...origin),
+        new THREE.Vector3(...direction).normalize()
+      );
+      const actual = filter.filterInto(raw, target, time);
+      expect(actual).toBe(target);
+      expect(actual.origin.toArray()).toEqual(
+        expect.arrayContaining(legacyExpected[index][0].map((value) => expect.closeTo(value, 12)))
+      );
+      expect(actual.direction.toArray()).toEqual(
+        expect.arrayContaining(legacyExpected[index][1].map((value) => expect.closeTo(value, 12)))
+      );
+    });
+  });
+
   it('adapts quickly to rapid sweeps (high velocity) with minimal lag', () => {
     const baseOrigin = new THREE.Vector3(0, 1.5, 0);
     filter.filter(new THREE.Ray(baseOrigin, new THREE.Vector3(0, 0, -1)), 1000);
@@ -61,6 +104,20 @@ describe('PointerRayFilter (One-Euro Adaptive Smoothing)', () => {
 
     // Filter should rapidly converge onto the new target
     expect(smoothed3.direction.x).toBeCloseTo(fastDir.x, 1);
+  });
+
+  it('matches array-like XR input sources without materialising helper arrays', () => {
+    const registry = new PointerRegistry({} as EngineLike);
+    const left = { handedness: 'left', getRay: (ray: THREE.Ray) => ray } as PointerLike;
+    const right = { handedness: 'right', getRay: (ray: THREE.Ray) => ray } as PointerLike;
+    registry.addController(left);
+    registry.addController(right);
+
+    const source0 = { handedness: 'left', hand: null } as unknown as XRInputSource;
+    const source1 = { handedness: 'right', hand: null } as unknown as XRInputSource;
+    const arrayLike = { 0: source0, 1: source1, length: 2 };
+
+    expect(registry.findSourceForController(right, arrayLike)).toBe(source1);
   });
 });
 
@@ -84,6 +141,11 @@ describe('PointerRegistry Filter Integration', () => {
     const r1 = registry.getBestPointerRay(1000);
     expect(r1).not.toBeNull();
     expect(r1?.direction.z).toBeCloseTo(-1);
+    const durableFirst = r1?.clone();
+
+    const r2 = registry.getBestPointerRay(1016);
+    expect(r2).toBe(r1);
+    expect(durableFirst?.direction.z).toBeCloseTo(-1);
 
     // Can toggle smoothing
     registry.smoothingEnabled = false;

@@ -76,6 +76,8 @@ export class InputRouter {
   /** True while updateHands is producing callbacks that the poll pass owns. */
   private _pollOwnsHandCallbacks = false;
   private _onSelectCallback: ((ray: THREE.Ray) => void) | null = null;
+  private readonly _activePointers: PointerLike[] = [];
+  private readonly _gazeDirection = new THREE.Vector3();
 
   get onSelectCallback(): ((ray: THREE.Ray) => void) | null {
     return this._onSelectCallback;
@@ -288,7 +290,7 @@ export class InputRouter {
     const allHits = this.registry.raycastSceneAll();
     if (allHits.length === 0) return null;
     const ray = this.registry.raycaster.ray;
-    const gazeDir = this.engine?.camera?.getWorldDirection?.(new THREE.Vector3());
+    const gazeDir = this.engine?.camera?.getWorldDirection?.(this._gazeDirection);
     const resolved = this.semanticResolver.rank(allHits, ray, gazeDir ?? undefined, undefined);
     if (!resolved) return allHits[0] ?? null;
     const matched = allHits.find((hit) => hit.entry === resolved.entry);
@@ -361,14 +363,14 @@ export class InputRouter {
 
     this.pointers.updateControllerRayVisibilities();
 
-    const activePointers: PointerLike[] = [];
+    this._activePointers.length = 0;
     for (const hand of this.pointers.hands) {
-      if (hand.jointsValid) activePointers.push(hand);
+      if (hand.jointsValid) this._activePointers.push(hand);
     }
     for (const ctrl of this.pointers.controllers) {
-      if (ctrl.handedness !== 'none') activePointers.push(ctrl);
+      if (ctrl.handedness !== 'none') this._activePointers.push(ctrl);
     }
-    this.nearInteractor.update(activePointers, this.registry.panels);
+    this.nearInteractor.update(this._activePointers, this.registry.panels);
 
     const activeHand = this.pointers.getBestHand();
     for (const ctrl of this.pointers.controllers) {
@@ -440,7 +442,7 @@ export class InputRouter {
       }
       return;
     }
-    const sources = Array.from(session.inputSources);
+    const sources = session.inputSources;
 
     const { suppressSelection } = this.systemDetector.update(session);
     this._lastSuppressSelection = suppressSelection;

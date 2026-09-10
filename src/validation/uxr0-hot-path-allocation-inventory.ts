@@ -8,9 +8,7 @@
  * explicit until their own tranche can preserve interaction semantics safely.
  */
 export type Uxr0AllocationDisposition =
-  | 'fixed-c1'
-  | 'residual-high-risk'
-  | 'residual-follow-up';
+  'fixed-c1' | 'fixed-c2' | 'residual-high-risk' | 'residual-follow-up';
 
 export interface Uxr0HotPathAllocationEntry {
   readonly id: string;
@@ -42,32 +40,56 @@ export const UXR0_HOT_PATH_ALLOCATION_INVENTORY: readonly Uxr0HotPathAllocationE
     id: 'pointer-ray-filter',
     source: 'src/vr/input/PointerRayFilter.ts',
     hotPath: 'PointerRayFilter.filter',
-    disposition: 'residual-high-risk',
-    finding: 'Adaptive smoothing clones/allocates vectors and a Ray during active-pointer frames.',
-    nextAction: 'UXR0C2: add allocation-free filterInto path with numerical/interaction equivalence falsifiers.',
+    disposition: 'fixed-c2',
+    finding:
+      'Adaptive smoothing now writes through owned scratch vectors into caller-owned Ray storage.',
+    nextAction: null,
   },
   {
     id: 'pointer-registry-rays',
     source: 'src/vr/input/PointerRegistry.ts',
     hotPath: 'getBestPointerRay/getBestHand/getActivePointerObject',
-    disposition: 'residual-high-risk',
-    finding: 'Active pointer selection creates temporary Ray objects while determining pointer authority.',
-    nextAction: 'UXR0C2: reuse caller-owned scratch Rays without changing hand/controller precedence.',
+    disposition: 'fixed-c2',
+    finding:
+      'Pointer authority now reuses instance-owned probe/result Rays without changing hand/controller precedence.',
+    nextAction: null,
   },
   {
     id: 'input-router-frame-state',
     source: 'src/vr/InputRouter.ts',
     hotPath: 'InputRouter.update/_resolveSceneHit/_pollSelection',
+    disposition: 'fixed-c2',
+    finding:
+      'Frame-local pointer lists and gaze vectors are reused, and XR input sources are consumed array-like without materialisation.',
+    nextAction: null,
+  },
+  {
+    id: 'near-field-raycast-containers',
+    source: 'src/vr/interactions/near/NearFieldInteractor.ts',
+    hotPath: 'NearFieldInteractor.update',
+    disposition: 'fixed-c2',
+    finding:
+      'Direct-touch updates now reuse Nemosyne-owned Ray and result-array containers; Three.js may still allocate Intersection records internally.',
+    nextAction: null,
+  },
+  {
+    id: 'semantic-target-ranking',
+    source: 'src/vr/input/SemanticTargetResolver.ts',
+    hotPath: 'SemanticTargetResolver.rank',
     disposition: 'residual-high-risk',
-    finding: 'Per-frame active-pointer arrays, gaze scratch, and input-source materialisation remain.',
-    nextAction: 'UXR0C2: remove allocations only under same-frame semantic-input parity tests.',
+    finding:
+      'Semantic ranking still allocates score/result arrays, a normalized gaze clone, per-hit vectors, and filter/sort intermediates.',
+    nextAction:
+      'Later UXR0: qualify scratch-backed ranking only with score, coercion, hysteresis, and target-selection equivalence falsifiers.',
   },
   {
     id: 'desktop-cursor-update',
     source: 'src/vr/DesktopControls.ts',
     hotPath: 'DesktopControls.update',
     disposition: 'residual-follow-up',
-    finding: 'Desktop cursor placement creates vector and panel-list temporaries each non-XR frame.',
-    nextAction: 'Follow-up: reuse cursor/panel/raycast scratch while preserving desktop semantic parity.',
+    finding:
+      'Desktop cursor placement creates vector and panel-list temporaries each non-XR frame.',
+    nextAction:
+      'Follow-up: reuse cursor/panel/raycast scratch while preserving desktop semantic parity.',
   },
 ] as const;

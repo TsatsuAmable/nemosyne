@@ -29,6 +29,10 @@ export class PointerRegistry {
 
   smoothingEnabled = true;
   private _rayFilters = new Map<PointerLike, PointerRayFilter>();
+  /** Scratch storage reused by synchronous pointer-authority queries. */
+  private readonly _probeRay = new THREE.Ray();
+  /** Ephemeral result returned by getBestPointerRay; callers must consume synchronously. */
+  private readonly _bestRay = new THREE.Ray();
 
   constructor(engine: EngineLike) {
     this.engine = engine;
@@ -118,23 +122,30 @@ export class PointerRegistry {
     }
   }
 
-  /** Return the best usable pointer ray, preferring hands over controllers. */
+  /**
+   * Return the best usable pointer ray, preferring hands over controllers.
+   *
+   * The returned Ray is instance-owned scratch storage and is valid only until
+   * the next pointer query. Production callers consume/copy it synchronously.
+   */
   getBestPointerRay(timestamp?: number): THREE.Ray | null {
     const activeHand = this.getBestHand();
     if (activeHand) {
-      const ray = activeHand.getRay(new THREE.Ray());
+      const ray = activeHand.getRay(this._probeRay);
       if (isUsablePointerRay(ray)) {
         const resolved = this.smoothingEnabled
-          ? this.getRayFilter(activeHand).filter(ray, timestamp)
-          : ray;
+          ? this.getRayFilter(activeHand).filterInto(ray, this._bestRay, timestamp)
+          : this._bestRay.copy(ray);
         if (isUsablePointerRay(resolved)) return resolved;
       }
     }
 
-    for (const c of this.controllers) {
-      const ray = c.getRay(new THREE.Ray());
+    for (const controller of this.controllers) {
+      const ray = controller.getRay(this._probeRay);
       if (isUsablePointerRay(ray)) {
-        const resolved = this.smoothingEnabled ? this.getRayFilter(c).filter(ray, timestamp) : ray;
+        const resolved = this.smoothingEnabled
+          ? this.getRayFilter(controller).filterInto(ray, this._bestRay, timestamp)
+          : this._bestRay.copy(ray);
         if (isUsablePointerRay(resolved)) return resolved;
       }
     }
@@ -154,9 +165,9 @@ export class PointerRegistry {
   getActivePointerObject(): PointerLike | null {
     const activeHand = this.getBestHand();
     if (activeHand) return activeHand;
-    for (const c of this.controllers) {
-      const ray = c.getRay(new THREE.Ray());
-      if (isUsablePointerRay(ray)) return c;
+    for (const controller of this.controllers) {
+      const ray = controller.getRay(this._probeRay);
+      if (isUsablePointerRay(ray)) return controller;
     }
     return null;
   }
@@ -169,7 +180,7 @@ export class PointerRegistry {
           ? (hand.isPoseValid as () => boolean)()
           : hand.jointsValid && hand.ray?.visible;
       if (poseValid) {
-        const ray = hand.getRay(new THREE.Ray());
+        const ray = hand.getRay(this._probeRay);
         if (isUsablePointerRay(ray)) return hand;
       }
     }
@@ -178,36 +189,57 @@ export class PointerRegistry {
 
   /**
    * Match a ControllerPointer to the XRInputSource that represents it.
-   * Falls back to index order among non-hand sources if handedness is unknown.
+   * Falls back to source order among non-hand sources if handedness is unknown.
+   * Accepts array-like XRInputSource collections so the frame path need not
+   * materialise XRSession.inputSources into a new Array.
    */
-  findSourceForController(controller: PointerLike, sources: XRInputSource[]): XRInputSource | null {
-    if (!Array.isArray(sources)) return null;
+  findSourceForController(
+    controller: PointerLike,
+    sources: ArrayLike<XRInputSource>
+  ): XRInputSource | null {
+    if (!sources || typeof sources.length !== 'number') return null;
     if (controller.handedness && controller.handedness !== 'none') {
-      const match = sources.find(
-        (s) => Boolean(s) && !s.hand && s.handedness === controller.handedness
-      );
-      if (match) return match;
+      for (let index = 0; index < sources.length; index += 1) {
+        const source = sources[index];
+        if (source && !source.hand && source.handedness === controller.handedness) return source;
+      }
     }
-    const nonHand = sources.filter((s) => Boolean(s) && !s.hand);
-    const idx = this.controllers.indexOf(controller);
-    return nonHand[idx] ?? null;
+
+    const controllerIndex = this.controllers.indexOf(controller);
+    if (controllerIndex < 0) return null;
+    let nonHandIndex = 0;
+    for (let index = 0; index < sources.length; index += 1) {
+      const source = sources[index];
+      if (!source || source.hand) continue;
+      if (nonHandIndex === controllerIndex) return source;
+      nonHandIndex += 1;
+    }
+    return null;
   }
 
   /**
    * Match a HandPointer to its WebXR hand input source. Handedness is the
-   * primary identity; index order is retained only for synthetic/unknown hosts.
+   * primary identity; source order is retained only for synthetic/unknown hosts.
    */
-  findSourceForHand(hand: PointerLike, sources: XRInputSource[]): XRInputSource | null {
-    if (!Array.isArray(sources)) return null;
+  findSourceForHand(hand: PointerLike, sources: ArrayLike<XRInputSource>): XRInputSource | null {
+    if (!sources || typeof sources.length !== 'number') return null;
     if (hand.handedness && hand.handedness !== 'none') {
-      const match = sources.find(
-        (source) => Boolean(source) && Boolean(source.hand) && source.handedness === hand.handedness
-      );
-      if (match) return match;
+      for (let index = 0; index < sources.length; index += 1) {
+        const source = sources[index];
+        if (source?.hand && source.handedness === hand.handedness) return source;
+      }
     }
-    const handSources = sources.filter((source) => Boolean(source) && Boolean(source.hand));
-    const index = this.hands.indexOf(hand);
-    return handSources[index] ?? null;
+
+    const handIndex = this.hands.indexOf(hand);
+    if (handIndex < 0) return null;
+    let sourceHandIndex = 0;
+    for (let index = 0; index < sources.length; index += 1) {
+      const source = sources[index];
+      if (!source?.hand) continue;
+      if (sourceHandIndex === handIndex) return source;
+      sourceHandIndex += 1;
+    }
+    return null;
   }
 
   /** Return the current XR session input sources as a normal array. */

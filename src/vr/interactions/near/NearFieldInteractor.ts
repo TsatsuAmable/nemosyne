@@ -13,6 +13,8 @@ export interface PointerTouchState {
 export class NearFieldInteractor {
   private _states: Map<PointerLike, PointerTouchState> = new Map();
   private _raycaster = new THREE.Raycaster();
+  private readonly _ray = new THREE.Ray();
+  private readonly _hits: THREE.Intersection[] = [];
 
   // Threshold constants
   readonly PROXIMITY_ENTER = 0.55; // 55cm near envelope
@@ -30,8 +32,6 @@ export class NearFieldInteractor {
   }
 
   update(pointers: PointerLike[], panels: PanelLike[]): void {
-    const ray = new THREE.Ray();
-
     for (const pointer of pointers) {
       let state = this._states.get(pointer);
       if (!state) {
@@ -49,17 +49,21 @@ export class NearFieldInteractor {
       const tipOffset = isHand ? 0 : this.CONTROLLER_TIP_OFFSET;
 
       // 2. Perform intersection against panels (using capture if in PRESS phase)
-      pointer.getRay(ray);
-      this._raycaster.ray.copy(ray);
+      pointer.getRay(this._ray);
+      this._raycaster.ray.copy(this._ray);
 
       let closestPanel: PanelLike | null = null;
       let closestDistance = Infinity;
       let closestHit: THREE.Intersection | null = null;
 
-      if (state.targetPanel && state.targetPanel.mesh && state.targetPanel.mesh.visible && state.phase === 'PRESS') {
-        const hits = this._raycaster.intersectObject(state.targetPanel.mesh, true);
-        if (hits.length > 0) {
-          const hit = hits[0];
+      if (
+        state.targetPanel &&
+        state.targetPanel.mesh &&
+        state.targetPanel.mesh.visible &&
+        state.phase === 'PRESS'
+      ) {
+        const hit = this._intersectFirst(state.targetPanel.mesh);
+        if (hit) {
           closestDistance = hit.distance - tipOffset;
           closestPanel = state.targetPanel;
           closestHit = hit;
@@ -67,9 +71,8 @@ export class NearFieldInteractor {
       } else {
         for (const panel of panels) {
           if (!panel.mesh || !panel.mesh.visible) continue;
-          const hits = this._raycaster.intersectObject(panel.mesh, true);
-          if (hits.length > 0) {
-            const hit = hits[0];
+          const hit = this._intersectFirst(panel.mesh);
+          if (hit) {
             const tipDist = hit.distance - tipOffset;
             if (tipDist < closestDistance) {
               closestDistance = tipDist;
@@ -125,8 +128,7 @@ export class NearFieldInteractor {
           if (closestDistance > this.PRESS_EXIT) {
             let stillHit = false;
             if (state.targetPanel && state.targetPanel.mesh) {
-              const hits = this._raycaster.intersectObject(state.targetPanel.mesh, true);
-              stillHit = hits.length > 0;
+              stillHit = this._intersectFirst(state.targetPanel.mesh) !== null;
             }
             nextPhase = stillHit ? 'COMMIT' : 'RECOVER';
           }
@@ -141,6 +143,17 @@ export class NearFieldInteractor {
         this._handlePressMove(state, closestPanel, closestHit);
       }
     }
+  }
+
+  /**
+   * Reuse the result-array container for Three.js raycasts. Three.js may still
+   * allocate Intersection records internally; that library-boundary residual is
+   * inventoried separately rather than represented as zero-allocation.
+   */
+  private _intersectFirst(mesh: THREE.Object3D): THREE.Intersection | null {
+    this._hits.length = 0;
+    this._raycaster.intersectObject(mesh, true, this._hits);
+    return this._hits[0] ?? null;
   }
 
   private _onPhaseTransition(
