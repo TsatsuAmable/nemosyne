@@ -27,7 +27,7 @@ jobs:
       - name: Verify focused UXR0B falsifiers
         run: |
           npm ci
-          npx vitest run tests/uxr0-worker-transfer-diagnostics.test.ts tests/uxr0-replacement-qualification.test.ts
+          npm run test:fast -- tests/uxr0-worker-transfer-diagnostics.test.ts tests/uxr0-replacement-qualification.test.ts
           npm run typecheck
           npm run lint
           git diff --check
