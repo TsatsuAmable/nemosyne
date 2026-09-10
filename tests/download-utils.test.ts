@@ -29,6 +29,7 @@ describe('downloadDataUrl', () => {
 
   afterEach(() => {
     clickedAnchors = [];
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -49,14 +50,8 @@ describe('downloadDataUrl', () => {
   });
 
   it('rejects outside a DOM environment', async () => {
-    const originalDocument = globalThis.document;
-    // @ts-expect-error simulating non-DOM environment
-    globalThis.document = undefined;
-    try {
-      await expect(downloadDataUrl('data:,x', 'x.txt')).rejects.toThrow(/DOM environment/);
-    } finally {
-      globalThis.document = originalDocument;
-    }
+    vi.stubGlobal('document', undefined);
+    await expect(downloadDataUrl('data:,x', 'x.txt')).rejects.toThrow(/DOM environment/);
   });
 });
 
@@ -70,6 +65,7 @@ describe('downloadText', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
