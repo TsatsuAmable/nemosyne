@@ -51,6 +51,7 @@ export interface Uxr0ReplacementComparison {
   disposition: 'not-comparable' | 'evidence-comparable';
   identityMismatches: string[];
   parityIssues: string[];
+  metricIssues: string[];
   deltas: Uxr0ReplacementMetrics;
 }
 
@@ -64,6 +65,21 @@ const SCENARIO_FIELDS = [
   'representationStateHash',
   'profileKind',
 ] as const satisfies readonly (keyof Uxr0ReplacementScenarioIdentity)[];
+
+const SCENARIO_STRING_FIELDS = [
+  'deviceTarget',
+  'deviceRuntimeId',
+  'datasetFingerprint',
+  'taskScriptId',
+  'representationId',
+  'representationStateHash',
+] as const satisfies readonly (keyof Uxr0ReplacementScenarioIdentity)[];
+
+const PROFILE_KINDS = new Set<Uxr0QualificationProfileKind>([
+  'functional-5m',
+  'resource-trend-30m',
+  'sustained-60m',
+]);
 
 const METRIC_FIELDS = [
   'frameP95Ms',
@@ -79,11 +95,53 @@ const METRIC_FIELDS = [
 ] as const satisfies readonly (keyof Uxr0ReplacementMetrics)[];
 
 function delta(baseline: number | null, candidate: number | null): number | null {
-  return baseline === null || candidate === null ? null : candidate - baseline;
+  return baseline === null ||
+    candidate === null ||
+    !Number.isFinite(baseline) ||
+    !Number.isFinite(candidate)
+    ? null
+    : candidate - baseline;
 }
 
-function nonEmpty(value: string): boolean {
-  return value.trim().length > 0;
+function nonEmpty(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function inspectIdentity(
+  label: 'baseline' | 'candidate',
+  observation: Uxr0ReplacementObservation,
+  issues: string[]
+): void {
+  if (!nonEmpty(observation.implementationId)) issues.push(`${label}.implementationId`);
+  if (!nonEmpty(observation.buildHash)) issues.push(`${label}.buildHash`);
+  for (const field of SCENARIO_STRING_FIELDS) {
+    if (!nonEmpty(observation.scenario[field])) issues.push(`${label}.scenario.${field}`);
+  }
+  if (
+    !Number.isSafeInteger(observation.scenario.sourceRowCount) ||
+    observation.scenario.sourceRowCount <= 0
+  ) {
+    issues.push(`${label}.scenario.sourceRowCount`);
+  }
+  if (!PROFILE_KINDS.has(observation.scenario.profileKind)) {
+    issues.push(`${label}.scenario.profileKind`);
+  }
+}
+
+function inspectMetrics(
+  label: 'baseline' | 'candidate',
+  metrics: Uxr0ReplacementMetrics,
+  issues: string[]
+): void {
+  for (const field of METRIC_FIELDS) {
+    const value = metrics[field];
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      issues.push(`${label}.metrics.${field}`);
+    }
+  }
+  if (metrics.dependencyCount !== null && !Number.isSafeInteger(metrics.dependencyCount)) {
+    issues.push(`${label}.metrics.dependencyCount.integer`);
+  }
 }
 
 export function compareUxr0ReplacementEvidence(
@@ -92,24 +150,16 @@ export function compareUxr0ReplacementEvidence(
 ): Uxr0ReplacementComparison {
   const identityMismatches: string[] = [];
   const parityIssues: string[] = [];
+  const metricIssues: string[] = [];
 
   if (baseline.schemaVersion !== 1 || candidate.schemaVersion !== 1) {
     identityMismatches.push('schemaVersion');
   }
   if (baseline.variant !== 'baseline') identityMismatches.push('baseline.variant');
   if (candidate.variant !== 'candidate') identityMismatches.push('candidate.variant');
-  if (!nonEmpty(baseline.implementationId) || !nonEmpty(candidate.implementationId)) {
-    identityMismatches.push('implementationId');
-  }
-  if (!nonEmpty(baseline.buildHash) || !nonEmpty(candidate.buildHash)) {
-    identityMismatches.push('buildHash');
-  }
-  if (!Number.isSafeInteger(baseline.scenario.sourceRowCount) || baseline.scenario.sourceRowCount <= 0) {
-    identityMismatches.push('baseline.sourceRowCount');
-  }
-  if (!Number.isSafeInteger(candidate.scenario.sourceRowCount) || candidate.scenario.sourceRowCount <= 0) {
-    identityMismatches.push('candidate.sourceRowCount');
-  }
+
+  inspectIdentity('baseline', baseline, identityMismatches);
+  inspectIdentity('candidate', candidate, identityMismatches);
 
   for (const field of SCENARIO_FIELDS) {
     if (baseline.scenario[field] !== candidate.scenario[field]) {
@@ -124,6 +174,9 @@ export function compareUxr0ReplacementEvidence(
     parityIssues.push('interactionDigest');
   }
 
+  inspectMetrics('baseline', baseline.metrics, metricIssues);
+  inspectMetrics('candidate', candidate.metrics, metricIssues);
+
   const deltas = Object.fromEntries(
     METRIC_FIELDS.map((field) => [field, delta(baseline.metrics[field], candidate.metrics[field])])
   ) as unknown as Uxr0ReplacementMetrics;
@@ -131,11 +184,12 @@ export function compareUxr0ReplacementEvidence(
   return {
     schemaVersion: 1,
     disposition:
-      identityMismatches.length === 0 && parityIssues.length === 0
+      identityMismatches.length === 0 && parityIssues.length === 0 && metricIssues.length === 0
         ? 'evidence-comparable'
         : 'not-comparable',
     identityMismatches,
     parityIssues,
+    metricIssues,
     deltas,
   };
 }
