@@ -1,0 +1,42 @@
+name: uxr0b-verify-once
+
+on:
+  push:
+    branches:
+      - uxr/uxr0b-worker-transfer-ab-contract
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: uxr/uxr0b-worker-transfer-ab-contract
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verify UXR0B and Worker regression contracts
+        run: |
+          npm ci
+          npm run test:fast -- tests/uxr0-worker-transfer-diagnostics.test.ts tests/uxr0-replacement-qualification.test.ts
+          npm run test:integration -- tests/atlas-async-execution.test.ts
+          npm run typecheck
+          npm run lint
+          git diff --check origin/main...HEAD
+
+      - name: Remove temporary verifier
+        if: success()
+        run: |
+          rm .github/workflows/uxr0b-verify-once.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: remove temporary UXR0B verifier'
+          git push origin HEAD:uxr/uxr0b-worker-transfer-ab-contract
