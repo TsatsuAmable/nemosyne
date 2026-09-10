@@ -89,7 +89,7 @@ replace_once(
   | 'sustained-60m';
 
 """,
-    """,
+    "",
     'replacement duplicate UXR0 type',
 )
 
