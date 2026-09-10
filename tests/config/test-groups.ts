@@ -33,6 +33,8 @@ export const FAST_NODE_TESTS = [
   'tests/quest-validation-manifest.test.ts',
   'tests/runtime-bridge-module-boundaries.test.ts',
   'tests/uv0-baseline-inventory.test.ts',
+  'tests/uxr0-replacement-qualification.test.ts',
+  'tests/uxr0-worker-transfer-diagnostics.test.ts',
   'tests/wasm-unsafe-inventory.test.ts',
   'tests/world-lifecycle-owner.test.ts',
 ];

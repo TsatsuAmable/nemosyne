@@ -69,6 +69,19 @@ export interface AnalyticalWorkerDiagnostic {
     readonly before: number | null;
     readonly after: number | null;
   };
+  /**
+   * UXR0 diagnostic-only payload-volume evidence. Browsers do not expose the
+   * literal structured-clone wire size, so this is intentionally labelled as
+   * an estimate: UTF-8 JSON bytes for structured metadata plus exact unique
+   * ArrayBuffer byte lengths observed at the main-thread Worker boundary.
+   */
+  readonly transportBytes?: {
+    readonly measurementBasis: 'utf8-json-estimate+exact-binary-byte-length';
+    readonly outboundPayloadBytesEstimate: number | null;
+    readonly inboundPayloadBytesEstimate: number | null;
+    readonly exactBinaryOutboundBytes: number;
+    readonly exactBinaryInboundBytes: number;
+  };
 }
 
 export interface AnalyticalDatasetRegistration {

@@ -30,6 +30,61 @@ interface PendingRegistration {
 }
 
 const MAX_DIAGNOSTIC_SAMPLES = 32;
+const WORKER_PAYLOAD_MEASUREMENT_BASIS =
+  'utf8-json-estimate+exact-binary-byte-length' as const;
+const UTF8_ENCODER = new TextEncoder();
+
+interface WorkerPayloadEstimate {
+  estimatedBytes: number | null;
+  exactBinaryBytes: number;
+}
+
+/**
+ * Estimate structured-clone payload volume without pretending the browser
+ * exposes a literal wire byte count. Structured metadata is represented by its
+ * UTF-8 JSON size; unique ArrayBuffer backing stores contribute their exact byte
+ * length. This runs only when a Worker diagnostic sample is actually returned.
+ */
+function estimateWorkerPayload(value: unknown): WorkerPayloadEstimate {
+  let exactBinaryBytes = 0;
+  const seenBuffers = new WeakSet<object>();
+
+  const recordBuffer = (buffer: ArrayBufferLike): number => {
+    if (typeof buffer !== 'object' || buffer === null) return 0;
+    const key = buffer as unknown as object;
+    if (seenBuffers.has(key)) return 0;
+    seenBuffers.add(key);
+    const bytes = buffer.byteLength;
+    exactBinaryBytes += bytes;
+    return bytes;
+  };
+
+  try {
+    const json = JSON.stringify(value, (_key, item) => {
+      if (item instanceof ArrayBuffer) {
+        const bytes = recordBuffer(item);
+        return { __nemosyneBinaryBytes: bytes };
+      }
+      if (ArrayBuffer.isView(item)) {
+        const bytes = recordBuffer(item.buffer);
+        return { __nemosyneBinaryBytes: bytes, viewBytes: item.byteLength };
+      }
+      return item;
+    });
+    if (json === undefined) {
+      return {
+        estimatedBytes: exactBinaryBytes > 0 ? exactBinaryBytes : null,
+        exactBinaryBytes,
+      };
+    }
+    return {
+      estimatedBytes: UTF8_ENCODER.encode(json).byteLength + exactBinaryBytes,
+      exactBinaryBytes,
+    };
+  } catch {
+    return { estimatedBytes: null, exactBinaryBytes };
+  }
+}
 
 export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _worker: WorkerTransport;
@@ -74,9 +129,35 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     return this._diagnostics.splice(0, this._diagnostics.length);
   }
 
-  private _recordDiagnostic(sample: AnalyticalWorkerDiagnostic | undefined): void {
+  private _recordDiagnostic(
+    sample: AnalyticalWorkerDiagnostic | undefined,
+    inboundMessage: unknown
+  ): void {
     if (!sample) return;
-    this._diagnostics.push(sample);
+
+    const pendingExecution = this._pending.get(sample.id);
+    const pendingRegistration = this._pendingRegistrations.get(sample.id);
+    const outboundMessage = pendingExecution
+      ? { type: 'EXECUTE', request: pendingExecution.req }
+      : pendingRegistration
+        ? { type: 'REGISTER', registration: pendingRegistration.registration }
+        : null;
+    const outbound = outboundMessage
+      ? estimateWorkerPayload(outboundMessage)
+      : { estimatedBytes: null, exactBinaryBytes: 0 };
+    const inbound = estimateWorkerPayload(inboundMessage);
+    const enriched: AnalyticalWorkerDiagnostic = {
+      ...sample,
+      transportBytes: {
+        measurementBasis: WORKER_PAYLOAD_MEASUREMENT_BASIS,
+        outboundPayloadBytesEstimate: outbound.estimatedBytes,
+        inboundPayloadBytesEstimate: inbound.estimatedBytes,
+        exactBinaryOutboundBytes: outbound.exactBinaryBytes,
+        exactBinaryInboundBytes: inbound.exactBinaryBytes,
+      },
+    };
+
+    this._diagnostics.push(enriched);
     if (this._diagnostics.length > MAX_DIAGNOSTIC_SAMPLES) {
       this._diagnostics.splice(0, this._diagnostics.length - MAX_DIAGNOSTIC_SAMPLES);
     }
@@ -305,7 +386,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     };
     if (!data || this._disposed) return;
 
-    this._recordDiagnostic(data.diagnostic);
+    this._recordDiagnostic(data.diagnostic, data);
 
     if (data.type === 'REGISTERED' && data.registrationId) {
       const pending = this._pendingRegistrations.get(data.registrationId);

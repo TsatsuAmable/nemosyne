@@ -59,6 +59,16 @@ export interface ResourceEnvelopeScenarioResult {
     afterOperationFrames: ResourceEnvelopeMemorySample;
   };
   workerDiagnostics: readonly AnalyticalWorkerDiagnostic[];
+  /** Additive UXR0 extension; optional so historical schema-v1 Q3 reports remain valid. */
+  workerTransfer?: {
+    measurementBasis: 'utf8-json-estimate+exact-binary-byte-length';
+    diagnosticCount: number;
+    measuredDiagnosticCount: number;
+    outboundPayloadBytesEstimate: number | null;
+    inboundPayloadBytesEstimate: number | null;
+    exactBinaryOutboundBytes: number;
+    exactBinaryInboundBytes: number;
+  };
   scene: {
     objectCount: number;
     visibleObjectCount: number;
@@ -148,6 +158,44 @@ function makeDeterministicDataset(rowCount: number): Dataset {
 
 function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+}
+
+function summarizeWorkerTransfer(
+  diagnostics: readonly AnalyticalWorkerDiagnostic[]
+): ResourceEnvelopeScenarioResult['workerTransfer'] {
+  let measuredDiagnosticCount = 0;
+  let outboundPayloadBytesEstimate = 0;
+  let inboundPayloadBytesEstimate = 0;
+  let outboundMeasured = 0;
+  let inboundMeasured = 0;
+  let exactBinaryOutboundBytes = 0;
+  let exactBinaryInboundBytes = 0;
+
+  for (const diagnostic of diagnostics) {
+    const transport = diagnostic.transportBytes;
+    if (!transport) continue;
+    measuredDiagnosticCount += 1;
+    if (transport.outboundPayloadBytesEstimate !== null) {
+      outboundPayloadBytesEstimate += transport.outboundPayloadBytesEstimate;
+      outboundMeasured += 1;
+    }
+    if (transport.inboundPayloadBytesEstimate !== null) {
+      inboundPayloadBytesEstimate += transport.inboundPayloadBytesEstimate;
+      inboundMeasured += 1;
+    }
+    exactBinaryOutboundBytes += transport.exactBinaryOutboundBytes;
+    exactBinaryInboundBytes += transport.exactBinaryInboundBytes;
+  }
+
+  return {
+    measurementBasis: 'utf8-json-estimate+exact-binary-byte-length',
+    diagnosticCount: diagnostics.length,
+    measuredDiagnosticCount,
+    outboundPayloadBytesEstimate: outboundMeasured > 0 ? outboundPayloadBytesEstimate : null,
+    inboundPayloadBytesEstimate: inboundMeasured > 0 ? inboundPayloadBytesEstimate : null,
+    exactBinaryOutboundBytes,
+    exactBinaryInboundBytes,
+  };
 }
 
 function captureMemory(world: World): ResourceEnvelopeMemorySample {
@@ -374,6 +422,7 @@ async function runScenario(
       afterOperationFrames,
     },
     workerDiagnostics,
+    workerTransfer: summarizeWorkerTransfer(workerDiagnostics),
     scene: sceneSnapshot(world),
   };
 }

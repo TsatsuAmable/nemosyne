@@ -4,6 +4,10 @@ import type { DatasetLoadEntry, Updatable } from '../coordinators/types.ts';
 import type { TopologyType } from '../../data/types.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
 import {
+  UXR0_PROFILE_DURATIONS_SEC,
+  type Uxr0QualificationProfileKind,
+} from '../../validation/uxr0-qualification-profile.ts';
+import {
   LoadTestCollector,
   type LoadTestEngineLike,
   type LoadTestRuntimeProbe,
@@ -148,16 +152,9 @@ export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
   ],
 };
 
-export type Uxr0QualificationProfileKind =
-  | 'functional-5m'
-  | 'resource-trend-30m'
-  | 'sustained-60m';
-
-export const UXR0_PROFILE_DURATIONS_SEC: Readonly<Record<Uxr0QualificationProfileKind, number>> = {
-  'functional-5m': 5 * 60,
-  'resource-trend-30m': 30 * 60,
-  'sustained-60m': 60 * 60,
-};
+// Preserve the #701 public import surface while keeping one shared authority.
+export { UXR0_PROFILE_DURATIONS_SEC };
+export type { Uxr0QualificationProfileKind };
 
 /**
  * Build an attributable UXR0 observation profile around one fixed source scale.
