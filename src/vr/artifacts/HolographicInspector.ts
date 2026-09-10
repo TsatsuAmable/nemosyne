@@ -86,6 +86,8 @@ export class HolographicInspector extends SpatialPanel {
   private _compareButton: Button;
   private _challengeButton: Button;
   private _annotateButton: Button;
+  // UXR0C1: reused by the active per-frame facing update.
+  private readonly _cameraWorld = new THREE.Vector3();
 
   // Tabs State
   private _activeTab: InspectorTab = 'Values';
@@ -383,11 +385,10 @@ export class HolographicInspector extends SpatialPanel {
     if (!this.active) return;
     super.update(delta); // Updates SpatialPanel internals
 
-    // Face the user's head smoothly if we want
+    // Face the user's head without allocating a Vector3 every active frame.
     if (this.engine.camera) {
-      const camPos = new THREE.Vector3();
-      this.engine.camera.getWorldPosition(camPos);
-      this.lookAt(camPos);
+      this.engine.camera.getWorldPosition(this._cameraWorld);
+      this.lookAt(this._cameraWorld);
     }
   }
 
