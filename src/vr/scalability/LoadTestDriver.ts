@@ -148,6 +148,60 @@ export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
   ],
 };
 
+export type Uxr0QualificationProfileKind =
+  | 'functional-5m'
+  | 'resource-trend-30m'
+  | 'sustained-60m';
+
+export const UXR0_PROFILE_DURATIONS_SEC: Readonly<Record<Uxr0QualificationProfileKind, number>> = {
+  'functional-5m': 5 * 60,
+  'resource-trend-30m': 30 * 60,
+  'sustained-60m': 60 * 60,
+};
+
+/**
+ * Build an attributable UXR0 observation profile around one fixed source scale.
+ * The warmup and measured steps use the same topology/cardinality so startup
+ * effects stay explicitly separated from sustained evidence. These profiles do
+ * not alter load-test thresholds or make a device-performance claim by existing.
+ */
+export function createUxr0QualificationProfile(
+  kind: Uxr0QualificationProfileKind,
+  rowCount = 100_000,
+  deviceTarget?: QuestDeviceTarget
+): LoadTestProfile {
+  if (!Number.isSafeInteger(rowCount) || rowCount <= 0) {
+    throw new Error('UXR0 qualification rowCount must be a positive safe integer.');
+  }
+  const durationSec = UXR0_PROFILE_DURATIONS_SEC[kind];
+  return {
+    name: `uxr0-${kind}`,
+    ...(deviceTarget ? { deviceTarget } : {}),
+    settleSec: 5,
+    steps: [
+      {
+        topology: 'TABULAR',
+        rowCount,
+        durationSec: 30,
+        label: 'same-scale warmup (ungraded)',
+        warmup: true,
+      },
+      {
+        topology: 'TABULAR',
+        rowCount,
+        durationSec,
+        label: kind,
+      },
+    ],
+  };
+}
+
+export const UXR0_FUNCTIONAL_5M_PROFILE = createUxr0QualificationProfile('functional-5m');
+export const UXR0_RESOURCE_TREND_30M_PROFILE = createUxr0QualificationProfile(
+  'resource-trend-30m'
+);
+export const UXR0_SUSTAINED_60M_PROFILE = createUxr0QualificationProfile('sustained-60m');
+
 const SAMPLE_EMIT_INTERVAL_MS = 500;
 
 export class LoadTestDriver implements Updatable {

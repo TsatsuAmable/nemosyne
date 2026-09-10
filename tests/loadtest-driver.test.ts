@@ -4,6 +4,10 @@ import {
   LoadTestDriver,
   DEFAULT_LOAD_TEST_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
+  UXR0_FUNCTIONAL_5M_PROFILE,
+  UXR0_RESOURCE_TREND_30M_PROFILE,
+  UXR0_SUSTAINED_60M_PROFILE,
+  createUxr0QualificationProfile,
   type LoadTestProfile,
   type LoadTestWorldLike,
   type LoadTestDriverEngineLike,
@@ -52,6 +56,24 @@ function makeWorld(
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 describe('LoadTestDriver state machine', () => {
+  it('freezes UXR0 5m/30m/60m same-scale observation profiles without changing legacy profiles', () => {
+    const profiles = [
+      UXR0_FUNCTIONAL_5M_PROFILE,
+      UXR0_RESOURCE_TREND_30M_PROFILE,
+      UXR0_SUSTAINED_60M_PROFILE,
+    ];
+    expect(profiles.map((profile) => profile.steps[1].durationSec)).toEqual([300, 1800, 3600]);
+    for (const profile of profiles) {
+      expect(profile.steps).toHaveLength(2);
+      expect(profile.steps[0].warmup).toBe(true);
+      expect(profile.steps[0].rowCount).toBe(profile.steps[1].rowCount);
+      expect(profile.steps[0].topology).toBe(profile.steps[1].topology);
+    }
+    expect(QUEST_3S_QUALIFICATION_PROFILE.name).toBe('quest-3s-qualification');
+    expect(createUxr0QualificationProfile('functional-5m', 8_000).steps[1].rowCount).toBe(8_000);
+    expect(() => createUxr0QualificationProfile('functional-5m', 0)).toThrow(/positive safe integer/);
+  });
+
   it('transitions IDLE → SETTLING → MEASURING → COMPLETE across the staircase', async () => {
     const profile: LoadTestProfile = {
       name: 'tiny',

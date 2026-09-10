@@ -76,6 +76,8 @@ describe('Quest telemetry', () => {
   it('aggregates cadence, WASM memory, governor LOD, and rendered reduction per step', () => {
     let wasmBytes = 100;
     let throttleCount = 2;
+    let sceneObjectCount = 20;
+    let visibleSceneObjectCount = 18;
     const engine = {
       lastFrameMs: 8,
       frameIntervalMs: 13.8,
@@ -89,7 +91,13 @@ describe('Quest telemetry', () => {
         },
       },
     };
-    const collector = new LoadTestCollector(engine, { getWasmMemoryBytes: () => wasmBytes });
+    const collector = new LoadTestCollector(engine, {
+      getWasmMemoryBytes: () => wasmBytes,
+      getSceneStats: () => ({
+        objectCount: sceneObjectCount,
+        visibleObjectCount: visibleSceneObjectCount,
+      }),
+    });
     collector.startStep({ topology: 'TABULAR', rowCount: 1000, durationSec: 30 });
     for (let index = 0; index < 150; index++) {
       if (index === 75) {
@@ -98,6 +106,8 @@ describe('Quest telemetry', () => {
       }
       collector.recordFrame(8, engine.renderer.info, 13.8);
     }
+    sceneObjectCount = 24;
+    visibleSceneObjectCount = 19;
     const result = collector.endStep({
       renderedNodeCount: 250,
       specGeometry: 'point',
@@ -107,6 +117,12 @@ describe('Quest telemetry', () => {
     expect(result.frameCadence.p95Ms).toBe(13.8);
     expect(result.memory.wasmPeakBytes).toBe(200);
     expect(result.representation.renderedFraction).toBe(0.25);
+    expect(result.representation.sceneObjectCountStart).toBe(20);
+    expect(result.representation.sceneObjectCountEnd).toBe(24);
+    expect(result.representation.sceneObjectCountDelta).toBe(4);
+    expect(result.representation.visibleSceneObjectCountStart).toBe(18);
+    expect(result.representation.visibleSceneObjectCountEnd).toBe(19);
+    expect(result.representation.visibleSceneObjectCountDelta).toBe(1);
     expect(result.representation.governorLodScaleMinimum).toBe(0.75);
     expect(result.representation.governorThrottleEvents).toBe(3);
     expect(result.sustainedPerformance.temperatureSensorAvailable).toBe(false);
