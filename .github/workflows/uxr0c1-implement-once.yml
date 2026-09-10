@@ -28,7 +28,7 @@ jobs:
         run: |
           npm ci
           npm run test:fast -- tests/uxr0-hot-path-allocation.test.ts
-          npm run test:fast -- tests/interaction-grammar-authority.test.ts
+          npm run test:integration -- tests/interaction-grammar-authority.test.ts
           npm run typecheck
           npm run lint
           git diff --check
