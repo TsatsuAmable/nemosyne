@@ -64,6 +64,13 @@ export interface StepRepresentationStats {
   sourceRowCount: number;
   renderedNodeCount: number | null;
   renderedFraction: number | null;
+  /** Scene cardinality is sampled only at step boundaries so observation does not add per-frame traversal cost. */
+  sceneObjectCountStart: number | null;
+  sceneObjectCountEnd: number | null;
+  sceneObjectCountDelta: number | null;
+  visibleSceneObjectCountStart: number | null;
+  visibleSceneObjectCountEnd: number | null;
+  visibleSceneObjectCountDelta: number | null;
   geometry: string | null;
   layout: string | null;
   governorLodScaleMinimum: number | null;

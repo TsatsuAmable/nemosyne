@@ -149,6 +149,19 @@ function usabilityDigest(telemetry: TelemetryCollectorLike): LoadTestSummary['us
   };
 }
 
+function captureSceneCardinality(engine: Engine): {
+  objectCount: number;
+  visibleObjectCount: number;
+} {
+  let objectCount = 0;
+  let visibleObjectCount = 0;
+  engine.scene.traverse((object) => {
+    objectCount += 1;
+    if (object.visible) visibleObjectCount += 1;
+  });
+  return { objectCount, visibleObjectCount };
+}
+
 /**
  * Explicitly installs the load-test/Quest evidence harness for dev and governed
  * research sessions. Production World composition has no dependency on this
@@ -170,7 +183,10 @@ export function installDevEvidence({
   const loadTestDriver = new LoadTestDriver(
     { loadDataset, getActiveSpecInfo, eventBus },
     engine,
-    { getWasmMemoryBytes }
+    {
+      getWasmMemoryBytes,
+      getSceneStats: () => captureSceneCardinality(engine),
+    }
   );
   const questBoundaryProbe = new QuestBoundaryProbe(engine, eventBus);
   const validationContext = readBrowserValidationContext(import.meta.env);

@@ -50,8 +50,15 @@ export interface LoadTestEngineLike {
   renderer: { info: RendererInfoLike };
 }
 
+export interface LoadTestSceneStats {
+  objectCount: number;
+  visibleObjectCount: number;
+}
+
 export interface LoadTestRuntimeProbe {
   getWasmMemoryBytes?(): number | null;
+  /** Expensive scene traversal probe. Called only at step start/end, never per frame. */
+  getSceneStats?(): LoadTestSceneStats | null;
 }
 
 interface GpuAccumulator {
@@ -103,6 +110,7 @@ export class LoadTestCollector implements Updatable {
   private _heapSamples: number[] = [];
   private _wasmStart: number | null = null;
   private _wasmSamples: number[] = [];
+  private _sceneStart: LoadTestSceneStats | null = null;
   private _lodScaleSamples: number[] = [];
   private _governorThrottleStart = 0;
   private _criticalFrames = 0;
@@ -134,6 +142,7 @@ export class LoadTestCollector implements Updatable {
     this._heapSamples = [];
     this._wasmStart = null;
     this._wasmSamples = [];
+    this._sceneStart = null;
     this._lodScaleSamples = [];
     this._governorThrottleStart = 0;
     this._criticalFrames = 0;
@@ -153,6 +162,7 @@ export class LoadTestCollector implements Updatable {
     this._criticalFrames = 0;
     this._heapStart = heapUsed();
     this._wasmStart = this._runtimeProbe.getWasmMemoryBytes?.() ?? null;
+    this._sceneStart = this._runtimeProbe.getSceneStats?.() ?? null;
     this._governorThrottleStart = this._engine.frameGovernor?.getMetrics().throttleCount ?? 0;
     this._stepStart = performance.now();
     this._currentSpec = spec;
@@ -217,6 +227,7 @@ export class LoadTestCollector implements Updatable {
     };
     const heapEnd = heapUsed();
     const wasmEnd = this._runtimeProbe.getWasmMemoryBytes?.() ?? null;
+    const sceneEnd = this._runtimeProbe.getSceneStats?.() ?? null;
     const heapDeltaBytes = nullableDelta(this._heapStart, heapEnd);
     const governor = this._engine.frameGovernor?.getMetrics();
     const governorThrottleEvents = Math.max(
@@ -254,6 +265,18 @@ export class LoadTestCollector implements Updatable {
           typeof opts.renderedNodeCount === 'number' && spec.rowCount > 0
             ? opts.renderedNodeCount / spec.rowCount
             : null,
+        sceneObjectCountStart: this._sceneStart?.objectCount ?? null,
+        sceneObjectCountEnd: sceneEnd?.objectCount ?? null,
+        sceneObjectCountDelta: nullableDelta(
+          this._sceneStart?.objectCount ?? null,
+          sceneEnd?.objectCount ?? null
+        ),
+        visibleSceneObjectCountStart: this._sceneStart?.visibleObjectCount ?? null,
+        visibleSceneObjectCountEnd: sceneEnd?.visibleObjectCount ?? null,
+        visibleSceneObjectCountDelta: nullableDelta(
+          this._sceneStart?.visibleObjectCount ?? null,
+          sceneEnd?.visibleObjectCount ?? null
+        ),
         geometry: opts.specGeometry ?? null,
         layout: opts.specLayout ?? null,
         governorLodScaleMinimum:
