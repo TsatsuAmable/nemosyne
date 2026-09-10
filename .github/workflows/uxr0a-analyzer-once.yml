@@ -1,0 +1,34 @@
+name: uxr0a-analyzer-once
+
+on:
+  push:
+    branches:
+      - uxr/uxr0a-baseline-observability
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: uxr/uxr0a-baseline-observability
+          fetch-depth: 0
+      - name: Apply analyzer follow-up
+        run: python dev/uxr0a-analyzer-once.py
+      - name: Verify analyzer falsifier
+        run: |
+          npm ci
+          npx vitest run tests/quest-telemetry-analysis.test.ts tests/quest-telemetry.test.ts tests/loadtest-driver.test.ts
+          npm run typecheck
+          git diff --check
+      - name: Remove temporary patch tooling and push follow-up
+        run: |
+          rm .github/workflows/uxr0a-analyzer-once.yml dev/uxr0a-analyzer-once.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/analyze-quest-telemetry.mjs tests/quest-telemetry-analysis.test.ts .github/workflows/uxr0a-analyzer-once.yml dev/uxr0a-analyzer-once.py
+          git diff --cached --check
+          git commit -m 'test(uxr): expose UXR0 scene-cardinality aggregates'
+          git push origin HEAD:uxr/uxr0a-baseline-observability
