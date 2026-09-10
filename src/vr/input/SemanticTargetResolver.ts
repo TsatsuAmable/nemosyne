@@ -1,9 +1,5 @@
 import * as THREE from 'three';
-import type {
-  InteractableEntry,
-  SceneHit,
-  SemanticTargetKind,
-} from './InteractableRegistry.ts';
+import type { InteractableEntry, SceneHit, SemanticTargetKind } from './InteractableRegistry.ts';
 
 export interface RankedSemanticTarget {
   kind: SemanticTargetKind;
@@ -65,11 +61,11 @@ export class SemanticTargetResolver {
   readonly weights: SemanticResolverWeights;
   readonly assistanceRadius: number;
   private _heldTarget: TargetHoldState | null = null;
+  private readonly _normalizedGaze = new THREE.Vector3();
+  private readonly _meshWorldPos = new THREE.Vector3();
+  private readonly _toMesh = new THREE.Vector3();
 
-  constructor(
-    weights: Partial<SemanticResolverWeights> = {},
-    assistanceRadius = 0.05
-  ) {
+  constructor(weights: Partial<SemanticResolverWeights> = {}, assistanceRadius = 0.05) {
     this.weights = { ...DEFAULT_RESOLVER_WEIGHTS, ...weights };
     validateWeights(this.weights);
     if (!Number.isFinite(assistanceRadius) || assistanceRadius < 0) {
@@ -106,121 +102,163 @@ export class SemanticTargetResolver {
       throw new TypeError('Semantic resolver timestamp must be finite');
     }
 
-    const scored: RankedSemanticTarget[] = [];
-    const totalWeight = Object.values(this.weights).reduce((sum, value) => sum + value, 0);
-    const normalizedGaze = gazeDir?.clone();
-    if (normalizedGaze) {
-      if (![normalizedGaze.x, normalizedGaze.y, normalizedGaze.z].every(Number.isFinite)) {
+    const totalWeight =
+      this.weights.w_distance +
+      this.weights.w_salience +
+      this.weights.w_taskPrior +
+      this.weights.w_gaze;
+
+    let normalizedGaze: THREE.Vector3 | undefined;
+    if (gazeDir) {
+      if (
+        !Number.isFinite(gazeDir.x) ||
+        !Number.isFinite(gazeDir.y) ||
+        !Number.isFinite(gazeDir.z)
+      ) {
         throw new TypeError('Semantic resolver gaze direction must contain finite coordinates');
       }
-      if (normalizedGaze.lengthSq() < 1e-8) {
+      if (gazeDir.lengthSq() < 1e-8) {
         throw new TypeError('Semantic resolver gaze direction must be non-zero');
       }
-      normalizedGaze.normalize();
+      normalizedGaze = this._normalizedGaze.copy(gazeDir).normalize();
     }
 
-    for (const hit of rawHits) {
-      if (!Number.isFinite(hit.distance) || hit.distance < 0) {
-        continue;
-      }
+    let bestIndex = -1;
+    let bestEntry: InteractableEntry | null = null;
+    let bestKind: SemanticTargetKind = 'command';
+    let bestEntryStructureId: string | undefined;
+    let bestScore = -Infinity;
+    let bestConfidence = 0;
+
+    let bestStructureIndex = -1;
+    let bestStructureEntry: InteractableEntry | null = null;
+    let bestStructureKind: SemanticTargetKind = 'mapper-node';
+    let bestStructureId: string | undefined;
+    let bestStructureScore = -Infinity;
+    let bestStructureConfidence = 0;
+    let bestStructureDistance = Infinity;
+
+    let nearestObservationDistance = Infinity;
+
+    for (let index = 0; index < rawHits.length; index++) {
+      const hit = rawHits[index];
+      if (!Number.isFinite(hit.distance) || hit.distance < 0) continue;
 
       const entry = hit.entry;
       const kind: SemanticTargetKind =
         entry.semantic?.kind ?? (entry.data ? 'observation' : 'command');
       const structureId = entry.semantic?.structureId;
+      const structureKind = isStructureKind(kind);
 
       const distScore = clamp01(1 - hit.distance / 10);
-      const salienceScore = clamp01(
-        entry.semantic?.salience ?? (isStructureKind(kind) ? 0.85 : 0.4)
-      );
+      const salienceScore = clamp01(entry.semantic?.salience ?? (structureKind ? 0.85 : 0.4));
 
       let gazeScore = 0.5;
-      if (normalizedGaze && hit.entry.mesh) {
-        const meshWorldPos = new THREE.Vector3();
-        hit.entry.mesh.getWorldPosition(meshWorldPos);
-        const toMesh = meshWorldPos.clone().sub(ray.origin);
-        if (toMesh.lengthSq() > 1e-8) {
-          gazeScore = clamp01(normalizedGaze.dot(toMesh.normalize()));
+      if (normalizedGaze && entry.mesh) {
+        entry.mesh.getWorldPosition(this._meshWorldPos);
+        this._toMesh.copy(this._meshWorldPos).sub(ray.origin);
+        if (this._toMesh.lengthSq() > 1e-8) {
+          gazeScore = clamp01(normalizedGaze.dot(this._toMesh.normalize()));
         }
       }
 
-      // Task priors require exact semantic identity. Substring matching on a
-      // structure ID is intentionally avoided because IDs are opaque durable identities.
       const taskPrior = activeTaskPrior && structureId === activeTaskPrior ? 1 : 0.5;
-
       const weightedScore =
         this.weights.w_distance * distScore +
         this.weights.w_salience * salienceScore +
         this.weights.w_taskPrior * taskPrior +
         this.weights.w_gaze * gazeScore;
       const score = clamp01(weightedScore / totalWeight);
-
       const confidence = clamp01(distScore * 0.5 + salienceScore * 0.5);
 
-      scored.push({
-        kind,
-        entry,
-        structureId,
-        score,
-        confidence,
-      });
+      // Strict comparison preserves Array#sort stability: equal-score candidates
+      // retain the earliest raw-hit position, matching the pre-UXR0C3 resolver.
+      if (score > bestScore) {
+        bestIndex = index;
+        bestEntry = entry;
+        bestKind = kind;
+        bestEntryStructureId = structureId;
+        bestScore = score;
+        bestConfidence = confidence;
+      }
+
+      if (structureKind && score > bestStructureScore) {
+        bestStructureIndex = index;
+        bestStructureEntry = entry;
+        bestStructureKind = kind;
+        bestStructureId = structureId;
+        bestStructureScore = score;
+        bestStructureConfidence = confidence;
+        bestStructureDistance = hit.distance;
+      }
+
+      if (kind === 'observation' && hit.distance < nearestObservationDistance) {
+        nearestObservationDistance = hit.distance;
+      }
     }
 
-    if (scored.length === 0) {
+    if (bestIndex < 0 || bestEntry === null) {
       this._heldTarget = null;
       return null;
     }
 
-    scored.sort((a, b) => b.score - a.score);
+    let winnerEntry = bestEntry;
+    let winnerKind = bestKind;
+    let winnerStructureId = bestEntryStructureId;
+    let winnerScore = bestScore;
+    let winnerConfidence = bestConfidence;
 
-    // Semantic coercion compares a candidate structure against the nearest
-    // raw observation, not whichever hit happened to be first in the array.
-    const bestHit = scored[0];
-    const bestStructure = scored.find((target) => isStructureKind(target.kind));
-    const nearestObservation = rawHits
-      .filter((hit) => (hit.entry.semantic?.kind ?? (hit.entry.data ? 'observation' : 'command')) === 'observation')
-      .filter((hit) => Number.isFinite(hit.distance) && hit.distance >= 0)
-      .sort((a, b) => a.distance - b.distance)[0];
-
-    let winner = bestHit;
-    if (bestStructure && bestStructure !== bestHit && nearestObservation) {
-      const structHit = rawHits.find((hit) => hit.entry === bestStructure.entry);
-      const structDist = structHit?.distance ?? Infinity;
-
-      if (
-        Number.isFinite(structDist) &&
-        Math.abs(structDist - nearestObservation.distance) <= this.assistanceRadius &&
-        bestStructure.score >= bestHit.score - 0.2
-      ) {
-        winner = bestStructure;
-      }
+    if (
+      bestStructureIndex >= 0 &&
+      bestStructureIndex !== bestIndex &&
+      bestStructureEntry !== null &&
+      Number.isFinite(nearestObservationDistance) &&
+      Number.isFinite(bestStructureDistance) &&
+      Math.abs(bestStructureDistance - nearestObservationDistance) <= this.assistanceRadius &&
+      bestStructureScore >= bestScore - 0.2
+    ) {
+      winnerEntry = bestStructureEntry;
+      winnerKind = bestStructureKind;
+      winnerStructureId = bestStructureId;
+      winnerScore = bestStructureScore;
+      winnerConfidence = bestStructureConfidence;
     }
 
+    const materializeWinner = (): RankedSemanticTarget => ({
+      kind: winnerKind,
+      entry: winnerEntry,
+      structureId: winnerStructureId,
+      score: winnerScore,
+      confidence: winnerConfidence,
+    });
+
     if (!this._heldTarget) {
+      const winner = materializeWinner();
       this._heldTarget = {
         target: winner,
         heldSince: now,
         consecutiveOverrideFrames: 0,
-        lastScore: winner.score,
+        lastScore: winnerScore,
       };
       return winner;
     }
 
-    if (this._heldTarget.target.entry === winner.entry) {
+    if (this._heldTarget.target.entry === winnerEntry) {
       this._heldTarget.consecutiveOverrideFrames = 0;
-      this._heldTarget.lastScore = winner.score;
+      this._heldTarget.lastScore = winnerScore;
       return this._heldTarget.target;
     }
 
     const isDwellExpired = now - this._heldTarget.heldSince > 1200;
-    const beatsHeldSignificantly = winner.score > this._heldTarget.lastScore * 1.5;
+    const beatsHeldSignificantly = winnerScore > this._heldTarget.lastScore * 1.5;
 
     if (isDwellExpired) {
+      const winner = materializeWinner();
       this._heldTarget = {
         target: winner,
         heldSince: now,
         consecutiveOverrideFrames: 0,
-        lastScore: winner.score,
+        lastScore: winnerScore,
       };
       return winner;
     }
@@ -228,11 +266,12 @@ export class SemanticTargetResolver {
     if (beatsHeldSignificantly) {
       this._heldTarget.consecutiveOverrideFrames++;
       if (this._heldTarget.consecutiveOverrideFrames >= 3) {
+        const winner = materializeWinner();
         this._heldTarget = {
           target: winner,
           heldSince: now,
           consecutiveOverrideFrames: 0,
-          lastScore: winner.score,
+          lastScore: winnerScore,
         };
         return winner;
       }

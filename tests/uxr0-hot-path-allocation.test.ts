@@ -101,13 +101,24 @@ describe('UXR0 steady-state allocation inventory', () => {
     expect(intersectBody).toContain('this._raycaster.intersectObject(mesh, true, this._hits)');
   });
 
-  it('records C2 as fixed without hiding the remaining desktop residual', () => {
+  it('keeps C3 semantic target ranking off score-array/sort/vector temporary paths', () => {
+    const body = methodBody('src/vr/input/SemanticTargetResolver.ts', 'rank(');
+    expectNoVectorTemporaries(body);
+    expect(body).not.toMatch(/\.sort\s*\(/);
+    expect(body).not.toMatch(/\.filter\s*\(/);
+    expect(body).not.toMatch(/\.find\s*\(/);
+    expect(body).toContain('this._normalizedGaze.copy(gazeDir).normalize()');
+    expect(body).toContain('this._meshWorldPos');
+    expect(body).toContain('this._toMesh');
+  });
+
+  it('records C1-C3 fixes without hiding the remaining desktop residual', () => {
     const byId = new Map(UXR0_HOT_PATH_ALLOCATION_INVENTORY.map((entry) => [entry.id, entry]));
     expect(byId.get('pointer-ray-filter')?.disposition).toBe('fixed-c2');
     expect(byId.get('pointer-registry-rays')?.disposition).toBe('fixed-c2');
     expect(byId.get('input-router-frame-state')?.disposition).toBe('fixed-c2');
     expect(byId.get('near-field-raycast-containers')?.disposition).toBe('fixed-c2');
-    expect(byId.get('semantic-target-ranking')?.disposition).toBe('residual-high-risk');
+    expect(byId.get('semantic-target-ranking')?.disposition).toBe('fixed-c3');
     expect(byId.get('desktop-cursor-update')?.disposition).toBe('residual-follow-up');
   });
 });

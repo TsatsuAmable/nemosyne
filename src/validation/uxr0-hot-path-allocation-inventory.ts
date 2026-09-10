@@ -8,7 +8,7 @@
  * explicit until their own tranche can preserve interaction semantics safely.
  */
 export type Uxr0AllocationDisposition =
-  'fixed-c1' | 'fixed-c2' | 'residual-high-risk' | 'residual-follow-up';
+  'fixed-c1' | 'fixed-c2' | 'fixed-c3' | 'residual-high-risk' | 'residual-follow-up';
 
 export interface Uxr0HotPathAllocationEntry {
   readonly id: string;
@@ -76,11 +76,10 @@ export const UXR0_HOT_PATH_ALLOCATION_INVENTORY: readonly Uxr0HotPathAllocationE
     id: 'semantic-target-ranking',
     source: 'src/vr/input/SemanticTargetResolver.ts',
     hotPath: 'SemanticTargetResolver.rank',
-    disposition: 'residual-high-risk',
+    disposition: 'fixed-c3',
     finding:
-      'Semantic ranking still allocates score/result arrays, a normalized gaze clone, per-hit vectors, and filter/sort intermediates.',
-    nextAction:
-      'Later UXR0: qualify scratch-backed ranking only with score, coercion, hysteresis, and target-selection equivalence falsifiers.',
+      'Semantic ranking now uses a stable O(n) extrema pass, owned gaze/world-position scratch vectors, and lazy winner materialisation instead of score arrays plus sort/filter intermediates.',
+    nextAction: null,
   },
   {
     id: 'desktop-cursor-update',
