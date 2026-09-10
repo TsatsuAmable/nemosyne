@@ -1,6 +1,6 @@
 # P1-UXR — Semantic-Efficiency UX, Runtime Simplification & Verification
 
-**Status:** PRIORITY 1 / PLANNED  
+**Status:** ACTIVE / UXR0 NEXT
 **Established:** 6 September 2026  
 **Canonical implementation-status authority:** `docs/ROADMAP.md`  
 **Canonical product/research vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`  
@@ -31,17 +31,19 @@ This programme is intentionally limited to already-public product/engineering di
 
 # 1. Priority-one execution order
 
-P1-UXR supersedes PT6 as the **next product-development priority** once the currently active integration PR is resolved. PT6-PT10 remain relevant and resume after this bounded programme or when explicitly re-ordered by the product owner.
+PT6 through PT8 have now landed. P1-UXR is the **active next product-development programme** before PT9, PT10 and the post-PT9 RepresentationOntology/RepresentationGraph/compositional full-Moneta path. Device/human evidence gates remain claim-specific rather than global blockers for unrelated implementation.
 
 ```text
-current open integration work resolved
+main after #699 dependency/Vitest maintenance
   -> UXR0 baseline + replacement qualification contract
     -> UXR1 interaction/UI substrate de-customisation
       -> UXR2 render/resource efficiency + lifecycle governor
         -> UXR3 bounded semantic working set + progressive materialisation
           -> UXR4 verification-infrastructure refocus
             -> UXR5 physical Quest qualification + STOP review
-              -> resume PT6+ / compositional Moneta prerequisites
+              -> PT9 Moneta learning-evidence pipeline
+                -> PT10 private-preview learning loop
+                  -> post-PT9 compositional/full-Moneta prerequisites
 ```
 
 The programme must not become an indiscriminate dependency-migration sprint. Every substitution needs a named UX/maintenance/performance defect and evidence that the proposed mature implementation is at least performance-neutral on the target device.
