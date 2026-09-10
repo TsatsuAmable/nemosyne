@@ -103,6 +103,14 @@ function summarizeGroup(reports) {
     sustainedPerformanceClassifications: thermalClasses,
     minimumGovernorLodScale: minimum(steps.map((step) => step.representation?.governorLodScaleMinimum)),
     minimumRenderedFraction: minimum(steps.map((step) => step.representation?.renderedFraction)),
+    maximumSceneObjectCount: maximum(steps.map((step) => step.representation?.sceneObjectCountEnd)),
+    maximumSceneObjectDelta: maximum(steps.map((step) => step.representation?.sceneObjectCountDelta)),
+    maximumVisibleSceneObjectCount: maximum(
+      steps.map((step) => step.representation?.visibleSceneObjectCountEnd)
+    ),
+    maximumVisibleSceneObjectDelta: maximum(
+      steps.map((step) => step.representation?.visibleSceneObjectCountDelta)
+    ),
     totalGovernorThrottleEvents: steps.reduce(
       (total, step) => total + (step.representation?.governorThrottleEvents ?? 0),
       0
@@ -113,6 +121,11 @@ function summarizeGroup(reports) {
     ),
     missingJsHeapStepCount: steps.filter((step) => step.memory?.jsHeapPeakBytes == null).length,
     missingWasmMemoryStepCount: steps.filter((step) => step.memory?.wasmPeakBytes == null).length,
+    missingSceneCardinalityStepCount: steps.filter(
+      (step) =>
+        step.representation?.sceneObjectCountStart == null ||
+        step.representation?.sceneObjectCountEnd == null
+    ).length,
   };
 }
 

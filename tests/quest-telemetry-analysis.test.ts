@@ -40,6 +40,12 @@ describe('Quest telemetry analysis command', () => {
           representation: {
             governorLodScaleMinimum: 0.8,
             renderedFraction: 0.5,
+            sceneObjectCountStart: 100,
+            sceneObjectCountEnd: 100 + p95Ms,
+            sceneObjectCountDelta: p95Ms,
+            visibleSceneObjectCountStart: 80,
+            visibleSceneObjectCountEnd: 80 + p95Ms,
+            visibleSceneObjectCountDelta: p95Ms,
             governorThrottleEvents: 2,
           },
         },
@@ -60,6 +66,11 @@ describe('Quest telemetry analysis command', () => {
     expect(group.runCount).toBe(2);
     expect(group.worstFrameCadenceP95Ms).toBe(14);
     expect(group.maximumWasmPeakBytes).toBe(200);
+    expect(group.maximumSceneObjectCount).toBe(114);
+    expect(group.maximumSceneObjectDelta).toBe(14);
+    expect(group.maximumVisibleSceneObjectCount).toBe(94);
+    expect(group.maximumVisibleSceneObjectDelta).toBe(14);
+    expect(group.missingSceneCardinalityStepCount).toBe(0);
     expect(group.totalGovernorThrottleEvents).toBe(4);
   });
 
