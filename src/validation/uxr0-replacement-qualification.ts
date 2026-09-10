@@ -1,3 +1,8 @@
+import {
+  UXR0_QUALIFICATION_PROFILE_KINDS,
+  type Uxr0QualificationProfileKind,
+} from './uxr0-qualification-profile.ts';
+
 /**
  * UXR0 replacement A/B evidence contract.
  *
@@ -5,11 +10,6 @@
  * comparable and exposes raw candidate-minus-baseline deltas. It deliberately
  * does not contain adoption thresholds or an automatic promotion decision.
  */
-
-export type Uxr0QualificationProfileKind =
-  | 'functional-5m'
-  | 'resource-trend-30m'
-  | 'sustained-60m';
 
 export interface Uxr0ReplacementScenarioIdentity {
   deviceTarget: string;
@@ -75,11 +75,9 @@ const SCENARIO_STRING_FIELDS = [
   'representationStateHash',
 ] as const satisfies readonly (keyof Uxr0ReplacementScenarioIdentity)[];
 
-const PROFILE_KINDS = new Set<Uxr0QualificationProfileKind>([
-  'functional-5m',
-  'resource-trend-30m',
-  'sustained-60m',
-]);
+const PROFILE_KINDS = new Set<Uxr0QualificationProfileKind>(
+  UXR0_QUALIFICATION_PROFILE_KINDS
+);
 
 const METRIC_FIELDS = [
   'frameP95Ms',

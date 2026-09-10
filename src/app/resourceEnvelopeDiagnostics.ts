@@ -59,7 +59,8 @@ export interface ResourceEnvelopeScenarioResult {
     afterOperationFrames: ResourceEnvelopeMemorySample;
   };
   workerDiagnostics: readonly AnalyticalWorkerDiagnostic[];
-  workerTransfer: {
+  /** Additive UXR0 extension; optional so historical schema-v1 Q3 reports remain valid. */
+  workerTransfer?: {
     measurementBasis: 'utf8-json-estimate+exact-binary-byte-length';
     diagnosticCount: number;
     measuredDiagnosticCount: number;
