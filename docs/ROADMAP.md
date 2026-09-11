@@ -87,6 +87,8 @@ The definitive vision may also seed exploratory analysis: reviewers may derive t
 
 Claims of **new knowledge** receive the strongest gate. Model consensus is insufficient. Require explicit prior-art/evidence search, measurement and inference audit, alternative explanations, held-out or independent replication where feasible, reproducible provenance, and human/domain-expert judgement proportionate to the claim. Without those controls, classify the result as an engineering result, product observation, hypothesis or supported-but-not-novel research result.
 
+**Full-Moneta scientific evidence boundary:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md` is the persistent public contract for representation-candidate evidence admissibility. Its executable gate is `dev/xr-lab/MonetaEvidenceProtocol.ts`. PT9 learning evidence and later RepresentationGraph/compositional search may extend this gate but may not bypass it: measurement-scale legality, compositional semantics, adaptive/post-selection calibration, high-dimensional stability requirements, benchmark-oracle authority, abstention and human-required claims remain feasibility/evidence constraints rather than tradeable utility terms. Weakening those boundaries is a high-risk scientific-governance change.
+
 | Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
 | **A - Progressive Disclosure & Semantic Drill-down** | Make dataset-level structure the normal starting point while preserving exact observations as bounded drill-down. | A5 STOP / #606 | **VERIFIED COMPLETE / STOP** | Structure -> region/group -> bounded observations -> datum/provenance works through the production path without rematerialising the whole dataset. |
