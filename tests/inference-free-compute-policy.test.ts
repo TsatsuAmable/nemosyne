@@ -85,31 +85,26 @@ describe('free compute inference routing', () => {
     )).toThrow(NoEligibleInferenceProviderError);
   });
 
-  it('requires explicit opt-in before a paid provider can be selected', () => {
+  it('never selects paid capacity in the free-compute policy', () => {
     const paid: InferenceProviderModel = {
       ...publicCloud,
       providerId: 'google-vertex',
       modelId: 'paid-model',
       billingClass: 'paid',
     };
-    const quota: ProviderQuota = {
-      providerId: 'google-vertex',
-      unit: 'tokens',
-      remaining: 1000,
-      resetAt: null,
-      expiresAt: null,
-    };
     expect(() => routeFreeInference(
       { capability: 'chat', dataClass: 'public', now: '2026-09-11T00:00:00Z' },
       [paid],
-      [quota]
+      [{ providerId: 'google-vertex', unit: 'tokens', remaining: 1000, resetAt: null, expiresAt: null }]
     )).toThrow(NoEligibleInferenceProviderError);
+  });
 
-    expect(routeFreeInference(
-      { capability: 'chat', dataClass: 'public', allowPaidFallback: true, now: '2026-09-11T00:00:00Z' },
-      [paid],
-      [quota]
-    )).toMatchObject({ providerId: 'google-vertex', billingClass: 'paid' });
+  it('fails closed on malformed expiry metadata', () => {
+    expect(() => routeFreeInference(
+      { capability: 'chat', dataClass: 'public', now: '2026-09-11T00:00:00Z' },
+      [publicCloud],
+      [{ ...cloudQuota, expiresAt: 'not-a-date' }]
+    )).toThrow(NoEligibleInferenceProviderError);
   });
 
   it('rejects provider models that require a paid plan even when nominal quota exists', () => {

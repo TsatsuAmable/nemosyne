@@ -28,7 +28,6 @@ export interface InferenceRoutingRequest {
   capability: InferenceCapability;
   dataClass: DataClass;
   estimatedUnits?: number;
-  allowPaidFallback?: boolean;
   now?: string;
 }
 
@@ -49,7 +48,9 @@ export class NoEligibleInferenceProviderError extends Error {
 }
 
 function isExpired(expiresAt: string | null, now: Date): boolean {
-  return expiresAt !== null && Date.parse(expiresAt) <= now.getTime();
+  if (expiresAt === null) return false;
+  const parsed = Date.parse(expiresAt);
+  return !Number.isFinite(parsed) || parsed <= now.getTime();
 }
 
 function quotaAvailable(quota: ProviderQuota | undefined, estimatedUnits: number, now: Date): boolean {
@@ -78,7 +79,7 @@ export function routeFreeInference(
     .filter((model) => model.capabilities.includes(request.capability))
     .filter((model) => model.allowedDataClasses.includes(request.dataClass))
     .filter((model) => !model.requiresPaidPlan)
-    .filter((model) => request.allowPaidFallback === true || model.billingClass !== 'paid')
+    .filter((model) => model.billingClass !== 'paid')
     .filter((model) => quotaAvailable(quotaByProvider.get(model.providerId), estimatedUnits, now))
     .sort((a, b) => a.priority - b.priority || a.providerId.localeCompare(b.providerId) || a.modelId.localeCompare(b.modelId));
 
@@ -93,9 +94,7 @@ export function routeFreeInference(
     providerId: selected.providerId,
     modelId: selected.modelId,
     billingClass: selected.billingClass,
-    reason: selected.billingClass === 'paid'
-      ? 'explicit paid fallback was permitted'
-      : `selected priority ${selected.priority} provider with eligible non-paid capacity`,
+    reason: `selected priority ${selected.priority} provider with eligible non-paid capacity`,
   };
 }
 
