@@ -34,6 +34,14 @@ describe('XR evidence calibration', () => {
     })).toThrow(/S4 or S5/);
   });
 
+  it('refuses physical or human evidence in the cheap-evidence lane', () => {
+    expect(() => createEvidenceCalibrationPair({
+      calibrationId: 'bad-kind',
+      cheapEvidence: [observation({ evidenceId: 'misclassified', tier: 'S2', kind: 'physical-device' })],
+      highFidelityEvidence: observation({ evidenceId: 'quest', tier: 'S4', kind: 'physical-device' }),
+    })).toThrow(/simulator or browser evidence/);
+  });
+
   it('refuses cross-build or cross-scenario pairing', () => {
     expect(() => createEvidenceCalibrationPair({
       calibrationId: 'bad-build', cheapEvidence: [observation({ buildHash: 'old' })], highFidelityEvidence: observation({ evidenceId: 'quest', tier: 'S4', kind: 'physical-device' }),

@@ -62,6 +62,9 @@ export function createEvidenceCalibrationPair(input: {
   }
   for (const observation of input.cheapEvidence) {
     if (!CHEAP_TIERS.has(observation.tier)) throw new Error(`cheap evidence must be S0-S3: ${observation.evidenceId}`);
+    if (observation.kind === 'physical-device' || observation.kind === 'human-study') {
+      throw new Error(`cheap evidence must be simulator or browser evidence: ${observation.evidenceId}`);
+    }
     validateCommonIdentity(observation, high.scenarioId, high.buildHash);
   }
 
