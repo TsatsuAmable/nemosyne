@@ -143,6 +143,12 @@ The objective is shorter feedback time per trustworthy result, not simply fewer 
 
 Agent assistance is a productivity multiplier and a source of distinctive failure modes: plausible but false completion, duplicated authorities, over-broad refactors, tests that prove helpers instead of production paths, stale-base work, compatibility breakage and documentation overclaiming.
 
+Adversarial review is therefore a recursive search process rather than a ceremonial final gate. For consequential or weakly judgeable work, independent model families should challenge the framing and proposed solution before implementation; disagreements become falsifiers or competing bounded implementations; results are then attacked again for leakage, proxy gaming, hidden regressions and conclusions stronger than the evidence. Models are critics and experiment generators, not replacement authorities for the roadmap, definitive vision, analytical kernel or human scientific judgement.
+
+The expected effect is **higher engineering cadence**. Reviewers should work concurrently, evidence packets should be bounded, and escalation should be sparse. Measure committee value by unique defects found before merge, reduction in fix-forward rounds, escaped-regression rate and review-to-merge latency. Use council-run timestamps plus GitHub PR lifecycle timestamps and defect/fix-forward dispositions for a rolling ten-tranche comparison against comparable pre-committee work. If median review-to-merge time is more than 10% worse without a compensating defect/rework benefit, simplify, reroute or remove that committee path. Treat 10% as an initial operational tripwire to be recalibrated from evidence, not as a validated universal threshold. The steady-state target is a cadence improvement, not merely no regression.
+
+Compact evidence packets must carry the claim/change, vision/roadmap anchors, authority boundary, exact artifact/diff hashes, relevant evidence, uncertainty, falsifiers and accountable decision owner. Models remain advisory. Where evidence cannot mechanically resolve a consequential governance or scientific dispute, the terminal decision belongs to the human/project owner or appropriate domain expert; a council majority never becomes an authority merely by agreeing.
+
 Guardrails should increasingly be executable rather than prose-only:
 
 - single-forward-stream / fresh-main discipline;
@@ -284,21 +290,34 @@ Desktop remains an important accessibility, debugging and complementary workflow
 
 # Execution model
 
-For each tranche:
+For each tranche, use a recursive evidence-producing loop:
 
-1. fetch fresh `main` and re-check the problem still exists;
-2. state the user/product/engineering value, invariant and non-goals;
-3. identify the actual production path and likely agent failure modes;
-4. add or strengthen falsifiers before or with implementation;
-5. make the smallest coherent change;
-6. exercise focused tests plus relevant production/known-answer evidence;
-7. perform independent adversarial review;
-8. fix forward rather than weaken evidence;
-9. merge only on exact-head evidence;
-10. measure whether the change reduced friction, risk, complexity or feedback time;
-11. fetch fresh `main` and re-score the next tranche.
+1. fetch fresh `main`, read `docs/ROADMAP.md`, and confirm the work is still the next authorised tranche;
+2. anchor the change against the definitive vision and relevant architecture/UX/security authority documents;
+3. state the problem or claim, value, invariant, non-goals, authority boundary and primary ways the proposal could be wrong;
+4. assimilate relevant prior art when the choice depends on established algorithms, standards, HCI evidence, security practice or scientific method; prefer adoption/adaptation where existing work fits;
+5. for consequential or low-confidence choices, obtain independent blind challenges or materially different alternatives from distinct model families before committing to an implementation;
+6. turn substantive disagreement into decisive tests, known-answer cases, simulations, benchmarks or competing bounded implementations rather than resolving it by vote;
+7. make the smallest coherent implementation or experiment and preserve provenance, exact inputs and treatment variables;
+8. exercise focused tests plus relevant production, known-answer, simulator, device or human evidence at the fidelity required by the claim;
+9. adversarially review the **results**, attacking leakage, Goodhart/proxy failure, benchmark overfitting, hidden authority changes, UX regressions, alternative explanations and claims stronger than evidence;
+10. fix forward rather than weaken evidence, then perform exact-head promotion review for material code or governance changes;
+11. classify the surviving result as implementation evidence, product observation, research hypothesis, supported research result or candidate contribution to knowledge; do not promote between classes without the required evidence;
+12. merge only on exact-head evidence, update the canonical roadmap when status/sequencing changed, fetch fresh `main`, and re-score the next tranche.
 
-One forward implementation PR remains the default unless explicitly changed.
+One forward implementation PR remains the default unless explicitly changed. Independent research/adversarial exploration may run off the integration path, but cannot silently jump the roadmap queue.
+
+## Assurance and throughput rule
+
+Review depth scales with **consequence, uncertainty, irreversibility, evidence weakness and independent judgeability**, not with diff size alone. Mechanical or well-covered changes take the fast path. Standard-risk changes use bounded independent review. High-risk authority/security/scientific changes require pre-implementation challenge plus exact-head result review. Full Moneta, evolutionary search, unfamiliar statistical claims and candidate new knowledge receive multi-family review and empirical discrimination, with human/domain escalation where needed.
+
+The review system is itself subject to optimisation: parallelise reviewers, prefer cheap/fast models that have demonstrated competence for the task class, send compact evidence packets, stop once assurance is satisfied, and reserve slow frontier judges for unresolved consequential disagreement. Stochastic surveillance is off the merge critical path by default: only independently validated evidence plus explicit human/project-owner ratification of severity may interrupt the active tranche; model consensus alone cannot do so.
+
+## Stochastic adversarial surveillance
+
+Tranche review is biased toward code already chosen for change. A separate reproducible lane samples security/privacy, networking/connectivity/collaboration, UX/accessibility/spatial interaction, vision alignment, architecture/ownership, performance/resource lifecycle, provenance/replay, prior art/reuse, measurement/statistical validity and scientific-contribution claims. Sampling combines risk weighting, neglected surfaces and a genuine random component. Persist seed, exact SHA, evidence selection, model identities, findings and proposed decisive tests.
+
+Random findings must be classified as `DEFECT`, `MISSING_EVIDENCE`, `PRIOR_ART_LEAD`, `HYPOTHESIS`, `SPECULATIVE_OPPORTUNITY` or `CANDIDATE_NEW_KNOWLEDGE`. They do not directly reorder the roadmap. Prior-art leads require source verification. Candidate-new-knowledge findings require the highest epistemic assurance and explicit human/domain judgement before publication as a contribution.
 
 ---
 
