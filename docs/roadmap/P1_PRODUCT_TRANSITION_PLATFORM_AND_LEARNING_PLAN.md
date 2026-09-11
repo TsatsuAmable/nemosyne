@@ -146,6 +146,24 @@ V3 describes parallel implementation after authority reconciliation. The later p
 
 This is a process/governance amendment, not a change to the product vision. It exists to reduce stale-main work, conflicting authorities, integration collisions and agentic overclaiming.
 
+## 1.7 Recursive adversarial challenge is part of the development method
+
+For consequential product, architecture, learning, security, UX and research choices, review is recursive rather than a final ceremony. Use independent challenge before commitment, empirical discrimination between substantive alternatives, implementation, and adversarial attack on the resulting evidence. Disagreement should normally create a test, benchmark, simulation, counterexample or competing bounded implementation rather than a model vote.
+
+Use heterogeneous model families where practical because correlated self-critique is weaker evidence. Review effort increases when the choice is consequential and independent human judgement is weak. Full Moneta, evolutionary/search methods, statistical inference and unfamiliar security/interaction decisions therefore receive stronger machine criticism and empirical testing than routine implementation work.
+
+This method is designed to **increase cadence**: run reviewers in parallel, keep evidence packets compact, promote only useful disagreement to experiments, and empirically route future review work toward models that find distinct correct defects fastest. A rolling ten-tranche throughput/defect comparison must be able to retire committee routes that add more than 10% median review-to-merge latency without compensating defect or rework reduction. It does not create a new semantic authority, and unresolved roadmap/vision/scientific disputes terminate in explicit human/project-owner or domain-expert judgement rather than model consensus.
+
+A stochastic lane also samples surfaces current implementation work would not naturally revisit: security/privacy, networking/connectivity/collaboration, UX/spatial interaction, vision alignment, architecture ownership, performance/resource behaviour, provenance/replay, prior-art/reuse and epistemic correctness. Random findings are inputs to roadmap triage, never automatic changes to priority. Interrupting the active roadmap requires independently validated evidence and explicit human/project-owner ratification; model consensus is insufficient.
+
+## 1.8 Engineering progress and contributions to knowledge are different claim classes
+
+Keep at least these classes separate: established/prior knowledge, engineering result, product observation, research hypothesis, supported research result, and candidate contribution to new knowledge.
+
+Prior-art work is first a search for **usable capability and assumptions**: adopt or adapt strong existing methods wherever they satisfy Nemosyne's requirements. It is not a novelty ritual. Before describing something as a contribution to knowledge, however, perform an explicit literature/prior-evidence search and show what is already known, what Nemosyne adds, and what observation distinguishes that addition.
+
+Candidate knowledge contributions require the strongest epistemic controls: measurement-scale and inference checks, leakage/selection/benchmark-overfitting attacks, plausible alternative explanations, held-out or independent replication where feasible, reproducible provenance, and human/domain-expert review proportional to the claim. Model consensus is supporting criticism, not scientific authority. When these conditions are not met, retain the result as a hypothesis, engineering finding or open research question.
+
 ---
 
 # 2. Strategic product corrections

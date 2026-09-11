@@ -2,9 +2,9 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
-## Status snapshot - 10 September 2026
+## Status snapshot - 11 September 2026
 
-**Current integration base for this planning update:** `main@24d38b7207b3cd933e05d18b36f4f4ebed3eb67d` (#699, consolidated Dependabot maintenance and coordinated Vitest 5 migration merged). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. P1 product transition has advanced through PT8: PT4 and PT5 reached bounded STOP, PT6A-D (#661-#664) established governed gesture-learning evidence/snapshots, PT7 (#665) landed the runtime/model registry and reproducible learning jobs, and PT8 (#667) landed the governed gesture-model update loop. P1-UXR (#691) is now the active pre-PT9 product-development programme. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream.
+**Current integration base for this planning update:** `main@4fd5e0cdaee8ce68853f08c29746d04277ed7480` (#710, provider-neutral free-compute routing merged after #706-#708 established the XR Experimental Engine, evidence calibration and governed calibration adapters). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. P1-UXR remains the active pre-PT9 product-development programme. UXR0 now has bounded simulator profiles plus S0-S3 -> S4/S5 calibration infrastructure; none of that is physical or human proof. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream. Experimental Full-Moneta work may be preserved off the integration path but may not jump those prerequisites.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and the bounded C1-C4 visible-product wave have reached their stated implementation exits. In particular:
 
@@ -32,7 +32,7 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 
 ## Sequential execution model
 
-The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream with adversarial review/fix-forward integrated into each tranche. From #619 onward, `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` and issue #620 provide the rolling product-transition tranche sequence while this file remains the canonical status authority.
+The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream. From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. From #619 onward, `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` and issue #620 provide the rolling product-transition tranche sequence while this file remains the canonical status authority.
 
 Current order:
 
@@ -50,6 +50,42 @@ Physical Quest/human evidence gates run when their claims require them; they do 
 ```
 
 Only one forward implementation PR should be active at a time unless the user explicitly changes this execution policy. Before each tranche, fetch fresh `main`; after implementation, perform the bounded adversarial review, run the relevant exact-head evidence, fix forward, merge, then fetch fresh `main` again.
+
+### Recursive adversarial governance
+
+The authority hierarchy is explicit:
+
+- `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` governs **what Nemosyne is trying to become**;
+- this roadmap governs **what happens next and what is currently complete**;
+- adversarial review governs **how uncertain claims earn confidence**;
+- canonical code/domain authorities remain authoritative for their owned semantics;
+- human/domain judgement remains required where meaning or scientific validity cannot be mechanically adjudicated.
+
+For consequential work, use the loop:
+
+```text
+roadmap + definitive vision
+  -> claim / invariant / failure modes
+    -> prior-art assimilation where relevant
+      -> independent challenge / alternative proposals
+        -> disagreement -> decisive tests or competing bounded implementations
+          -> implementation / experiment
+            -> empirical evidence
+              -> adversarial result review
+                -> exact-head promotion, revision or rejection
+```
+
+The committees exist to **increase throughput**, not to create ceremony. Reviews run in parallel, use compact evidence packets, reuse existing evidence, and escalate only when risk, uncertainty or disagreement justifies the extra cost. Routine work should spend less time in review because higher-quality pre-design and falsifiers reduce fix-forward cycles. Track review latency, unique defect yield, escaped regressions and rework; reviewer/model routes that consume time without finding distinct useful failures should be demoted or retuned. Over rolling groups of ten comparable tranches, use council-run timestamps plus GitHub PR lifecycle timestamps and defect/fix-forward dispositions to measure review cost and benefit. If median review-to-merge time regresses by more than 10% without a compensating reduction in escaped defects or fix-forward rounds, simplify or reroute the committee path. The 10% threshold is an initial operational tripwire, not a scientific constant; the desired steady-state is faster than the pre-committee cadence.
+
+A compact review packet should identify: the claim/change, governing roadmap and vision anchors, authority boundary, exact SHA/diff or artifact hashes, relevant evidence, known uncertainty, proposed falsifiers, and the accountable decision owner. Reviewers may recommend, challenge or request evidence; they do not acquire authority to edit the vision, reorder the roadmap or declare scientific truth. Unresolved governance or candidate-new-knowledge disputes terminate in explicit human/project-owner judgement, not a model vote.
+
+Stochastic adversarial surveillance runs alongside tranche review and samples security/privacy, connectivity/collaboration, UX/spatial interaction, definitive-vision alignment, architecture/authority, performance/resource behaviour, provenance/replay, prior-art/reuse, statistical/epistemic correctness and candidate scientific contributions. Sampling should combine risk, neglect and a genuine reproducible random component. Persist the seed, repository SHA, evidence packet, reviewer identities and decisive tests.
+
+Random review is a **finding generator, not a roadmap mutation authority**. It stays off the merge critical path unless the underlying evidence is independently validated and the applicable human/project owner explicitly ratifies that the severity warrants interrupting the active tranche. Model-to-model agreement alone cannot pause or reorder the roadmap. Otherwise findings enter explicit roadmap/issue triage. This preserves broad search without random priority thrash.
+
+The definitive vision may also seed exploratory analysis: reviewers may derive testable questions from its principles and search for cheaper algorithms, contradictory evidence, missing capabilities or overlooked adjacent possibilities. Such exploration can create hypotheses or future roadmap candidates, but it cannot silently rewrite the vision or advance work ahead of declared prerequisites.
+
+Claims of **new knowledge** receive the strongest gate. Model consensus is insufficient. Require explicit prior-art/evidence search, measurement and inference audit, alternative explanations, held-out or independent replication where feasible, reproducible provenance, and human/domain-expert judgement proportionate to the claim. Without those controls, classify the result as an engineering result, product observation, hypothesis or supported-but-not-novel research result.
 
 | Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
