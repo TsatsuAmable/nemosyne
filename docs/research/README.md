@@ -1,5 +1,9 @@
 # Nemosyne Research & Publication Documentation
 
+## Scientific contracts
+
+- [`MONETA_EVIDENCE_PROTOCOL.md`](MONETA_EVIDENCE_PROTOCOL.md) — persistent pre-PT9/full-Moneta evidence-admissibility contract. Scientific validity is a feasibility gate, not a soft fitness objective.
+
 **Status:** research documentation authority for publication planning and scholarly provenance.  
 **Tracking issue:** #648.  
 **Does not replace:** `docs/ROADMAP.md` for implementation status or `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` for product/research direction.
