@@ -66,6 +66,7 @@ export const WASM_TESTS = [
   'tests/intent-inference.test.ts',
   'tests/interaction-grammar-cts-coherence.test.ts',
   'tests/layout-binding-panel-typing.test.ts',
+  'tests/moneta-known-structure-campaign-wasm.test.ts',
   'tests/moneta-metamorphic-provenance.test.ts',
   'tests/performance-budget.test.ts',
   'tests/production-runtime-wiring.test.ts',

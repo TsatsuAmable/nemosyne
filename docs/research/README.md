@@ -3,6 +3,7 @@
 ## Scientific contracts
 
 - [`MONETA_EVIDENCE_PROTOCOL.md`](MONETA_EVIDENCE_PROTOCOL.md) — persistent pre-PT9/full-Moneta evidence-admissibility contract. Scientific validity is a feasibility gate, not a soft fitness objective.
+- [`MONETA_KNOWN_STRUCTURE_CAMPAIGN_01.md`](MONETA_KNOWN_STRUCTURE_CAMPAIGN_01.md) — first executable exact-generative structure-preservation control campaign through the Rust/WASM analytical authority.
 
 **Status:** research documentation authority for publication planning and scholarly provenance.  
 **Tracking issue:** #648.  
