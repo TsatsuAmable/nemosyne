@@ -68,7 +68,8 @@
     "architecture:ast": "ast-grep scan --config sgconfig.yml src",
     "architecture:ast:test": "ast-grep test --config sgconfig.yml --skip-snapshot-tests",
     "architecture:check": "npm run architecture:deps && npm run architecture:ast:test && npm run architecture:ast",
-    "benchmark:semantic-target-resolver": "NEMOSYNE_BENCHMARK_SEMANTIC=1 node --expose-gc ./node_modules/vitest/vitest.mjs run tests/benchmark-semantic-target-resolver.test.ts --config vitest.config.ts --reporter=verbose"
+    "benchmark:semantic-target-resolver": "NEMOSYNE_BENCHMARK_SEMANTIC=1 node --expose-gc ./node_modules/vitest/vitest.mjs run tests/benchmark-semantic-target-resolver.test.ts --config vitest.config.ts --reporter=verbose",
+    "experiment:moneta-known-structure": "vitest run --config vitest.wasm.config.ts tests/moneta-known-structure-campaign-wasm.test.ts --reporter=verbose"
   },
   "devDependencies": {
     "@ast-grep/cli": "0.45.3",
