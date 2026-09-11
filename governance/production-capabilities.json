@@ -18,6 +18,11 @@
       "reason": "Product-intended server substrate with PostgreSQL/OIDC composition but no runnable repository service entrypoint or deployed service evidence yet; P1-W service wiring must promote it deliberately."
     },
     {
+      "root": "inference",
+      "classification": "development-only",
+      "reason": "Provider-neutral free-compute routing is preparatory infrastructure only; no external inference provider is product-composed or permitted to become analytical or scientific authority in this tranche."
+    },
+    {
       "root": "learning",
       "classification": "development-only",
       "reason": "PT6D training-snapshot materialisation and held-out evaluation are governed offline learning infrastructure; PT7/PT8 must add reproducible jobs, registry lineage and an intentionally promoted runtime before this root can be production-classified."
