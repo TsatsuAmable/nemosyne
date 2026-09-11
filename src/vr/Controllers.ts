@@ -45,16 +45,19 @@ export class ControllerPointer {
   }
 
   private _onConnected = (evt: Event): void => {
-    const data = (evt && typeof evt === 'object' && 'data' in evt)
-      ? (evt as unknown as { data?: { handedness?: string } }).data
-      : null;
+    const data =
+      evt && typeof evt === 'object' && 'data' in evt
+        ? (evt as unknown as { data?: { handedness?: string } }).data
+        : null;
     this.handedness = data?.handedness ?? 'none';
   };
 
   private _onDisconnected = (): void => {
     this.handedness = 'none';
     this.ray.visible = false;
-    this.onSelect = null;
+    // A WebXR input source can disappear transiently and reconnect onto the
+    // same three.js controller group. Preserve the semantic selection binding;
+    // dispose() remains the terminal owner that clears it.
   };
 
   dispose(): void {

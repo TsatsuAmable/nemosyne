@@ -7,16 +7,23 @@ import { PointerRegistry } from '../src/vr/input/PointerRegistry.ts';
 import { NetworkManager } from '../src/network/NetworkManager.ts';
 import { SignallingChannel } from '../src/network/SignallingChannel.ts';
 import { deallocBytes } from '../src/wasm/RuntimeBridge.ts';
-import { CommandApplier, COMMAND_MAGIC, COMMAND_VERSION, OP_UPDATE_TRANSFORM } from '../src/wasm/CommandApplier.ts';
+import {
+  CommandApplier,
+  COMMAND_MAGIC,
+  COMMAND_VERSION,
+  OP_UPDATE_TRANSFORM,
+} from '../src/wasm/CommandApplier.ts';
 
 describe('Audit Pass 2 - Subsystem Resiliency & Bounds Safety', () => {
   describe('1. WebXR Input Router & Controller Event Handling', () => {
-    it('handles controller disconnect event gracefully and clears selection listener', () => {
+    it('handles controller disconnect while preserving the reconnect selection binding', () => {
       const mockListeners = new Map<string, (event: { type: string }) => void>();
       const mockControllerGroup = {
         add: vi.fn(),
-        addEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.set(type, fn),
-        removeEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.delete(type),
+        addEventListener: (type: string, fn: (event: { type: string }) => void) =>
+          mockListeners.set(type, fn),
+        removeEventListener: (type: string, fn: (event: { type: string }) => void) =>
+          mockListeners.delete(type),
         getWorldPosition: vi.fn(),
         getWorldQuaternion: vi.fn(),
       };
@@ -28,7 +35,8 @@ describe('Audit Pass 2 - Subsystem Resiliency & Bounds Safety', () => {
 
       const controller = new ControllerPointer(mockRenderer, 0);
       controller.handedness = 'left';
-      controller.onSelect = vi.fn();
+      const onSelect = vi.fn();
+      controller.onSelect = onSelect;
 
       // Trigger disconnected listener registered during construction
       const onDisconnected = mockListeners.get('disconnected');
@@ -37,15 +45,17 @@ describe('Audit Pass 2 - Subsystem Resiliency & Bounds Safety', () => {
 
       expect(controller.handedness).toBe('none');
       expect(controller.ray.visible).toBe(false);
-      expect(controller.onSelect).toBeNull();
+      expect(controller.onSelect).toBe(onSelect);
     });
 
     it('handles hand disconnect event gracefully and resets pinch states', () => {
       const mockListeners = new Map<string, (event: { type: string }) => void>();
       const mockHandGroup = {
         add: vi.fn(),
-        addEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.set(type, fn),
-        removeEventListener: (type: string, fn: (event: { type: string }) => void) => mockListeners.delete(type),
+        addEventListener: (type: string, fn: (event: { type: string }) => void) =>
+          mockListeners.set(type, fn),
+        removeEventListener: (type: string, fn: (event: { type: string }) => void) =>
+          mockListeners.delete(type),
       };
       const mockRenderer = {
         xr: {

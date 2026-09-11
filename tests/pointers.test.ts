@@ -135,6 +135,22 @@ describe('ControllerPointer', () => {
 
     expect(controller.handedness).toBe('right');
   });
+
+  it('preserves selection ownership across transient disconnect and reconnect', () => {
+    const renderer = makeMockRenderer();
+    const controller = new ControllerPointer(renderer, 0);
+    const onSelect = vi.fn();
+    controller.onSelect = onSelect;
+
+    controller.group.dispatchEvent({ type: 'connected', data: { handedness: 'right' } });
+    controller.group.dispatchEvent({ type: 'disconnected' });
+    expect(controller.handedness).toBe('none');
+    expect(controller.onSelect).toBe(onSelect);
+
+    controller.group.dispatchEvent({ type: 'connected', data: { handedness: 'right' } });
+    expect(controller.handedness).toBe('right');
+    expect(controller.onSelect).toBe(onSelect);
+  });
 });
 
 describe('HandPointer', () => {

@@ -124,6 +124,29 @@ interface GlobalState {
   value: unknown;
 }
 
+function quaternionFromEulerDegrees(euler: { x: number; y: number; z: number }): {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+} {
+  const x = (euler.x * Math.PI) / 180 / 2;
+  const y = (euler.y * Math.PI) / 180 / 2;
+  const z = (euler.z * Math.PI) / 180 / 2;
+  const cx = Math.cos(x),
+    sx = Math.sin(x);
+  const cy = Math.cos(y),
+    sy = Math.sin(y);
+  const cz = Math.cos(z),
+    sz = Math.sin(z);
+  return {
+    x: sx * cy * cz + cx * sy * sz,
+    y: cx * sy * cz - sx * cy * sz,
+    z: cx * cy * sz + sx * sy * cz,
+    w: cx * cy * cz - sx * sy * sz,
+  };
+}
+
 export class WebXRSimulatorAdapter {
   readonly device: XRDevice;
 
@@ -296,9 +319,11 @@ export class WebXRSimulatorAdapter {
     } = {}
   ): Promise<SimulatorSession> {
     if (!this._installed) throw new Error('WebXRSimulatorAdapter: install() before startSession()');
-    const xr = (navigator as Navigator & {
-      xr?: { requestSession: (...args: unknown[]) => Promise<unknown> };
-    }).xr;
+    const xr = (
+      navigator as Navigator & {
+        xr?: { requestSession: (...args: unknown[]) => Promise<unknown> };
+      }
+    ).xr;
     if (!xr) throw new Error('WebXRSimulatorAdapter: navigator.xr unavailable after install');
 
     const session = (await xr.requestSession('immersive-vr', {
@@ -415,6 +440,34 @@ export class WebXRSimulatorAdapter {
     this.device.notifyStateChange();
   }
 
+  setHeadOrientationDegrees(euler: { x: number; y: number; z: number }): void {
+    const q = quaternionFromEulerDegrees(euler);
+    this.device.quaternion.set(q.x, q.y, q.z, q.w);
+    this.device.notifyStateChange();
+  }
+
+  setControllerOrientationDegrees(
+    side: 'left' | 'right',
+    euler: { x: number; y: number; z: number }
+  ): void {
+    const controller = this.device.controllers[side];
+    if (!controller) return;
+    const q = quaternionFromEulerDegrees(euler);
+    controller.quaternion.set(q.x, q.y, q.z, q.w);
+    this.device.notifyStateChange();
+  }
+
+  setHandOrientationDegrees(
+    side: 'left' | 'right',
+    euler: { x: number; y: number; z: number }
+  ): void {
+    const hand = this.device.hands[side];
+    if (!hand) return;
+    const q = quaternionFromEulerDegrees(euler);
+    hand.quaternion.set(q.x, q.y, q.z, q.w);
+    this.device.notifyStateChange();
+  }
+
   /**
    * Press or release the trigger on a controller. `setButtonValueImmediate`
    * makes the value readable on the next device frame; the real session input
@@ -462,10 +515,10 @@ export class WebXRSimulatorAdapter {
    * three.js-style `inputsourceschange` handling observes it.
    */
   setInputSourceConnected(side: 'left' | 'right', connected: boolean): void {
-    const tracked = (this.device as unknown as {
+    const tracked = this.device as unknown as {
       controllers: Record<string, { connected: boolean }>;
       hands: Record<string, { connected: boolean }>;
-    });
+    };
     const controller = tracked.controllers[side];
     const hand = tracked.hands[side];
     if (controller) controller.connected = connected;

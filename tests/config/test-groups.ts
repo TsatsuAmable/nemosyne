@@ -41,6 +41,7 @@ export const FAST_NODE_TESTS = [
 ];
 
 export const UI_ONLY_TESTS = [
+  'tests/ui-system/xr-adversarial-campaign.test.ts',
   'tests/adaptive-assist-controller.test.ts',
   'tests/ai-gesture-jit-hints.test.ts',
   'tests/asymmetric-desktop-companion.test.ts',

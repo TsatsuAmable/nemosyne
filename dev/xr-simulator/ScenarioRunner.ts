@@ -21,8 +21,38 @@ import type { SimulatorScenario, ScenarioStep } from './ScenarioFixtures.ts';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function hashLabel(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export interface ScenarioFaultEffect {
+  positionOffset?: { x: number; y: number; z: number };
+  angularOffsetDeg?: { x: number; y: number; z: number };
+  dropPose?: boolean;
+  freezePoseMs?: number;
+  workerLatencyMs?: number;
+  frameSpikeMs?: number;
+  disconnectInput?: boolean;
+  labels?: string[];
+}
+
+export interface ScenarioFaultController {
+  readonly id: string;
+  readonly seed: string;
+  effectForStep(step: ScenarioStep, stepIndex: number): ScenarioFaultEffect;
+}
+
 export interface ScenarioRunnerOptions {
   buildHash?: string;
+  faultController?: ScenarioFaultController;
+  /** Simulator-only scale applied to configured timing faults. Never physical evidence. */
+  faultDelayScale?: number;
+  environment?: Partial<XREvaluationEpisode['environment']>;
 }
 
 export interface ScenarioRunResult {
@@ -145,7 +175,11 @@ export class SimulatorScenarioRunner {
     const recorder = new XREvaluationRecorder({
       scenarioId: scenario.id,
       buildHash: this._options.buildHash ?? 'unknown',
-      capabilityGrant: scenario.mode === 'controller' ? ['input.synthetic.controller'] : ['input.synthetic.hand_ray'],
+      capabilityGrant:
+        scenario.mode === 'controller'
+          ? ['input.synthetic.controller']
+          : ['input.synthetic.hand_ray'],
+      environment: this._options.environment,
     });
     recorder.begin();
 
@@ -153,7 +187,12 @@ export class SimulatorScenarioRunner {
     let hovered = false;
     const errors: string[] = [];
 
-    const { controllers, hands } = bindProductionPointers(this._renderer, this._router, this._scene, scenario.mode);
+    const { controllers, hands } = bindProductionPointers(
+      this._renderer,
+      this._router,
+      this._scene,
+      scenario.mode
+    );
     this._adapter.setPrimaryInputMode(scenario.mode === 'controller' ? 'controller' : 'hand');
     await sleep(40);
     const controller = controllers[0];
@@ -162,14 +201,30 @@ export class SimulatorScenarioRunner {
     // does when a session connects input sources.
     bindInputSources(this._adapter.getInputSources(), controller, hands[0]);
 
-    for (const step of scenario.steps) {
-      const outcome = await this._applyStep(step, target, registerTarget, controller, scenario.mode, {
-        selected,
-        hovered,
-      });
+    for (const [stepIndex, step] of scenario.steps.entries()) {
+      const faultEffect = this._options.faultController?.effectForStep(step, stepIndex) ?? {};
+      const outcome = await this._applyStep(
+        step,
+        target,
+        registerTarget,
+        controller,
+        scenario.mode,
+        {
+          selected,
+          hovered,
+        },
+        faultEffect
+      );
       selected = outcome.selected;
       hovered = outcome.hovered;
       if (outcome.error) errors.push(outcome.error);
+      for (const label of faultEffect.labels ?? []) {
+        recorder.recordObservation({
+          text: `fault:${label} step=${step.id} seed=${this._options.faultController?.seed ?? 'none'}`,
+          severity: 'warning',
+          evidenceRef: step.id,
+        });
+      }
       recorder.recordStep({
         stepId: step.id,
         description: step.description,
@@ -178,6 +233,19 @@ export class SimulatorScenarioRunner {
       });
     }
 
+    if (this._options.faultController) {
+      recorder.recordMeasurement({
+        measurementId: 'fault.seedHash',
+        metric: 'fault.seedHash',
+        value: hashLabel(this._options.faultController.seed),
+        unit: null,
+        source: 'observed',
+      });
+      recorder.recordObservation({
+        text: `fault-envelope=${this._options.faultController.id}; seed=${this._options.faultController.seed}`,
+        severity: 'info',
+      });
+    }
     recorder.recordMeasurement({
       measurementId: 'scenario.inputMode',
       metric: 'scenario.inputMode',
@@ -193,7 +261,10 @@ export class SimulatorScenarioRunner {
       source: 'measured',
     });
     recorder.recordObservation({
-      text: errors.length > 0 ? `scenario completed with ${errors.length} error(s)` : 'scenario completed cleanly',
+      text:
+        errors.length > 0
+          ? `scenario completed with ${errors.length} error(s)`
+          : 'scenario completed cleanly',
       severity: errors.length > 0 ? 'error' : 'info',
     });
     recorder.setOutcome(errors.length > 0 ? 'FAILED' : selected ? 'PASSED' : 'INCOMPLETE');
@@ -207,24 +278,55 @@ export class SimulatorScenarioRunner {
     registerTarget: (target: THREE.Object3D) => void,
     controller: ControllerPointer | undefined,
     mode: 'controller' | 'hand',
-    state: { selected: boolean; hovered: boolean }
+    state: { selected: boolean; hovered: boolean },
+    fault: ScenarioFaultEffect = {}
   ): Promise<{ selected: boolean; hovered: boolean; error?: string }> {
     const refSpace = this._adapter.referenceSpace;
     const session = this._adapter.session;
     if (!refSpace || !session) return { ...state, error: 'no active session' };
 
+    const delayScale = Math.max(0, this._options.faultDelayScale ?? 1);
+    const configuredDelayMs =
+      (fault.freezePoseMs ?? 0) + (fault.workerLatencyMs ?? 0) + (fault.frameSpikeMs ?? 0);
+    if (configuredDelayMs > 0 && delayScale > 0) await sleep(configuredDelayMs * delayScale);
+
+    const stepSide = 'side' in step ? step.side : 'right';
+    if (fault.disconnectInput) this._adapter.setInputSourceConnected(stepSide, false);
+
     const frameResult = await this._adapter.runInFrame((frame) => {
-      if (step.kind === 'pose') {
-        if (step.head) this._adapter.setHeadPose(step.head.x, step.head.y, step.head.z);
+      if (step.kind === 'pose' && !fault.dropPose) {
+        const offset = fault.positionOffset ?? { x: 0, y: 0, z: 0 };
+        if (step.head) {
+          this._adapter.setHeadPose(
+            step.head.x + offset.x,
+            step.head.y + offset.y,
+            step.head.z + offset.z
+          );
+          if (fault.angularOffsetDeg)
+            this._adapter.setHeadOrientationDegrees(fault.angularOffsetDeg);
+        }
         if (mode === 'hand') {
           const hand = this._adapter.device.hands[step.side];
           if (hand) {
-            hand.position.set(step.position.x, step.position.y, step.position.z);
-            hand.quaternion.set(0, 0, 0, 1);
+            hand.position.set(
+              step.position.x + offset.x,
+              step.position.y + offset.y,
+              step.position.z + offset.z
+            );
+            if (fault.angularOffsetDeg)
+              this._adapter.setHandOrientationDegrees(step.side, fault.angularOffsetDeg);
+            else hand.quaternion.set(0, 0, 0, 1);
             this._adapter.configureHandPinch(step.side, step.pinched ?? false);
           }
         } else {
-          this._adapter.setControllerPosition(step.side, step.position.x, step.position.y, step.position.z);
+          this._adapter.setControllerPosition(
+            step.side,
+            step.position.x + offset.x,
+            step.position.y + offset.y,
+            step.position.z + offset.z
+          );
+          if (fault.angularOffsetDeg)
+            this._adapter.setControllerOrientationDegrees(step.side, fault.angularOffsetDeg);
         }
       }
 
@@ -248,6 +350,13 @@ export class SimulatorScenarioRunner {
       }
       return { ok: true, hovered: !!this._router.hovered, selected: state.selected };
     });
+
+    if (fault.disconnectInput) {
+      this._adapter.setInputSourceConnected(stepSide, true);
+      // Let the real emulated session publish the reconnect before the next
+      // semantic action. No synthetic input is replayed across the outage.
+      await this._adapter.runInFrame(() => undefined);
+    }
 
     if (!frameResult) {
       return { ...state, error: 'no real XR frame produced' };
