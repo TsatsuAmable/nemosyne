@@ -111,6 +111,12 @@ The required CI graph is defined only by `.github/workflows/ci.yml`. Coverage po
 
 During iteration, run the smallest ownership-aligned checks that can disprove the current change quickly. For high-risk work, derive those checks from the pre-implementation adversarial contract. For standard-risk work, target the changed behavior and its nearest production path. Before claiming completion, obtain the required production-path and CI evidence for the affected risk surface and complete the review required by the selected risk tier. Do not weaken tests, coverage, assertions, or architecture simply to obtain a green run.
 
+## Worktree exclusivity and local concurrency
+
+One filesystem worktree has exactly one writer at a time. Implementation agents must use a dedicated branch + worktree; do not share a worktree between concurrent agents, switch the branch of a worktree owned by another task, or use the canonical `main` checkout as an implementation scratchpad. The canonical `main` checkout is reserved for integration, exact-head verification, and governed hardware qualification.
+
+When a host provides a workstream lease/sentinel coordinator, acquire the lease **before the first source edit** and release it only after the workstream has committed/stashed or otherwise returned the worktree to an explicit handoff state. If a lease/sentinel belongs to another owner, ownership is ambiguous, or the intended branch is already checked out elsewhere, stop and choose a separate worktree rather than editing through the conflict. Local coordination machinery is enforcement support, not repository authority; it must implement this contract without weakening Git/CI/roadmap rules.
+
 ## Current four-stream operating model
 
 The active implementation topology is defined in `docs/ROADMAP.md`. The previous A/B/C execution wave is complete; historical files keep their original stream labels for provenance and must not be treated as current ownership.
