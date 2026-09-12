@@ -110,7 +110,10 @@ export class VRTopologyTranslator {
     } else {
       rows = dataset?.rows ?? dataInput.rows ?? [];
       edges = dataInput.edges ?? dataset?.edges ?? [];
-      if (spec.geometry === 'INSTANCED_POINT_CLOUD') {
+      const useScalableGridEmbodiment =
+        spec.geometry === 'INSTANCED_POINT_CLOUD' ||
+        (spec.geometry === 'CUBE_MATRIX' && spec.layout === 'GRID_3D' && rows.length > 500);
+      if (useScalableGridEmbodiment) {
         scalable.buildInstancedPointCloud(
           group,
           nodeMeshes,
