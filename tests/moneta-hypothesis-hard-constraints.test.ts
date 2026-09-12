@@ -56,6 +56,27 @@ describe('Moneta hypothesis hard constraints', () => {
     );
   });
 
+  it('fails manifold embedding closed until authoritative manifold evidence exists', () => {
+    const signature = minimalDatasetSignature(8_000, 4, 2, 0, 'manifold-authority-fp', 0);
+    const decision = new MonetaHypothesisEngine().arbitrate(
+      signature,
+      createDefaultRequirements('explore', 'MEDIUM')
+    );
+    const manifold = (decision.rankedCandidates ?? []).filter(
+      (candidate) => candidate.candidateId === 'MANIFOLD_EMBEDDING'
+    );
+
+    expect(manifold.length).toBeGreaterThan(0);
+    expect(
+      manifold.every(
+        (candidate) =>
+          candidate.disqualified &&
+          candidate.disqualificationCode === 'manifold-authority-required'
+      )
+    ).toBe(true);
+    expect(decision.chosenCandidateId).not.toBe('MANIFOLD_EMBEDDING');
+  });
+
   it('refuses field-bound semantic candidates when overview intent declares no analytical dimensions', () => {
     const signature = minimalDatasetSignature(1_000, 4, 2, 0, 'implicit-dimension-fp', 0);
     const requirements = createDefaultRequirements('overview', 'MEDIUM');

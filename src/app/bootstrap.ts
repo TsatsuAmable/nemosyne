@@ -472,14 +472,33 @@ export async function bootstrapApp(): Promise<AppInstance> {
       getActiveSpecInfo: () => {
         const spec = world.dracoNode?.solverResult?.spec;
         if (!spec) return null;
-        const renderedNodeCount = world.dracoNode?.artifact?.nodeMeshes?.reduce((total, mesh) => {
+        const node = world.dracoNode;
+        const renderedNodeCount = node?.artifact?.nodeMeshes?.reduce((total, mesh) => {
           const candidate = mesh as { isInstancedMesh?: boolean; count?: number };
           return total + (candidate.isInstancedMesh ? (candidate.count ?? 0) : 1);
         }, 0);
+        const semanticInput = node?.dataInput as
+          | {
+              semanticEmbodiment?: {
+                approximation?: { representedRowCount?: number };
+                resource?: { sourceRowCount?: number };
+              } | null;
+            }
+          | undefined;
+        const semanticEmbodiment = semanticInput?.semanticEmbodiment;
         return {
           geometry: String(spec.geometry),
           layout: String(spec.layout),
+          candidateId: node?.representationDecision?.chosenCandidateId ?? null,
           renderedNodeCount,
+          representedSourceRows:
+            semanticEmbodiment?.approximation?.representedRowCount ??
+            semanticEmbodiment?.resource?.sourceRowCount ??
+            null,
+          semanticEmbodimentStatus:
+            typeof node?.group?.userData.semanticEmbodimentStatus === 'string'
+              ? node.group.userData.semanticEmbodimentStatus
+              : null,
         };
       },
       getWasmMemoryBytes: () => {

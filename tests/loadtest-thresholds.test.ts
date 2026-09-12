@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LOAD_TEST_THRESHOLDS,
+  classifyRepresentationCoverage,
   percentile,
   computeFrameStats,
   computeVerdict,
@@ -284,5 +285,34 @@ describe('threshold constants are fixed and reviewable', () => {
     expect(LOAD_TEST_THRESHOLDS.DROPPED_GREEN_PCT).toBe(5);
     expect(LOAD_TEST_THRESHOLDS.DROPPED_YELLOW_PCT).toBe(15);
     expect(LOAD_TEST_THRESHOLDS.GC_SPIKE_MS).toBe(50.0);
+  });
+});
+
+describe('representation coverage', () => {
+  it('accepts a complete semantic aggregate without pretending one mesh equals one row', () => {
+    const coverage = classifyRepresentationCoverage({
+      sourceRowCount: 65_000,
+      candidateId: 'AGGREGATE_VOLUME',
+      renderedNodeCount: 40,
+      representedSourceRows: 65_000,
+      semanticEmbodimentStatus: 'READY',
+    });
+    expect(coverage.coverageMode).toBe('SEMANTIC_AGGREGATE');
+    expect(coverage.usefulRepresentation).toBe(true);
+    expect(coverage.renderedFraction).toBeNull();
+  });
+
+  it('fails closed when semantic embodiment is unavailable', () => {
+    const coverage = classifyRepresentationCoverage({
+      sourceRowCount: 8_000,
+      candidateId: 'AGGREGATE_VOLUME',
+      renderedNodeCount: 0,
+      semanticEmbodimentStatus: 'REFUSED',
+    });
+    const frames = computeFrameStats(Array(200).fill(8));
+    const verdict = computeVerdict({ frames, criticalViolations: 0, representation: coverage });
+    expect(coverage.usefulRepresentation).toBe(false);
+    expect(verdict.grade).toBe('red');
+    expect(verdict.reasons.some((reason) => reason.includes('representation unavailable'))).toBe(true);
   });
 });

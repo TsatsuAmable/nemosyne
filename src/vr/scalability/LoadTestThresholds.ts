@@ -60,10 +60,22 @@ export interface StepMemoryStats {
   wasmDeltaBytes: number | null;
 }
 
+export type RepresentationCoverageMode =
+  | 'ROW_ADDRESSABLE'
+  | 'SEMANTIC_AGGREGATE'
+  | 'SEMANTIC_SUMMARY'
+  | 'UNAVAILABLE'
+  | 'UNKNOWN';
+
 export interface StepRepresentationStats {
   sourceRowCount: number;
+  candidateId: string | null;
   renderedNodeCount: number | null;
+  representedSourceRows: number | null;
   renderedFraction: number | null;
+  semanticEmbodimentStatus: string | null;
+  coverageMode: RepresentationCoverageMode;
+  usefulRepresentation: boolean;
   /** Scene cardinality is sampled only at step boundaries so observation does not add per-frame traversal cost. */
   sceneObjectCountStart: number | null;
   sceneObjectCountEnd: number | null;
@@ -76,6 +88,105 @@ export interface StepRepresentationStats {
   governorLodScaleMinimum: number | null;
   governorLodScaleFinal: number | null;
   governorThrottleEvents: number;
+}
+
+export function classifyRepresentationCoverage(input: {
+  sourceRowCount: number;
+  candidateId?: string | null;
+  renderedNodeCount?: number | null;
+  representedSourceRows?: number | null;
+  semanticEmbodimentStatus?: string | null;
+}): Pick<
+  StepRepresentationStats,
+  | 'candidateId'
+  | 'renderedNodeCount'
+  | 'representedSourceRows'
+  | 'renderedFraction'
+  | 'semanticEmbodimentStatus'
+  | 'coverageMode'
+  | 'usefulRepresentation'
+> {
+  const candidateId = input.candidateId ?? null;
+  const renderedNodeCount = input.renderedNodeCount ?? null;
+  const representedSourceRows = input.representedSourceRows ?? null;
+  const semanticEmbodimentStatus = input.semanticEmbodimentStatus ?? null;
+  const semanticCandidates = new Set([
+    'AGGREGATE_VOLUME',
+    'DENSITY_FIELD',
+    'DISTRIBUTION_FIELD',
+    'CLUSTER_REGIONS',
+    'RELATIONSHIP_GRAPH',
+  ]);
+
+  if (semanticEmbodimentStatus && semanticEmbodimentStatus !== 'READY') {
+    return {
+      candidateId,
+      renderedNodeCount,
+      representedSourceRows,
+      renderedFraction: null,
+      semanticEmbodimentStatus,
+      coverageMode: 'UNAVAILABLE',
+      usefulRepresentation: false,
+    };
+  }
+
+  if (semanticCandidates.has(candidateId ?? '')) {
+    if (semanticEmbodimentStatus !== 'READY') {
+      return {
+        candidateId,
+        renderedNodeCount,
+        representedSourceRows,
+        renderedFraction: null,
+        semanticEmbodimentStatus,
+        coverageMode: 'UNKNOWN',
+        usefulRepresentation: false,
+      };
+    }
+    if (candidateId === 'AGGREGATE_VOLUME') {
+      const complete =
+        input.sourceRowCount === 0 || representedSourceRows === input.sourceRowCount;
+      return {
+        candidateId,
+        renderedNodeCount,
+        representedSourceRows,
+        renderedFraction: null,
+        semanticEmbodimentStatus,
+        coverageMode: 'SEMANTIC_AGGREGATE',
+        usefulRepresentation: complete && (renderedNodeCount ?? 0) > 0,
+      };
+    }
+    return {
+      candidateId,
+      renderedNodeCount,
+      representedSourceRows,
+      renderedFraction: null,
+      semanticEmbodimentStatus,
+      coverageMode: 'SEMANTIC_SUMMARY',
+      usefulRepresentation: input.sourceRowCount === 0 || (renderedNodeCount ?? 0) > 0,
+    };
+  }
+
+  if (typeof renderedNodeCount === 'number' && input.sourceRowCount > 0) {
+    return {
+      candidateId,
+      renderedNodeCount,
+      representedSourceRows,
+      renderedFraction: renderedNodeCount / input.sourceRowCount,
+      semanticEmbodimentStatus,
+      coverageMode: 'ROW_ADDRESSABLE',
+      usefulRepresentation: renderedNodeCount > 0,
+    };
+  }
+
+  return {
+    candidateId,
+    renderedNodeCount,
+    representedSourceRows,
+    renderedFraction: null,
+    semanticEmbodimentStatus,
+    coverageMode: 'UNKNOWN',
+    usefulRepresentation: input.sourceRowCount === 0,
+  };
 }
 
 /** One step of a staircase run, after measurement + verdict. */
@@ -201,35 +312,53 @@ export function computeFrameStats(
  * Grade a single step green/yellow/red against the thresholds.
  *
  * - **green**: p95 <= FRAME_GREEN_MS AND droppedPct < DROPPED_GREEN_PCT AND
- *   p99 <= FRAME_RED_P99_MS AND no critical budget violation.
+ *   p99 <= FRAME_RED_P99_MS AND no critical budget violation AND, when
+ *   representation evidence is supplied, the representation is useful.
  * - **red**: p95 > FRAME_YELLOW_MS OR droppedPct >= DROPPED_YELLOW_PCT OR
- *   p99 > FRAME_RED_P99_MS OR any critical budget violation.
+ *   p99 > FRAME_RED_P99_MS OR any critical budget violation OR the governed
+ *   representation is unavailable/unknown.
  * - **yellow**: marginal (between green and red).
  */
 export function computeVerdict(
-  step: { frames: StepFrameStats; criticalViolations: number },
+  step: {
+    frames: StepFrameStats;
+    criticalViolations: number;
+    representation?: Pick<StepRepresentationStats, 'usefulRepresentation' | 'coverageMode' | 'semanticEmbodimentStatus'>;
+  },
   thresholds: LoadTestThresholds = LOAD_TEST_THRESHOLDS
 ): { grade: VerdictGrade; reasons: string[] } {
   const f = step.frames;
   const reasons: string[] = [];
+  const representationFailed = step.representation?.usefulRepresentation === false;
 
   const isGreen =
     f.p95Ms <= thresholds.FRAME_GREEN_MS &&
     f.droppedPct < thresholds.DROPPED_GREEN_PCT &&
     f.p99Ms <= thresholds.FRAME_RED_P99_MS &&
-    step.criticalViolations === 0;
+    step.criticalViolations === 0 &&
+    !representationFailed;
   if (isGreen) return { grade: 'green', reasons };
 
   const isRed =
     f.p95Ms > thresholds.FRAME_YELLOW_MS ||
     f.droppedPct >= thresholds.DROPPED_YELLOW_PCT ||
     f.p99Ms > thresholds.FRAME_RED_P99_MS ||
-    step.criticalViolations > 0;
+    step.criticalViolations > 0 ||
+    representationFailed;
   if (isRed) {
     if (f.p95Ms > thresholds.FRAME_YELLOW_MS) reasons.push(`p95 ${f.p95Ms.toFixed(1)} ms > ${thresholds.FRAME_YELLOW_MS} ms`);
     if (f.droppedPct >= thresholds.DROPPED_YELLOW_PCT) reasons.push(`dropped ${f.droppedPct.toFixed(1)}% >= ${thresholds.DROPPED_YELLOW_PCT}%`);
     if (f.p99Ms > thresholds.FRAME_RED_P99_MS) reasons.push(`p99 ${f.p99Ms.toFixed(1)} ms > ${thresholds.FRAME_RED_P99_MS} ms`);
     if (step.criticalViolations > 0) reasons.push(`${step.criticalViolations} critical budget violation(s)`);
+    if (representationFailed) {
+      reasons.push(
+        `representation unavailable (${step.representation?.coverageMode ?? 'UNKNOWN'}${
+          step.representation?.semanticEmbodimentStatus
+            ? `:${step.representation.semanticEmbodimentStatus}`
+            : ''
+        })`
+      );
+    }
     return { grade: 'red', reasons };
   }
 

@@ -19,6 +19,7 @@ export type HardConstraintCode =
   | 'cluster-authority-required'
   | 'graph-authority-required'
   | 'graph-resource-envelope'
+  | 'manifold-authority-required'
   | 'layout-topology-requirement'
   | 'candidate-structure-requirement'
   | 'scale-range';

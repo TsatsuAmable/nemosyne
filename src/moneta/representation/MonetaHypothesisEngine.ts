@@ -129,7 +129,7 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
 
 /** Rank-effective engine provenance. Bump (with fitness/ontology provenance) whenever
  * admissibility or information semantics change ranking. */
-export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.1-v5-bootstrap';
+export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.2-v5-bootstrap';
 
 export class MonetaHypothesisEngine {
   readonly version = MONETA_HYPOTHESIS_ENGINE_VERSION;
@@ -678,6 +678,15 @@ export class MonetaHypothesisEngine {
     const declaredDimensions = reqs.primaryDimensions ?? [];
     const isDeclaredDimension = (field: string | undefined): field is string =>
       typeof field === 'string' && field.length > 0 && field.trim() === field;
+
+    if (candidate.id === 'MANIFOLD_EMBEDDING') {
+      return {
+        passed: false,
+        reason:
+          'MANIFOLD_EMBEDDING requires authoritative manifold coordinates/evidence; the current DatasetSignature does not carry manifold authority',
+        code: 'manifold-authority-required',
+      };
+    }
 
     if (candidate.id === 'DISTRIBUTION_FIELD') {
       if (declaredDimensions.length !== 1 || !isDeclaredDimension(declaredDimensions[0])) {
