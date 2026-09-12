@@ -1,91 +1,146 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import type { MovablePanelOptions } from '../coordinators/types.ts';
+import { Text } from '@pmndrs/uikit';
 import { StatusStripController } from './StatusStripController.ts';
-import { COLOR_TOKENS, SPACING_TOKENS, TYPOGRAPHY_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { COLOR_TOKENS, SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import { remapColor } from '../../utils/Accessibility.ts';
+import type { AccessibilityOptions, PointerLike } from '../coordinators/types.ts';
 
-interface StatusStripPanelOptions extends MovablePanelOptions {
+const PANEL_WIDTH = 900;
+const PANEL_HEIGHT = 156;
+const DEFAULT_WORLD_WIDTH = 0.9;
+const BASE_FONT_SIZE = 18;
+
+export interface StatusStripPanelOptions {
   statusStrip: StatusStripController;
+  position?: [number, number, number];
+  worldSize?: [number, number];
+  textScale?: number;
+  highContrast?: boolean;
+  colorblindMode?: string;
 }
 
 /**
  * Persistent, analyst-anchored investigation grounding surface.
  *
- * C2 deliberately keeps this compact and non-interactive: it projects state
- * that is acted upon through the existing contextual and precision surfaces.
+ * UXR1 migrates the C2 status strip from the legacy CanvasTexture/MovablePanel
+ * renderer to the shared SpatialPanel + UIKit substrate. The strip remains a
+ * presentation-only projection: it owns no analytical, investigation or
+ * recovery authority and is deliberately non-interactive.
  */
-export class StatusStripPanel extends MovablePanel {
-  private _statusStrip?: StatusStripController;
-  private _lastText: string = '';
-  private _dirty = true;
+export class StatusStripPanel extends SpatialPanel {
+  readonly title = 'STATUS';
+  readonly defaultPosition: THREE.Vector3;
 
-  constructor(cameraGroup: THREE.Group, options: StatusStripPanelOptions) {
-    // WorldUIManager historically passed the one-line 0.72 × 0.08 metre size.
-    // Upgrade exactly that legacy footprint for C2's four calm rows while still
-    // respecting any explicit non-legacy override supplied by tests/consumers.
-    const requestedWorldSize = options.worldSize;
-    const worldSize: [number, number] =
-      !requestedWorldSize ||
-      (requestedWorldSize[0] === 0.72 && requestedWorldSize[1] === 0.08)
-        ? [0.9, 0.156]
-        : requestedWorldSize;
+  private readonly _statusStrip: StatusStripController;
+  private readonly _lineTexts: Text[] = [];
+  private _lastLines: string[] = [];
+  private _textScale: number;
+  private _highContrast: boolean;
+  private _colorblindMode: string;
 
-    super(cameraGroup, {
-      title: 'STATUS',
-      width: options.width ?? 900,
-      height: options.height ?? 156,
-      position: options.position ?? [0, 1.8, -1.2],
-      worldSize,
-      titleBarHeight: 0,
-      tilt: 0,
-      parentGroup: options.parentGroup,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-    });
+  constructor(analystAnchor: THREE.Object3D, options: StatusStripPanelOptions) {
+    const highContrast = options.highContrast ?? false;
+    const colorblindMode = options.colorblindMode ?? 'none';
+    const theme = getTheme(highContrast);
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'column',
+        justifyContent: 'center',
+        gap: SPACING_TOKENS.grid.x4,
+        padding: SPACING_TOKENS.grid.x16,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      analystAnchor,
+      null,
+    );
+
+    this.name = 'status-strip-panel';
     this._statusStrip = options.statusStrip;
-    this.render();
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
+    this._colorblindMode = colorblindMode;
+
+    const worldWidth = options.worldSize?.[0] ?? DEFAULT_WORLD_WIDTH;
+    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    const position = options.position ?? [0, 1.8, -1.2];
+    this.defaultPosition = new THREE.Vector3(...position);
+    this.position.copy(this.defaultPosition);
+
+    // The status strip is persistent grounding, not a manipulable workspace
+    // panel. Keeping it off InputRouter also prevents it intercepting data hits.
+    this.setGrabEnabled(false);
+    this.setGrabRailVisible(false);
+
+    for (let index = 0; index < 4; index++) {
+      const line = new Text({
+        text: '',
+        fontSize: BASE_FONT_SIZE * this._textScale,
+        color: this._lineColor(index),
+        fontWeight: index === 0 ? 'bold' : 'medium',
+      });
+      this._lineTexts.push(line);
+      this.add(line);
+    }
+    this._syncLines(true);
   }
 
-  update(): void {
-    const text = this._statusStrip?.formatInvestigationLines().join('\n') ?? 'Initializing...';
-    if (text !== this._lastText) {
-      this._lastText = text;
-      this._dirty = true;
-    }
-    if (this._dirty) {
-      this._dirty = false;
-      this.render();
-    }
+  update(delta = 0): void {
+    super.update(delta);
+    this._syncLines(false);
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const pad = SPACING_TOKENS.grid.x16;
-    const lines = this._statusStrip?.formatInvestigationLines() ?? ['Initializing...'];
-    const lineHeight = 31;
-    const firstY = 28;
+  /** Presentation-only surface: never capture or dispatch pointer interaction. */
+  override handlePointerDown(_raycaster: THREE.Raycaster, _pointer: PointerLike): string | null {
+    return null;
+  }
 
-    ctx.fillStyle = 'rgba(11, 17, 25, 0.90)';
-    ctx.fillRect(0, 0, w, contentH);
+  override handlePointerMove(_raycaster: THREE.Raycaster, _pointer: PointerLike): void {}
 
-    ctx.strokeStyle = cssHex(COLOR_TOKENS.surface.border);
-    ctx.lineWidth = 2;
-    ctx.strokeRect(2, 2, w - 4, contentH - 4);
+  override handlePointerUp(_raycaster: THREE.Raycaster, _pointer: PointerLike): void {}
 
-    ctx.font = this._scaleFont(`600 ${TYPOGRAPHY_TOKENS.scale.label}px ${TYPOGRAPHY_TOKENS.fontFamily}`);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-
-    lines.forEach((line, index) => {
-      ctx.fillStyle = index === 0
-        ? cssHex(COLOR_TOKENS.text.primary)
-        : index === 1
-          ? cssHex(COLOR_TOKENS.interaction.focus)
-          : cssHex(COLOR_TOKENS.text.secondary);
-      ctx.fillText(line, pad, firstY + index * lineHeight, w - pad * 2);
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    this._colorblindMode = String(options.colorblindMode);
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
     });
+    this._lineTexts.forEach((line, index) => {
+      line.setProperties({
+        fontSize: BASE_FONT_SIZE * this._textScale,
+        color: this._lineColor(index),
+      });
+    });
+  }
 
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+  private _syncLines(force: boolean): void {
+    const lines = this._statusStrip.formatInvestigationLines();
+    for (let index = 0; index < this._lineTexts.length; index++) {
+      const text = lines[index] ?? '';
+      if (force || this._lastLines[index] !== text) {
+        this._lineTexts[index].setProperties({ text });
+      }
+    }
+    this._lastLines = [...lines];
+  }
+
+  private _lineColor(index: number): number {
+    const theme = getTheme(this._highContrast);
+    if (index === 0) return Number(theme.textPrimary);
+    if (index === 1) {
+      return this._highContrast
+        ? Number(theme.accentColor)
+        : (remapColor(COLOR_TOKENS.interaction.focus, this._colorblindMode) as number);
+    }
+    return Number(theme.textMuted);
   }
 }

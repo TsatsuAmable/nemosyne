@@ -723,8 +723,9 @@ export class WorldUIManager {
     for (const panel of this.panelManager.panels) {
       if (panel?.applyAccessibility) panel.applyAccessibility(full);
     }
-    // The settings panel is a SpatialPanel (not a MovablePanel), so it is not in
-    // panelManager.panels; theme it explicitly so it stays in sync.
+    // SpatialPanel surfaces are not in the legacy MovablePanel PanelManager;
+    // theme persistent/migrated surfaces explicitly so they stay in sync.
+    this.statusStripPanel?.applyAccessibility(full);
     this.settingsPanel?.applyAccessibility(full);
     this.handWheelMenu?.applyAccessibility?.(full);
   }

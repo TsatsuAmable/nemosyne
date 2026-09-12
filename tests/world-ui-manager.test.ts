@@ -160,6 +160,7 @@ describe('WorldUIManager', () => {
     const overviewDispose = vi.spyOn(ui.miniOverview, 'dispose');
     const presenceDispose = vi.spyOn(ui.peerPresenceHUD, 'dispose');
     const panelManagerDispose = vi.spyOn(ui.panelManager, 'dispose');
+    const statusDispose = vi.spyOn(ui.statusStripPanel, 'dispose');
     const registeredPanels = [...ui.panelManager.panels];
 
     ui.dispose();
@@ -170,6 +171,8 @@ describe('WorldUIManager', () => {
     expect(overviewDispose).toHaveBeenCalledOnce();
     expect(presenceDispose).toHaveBeenCalledOnce();
     expect(panelManagerDispose).toHaveBeenCalledOnce();
+    expect(statusDispose).toHaveBeenCalledOnce();
+    expect(ui.statusStripPanel.parent).toBeNull();
     expect(ui.panelManager.panels).toEqual([]);
     expect(engine.input.panels).toEqual([]);
     expect(engine.input.handWheelMenu).toBeNull();
@@ -212,10 +215,13 @@ describe('WorldUIManager', () => {
     expect(ui.panelManager.panels).toContain(ui.vrMenu);
   });
 
-  it('registers input panels with the engine input router', () => {
+  it('registers interactive legacy panels but keeps the persistent status strip off input routing', () => {
     expect(engine.input.panels).toContain(ui.telemetryPanel);
     expect(engine.input.panels).toContain(ui.vrConsole);
     expect(engine.input.panels).toContain(ui.vrMenu);
+    expect(engine.input.panels).not.toContain(ui.statusStripPanel);
+    expect(ui.panelManager.panels).not.toContain(ui.statusStripPanel);
+    expect(ui.statusStripPanel.parent).toBe(anchor);
   });
 
   it('sets the panel manager on the input router', () => {
@@ -282,12 +288,18 @@ describe('WorldUIManager', () => {
     expect(recenterSpy).toHaveBeenCalledOnce();
   });
 
-  it('applies accessibility options to panels with applyAccessibility', () => {
+  it('applies accessibility options to legacy and migrated SpatialPanel surfaces', () => {
     const panelSpy = vi.spyOn(ui.settingsPanel, 'applyAccessibility').mockImplementation(() => {});
+    const statusSpy = vi.spyOn(ui.statusStripPanel, 'applyAccessibility').mockImplementation(() => {});
     const wheelSpy = vi.spyOn(ui.handWheelMenu, 'applyAccessibility').mockImplementation(() => {});
 
     ui.applyAccessibility({ textScale: 1.5, highContrast: true });
 
+    expect(statusSpy).toHaveBeenCalledWith({
+      textScale: 1.5,
+      highContrast: true,
+      colorblindMode: 'none',
+    });
     expect(panelSpy).toHaveBeenCalledWith({
       textScale: 1.5,
       highContrast: true,
