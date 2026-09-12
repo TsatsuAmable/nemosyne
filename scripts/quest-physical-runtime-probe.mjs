@@ -61,7 +61,7 @@ async function cdpTabs() {
   return response.json();
 }
 
-async function cdpEvaluate(webSocketDebuggerUrl, expression) {
+async function cdpEvaluate(webSocketDebuggerUrl, expression, { userGesture = false } = {}) {
   const socket = new WebSocket(webSocketDebuggerUrl);
   await new Promise((resolveOpen, reject) => {
     const timer = setTimeout(() => reject(new Error('CDP WebSocket open timed out')), 5000);
@@ -88,7 +88,7 @@ async function cdpEvaluate(webSocketDebuggerUrl, expression) {
     JSON.stringify({
       id,
       method: 'Runtime.evaluate',
-      params: { expression, awaitPromise: true, returnByValue: true },
+      params: { expression, awaitPromise: true, returnByValue: true, userGesture },
     })
   );
   const message = await response;
@@ -204,6 +204,8 @@ async function runtimeSnapshot(page) {
     href: location.href,
     title: document.title,
     readyState: document.readyState,
+    visibilityState: document.visibilityState,
+    hasFocus: document.hasFocus(),
     vrButton: document.querySelector('#nemosyne-vr-button')?.textContent?.trim() ?? null,
     deviceMemoryGb: navigator.deviceMemory ?? null,
     hardwareConcurrency: navigator.hardwareConcurrency ?? null,
@@ -217,6 +219,47 @@ async function runtimeSnapshot(page) {
   }))()`;
   return cdpEvaluate(page.webSocketDebuggerUrl, expression);
 }
+async function immersiveSmoke(page, initialRuntime) {
+  if (!process.argv.includes('--immersive-smoke')) return null;
+  const before = initialRuntime?.vrButton ?? null;
+  if (before === 'IN VR') {
+    return {
+      requested: true,
+      attempted: false,
+      entered: true,
+      before,
+      reason: 'already-presenting',
+    };
+  }
+  if (initialRuntime?.immersiveVrSupported !== true) {
+    return {
+      requested: true,
+      attempted: false,
+      entered: false,
+      before,
+      reason: 'immersive-vr-unsupported',
+    };
+  }
+  if (initialRuntime?.visibilityState !== 'visible' || initialRuntime?.hasFocus !== true) {
+    return {
+      requested: true,
+      attempted: false,
+      entered: false,
+      before,
+      reason: 'page-not-foreground',
+    };
+  }
+  const click = await cdpEvaluate(
+    page.webSocketDebuggerUrl,
+    `(()=>{const b=document.querySelector('#nemosyne-vr-button'); if(!b)return {clicked:false}; b.click(); return {clicked:true,text:b.textContent?.trim()};})()`,
+    { userGesture: true }
+  );
+  await new Promise((resolveWait) => setTimeout(resolveWait, 2500));
+  const active = await runtimeSnapshot(page);
+  const entered = active?.vrButton === 'IN VR';
+  return { requested: true, attempted: true, entered, before, click, active };
+}
+
 async function main() {
   const listed = adb(['devices', '-l']);
   const devices = listed.stdout
@@ -264,6 +307,7 @@ async function main() {
     );
   }
   const runtime = pages[0] ? await runtimeSnapshot(pages[0]) : null;
+  const immersive = pages[0] ? await immersiveSmoke(pages[0], runtime) : null;
   const loaded = pages[0]
     ? await loadedScriptIdentity(pages[0].webSocketDebuggerUrl)
     : { buildId: null, sessionLabel: null, scriptUrl: null };
@@ -276,6 +320,12 @@ async function main() {
     ? parseMeminfo(adb(['-s', serial, 'shell', 'dumpsys', 'meminfo', browserPid]).stdout)
     : { pssKb: null };
   const thermal = parseThermal(adb(['-s', serial, 'shell', 'dumpsys', 'thermalservice']).stdout);
+  if (immersive?.entered && immersive?.attempted && pages[0]) {
+    await cdpReload(pages[0].webSocketDebuggerUrl);
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1500));
+    immersive.cleanup = await runtimeSnapshot(pages[0]);
+    immersive.cleanedUp = immersive.cleanup?.vrButton === 'ENTER VR';
+  }
   const reasons = [];
   if (!reverseOk) reasons.push('ADB reverse tcp:5173 is missing');
   if (!identity.ok) reasons.push(`Quest identity unavailable: ${identity.error ?? 'unknown'}`);
@@ -322,6 +372,7 @@ async function main() {
     device: identity.ok ? identity.identity : null,
     browser: { pidPresent: Boolean(browserPid), ...meminfo, ...thermal },
     runtime,
+    immersive,
   };
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   process.exitCode = result.attribution.ok ? 0 : 2;
