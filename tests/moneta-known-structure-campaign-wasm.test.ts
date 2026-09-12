@@ -8,6 +8,7 @@ import {
   runKnownStructureCampaign,
   type ClusterProfileObservation,
 } from '../dev/xr-lab/MonetaKnownStructureCampaign.ts';
+import { runNeighborhoodPreservationAdversary } from '../dev/xr-lab/MonetaNeighborhoodPreservationCampaign.ts';
 
 function rustProfile(dataset: DatasetJSON): ClusterProfileObservation {
   const handle = bridge.loadDatasetJson(dataset);
@@ -69,5 +70,28 @@ describe('Moneta known-structure campaign through Rust/WASM authority', () => {
     expect(collapsed.plantedClusterRecoveryRate).toBe(0);
     expect(collapsed.baseProfile.hasClusters).toBe(false);
     expect(collapsed.meanSeparationScore).toBeLessThan(identity.meanSeparationScore);
+  });
+
+  it('detects local neighborhood loss even when macro clusters remain recoverable', () => {
+    const results = runNeighborhoodPreservationAdversary(rustProfile, {
+      seed: 20260911,
+      pointsPerCluster: 48,
+      jitter: 0.55,
+      k: 5,
+    });
+    const identity = results.find((result) => result.candidateId === 'identity')!;
+    const degraded = results.find(
+      (result) => result.candidateId === 'within-cluster-permutation'
+    )!;
+
+    expect(identity.profile.hasClusters).toBe(true);
+    expect(degraded.profile.hasClusters).toBe(true);
+    expect(identity.profile.estimatedCount).toBe(3);
+    expect(degraded.profile.estimatedCount).toBe(3);
+    expect(identity.neighborhood.trustworthiness).toBe(1);
+    expect(identity.neighborhood.continuity).toBe(1);
+    expect(degraded.neighborhood.trustworthiness).toBeLessThan(0.9);
+    expect(degraded.neighborhood.continuity).toBeLessThan(0.9);
+    expect(degraded.neighborhood.meanKnnOverlap).toBeLessThan(0.25);
   });
 });
