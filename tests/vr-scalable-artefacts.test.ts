@@ -80,6 +80,54 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     expect(artifact.nodeMeshes[0].count).toBe(50);
   });
 
+  it('automatically batches legacy CUBE_MATRIX grid embodiments above the governed 500-row scalability threshold', () => {
+    const ds = makeGridDataset(501);
+    const result = {
+      facts: { rowCount: 501, topology: 'TABULAR', isLargeDataset: true },
+      spec: {
+        layout: 'GRID_3D',
+        geometry: 'CUBE_MATRIX',
+        behavior: 'STATIC',
+        interaction: 'INSPECT_CELL',
+      },
+      cost: 0,
+    };
+
+    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+      topology: 'TABULAR',
+      dataset: ds,
+      encodings: { color: 'category', size: 'value' },
+    });
+
+    expect(artifact.nodeMeshes).toHaveLength(1);
+    expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
+    expect(artifact.nodeMeshes[0].count).toBe(501);
+    expect(artifact.nodeMeshes[0].userData.instancedCloud).toBeDefined();
+  });
+
+  it('keeps small CUBE_MATRIX grids on the direct per-row path', () => {
+    const ds = makeGridDataset(500);
+    const result = {
+      facts: { rowCount: 500, topology: 'TABULAR', isLargeDataset: false },
+      spec: {
+        layout: 'GRID_3D',
+        geometry: 'CUBE_MATRIX',
+        behavior: 'STATIC',
+        interaction: 'INSPECT_CELL',
+      },
+      cost: 0,
+    };
+
+    const artifact = VRTopologyTranslator.synthesizeArtifact(result, {
+      topology: 'TABULAR',
+      dataset: ds,
+      encodings: { color: 'category', size: 'value' },
+    });
+
+    expect(artifact.nodeMeshes).toHaveLength(500);
+    expect(artifact.nodeMeshes[0]).not.toBeInstanceOf(THREE.InstancedMesh);
+  });
+
   it('honors the per-synthesis point-cloud factory over the registered default', () => {
     const ds = makeGridDataset(4);
     const setPoints = vi.fn();
