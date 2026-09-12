@@ -30,6 +30,8 @@ export interface FaultEnvelope {
   periodicFrameSpikeMs: number;
   frameSpikeEveryNFrames: number;
   inputDisconnectProbability: number;
+  /** Explicit falsifier scheduling; separate from sampled probability semantics. */
+  deterministicDroppedPoseStep?: number;
 }
 
 export interface DatasetEnvelope {
@@ -215,6 +217,18 @@ export const FAULT_ENVELOPES: Record<string, FaultEnvelope> = {
     workerLatencyMs: [0, 0],
     periodicFrameSpikeMs: 50,
     frameSpikeEveryNFrames: 1,
+    inputDisconnectProbability: 0,
+  },
+  'falsifier-pose-loss-freeze': {
+    id: 'falsifier-pose-loss-freeze',
+    trackingPositionNoiseM: 0,
+    trackingAngularNoiseDeg: 0,
+    droppedPoseProbability: 0,
+    poseFreezeMs: 100,
+    deterministicDroppedPoseStep: 0,
+    workerLatencyMs: [0, 0],
+    periodicFrameSpikeMs: 0,
+    frameSpikeEveryNFrames: 0,
     inputDisconnectProbability: 0,
   },
 };

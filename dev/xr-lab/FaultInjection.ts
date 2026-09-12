@@ -83,7 +83,13 @@ export class SeededFaultController implements ScenarioFaultController {
       };
       note('tracking-angular-noise');
     }
-    if (step.kind === 'pose' && this._rng.chance(this._fault.droppedPoseProbability)) {
+    const deterministicPoseDrop =
+      this._fault.deterministicDroppedPoseStep !== undefined &&
+      this._fault.deterministicDroppedPoseStep === stepIndex;
+    if (
+      step.kind === 'pose' &&
+      (deterministicPoseDrop || this._rng.chance(this._fault.droppedPoseProbability))
+    ) {
       effect.dropPose = true;
       effect.freezePoseMs = this._fault.poseFreezeMs;
       note('dropped-pose');
@@ -117,7 +123,9 @@ export class SeededFaultController implements ScenarioFaultController {
     const configured = [
       this._fault.trackingPositionNoiseM > 0 && 'tracking-position-noise',
       this._fault.trackingAngularNoiseDeg > 0 && 'tracking-angular-noise',
-      this._fault.droppedPoseProbability > 0 && 'dropped-pose',
+      (this._fault.droppedPoseProbability > 0 ||
+        this._fault.deterministicDroppedPoseStep !== undefined) &&
+        'dropped-pose',
       this._fault.poseFreezeMs > 0 && 'pose-freeze',
       this._fault.workerLatencyMs[1] > 0 && 'worker-latency',
       this._fault.periodicFrameSpikeMs > 0 && 'periodic-frame-spike',

@@ -11,6 +11,13 @@ import { expandExperimentMatrix, type ExperimentCell } from './ExperimentalProfi
 
 export type FindingClassification = 'DEFECT' | 'MISSING_EVIDENCE' | 'HYPOTHESIS';
 export type IterationPriority = 'P0' | 'P1' | 'P2' | 'P3';
+export type DatasetBindingKind = 'metadata-only' | 'rust-moneta-semantic';
+
+export interface CampaignTargetBinding {
+  target: THREE.Object3D;
+  datasetBinding: DatasetBindingKind;
+  datasetEvidence?: Record<string, unknown>;
+}
 
 export interface CampaignRunResult {
   evidenceRef: string;
@@ -24,7 +31,8 @@ export interface CampaignRunResult {
   errors: string[];
   episode: XREvaluationEpisode;
   faultSummary: FaultInjectionSummary;
-  datasetBinding: 'metadata-only';
+  datasetBinding: DatasetBindingKind;
+  datasetEvidence?: Record<string, unknown>;
 }
 
 export interface IterationWorkPacket {
@@ -57,7 +65,7 @@ export interface AdversarialCampaignReport {
     injectedFaultEvents: number;
   };
   coverage: {
-    datasetBinding: 'metadata-only';
+    datasetBinding: DatasetBindingKind | 'mixed';
     configuredFaultDimensions: string[];
     exercisedFaultDimensions: string[];
     unexercisedFaultDimensions: string[];
@@ -77,6 +85,10 @@ export interface AdversarialCampaignInput {
   repetitions: number;
   scenarioIds: string[];
   faultDelayScale?: number;
+  targetFactory?: (
+    cell: ExperimentCell,
+    scene: THREE.Scene
+  ) => Promise<CampaignTargetBinding> | CampaignTargetBinding;
 }
 
 function makeRouter(adapter: WebXRSimulatorAdapter): {
@@ -120,12 +132,18 @@ async function runCellScenario(
         refreshRateHz: cell.device.nominalRefreshRateHz,
       },
     });
-    const target = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
-    );
-    target.position.set(0, 1.4, -2);
-    scene.add(target);
+    const binding = input.targetFactory
+      ? await input.targetFactory(cell, scene)
+      : (() => {
+          const target = new THREE.Mesh(
+            new THREE.PlaneGeometry(1, 1),
+            new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+          );
+          target.position.set(0, 1.4, -2);
+          scene.add(target);
+          return { target, datasetBinding: 'metadata-only' as const, datasetEvidence: undefined };
+        })();
+    const target = binding.target;
     scene.updateMatrixWorld(true);
     let registered = false;
     const result = await runner.run(scenario, target, (mesh) => {
@@ -146,7 +164,8 @@ async function runCellScenario(
       errors: [...result.errors],
       episode: result.episode,
       faultSummary: faultController.summary(),
-      datasetBinding: 'metadata-only',
+      datasetBinding: binding.datasetBinding,
+      datasetEvidence: binding.datasetEvidence,
     };
   } finally {
     await adapter.endSession();
@@ -323,7 +342,10 @@ export async function runAdversarialCampaign(
       ),
     },
     coverage: {
-      datasetBinding: 'metadata-only',
+      datasetBinding:
+        new Set(results.map((result) => result.datasetBinding)).size === 1
+          ? (results[0]?.datasetBinding ?? 'metadata-only')
+          : 'mixed',
       configuredFaultDimensions: [...configured].sort(),
       exercisedFaultDimensions: [...exercised].sort(),
       unexercisedFaultDimensions: [...configured]
