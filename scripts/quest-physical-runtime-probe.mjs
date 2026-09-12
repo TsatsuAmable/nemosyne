@@ -69,6 +69,27 @@ async function cdpEvaluate(webSocketDebuggerUrl, expression) {
   return message.result?.result?.value ?? null;
 }
 
+async function cdpReload(webSocketDebuggerUrl) {
+  const socket = new WebSocket(webSocketDebuggerUrl);
+  await new Promise((resolveOpen, reject) => {
+    socket.onopen = resolveOpen;
+    socket.onerror = () => reject(new Error('CDP WebSocket connection failed'));
+  });
+  const id = 2;
+  const response = new Promise((resolveResponse, reject) => {
+    const timer = setTimeout(() => reject(new Error('CDP reload timed out')), 10000);
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.id !== id) return;
+      clearTimeout(timer);
+      resolveResponse(message);
+    };
+  });
+  socket.send(JSON.stringify({ id, method: 'Page.reload', params: { ignoreCache: true } }));
+  await response;
+  socket.close();
+}
+
 async function loadedScriptIdentity(webSocketDebuggerUrl) {
   const socket = new WebSocket(webSocketDebuggerUrl);
   await new Promise((resolveOpen, reject) => {
@@ -154,8 +175,14 @@ async function main() {
   let manifest = null;
   try { manifest = manifestPath ? JSON.parse(readFileSync(manifestPath, 'utf8')) : null; } catch { manifest = null; }
 
-  const tabs = await cdpTabs();
-  const pages = tabs.filter((target) => target.type === 'page' && target.url === `http://localhost:${appPort}/`);
+  let tabs = await cdpTabs();
+  let pages = tabs.filter((target) => target.type === 'page' && target.url.startsWith(`http://localhost:${appPort}/`));
+  if (process.argv.includes('--reload') && pages[0]) {
+    await cdpReload(pages[0].webSocketDebuggerUrl);
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1500));
+    tabs = await cdpTabs();
+    pages = tabs.filter((target) => target.type === 'page' && target.url.startsWith(`http://localhost:${appPort}/`));
+  }
   const runtime = pages[0] ? await runtimeSnapshot(pages[0]) : null;
   const loaded = pages[0] ? await loadedScriptIdentity(pages[0].webSocketDebuggerUrl) : { buildId: null, sessionLabel: null, scriptUrl: null };
   const authority = serverAuthority();
