@@ -69,6 +69,40 @@ async function cdpEvaluate(webSocketDebuggerUrl, expression) {
   return message.result?.result?.value ?? null;
 }
 
+async function loadedScriptIdentity(webSocketDebuggerUrl) {
+  const socket = new WebSocket(webSocketDebuggerUrl);
+  await new Promise((resolveOpen, reject) => {
+    socket.onopen = resolveOpen;
+    socket.onerror = () => reject(new Error('CDP WebSocket connection failed'));
+  });
+  const scripts = new Map();
+  let nextId = 10;
+  const pending = new Map();
+  socket.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    if (message.method === 'Debugger.scriptParsed' && message.params?.url) {
+      scripts.set(message.params.url, message.params.scriptId);
+    }
+    if (message.id && pending.has(message.id)) {
+      pending.get(message.id)(message);
+      pending.delete(message.id);
+    }
+  };
+  const send = (method, params = {}) => new Promise((resolveResponse, reject) => {
+    const id = nextId++;
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP ${method} timed out`)); }, 10000);
+    pending.set(id, (message) => { clearTimeout(timer); resolveResponse(message); });
+    socket.send(JSON.stringify({ id, method, params }));
+  });
+  await send('Debugger.enable');
+  await new Promise((resolveWait) => setTimeout(resolveWait, 150));
+  const match = [...scripts.entries()].find(([url]) => url.includes('/src/app/devEvidence.ts'));
+  if (!match) { socket.close(); return { buildId: null, sessionLabel: null, scriptUrl: null }; }
+  const source = await send('Debugger.getScriptSource', { scriptId: match[1] });
+  socket.close();
+  return { ...extractServedIdentity(source.result?.scriptSource ?? ''), scriptUrl: match[0] };
+}
+
 function parseThermal(stdout) {
   const status = Number(stdout.match(/Thermal Status:\s*(\d+)/)?.[1] ?? NaN);
   const read = (name) => {
@@ -123,6 +157,7 @@ async function main() {
   const tabs = await cdpTabs();
   const pages = tabs.filter((target) => target.type === 'page' && target.url === `http://localhost:${appPort}/`);
   const runtime = pages[0] ? await runtimeSnapshot(pages[0]) : null;
+  const loaded = pages[0] ? await loadedScriptIdentity(pages[0].webSocketDebuggerUrl) : { buildId: null, sessionLabel: null, scriptUrl: null };
   const authority = serverAuthority();
   const gitHead = exactGitHead();
   const clean = exec('git', ['status', '--porcelain'], { cwd: root });
@@ -135,6 +170,10 @@ async function main() {
   if (!served.buildId) reasons.push('served build identity is missing');
   if (served.buildId && served.buildId !== gitHead) reasons.push('served build does not match worktree HEAD');
   if (!served.sessionLabel) reasons.push('served validation session label is missing');
+  if (!loaded.buildId) reasons.push('running Quest page build identity is missing');
+  if (loaded.buildId && loaded.buildId !== served.buildId) reasons.push('running Quest page build does not match served build');
+  if (!loaded.sessionLabel) reasons.push('running Quest page session label is missing');
+  if (loaded.sessionLabel && loaded.sessionLabel !== served.sessionLabel) reasons.push('running Quest page session does not match served session');
   if (!manifest) reasons.push('launcher manifest is missing');
   if (manifest && manifest.buildId !== served.buildId) reasons.push('manifest build does not match served build');
   if (manifest && manifest.sessionLabel !== served.sessionLabel) reasons.push('manifest session does not match served session');
@@ -157,6 +196,9 @@ async function main() {
       pageCount: pages.length,
       evidenceClass: manifest?.evidenceClass ?? null,
       validationMode: manifest?.validationMode ?? null,
+      loadedBuildId: loaded.buildId,
+      loadedSessionLabel: loaded.sessionLabel,
+      loadedScriptUrl: loaded.scriptUrl,
     },
     device: identity.ok ? identity.identity : null,
     browser: { pidPresent: Boolean(browserPid), ...meminfo, ...thermal },
