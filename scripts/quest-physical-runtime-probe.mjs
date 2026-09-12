@@ -423,13 +423,32 @@ async function main() {
     );
     immersive.exitSignal = 'nemosyne-vr-button';
     immersive.exitClick = exitClick;
-    await new Promise((resolveWait) => setTimeout(resolveWait, 1200));
-    const cleanupSelection = await waitForForegroundNemosynePage({ attempts: 8, delayMs: 400 });
+    await new Promise((resolveWait) => setTimeout(resolveWait, 900));
+    immersive.postExit = await runtimeSnapshot(selectedPage);
+    immersive.sessionEnded = immersive.postExit?.vrButton === 'ENTER VR';
+
+    const refocus = adb([
+      '-s',
+      serial,
+      'shell',
+      'am',
+      'start',
+      '-a',
+      'android.intent.action.MAIN',
+      '-c',
+      'com.oculus.intent.category.VR_HOME_LAUNCHER',
+      '-n',
+      'com.oculus.browser/.OculusLauncherActivity',
+    ]);
+    immersive.browserRecoverySignal = refocus.ok ? 'meta-launcher' : 'meta-launcher-failed';
+    const cleanupSelection = await waitForForegroundNemosynePage({ attempts: 8, delayMs: 350 });
     const cleanupPage = cleanupSelection.page;
     immersive.cleanupPageId = cleanupPage?.id ?? null;
     immersive.cleanup = cleanupPage ? await runtimeSnapshot(cleanupPage) : null;
     immersive.cleanedUp =
       exitClick?.clicked === true &&
+      immersive.sessionEnded === true &&
+      refocus.ok &&
       immersive.cleanup?.readyState === 'complete' &&
       immersive.cleanup?.vrButton === 'ENTER VR';
   }
