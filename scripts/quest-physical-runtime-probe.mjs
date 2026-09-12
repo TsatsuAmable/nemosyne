@@ -375,7 +375,12 @@ async function main() {
     immersive,
   };
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  process.exitCode = result.attribution.ok ? 0 : 2;
+  const immersiveRequested = process.argv.includes('--immersive-smoke');
+  const immersiveOk =
+    !immersiveRequested ||
+    (immersive?.entered === true &&
+      (immersive?.attempted === false || immersive?.cleanedUp === true));
+  process.exitCode = result.attribution.ok && immersiveOk ? 0 : 2;
 }
 
 if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
