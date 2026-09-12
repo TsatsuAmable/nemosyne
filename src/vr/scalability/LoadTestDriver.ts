@@ -99,7 +99,10 @@ export interface LoadTestWorldLike {
   getActiveSpecInfo?(): {
     geometry?: string;
     layout?: string;
+    candidateId?: string | null;
     renderedNodeCount?: number;
+    representedSourceRows?: number | null;
+    semanticEmbodimentStatus?: string | null;
   } | null;
   eventBus: { emit(topic: string, payload?: unknown): void };
 }
@@ -377,7 +380,10 @@ export class LoadTestDriver implements Updatable {
     const result = this.collector.endStep({
       specGeometry: specInfo?.geometry,
       specLayout: specInfo?.layout,
+      candidateId: specInfo?.candidateId,
       renderedNodeCount: specInfo?.renderedNodeCount,
+      representedSourceRows: specInfo?.representedSourceRows,
+      semanticEmbodimentStatus: specInfo?.semanticEmbodimentStatus,
       loadDurationMs: this._currentLoadDurationMs,
     });
     if (partial) {

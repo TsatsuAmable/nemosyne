@@ -1,6 +1,7 @@
 import type { Updatable } from '../coordinators/types.ts';
 import { DEFAULT_BUDGETS } from '../../utils/PerformanceBudget.ts';
 import {
+  classifyRepresentationCoverage,
   computeFrameStats,
   computeVerdict,
   type LoadTestStepSpec,
@@ -207,7 +208,10 @@ export class LoadTestCollector implements Updatable {
     errors?: number;
     specGeometry?: string;
     specLayout?: string;
+    candidateId?: string | null;
     renderedNodeCount?: number;
+    representedSourceRows?: number | null;
+    semanticEmbodimentStatus?: string | null;
     loadDurationMs?: number;
   } = {}): StepResult {
     this._active = false;
@@ -235,13 +239,26 @@ export class LoadTestCollector implements Updatable {
       (governor?.throttleCount ?? this._governorThrottleStart) - this._governorThrottleStart
     );
 
+    const spec = this._currentSpec ?? { topology: 'TABULAR', rowCount: 0, durationSec: 0 };
+    const coverage = classifyRepresentationCoverage({
+      sourceRowCount: spec.rowCount,
+      candidateId: opts.candidateId,
+      renderedNodeCount: opts.renderedNodeCount,
+      representedSourceRows: opts.representedSourceRows,
+      semanticEmbodimentStatus: opts.semanticEmbodimentStatus,
+    });
     const verdictFrames = frameCadence.frameCount > 0 ? frameCadence : frames;
+    const hasRepresentationEvidence =
+      opts.candidateId != null ||
+      opts.renderedNodeCount != null ||
+      opts.representedSourceRows != null ||
+      opts.semanticEmbodimentStatus != null;
     const verdict = computeVerdict({
       frames: verdictFrames,
       criticalViolations: this._criticalFrames,
+      representation: hasRepresentationEvidence ? coverage : undefined,
     });
 
-    const spec = this._currentSpec ?? { topology: 'TABULAR', rowCount: 0, durationSec: 0 };
     return {
       spec,
       frames,
@@ -260,11 +277,7 @@ export class LoadTestCollector implements Updatable {
       },
       representation: {
         sourceRowCount: spec.rowCount,
-        renderedNodeCount: opts.renderedNodeCount ?? null,
-        renderedFraction:
-          typeof opts.renderedNodeCount === 'number' && spec.rowCount > 0
-            ? opts.renderedNodeCount / spec.rowCount
-            : null,
+        ...coverage,
         sceneObjectCountStart: this._sceneStart?.objectCount ?? null,
         sceneObjectCountEnd: sceneEnd?.objectCount ?? null,
         sceneObjectCountDelta: nullableDelta(
