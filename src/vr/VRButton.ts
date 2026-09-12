@@ -33,7 +33,8 @@ export class NemosyneVRButton {
 
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isQuestDevice = /Quest|OculusBrowser|WebXR/i.test(userAgent);
-    const hasXR = typeof navigator !== 'undefined' && 'xr' in navigator && (navigator as Navigator).xr;
+    const hasXR =
+      typeof navigator !== 'undefined' && 'xr' in navigator && (navigator as Navigator).xr;
 
     if (!hasXR && !isQuestDevice) {
       button.textContent = 'VR NOT SUPPORTED';
@@ -44,24 +45,29 @@ export class NemosyneVRButton {
     button.textContent = 'ENTER VR';
 
     if (hasXR) {
-      (navigator as Navigator).xr!.isSessionSupported('immersive-vr').then((supported) => {
-        if (supported) {
-          button.textContent = 'ENTER VR';
-          button.disabled = false;
-        } else if (!isQuestDevice) {
-          button.textContent = 'VR NOT SUPPORTED';
-          button.disabled = true;
-        }
-      }).catch(() => {
-        if (!isQuestDevice) {
-          button.textContent = 'VR NOT SUPPORTED';
-          button.disabled = true;
-        }
-      });
+      (navigator as Navigator)
+        .xr!.isSessionSupported('immersive-vr')
+        .then((supported) => {
+          if (supported) {
+            button.textContent = 'ENTER VR';
+            button.disabled = false;
+          } else if (!isQuestDevice) {
+            button.textContent = 'VR NOT SUPPORTED';
+            button.disabled = true;
+          }
+        })
+        .catch(() => {
+          if (!isQuestDevice) {
+            button.textContent = 'VR NOT SUPPORTED';
+            button.disabled = true;
+          }
+        });
     }
 
+    let activeSession: XRSession | null = null;
+
     const enterVRSession = () => {
-      if (renderer.xr.isPresenting) return;
+      if (renderer.xr.isPresenting || activeSession) return;
 
       const sessionInit: { requiredFeatures: string[]; optionalFeatures: string[] } = {
         requiredFeatures: ['local-floor'],
@@ -69,7 +75,11 @@ export class NemosyneVRButton {
       };
 
       if (!hasXR) {
-        alert('WebXR is disabled because this page is served over unencrypted HTTP (http://' + window.location.host + '). Please open the HTTPS production URL (e.g. Netlify/Vercel) or set up HTTPS locally.');
+        alert(
+          'WebXR is disabled because this page is served over unencrypted HTTP (http://' +
+            window.location.host +
+            '). Please open the HTTPS production URL (e.g. Netlify/Vercel) or set up HTTPS locally.'
+        );
         return;
       }
 
@@ -92,9 +102,11 @@ export class NemosyneVRButton {
             }
 
             await renderer.xr.setSession(session);
+            activeSession = session;
             button.textContent = 'IN VR';
 
             session.addEventListener('end', () => {
+              if (activeSession === session) activeSession = null;
               button.textContent = 'ENTER VR';
             });
           } catch (setupErr) {
@@ -109,6 +121,13 @@ export class NemosyneVRButton {
     };
 
     button.addEventListener('click', () => {
+      if (activeSession) {
+        void activeSession.end().catch((err) => {
+          console.error('[NemosyneVRButton] session end failed:', err);
+          button.textContent = `VR EXIT ERROR: ${(err as Error).message || 'End Failed'}`;
+        });
+        return;
+      }
       if (isQuestDevice || hasXR || button.textContent.includes('ENTER VR')) {
         enterVRSession();
       } else {

@@ -61,68 +61,152 @@ async function cdpTabs() {
   return response.json();
 }
 
-async function cdpEvaluate(webSocketDebuggerUrl, expression, { userGesture = false } = {}) {
+async function cdpEvaluate(
+  webSocketDebuggerUrl,
+  expression,
+  { userGesture = false, timeoutMs = 10000 } = {}
+) {
   const socket = new WebSocket(webSocketDebuggerUrl);
-  await new Promise((resolveOpen, reject) => {
-    const timer = setTimeout(() => reject(new Error('CDP WebSocket open timed out')), 5000);
-    socket.onopen = () => {
-      clearTimeout(timer);
-      resolveOpen();
+  try {
+    await new Promise((resolveOpen, reject) => {
+      const timer = setTimeout(
+        () => {
+          socket.close();
+          reject(new Error('CDP WebSocket open timed out'));
+        },
+        Math.min(5000, timeoutMs)
+      );
+      socket.onopen = () => {
+        clearTimeout(timer);
+        resolveOpen();
+      };
+      socket.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error('CDP WebSocket connection failed'));
+      };
+    });
+    const id = 1;
+    const message = await new Promise((resolveResponse, reject) => {
+      const timer = setTimeout(() => {
+        socket.close();
+        reject(new Error('CDP evaluation timed out'));
+      }, timeoutMs);
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.id !== id) return;
+        clearTimeout(timer);
+        resolveResponse(message);
+      };
+      socket.send(
+        JSON.stringify({
+          id,
+          method: 'Runtime.evaluate',
+          params: { expression, awaitPromise: true, returnByValue: true, userGesture },
+        })
+      );
+    });
+    if (message.error) throw new Error(message.error.message || 'CDP evaluation failed');
+    return message.result?.result?.value ?? null;
+  } finally {
+    try {
+      socket.close();
+    } catch {
+      // Best-effort close; the caller already owns the primary error.
+    }
+  }
+}
+
+async function pageSelectionState(page) {
+  try {
+    const state = await cdpEvaluate(
+      page.webSocketDebuggerUrl,
+      `({
+        visibilityState: document.visibilityState,
+        hasFocus: document.hasFocus(),
+        readyState: document.readyState,
+        vrButton: document.querySelector('#nemosyne-vr-button')?.textContent?.trim() ?? null,
+        href: location.href
+      })`,
+      { timeoutMs: 1200 }
+    );
+    return { id: page.id, responsive: true, ...state };
+  } catch (error) {
+    return {
+      id: page.id,
+      responsive: false,
+      error: error instanceof Error ? error.message : String(error),
     };
-    socket.onerror = () => {
-      clearTimeout(timer);
-      reject(new Error('CDP WebSocket connection failed'));
-    };
-  });
-  const id = 1;
-  const response = new Promise((resolveResponse, reject) => {
-    const timer = setTimeout(() => reject(new Error('CDP evaluation timed out')), 10000);
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.id !== id) return;
-      clearTimeout(timer);
-      resolveResponse(message);
-    };
-  });
-  socket.send(
-    JSON.stringify({
-      id,
-      method: 'Runtime.evaluate',
-      params: { expression, awaitPromise: true, returnByValue: true, userGesture },
-    })
+  }
+}
+
+async function selectForegroundNemosynePage(pages) {
+  const states = await Promise.all(pages.map((page) => pageSelectionState(page)));
+  const focused = states.filter(
+    (state) => state.responsive && state.visibilityState === 'visible' && state.hasFocus === true
   );
-  const message = await response;
-  socket.close();
-  if (message.error) throw new Error(message.error.message || 'CDP evaluation failed');
-  return message.result?.result?.value ?? null;
+  const selectedState = focused.length === 1 ? focused[0] : null;
+  const page = selectedState
+    ? (pages.find((candidate) => candidate.id === selectedState.id) ?? null)
+    : null;
+  return { page, states, focusedCount: focused.length };
+}
+
+async function waitForForegroundNemosynePage({ attempts = 6, delayMs = 500 } = {}) {
+  let last = { page: null, states: [], focusedCount: 0, pages: [] };
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const tabs = await cdpTabs();
+    const pages = tabs.filter(
+      (target) => target.type === 'page' && target.url.startsWith(`http://localhost:${appPort}/`)
+    );
+    const selection = await selectForegroundNemosynePage(pages);
+    last = { ...selection, pages };
+    const state = selection.states.find((candidate) => candidate.id === selection.page?.id);
+    if (selection.page && state?.readyState === 'complete') return last;
+    if (attempt + 1 < attempts) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, delayMs));
+    }
+  }
+  return last;
 }
 
 async function cdpReload(webSocketDebuggerUrl) {
   const socket = new WebSocket(webSocketDebuggerUrl);
-  await new Promise((resolveOpen, reject) => {
-    const timer = setTimeout(() => reject(new Error('CDP WebSocket open timed out')), 5000);
-    socket.onopen = () => {
-      clearTimeout(timer);
-      resolveOpen();
-    };
-    socket.onerror = () => {
-      clearTimeout(timer);
-      reject(new Error('CDP WebSocket connection failed'));
-    };
-  });
-  const id = 2;
-  const response = new Promise((resolveResponse, reject) => {
-    const timer = setTimeout(() => reject(new Error('CDP reload timed out')), 10000);
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.id !== id) return;
-      clearTimeout(timer);
-      resolveResponse(message);
-    };
-  });
-  socket.send(JSON.stringify({ id, method: 'Page.reload', params: { ignoreCache: true } }));
-  await response;
-  socket.close();
+  try {
+    await new Promise((resolveOpen, reject) => {
+      const timer = setTimeout(() => {
+        socket.close();
+        reject(new Error('CDP WebSocket open timed out'));
+      }, 5000);
+      socket.onopen = () => {
+        clearTimeout(timer);
+        resolveOpen();
+      };
+      socket.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error('CDP WebSocket connection failed'));
+      };
+    });
+    const id = 2;
+    await new Promise((resolveResponse, reject) => {
+      const timer = setTimeout(() => {
+        socket.close();
+        reject(new Error('CDP reload timed out'));
+      }, 10000);
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.id !== id) return;
+        clearTimeout(timer);
+        resolveResponse(message);
+      };
+      socket.send(JSON.stringify({ id, method: 'Page.reload', params: { ignoreCache: true } }));
+    });
+  } finally {
+    try {
+      socket.close();
+    } catch {
+      // Best-effort close.
+    }
+  }
 }
 
 async function loadedScriptIdentity(webSocketDebuggerUrl) {
@@ -226,9 +310,9 @@ async function immersiveSmoke(page, initialRuntime) {
     return {
       requested: true,
       attempted: false,
-      entered: true,
+      entered: false,
       before,
-      reason: 'already-presenting',
+      reason: 'preexisting-immersive-state',
     };
   }
   if (initialRuntime?.immersiveVrSupported !== true) {
@@ -298,18 +382,29 @@ async function main() {
   let pages = tabs.filter(
     (target) => target.type === 'page' && target.url.startsWith(`http://localhost:${appPort}/`)
   );
-  if (process.argv.includes('--reload') && pages[0]) {
-    await cdpReload(pages[0].webSocketDebuggerUrl);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 1500));
-    tabs = await cdpTabs();
-    pages = tabs.filter(
-      (target) => target.type === 'page' && target.url.startsWith(`http://localhost:${appPort}/`)
-    );
+  let selection = await selectForegroundNemosynePage(pages);
+  const smokeRequested = process.argv.includes('--immersive-smoke');
+  const webVrBeforeSmoke = adb([
+    '-s',
+    serial,
+    'shell',
+    'dumpsys',
+    'activity',
+    'activities',
+  ]).stdout.includes('com.oculus.browser/.WebVRActivity');
+  const shouldRefreshPage =
+    process.argv.includes('--reload') || (smokeRequested && !webVrBeforeSmoke);
+  if (shouldRefreshPage && selection.page) {
+    await cdpReload(selection.page.webSocketDebuggerUrl);
+    const refreshed = await waitForForegroundNemosynePage();
+    pages = refreshed.pages;
+    selection = refreshed;
   }
-  const runtime = pages[0] ? await runtimeSnapshot(pages[0]) : null;
-  const immersive = pages[0] ? await immersiveSmoke(pages[0], runtime) : null;
-  const loaded = pages[0]
-    ? await loadedScriptIdentity(pages[0].webSocketDebuggerUrl)
+  const selectedPage = selection.page;
+  const runtime = selectedPage ? await runtimeSnapshot(selectedPage) : null;
+  const immersive = selectedPage ? await immersiveSmoke(selectedPage, runtime) : null;
+  const loaded = selectedPage
+    ? await loadedScriptIdentity(selectedPage.webSocketDebuggerUrl)
     : { buildId: null, sessionLabel: null, scriptUrl: null };
   const authority = serverAuthority();
   const gitHead = exactGitHead();
@@ -320,11 +415,23 @@ async function main() {
     ? parseMeminfo(adb(['-s', serial, 'shell', 'dumpsys', 'meminfo', browserPid]).stdout)
     : { pssKb: null };
   const thermal = parseThermal(adb(['-s', serial, 'shell', 'dumpsys', 'thermalservice']).stdout);
-  if (immersive?.entered && immersive?.attempted && pages[0]) {
-    await cdpReload(pages[0].webSocketDebuggerUrl);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 1500));
-    immersive.cleanup = await runtimeSnapshot(pages[0]);
-    immersive.cleanedUp = immersive.cleanup?.vrButton === 'ENTER VR';
+  if (immersive?.entered && immersive?.attempted && selectedPage) {
+    const exitClick = await cdpEvaluate(
+      selectedPage.webSocketDebuggerUrl,
+      `(()=>{const b=document.querySelector('#nemosyne-vr-button'); if(!b)return {clicked:false}; b.click(); return {clicked:true,text:b.textContent?.trim()};})()`,
+      { userGesture: true }
+    );
+    immersive.exitSignal = 'nemosyne-vr-button';
+    immersive.exitClick = exitClick;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1200));
+    const cleanupSelection = await waitForForegroundNemosynePage({ attempts: 8, delayMs: 400 });
+    const cleanupPage = cleanupSelection.page;
+    immersive.cleanupPageId = cleanupPage?.id ?? null;
+    immersive.cleanup = cleanupPage ? await runtimeSnapshot(cleanupPage) : null;
+    immersive.cleanedUp =
+      exitClick?.clicked === true &&
+      immersive.cleanup?.readyState === 'complete' &&
+      immersive.cleanup?.vrButton === 'ENTER VR';
   }
   const reasons = [];
   if (!reverseOk) reasons.push('ADB reverse tcp:5173 is missing');
@@ -349,6 +456,13 @@ async function main() {
   if (!clean.ok || clean.stdout.trim() !== '')
     reasons.push('physical validation worktree is not clean');
   if (pages.length === 0) reasons.push('Quest Browser has no Nemosyne localhost page');
+  if (pages.length > 0 && !selectedPage) {
+    reasons.push(
+      selection.focusedCount === 0
+        ? 'Quest Browser has no foreground focused Nemosyne page'
+        : 'Quest Browser has multiple foreground focused Nemosyne pages'
+    );
+  }
 
   const result = {
     schemaVersion: 1,
@@ -363,8 +477,12 @@ async function main() {
       serverCwd: authority.cwd,
       reverseOk,
       pageCount: pages.length,
+      selectedPageId: selectedPage?.id ?? null,
+      focusedPageCount: selection.focusedCount,
+      pageStates: selection.states,
       evidenceClass: manifest?.evidenceClass ?? null,
       validationMode: manifest?.validationMode ?? null,
+      webVrActivityBeforeSmoke: webVrBeforeSmoke,
       loadedBuildId: loaded.buildId,
       loadedSessionLabel: loaded.sessionLabel,
       loadedScriptUrl: loaded.scriptUrl,
