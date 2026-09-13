@@ -1,4 +1,8 @@
-import type { MonetaBenchmarkFamily, OracleStrength } from './MonetaBenchmarkCorpus.ts';
+import type {
+  MonetaBenchmarkFamily,
+  OracleStrength,
+  StabilityEvidencePolicy,
+} from './MonetaBenchmarkCorpus.ts';
 
 export type MeasurementScale =
   'nominal' | 'ordinal' | 'interval' | 'ratio' | 'compositional' | 'unknown';
@@ -44,6 +48,7 @@ export interface MonetaEvidenceDecision {
     adaptiveSelection: boolean;
     compositional: boolean;
     stabilityEvidencePresent: boolean;
+    stabilityCertificationApplied: boolean;
   };
 }
 
@@ -54,17 +59,40 @@ export interface MonetaEvidenceDecision {
  * evidence is admissible for further consideration. Hard scientific validity
  * boundaries must not be traded away inside a utility/fitness scalar.
  */
+export interface MonetaEvidenceContext {
+  stabilityPolicy?: StabilityEvidencePolicy;
+}
+
+function stabilityPolicyAccepts(
+  policy: StabilityEvidencePolicy | undefined,
+  evidence: PerturbationEvidence | undefined
+): boolean {
+  if (!policy || !evidence) return false;
+  if (!policy.acceptedMetrics.includes(evidence.metric)) return false;
+  if (policy.minRuns !== undefined && evidence.runs < policy.minRuns) return false;
+  if (policy.valueRange?.minInclusive !== undefined && evidence.value < policy.valueRange.minInclusive) return false;
+  if (policy.valueRange?.maxInclusive !== undefined && evidence.value > policy.valueRange.maxInclusive) return false;
+  return true;
+}
+
 export function adjudicateMonetaEvidence(
-  candidate: MonetaEvidenceCandidate
+  candidate: MonetaEvidenceCandidate,
+  context: MonetaEvidenceContext = {}
 ): MonetaEvidenceDecision {
   const reasons: string[] = [];
   const highDimensional = candidate.featureCount >= candidate.sampleSize;
   const adaptiveSelection = candidate.selectionMode === 'adaptive-after-data';
   const compositional = candidate.measurementScales.includes('compositional');
+  const perturbationWellFormed = candidate.perturbation !== undefined &&
+    Number.isInteger(candidate.perturbation.runs) &&
+    candidate.perturbation.runs > 0 &&
+    typeof candidate.perturbation.metric === 'string' &&
+    candidate.perturbation.metric.trim().length > 0 &&
+    Number.isFinite(candidate.perturbation.value);
+  const stabilityCertificationApplied = context.stabilityPolicy !== undefined;
   const stabilityEvidencePresent =
-    candidate.perturbation !== undefined &&
-    Number.isFinite(candidate.perturbation.value) &&
-    candidate.perturbation.runs > 0;
+    perturbationWellFormed &&
+    stabilityPolicyAccepts(context.stabilityPolicy, candidate.perturbation);
 
   if (candidate.sampleSize <= 0 || candidate.featureCount <= 0) {
     reasons.push('sampleSize and featureCount must both be positive');
@@ -100,10 +128,10 @@ export function adjudicateMonetaEvidence(
     reasons.push('inferential claims require an explicit calibration/inference strategy');
   }
 
-  if (candidate.perturbation) {
-    if (candidate.perturbation.runs <= 0 || !Number.isFinite(candidate.perturbation.value)) {
-      reasons.push('perturbation evidence must contain positive run count and finite metric value');
-    }
+  if (candidate.perturbation && !perturbationWellFormed) {
+    reasons.push(
+      'perturbation evidence must contain a positive integer run count, non-empty metric identifier and finite metric value'
+    );
   }
 
   if (candidate.hardViolations?.length) {
@@ -115,14 +143,22 @@ export function adjudicateMonetaEvidence(
     adaptiveSelection,
     compositional,
     stabilityEvidencePresent,
+    stabilityCertificationApplied,
   };
 
   if (reasons.length > 0) return { disposition: 'INVALID', reasons, flags };
 
   if (highDimensional && !stabilityEvidencePresent) {
+    const detail = candidate.perturbation === undefined
+      ? 'no perturbation evidence supplied'
+      : !stabilityCertificationApplied
+        ? 'perturbation evidence cannot be certified because no benchmark-family stability policy is in scope'
+        : 'perturbation evidence is not admissible under the benchmark-family stability policy';
     return {
       disposition: 'ABSTAIN',
-      reasons: ['p >= n requires explicit perturbation/stability evidence before promotion'],
+      reasons: [
+        `p >= n requires explicit perturbation/stability evidence before promotion: ${detail}`,
+      ],
       flags,
     };
   }
@@ -157,9 +193,12 @@ export function adjudicateBenchmarkCandidate(
   family: MonetaBenchmarkFamily,
   candidate: Omit<MonetaEvidenceCandidate, 'oracleStrength' | 'requiresHumanValidation'>
 ): MonetaEvidenceDecision {
-  return adjudicateMonetaEvidence({
-    ...candidate,
-    oracleStrength: family.oracleStrength,
-    requiresHumanValidation: family.requiresHumanValidation,
-  });
+  return adjudicateMonetaEvidence(
+    {
+      ...candidate,
+      oracleStrength: family.oracleStrength,
+      requiresHumanValidation: family.requiresHumanValidation,
+    },
+    { stabilityPolicy: family.stabilityPolicy }
+  );
 }

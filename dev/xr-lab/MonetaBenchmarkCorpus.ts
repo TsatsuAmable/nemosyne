@@ -1,6 +1,15 @@
 export type OracleStrength = 'exact-generative' | 'labeled-ground-truth' | 'task-solution' | 'human-preference' | 'diagnostic-only';
 export type BenchmarkDomain = 'statistical-shape' | 'manifold' | 'graph' | 'time-series' | 'visual-analytics' | 'visualization-preference';
 
+export interface StabilityEvidencePolicy {
+  acceptedMetrics: readonly string[];
+  minRuns?: number;
+  valueRange?: {
+    minInclusive?: number;
+    maxInclusive?: number;
+  };
+}
+
 export interface MonetaBenchmarkFamily {
   id: string;
   label: string;
@@ -9,6 +18,7 @@ export interface MonetaBenchmarkFamily {
   oracleStrength: OracleStrength;
   machineOracle: boolean;
   requiresHumanValidation: boolean;
+  stabilityPolicy?: StabilityEvidencePolicy;
   properties: string[];
   monetaQuestion: string;
   reference?: string;
