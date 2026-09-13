@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
-import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
+import { Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { COLOR_TOKENS, SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import { remapColor } from '../../utils/Accessibility.ts';
+import type { AccessibilityOptions } from '../coordinators/types.ts';
 
 interface NetworkPeer {
   peerId: string;
@@ -15,32 +18,69 @@ interface NetworkStatus {
   lastEvent: string | null;
 }
 
-interface NetworkPanelOptions extends MovablePanelOptions {
+export interface NetworkPanelOptions {
   roomId?: string;
+  position?: [number, number, number];
+  worldSize?: [number, number];
+  textScale?: number;
+  highContrast?: boolean;
+  colorblindMode?: string;
 }
 
+const PANEL_WIDTH = 720;
+const PANEL_HEIGHT = 480;
+const BASE_FONT_SIZE = 20;
+
 /**
- * Lightweight in-VR panel showing collaboration network status: room ID,
- * connection state, and peer list. Intended for Quest debugging and quick
- * confirmation that a session is shared.
+ * Collaboration status surface.
+ *
+ * UXR1 migrates this passive diagnostic surface from the legacy
+ * CanvasTexture/MovablePanel renderer to SpatialPanel + UIKit. It remains
+ * presentation-only: collaboration state continues to be owned by the
+ * collaboration coordinator and semantic commands remain outside UIKit.
  */
-export class NetworkPanel extends MovablePanel {
+export class NetworkPanel extends SpatialPanel {
+  readonly title = 'COLLABORATION';
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   status: NetworkStatus;
 
-  constructor(cameraGroup: THREE.Group, options: NetworkPanelOptions = {}) {
-    super(cameraGroup, {
-      title: 'COLLABORATION',
-      width: 720,
-      height: 480,
-      position: options.position ?? [-0.65, 1.55, -1.1],
-      worldSize: options.worldSize ?? [0.72, 0.48],
-      titleBarHeight: 44,
-      tilt: 0.22,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-    });
+  private readonly _roomText: Text;
+  private readonly _stateText: Text;
+  private readonly _peersText: Text;
+  private readonly _lastEventText: Text;
+  private _textScale: number;
+  private _highContrast: boolean;
+  private _colorblindMode: string;
 
+  constructor(analystAnchor: THREE.Object3D, options: NetworkPanelOptions = {}) {
+    const highContrast = options.highContrast ?? false;
+    const theme = getTheme(highContrast);
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'column',
+        gap: SPACING_TOKENS.grid.x8,
+        padding: SPACING_TOKENS.grid.x16,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      analystAnchor,
+      null
+    );
+
+    this.name = 'network-panel';
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
+    this._colorblindMode = options.colorblindMode ?? 'none';
     this.status = {
       roomId: options.roomId ?? '-',
       connected: false,
@@ -48,68 +88,109 @@ export class NetworkPanel extends MovablePanel {
       lastEvent: null,
     };
 
-    this.render();
+    const worldWidth = options.worldSize?.[0] ?? 0.72;
+    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.defaultPosition = new THREE.Vector3(...(options.position ?? [-0.65, 1.55, -1.1]));
+    this.position.copy(this.defaultPosition);
+
+    this._roomText = this._makeText('bold');
+    this._stateText = this._makeText('bold');
+    this._peersText = this._makeText('medium');
+    this._lastEventText = this._makeText('medium', 16);
+    this.add(this._roomText, this._stateText, this._peersText, this._lastEventText);
+
+    this._syncPresentation();
   }
 
   setStatus(status: Partial<NetworkStatus>): void {
     this.status = { ...this.status, ...status };
-    this.render();
+    this._syncPresentation();
   }
 
   applyAccessibility(options: AccessibilityOptions): void {
-    super.applyAccessibility(options);
-    this.render();
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    this._colorblindMode = String(options.colorblindMode);
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this._syncPresentation();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, _w: number, _contentH: number): void {
-    const margin = 28;
-    const lineHeight = 34;
-    let y = margin;
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
 
-    ctx.font = this._scaleFont('bold 20px monospace');
-    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.textAlign = 'left';
-    ctx.fillText(`Room: ${this.status.roomId}`, margin, y + lineHeight / 2);
-    y += lineHeight + 12;
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
 
-    ctx.fillStyle = this.status.connected
-      ? this.highContrast
-        ? cssHex(COLOR_TOKENS.text.primary)
-        : cssHex(COLOR_TOKENS.status.verified)
-      : this.highContrast
-        ? cssHex(COLOR_TOKENS.text.primary)
-        : cssHex(COLOR_TOKENS.danger.destructive);
-    ctx.fillText(
-      `State: ${this.status.connected ? 'Connected' : 'Offline'}`,
-      margin,
-      y + lineHeight / 2
-    );
-    y += lineHeight + 18;
+  render(): void {
+    this._syncPresentation();
+  }
 
-    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
-    ctx.fillText('Peers:', margin, y + lineHeight / 2);
-    y += lineHeight;
+  update(delta = 0): void {
+    super.update(delta);
+  }
 
-    ctx.font = this._scaleFont('18px monospace');
-    if (this.status.peers.length === 0) {
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText('  No peers in room', margin, y + lineHeight / 2);
-    } else {
-      for (const peer of this.status.peers) {
-        const label = peer.name
-          ? `${peer.name} (${peer.peerId.slice(0, 6)})`
-          : peer.peerId.slice(0, 12);
-        ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
-        ctx.fillText(`  • ${label}`, margin, y + lineHeight / 2);
-        y += lineHeight;
-      }
-    }
+  private _makeText(fontWeight: 'bold' | 'medium', fontSize = BASE_FONT_SIZE): Text {
+    return new Text({
+      text: '',
+      fontSize: fontSize * this._textScale,
+      fontWeight,
+      color: Number(getTheme(this._highContrast).textPrimary),
+    });
+  }
 
-    if (this.status.lastEvent) {
-      y += 12;
-      ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText(`Last: ${this.status.lastEvent}`, margin, y + lineHeight / 2);
-    }
+  private _syncPresentation(): void {
+    const theme = getTheme(this._highContrast);
+    const primary = Number(theme.textPrimary);
+    const muted = Number(theme.textMuted);
+    const focus = this._highContrast
+      ? primary
+      : (remapColor(COLOR_TOKENS.interaction.focus, this._colorblindMode) as number);
+    const stateColor = this._highContrast
+      ? primary
+      : this.status.connected
+        ? Number(COLOR_TOKENS.status.verified)
+        : Number(COLOR_TOKENS.danger.destructive);
+
+    this._roomText.setProperties({
+      text: 'Room: ' + this.status.roomId,
+      fontSize: BASE_FONT_SIZE * this._textScale,
+      color: focus,
+    });
+    this._stateText.setProperties({
+      text: 'State: ' + (this.status.connected ? 'Connected' : 'Offline'),
+      fontSize: BASE_FONT_SIZE * this._textScale,
+      color: stateColor,
+    });
+
+    const peers =
+      this.status.peers.length === 0
+        ? 'Peers:\n  No peers in room'
+        : 'Peers:\n' +
+          this.status.peers
+            .map((peer) =>
+              peer.name
+                ? '  • ' + peer.name + ' (' + peer.peerId.slice(0, 6) + ')'
+                : '  • ' + peer.peerId.slice(0, 12)
+            )
+            .join('\n');
+    this._peersText.setProperties({
+      text: peers,
+      fontSize: 18 * this._textScale,
+      color: primary,
+    });
+    this._lastEventText.setProperties({
+      text: this.status.lastEvent ? 'Last: ' + this.status.lastEvent : '',
+      fontSize: 16 * this._textScale,
+      color: muted,
+    });
   }
 }
