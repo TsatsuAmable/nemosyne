@@ -58,6 +58,17 @@ describe('VRConsole', () => {
     expect(consolePanel.lines[4].text).toContain('line-9');
   });
 
+
+  it('restores the patched browser console when disposed', () => {
+    consolePanel = new VRConsole(new THREE.Group());
+    consolePanel.dispose();
+
+    const beforeCount = consolePanel.lines.length;
+    console.log('after-dispose');
+    expect(consolePanel.lines.length).toBe(beforeCount);
+    consolePanel = null;
+  });
+
   it('unpatches console on request', () => {
     consolePanel = new VRConsole(new THREE.Group());
     consolePanel.unpatchConsole();
