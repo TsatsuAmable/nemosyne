@@ -39,7 +39,9 @@ describe('WASM JSON ABI input', () => {
   );
 
   it('fails closed on sparse arrays instead of materializing holes as null', () => {
-    const sparse = [1, , 3];
+    const sparse = new Array<number>(3);
+    sparse[0] = 1;
+    sparse[2] = 3;
     expect(encodeJsonAbiInput(sparse)).toBeNull();
   });
 
