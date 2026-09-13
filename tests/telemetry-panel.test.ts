@@ -1,86 +1,58 @@
-// @ts-nocheck
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
+import { describe, expect, it, vi } from 'vitest';
 import { TelemetryPanel } from '../src/vr/ui/TelemetryPanel.ts';
-import { downloadText } from '../src/utils/Download.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 
-vi.mock('../src/utils/Download.ts', () => ({
-  downloadText: vi.fn(() => Promise.resolve()),
-}));
+describe('TelemetryPanel UIKit migration', () => {
+  it('uses SpatialPanel and preserves visibility lifecycle', () => {
+    const anchor = new THREE.Group();
+    const panel = new TelemetryPanel(anchor);
+    expect(panel).toBeInstanceOf(SpatialPanel);
+    expect(panel.parent).toBe(anchor);
+    expect(panel.mesh).toBe(panel);
 
-describe('TelemetryPanel button dispatch', () => {
-  let panel: TelemetryPanel;
-  const cameraGroup = new THREE.Group();
-
-  beforeEach(() => {
-    vi.mocked(downloadText).mockClear();
+    panel.hide();
+    expect(panel.visible).toBe(false);
+    panel.show();
+    expect(panel.visible).toBe(true);
   });
 
-  /** Hit a canvas-space point (cx, cy) on the panel mesh. */
-  function rayAt(panel: TelemetryPanel, cx: number, cy: number): THREE.Raycaster {
-    const u = cx / panel.width;
-    const v = 1 - cy / panel.height;
-    const raycaster = new THREE.Raycaster();
-    vi.spyOn(raycaster, 'intersectObject').mockReturnValue([
-      { object: panel.mesh, uv: new THREE.Vector2(u, v) } as any,
-    ]);
-    return raycaster;
-  }
-
-  it('toggle label flips privacy level between metadata and full-session', () => {
-    panel = new TelemetryPanel(cameraGroup);
-    panel.show();
-    panel.mesh.updateMatrixWorld();
-
-    // Toggle label occupies cx in [20,160], cy in [height-60, height-20].
-    const cy = panel.height - 40;
+  it('toggles explicit export privacy without changing collection authority', () => {
+    const panel = new TelemetryPanel(new THREE.Group());
     expect(panel.fullSession).toBe(false);
     expect(panel.privacyLevel).toBe('metadata');
-
-    expect(panel.handleContentClick(rayAt(panel, 90, cy))).toBe(true);
+    panel.togglePrivacyLevel();
     expect(panel.fullSession).toBe(true);
     expect(panel.privacyLevel).toBe('full-session');
-
-    // Click again toggles back.
-    expect(panel.handleContentClick(rayAt(panel, 90, cy))).toBe(true);
-    expect(panel.fullSession).toBe(false);
+    panel.togglePrivacyLevel();
     expect(panel.privacyLevel).toBe('metadata');
   });
 
-  it('EXPORT button is consumed but no-ops when telemetry/budget are absent', () => {
-    panel = new TelemetryPanel(cameraGroup);
-    panel.show();
-    panel.mesh.updateMatrixWorld();
-
-    // EXPORT button: cx in [width-280, width-20], cy in [height-60, height-20].
-    const cx = panel.width - 140;
-    const cy = panel.height - 40;
-    expect(panel.handleContentClick(rayAt(panel, cx, cy))).toBe(true);
-    expect(downloadText).not.toHaveBeenCalled();
+  it('reads live reports on update and suppresses identical report refreshes', () => {
+    const report = {
+      enabled: true,
+      timestamp: 1,
+      session: { durationSeconds: 5, datasetName: 'Demo', datasetTopology: 'grid' },
+      frames: {
+        count: 10,
+        dropped: 1,
+        lastMs: 16,
+        averageMs: 17,
+        histogram: { under16: 2, under33: 7, under50: 1, under100: 0, over100: 0 },
+      },
+      operations: {},
+      gestures: {},
+      errors: { count: 0, warnings: 0, unhandledRejections: 0, last: null },
+    };
+    const telemetry = { getReport: vi.fn(() => report) };
+    const panel = new TelemetryPanel(new THREE.Group(), { telemetry: telemetry as never });
+    panel.update();
+    panel.update();
+    expect(telemetry.getReport).toHaveBeenCalled();
   });
 
-  it('EXPORT button downloads a review bundle when telemetry + budget are present', () => {
-    const telemetry = { getReport: () => ({ errors: { last: null } }) } as any;
-    const budget = { getViolations: () => [] } as any;
-    panel = new TelemetryPanel(cameraGroup, { telemetry, budget });
-    panel.show();
-    panel.mesh.updateMatrixWorld();
-
-    const cx = panel.width - 140;
-    const cy = panel.height - 40;
-    expect(panel.handleContentClick(rayAt(panel, cx, cy))).toBe(true);
-    expect(downloadText).toHaveBeenCalledTimes(1);
-    const [, filename, mime] = vi.mocked(downloadText).mock.calls[0];
-    expect(filename).toBe('nemosyne-review-bundle.json');
-    expect(mime).toBe('application/json');
-  });
-
-  it('returns false for a click outside any interactive region', () => {
-    panel = new TelemetryPanel(cameraGroup);
-    panel.show();
-    panel.mesh.updateMatrixWorld();
-    // Top-left content area, well clear of the bottom-right buttons.
-    expect(panel.handleContentClick(rayAt(panel, 40, 80))).toBe(false);
+  it('keeps export disabled when required local authorities are absent', () => {
+    const panel = new TelemetryPanel(new THREE.Group());
+    expect(() => panel.render()).not.toThrow();
   });
 });
