@@ -14,10 +14,26 @@ export type InferentialCalibration =
 export type MonetaEvidenceDisposition =
   'INVALID' | 'ABSTAIN' | 'MACHINE-FALSIFICATION-ONLY' | 'REQUIRES-HUMAN' | 'ELIGIBLE';
 
+export type StabilityAcceptanceDirection = 'at-least' | 'at-most';
+export type StabilityCriterionSource = 'benchmark-family' | 'pre-registered-protocol';
+
+export interface PerturbationAcceptanceCriterion {
+  direction: StabilityAcceptanceDirection;
+  threshold: number;
+  source: StabilityCriterionSource;
+  criterionId: string;
+}
+
 export interface PerturbationEvidence {
   runs: number;
   metric: string;
   value: number;
+  /**
+   * Optional because descriptive perturbation evidence remains useful even
+   * when it is not strong enough to promote a high-dimensional candidate.
+   * Promotion from p >= n requires a pre-specified passing criterion.
+   */
+  acceptance?: PerturbationAcceptanceCriterion;
 }
 
 export interface MonetaEvidenceCandidate {
@@ -47,6 +63,22 @@ export interface MonetaEvidenceDecision {
   };
 }
 
+function perturbationPassesAcceptance(evidence: PerturbationEvidence | undefined): boolean {
+  if (!evidence?.acceptance) return false;
+  const { acceptance } = evidence;
+  if (
+    evidence.runs <= 0 ||
+    !Number.isFinite(evidence.value) ||
+    !Number.isFinite(acceptance.threshold) ||
+    acceptance.criterionId.trim().length === 0
+  ) {
+    return false;
+  }
+  return acceptance.direction === 'at-least'
+    ? evidence.value >= acceptance.threshold
+    : evidence.value <= acceptance.threshold;
+}
+
 /**
  * Public Moneta scientific-evidence gate.
  *
@@ -61,10 +93,7 @@ export function adjudicateMonetaEvidence(
   const highDimensional = candidate.featureCount >= candidate.sampleSize;
   const adaptiveSelection = candidate.selectionMode === 'adaptive-after-data';
   const compositional = candidate.measurementScales.includes('compositional');
-  const stabilityEvidencePresent =
-    candidate.perturbation !== undefined &&
-    Number.isFinite(candidate.perturbation.value) &&
-    candidate.perturbation.runs > 0;
+  const stabilityEvidencePresent = perturbationPassesAcceptance(candidate.perturbation);
 
   if (candidate.sampleSize <= 0 || candidate.featureCount <= 0) {
     reasons.push('sampleSize and featureCount must both be positive');
@@ -104,6 +133,15 @@ export function adjudicateMonetaEvidence(
     if (candidate.perturbation.runs <= 0 || !Number.isFinite(candidate.perturbation.value)) {
       reasons.push('perturbation evidence must contain positive run count and finite metric value');
     }
+    if (candidate.perturbation.acceptance) {
+      const acceptance = candidate.perturbation.acceptance;
+      if (!Number.isFinite(acceptance.threshold)) {
+        reasons.push('perturbation acceptance threshold must be finite');
+      }
+      if (acceptance.criterionId.trim().length === 0) {
+        reasons.push('perturbation acceptance criterion must identify its governing protocol');
+      }
+    }
   }
 
   if (candidate.hardViolations?.length) {
@@ -122,7 +160,9 @@ export function adjudicateMonetaEvidence(
   if (highDimensional && !stabilityEvidencePresent) {
     return {
       disposition: 'ABSTAIN',
-      reasons: ['p >= n requires explicit perturbation/stability evidence before promotion'],
+      reasons: [
+        'p >= n requires perturbation/stability evidence that passes a pre-specified acceptance criterion before promotion',
+      ],
       flags,
     };
   }
