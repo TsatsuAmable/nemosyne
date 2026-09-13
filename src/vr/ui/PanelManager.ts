@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { PanelLike, PanelManagerLike } from '../coordinators/types.ts';
-import { MovablePanel } from './MovablePanel.ts';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 
 interface PanelManagerOptions {
   anchorX?: number;
@@ -75,7 +75,8 @@ export class PanelManager implements PanelManagerLike {
    */
   register(panel: PanelLike): void {
     if (this.panels.includes(panel)) return;
-    if (!(panel instanceof MovablePanel) || !panel.mesh) return;
+    if (!panel.mesh) return;
+    const spatialPanel = panel instanceof SpatialPanel;
 
     this.panels.push(panel);
     this._visible.set(panel, panel.mesh.visible);
@@ -89,8 +90,13 @@ export class PanelManager implements PanelManagerLike {
     this._managerHide.set(panel, hideHandler);
     panel.onHide = hideHandler;
 
-    if (this.freeFloating) {
-      // Panels stay where the user puts them. MovablePanel handles direct
+    if (spatialPanel) {
+      panel.setGrabConfig({
+        onGrabEnd: () => this._notifyChange(),
+        onRepositioned: () => this._notifyChange(),
+      });
+    } else if (this.freeFloating) {
+      // Legacy panels stay where the user puts them. MovablePanel handles direct
       // dragging; we just listen for drag-end so we can persist the new pose.
       const dragEndHandler = () => this._notifyChange();
       this._managerDragEnd.set(panel, dragEndHandler);
@@ -113,7 +119,7 @@ export class PanelManager implements PanelManagerLike {
     }
 
     this._createLauncher(panel);
-    if (!this.freeFloating && this._visible.get(panel)) this._layoutPanel(panel);
+    if (!spatialPanel && !this.freeFloating && this._visible.get(panel)) this._layoutPanel(panel);
   }
 
   unregister(panel: PanelLike): void {
@@ -139,7 +145,7 @@ export class PanelManager implements PanelManagerLike {
     // Rebalance remaining panels.
     for (const p of this.panels) this._assignSlot(p);
     for (const p of this.panels) {
-      if (!this.freeFloating && this._visible.get(p)) this._layoutPanel(p);
+      if (!(p instanceof SpatialPanel) && !this.freeFloating && this._visible.get(p)) this._layoutPanel(p);
     }
 
     const launcher = this._launchers.find((l) => l.panel === panel);
@@ -238,7 +244,12 @@ export class PanelManager implements PanelManagerLike {
     for (const panel of this.panels) {
       this._panelOffsets.get(panel)?.set(0, 0, 0);
       if (this._visible.get(panel)) {
-        this._layoutPanel(panel);
+        const defaultPosition = panel.defaultPosition;
+        if (panel instanceof SpatialPanel && defaultPosition) {
+          panel.position.copy(defaultPosition);
+        } else {
+          this._layoutPanel(panel);
+        }
       }
     }
   }
@@ -336,7 +347,7 @@ export class PanelManager implements PanelManagerLike {
       panel.render?.();
       if (this.freeFloating && changed) {
         this._notifyChange();
-      } else if (!this.freeFloating) {
+      } else if (!this.freeFloating && !(panel instanceof SpatialPanel)) {
         this._layoutPanel(panel);
         this._snapToComfortableDistance(panel);
       }
