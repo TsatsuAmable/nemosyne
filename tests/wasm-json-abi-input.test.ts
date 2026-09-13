@@ -30,6 +30,19 @@ describe('WASM JSON ABI input', () => {
     expect(encodeJsonAbiInput(undefined)).toBeNull();
   });
 
+  it.each([undefined, () => 1, Symbol('evidence')])(
+    'fails closed instead of dropping lossy object value %s',
+    (value) => {
+      expect(encodeJsonAbiInput({ keep: 1, lossy: value })).toBeNull();
+      expect(encodeJsonAbiInput([1, value, 2])).toBeNull();
+    }
+  );
+
+  it('fails closed on sparse arrays instead of materializing holes as null', () => {
+    const sparse = [1, , 3];
+    expect(encodeJsonAbiInput(sparse)).toBeNull();
+  });
+
   it('preserves ordinary finite JSON payloads exactly', () => {
     const payload = {
       facts: { rows: 3, utility: -0.25, active: true, label: 'finite' },
