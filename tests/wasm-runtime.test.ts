@@ -422,6 +422,23 @@ describe('RuntimeBridge integration', () => {
     }
   });
 
+  it('refuses non-finite JSON contract inputs before they cross into Rust', () => {
+    const allocationsBefore = bridge.hostBufferAllocationCount();
+
+    expect(
+      bridge.adjustMonetaEvidence(Number.NaN, { sampleCount: 2, compositeUtility: 0.5 })
+    ).toBeNull();
+    expect(
+      bridge.evaluateMonetaCandidate(
+        { evidenceWeight: Number.POSITIVE_INFINITY },
+        { mark: 'point' }
+      )
+    ).toBeNull();
+    expect(bridge.solveMoneta({ nested: { score: Number.NEGATIVE_INFINITY } })).toBeNull();
+
+    expect(bridge.hostBufferAllocationCount()).toBe(allocationsBefore);
+  });
+
   it('computes 3D radial-tree positions', () => {
     const positions = bridge.computeRadialTree3d([0, 1, 1, 2], 1.8, 0.8, 1.2);
     expect(positions).not.toBeNull();

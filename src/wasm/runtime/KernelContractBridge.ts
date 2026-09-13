@@ -9,6 +9,7 @@ import {
   readBytes,
   readString,
 } from './MemoryAbi.ts';
+import { encodeJsonAbiInput } from './JsonAbiInput.ts';
 import { getKernelContractExports as getRuntimeExports } from './RuntimeState.ts';
 import type { KernelContractExports, MemoryAbiExports } from './RuntimeExports.ts';
 
@@ -31,7 +32,8 @@ function callJsonAbi(
   fn: (inPtr: number, inLen: number, outPtr: number, outLen: number) => number,
   input: unknown
 ): unknown | null {
-  const inputBytes = new TextEncoder().encode(JSON.stringify(input));
+  const inputBytes = encodeJsonAbiInput(input);
+  if (!inputBytes) return null;
   const { ptr: inPtr, len: inLen } = allocBytes(inputBytes);
   try {
     const needed = fn(inPtr, inLen, 0, 0);
@@ -73,7 +75,8 @@ export function solveMoneta(facts: Record<string, unknown>): Record<string, unkn
   } catch {
     return null;
   }
-  const factsBytes = new TextEncoder().encode(JSON.stringify(facts));
+  const factsBytes = encodeJsonAbiInput(facts);
+  if (!factsBytes) return null;
   const { ptr: factsPtr, len: factsLen } = allocBytes(factsBytes);
   try {
     const needed = wasm.draco_solve(factsPtr, factsLen, 0, 0);
