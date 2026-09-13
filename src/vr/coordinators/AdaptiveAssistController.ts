@@ -203,9 +203,6 @@ export class AdaptiveAssistController {
     this.confidenceHUD.mesh.visible = false;
     this._engine.input.removePanel?.(this.confidenceHUD);
     this._analystAnchor.remove(this.confidenceHUD.mesh);
-    this.confidenceHUD.mesh.geometry.dispose();
-    const material = this.confidenceHUD.mesh.material;
-    if (Array.isArray(material)) material.forEach((m) => m.dispose());
-    else material.dispose();
+    this.confidenceHUD.dispose();
   }
 }

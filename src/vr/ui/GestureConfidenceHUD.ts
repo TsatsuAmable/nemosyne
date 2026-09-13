@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import { Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import type { AccessibilityOptions } from '../coordinators/types.ts';
 
 export interface GestureConfidenceEntry {
   gestureName: string;
@@ -8,85 +11,146 @@ export interface GestureConfidenceEntry {
   lastDetectedMs: number;
 }
 
-export class GestureConfidenceHUD extends MovablePanel {
-  private _confidenceMap: Map<string, GestureConfidenceEntry> = new Map();
+const PANEL_WIDTH = 700;
+const PANEL_HEIGHT = 550;
+const DEFAULT_GESTURES = [
+  'pinchTogether',
+  'pinchApart',
+  'swipeLeft',
+  'swipeRight',
+  'scoopUp',
+  'pushForward',
+] as const;
+
+/**
+ * Live gesture-confidence diagnostic.
+ *
+ * UXR1 migrates this passive assist surface from MovablePanel/CanvasTexture to
+ * SpatialPanel + UIKit. Gesture recognition remains authoritative upstream in
+ * AdaptiveAssistController/EventBus; this class only clamps and projects the
+ * confidence values supplied to it.
+ */
+export class GestureConfidenceHUD extends SpatialPanel {
+  readonly title = 'GESTURE CONFIDENCE RADAR';
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
+  private _confidenceMap = new Map<string, GestureConfidenceEntry>();
+  private readonly _content: Text;
+  private _textScale = 1;
+  private _highContrast = false;
 
   constructor(
-    cameraGroup: THREE.Group,
+    analystAnchor: THREE.Object3D,
     position: [number, number, number] = [0.8, 1.5, -1.2]
   ) {
-    super(cameraGroup, {
-      title: 'GESTURE CONFIDENCE RADAR',
-      width: 700,
-      height: 550,
-      position,
-      worldSize: [0.85, 0.65],
-      titleBarHeight: 45,
-      contentPadding: 16,
+    const theme = getTheme(false);
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'column',
+        gap: SPACING_TOKENS.grid.x8,
+        padding: SPACING_TOKENS.grid.x16,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      analystAnchor,
+      null
+    );
+
+    this.name = 'gesture-confidence-hud';
+    this.scale.setScalar(0.85 / PANEL_WIDTH);
+    this.defaultPosition = new THREE.Vector3(...position);
+    this.position.copy(this.defaultPosition);
+
+    this._content = new Text({
+      text: '',
+      fontSize: 16,
+      color: Number(theme.textPrimary),
     });
+    this.add(this._content);
 
     this._initializeDefaultEntries();
     this.render();
   }
 
   private _initializeDefaultEntries(): void {
-    const gestures = ['pinchTogether', 'pinchApart', 'swipeLeft', 'swipeRight', 'scoopUp', 'pushForward'];
-    for (const g of gestures) {
-      this._confidenceMap.set(g, { gestureName: g, confidence: 0.0, lastDetectedMs: 0 });
+    for (const gestureName of DEFAULT_GESTURES) {
+      this._confidenceMap.set(gestureName, {
+        gestureName,
+        confidence: 0,
+        lastDetectedMs: 0,
+      });
     }
   }
 
   recordConfidence(gestureName: string, confidence: number, time = Date.now()): void {
-    const existing = this._confidenceMap.get(gestureName) ?? {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(confidence) ? confidence : 0));
+    this._confidenceMap.set(gestureName, {
       gestureName,
-      confidence: 0.0,
-      lastDetectedMs: 0,
-    };
-
-    existing.confidence = Math.max(0.0, Math.min(1.0, confidence));
-    existing.lastDetectedMs = time;
-    this._confidenceMap.set(gestureName, existing);
+      confidence: clamped,
+      lastDetectedMs: time,
+    });
     this.render();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const entries = Array.from(this._confidenceMap.values());
-    this.totalContentHeight = 100 + entries.length * 60;
+  getConfidence(gestureName: string): GestureConfidenceEntry | null {
+    const entry = this._confidenceMap.get(gestureName);
+    return entry ? { ...entry } : null;
+  }
 
-    ctx.fillStyle = cssHex(COLOR_TOKENS.surface.base) + 'CC';
-    ctx.fillRect(10, 10, w - 20, contentH - 20);
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this.render();
+  }
 
-    ctx.font = 'bold 18px monospace';
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    ctx.fillText('GESTURE NAME', 30, 40);
-    ctx.fillText('CONFIDENCE', 380, 40);
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
 
-    let y = 80;
-    for (const entry of entries) {
-      ctx.font = 'bold 18px monospace';
-      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
-      ctx.textAlign = 'left';
-      ctx.fillText(entry.gestureName.toUpperCase(), 30, y + 18);
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
 
-      // Confidence Bar Outer
-      ctx.strokeStyle = cssHex(COLOR_TOKENS.interaction.focus);
-      ctx.lineWidth = 2;
-      ctx.strokeRect(300, y, 260, 24);
+  render(): void {
+    const theme = getTheme(this._highContrast);
+    this._content.setProperties({
+      text: this._formatEntries(),
+      fontSize: 16 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+  }
 
-      // Confidence Bar Fill
-      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus) + '26';
-      ctx.fillRect(302, y + 2, 256, 20);
-
-      const fillW = entry.confidence * 256;
-      ctx.fillStyle = entry.confidence >= 0.75 ? cssHex(COLOR_TOKENS.status.verified) : entry.confidence >= 0.5 ? cssHex(COLOR_TOKENS.epistemic.uncertain) : cssHex(COLOR_TOKENS.danger.destructive);
-      ctx.fillRect(302, y + 2, fillW, 20);
-
-      // Confidence Percentage Text
-      ctx.font = 'bold 16px monospace';
-      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
-      ctx.fillText(`${(entry.confidence * 100).toFixed(0)}%`, 580, y + 18);
-
-      y += 60;
+  private _formatEntries(): string {
+    const lines = ['GESTURE NAME                 CONFIDENCE'];
+    for (const entry of this._confidenceMap.values()) {
+      const pct = Math.round(entry.confidence * 100);
+      const filled = Math.round(entry.confidence * 10);
+      const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+      lines.push(
+        entry.gestureName.toUpperCase().padEnd(28) +
+          bar +
+          ' ' +
+          String(pct).padStart(3) +
+          '%'
+      );
     }
+    return lines.join('\n');
   }
 }
