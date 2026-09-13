@@ -1,345 +1,350 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import { Container, Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
 import type { ArchiveEntry } from '../../session/VaultArchiveStore.ts';
-import type { MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions } from '../coordinators/types.ts';
 
-export interface VaultPanelOptions extends MovablePanelOptions {
+export interface VaultPanelOptions {
   onFreeze?: () => void;
   onRestore?: (archiveId: string) => void;
   onExport?: (archiveId: string) => void;
   onDelete?: (archiveId: string) => void;
+  position?: [number, number, number];
+  worldSize?: [number, number];
+  textScale?: number;
+  highContrast?: boolean;
+  colorblindMode?: string;
 }
 
-function rgba(token: number, alpha: number): string {
-  const r = (token >> 16) & 0xff;
-  const g = (token >> 8) & 0xff;
-  const b = token & 0xff;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+const PANEL_WIDTH = 800;
+const PANEL_HEIGHT = 480;
+const PAGE_SIZE = 4;
 
-export class VaultPanel extends MovablePanel {
+/**
+ * Evidence archive/recovery surface.
+ *
+ * UXR1 migrates this panel from MovablePanel/CanvasTexture to SpatialPanel +
+ * UIKit while preserving VaultArchiveStore as the archive authority and
+ * retaining the explicit destructive restore confirmation step.
+ */
+export class VaultPanel extends SpatialPanel {
+  readonly title = 'EVIDENCE VAULT';
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   archives: ArchiveEntry[] = [];
   selectedArchiveId: string | null = null;
-  currentPage: number = 0;
-  showConfirmRestore: boolean = false;
+  currentPage = 0;
+  showConfirmRestore = false;
 
   onFreeze?: () => void;
   onRestore?: (archiveId: string) => void;
   onExport?: (archiveId: string) => void;
   onDelete?: (archiveId: string) => void;
 
-  constructor(cameraGroup: THREE.Group, options: VaultPanelOptions = {}) {
-    super(cameraGroup, {
-      title: 'EVIDENCE VAULT',
-      width: 800,
-      height: 480,
-      position: options.position ?? [-0.65, 1.55, -1.1],
-      worldSize: options.worldSize ?? [0.8, 0.48],
-      titleBarHeight: 44,
-      tilt: 0.22,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-    });
+  private readonly _summary: Text;
+  private readonly _archiveList: Container;
+  private readonly _pageText: Text;
+  private readonly _actions: Container;
+  private readonly _prevButton: Button;
+  private readonly _nextButton: Button;
+  private readonly _freezeButton: Button;
+  private readonly _restoreButton: Button;
+  private readonly _exportButton: Button;
+  private readonly _deleteButton: Button;
+  private readonly _confirmPanel: Container;
+  private readonly _confirmText: Text;
+  private readonly _confirmButton: Button;
+  private readonly _cancelButton: Button;
+  private _archiveButtons: Button[] = [];
+  private _textScale: number;
+  private _highContrast: boolean;
 
+  constructor(analystAnchor: THREE.Object3D, options: VaultPanelOptions = {}) {
+    const highContrast = options.highContrast ?? false;
+    const theme = getTheme(highContrast);
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'row',
+        gap: SPACING_TOKENS.grid.x12,
+        padding: SPACING_TOKENS.grid.x16,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      analystAnchor,
+      null
+    );
+
+    this.name = 'vault-panel';
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
     this.onFreeze = options.onFreeze;
     this.onRestore = options.onRestore;
     this.onExport = options.onExport;
     this.onDelete = options.onDelete;
 
-    this.render();
+    const worldWidth = options.worldSize?.[0] ?? 0.8;
+    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.defaultPosition = new THREE.Vector3(...(options.position ?? [-0.65, 1.55, -1.1]));
+    this.position.copy(this.defaultPosition);
+
+    const left = new Container({
+      width: 440,
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+    });
+    this._summary = new Text({
+      text: 'FROZEN ARCHIVES',
+      fontSize: 16 * this._textScale,
+      fontWeight: 'bold',
+      color: Number(theme.textPrimary),
+    });
+    this._archiveList = new Container({
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x4,
+    });
+    this._pageText = new Text({
+      text: '',
+      fontSize: 13 * this._textScale,
+      color: Number(theme.textMuted),
+    });
+    const pagination = new Container({
+      flexDirection: 'row',
+      gap: SPACING_TOKENS.grid.x4,
+    });
+    this._prevButton = new Button({ label: '◀ PREV', onClick: () => this.previousPage() });
+    this._nextButton = new Button({ label: 'NEXT ▶', onClick: () => this.nextPage() });
+    pagination.add(this._prevButton, this._nextButton);
+    left.add(this._summary, this._archiveList, this._pageText, pagination);
+
+    this._actions = new Container({
+      width: 300,
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+    });
+    this._freezeButton = new Button({
+      label: 'FREEZE SNAPSHOT',
+      variant: 'primary',
+      onClick: () => this.onFreeze?.(),
+    });
+    this._restoreButton = new Button({
+      label: 'RESTORE SELECTED',
+      onClick: () => this.requestRestore(),
+    });
+    this._exportButton = new Button({
+      label: 'EXPORT PACKAGE',
+      onClick: () => this.exportSelected(),
+    });
+    this._deleteButton = new Button({
+      label: 'DELETE ARCHIVE',
+      variant: 'danger',
+      onClick: () => this.deleteSelected(),
+    });
+
+    this._confirmText = new Text({
+      text: 'OVERWRITE ACTIVE SESSION?\nUnsaved progress will be lost.',
+      fontSize: 12 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+    this._confirmButton = new Button({
+      label: 'CONFIRM RESTORE',
+      variant: 'danger',
+      onClick: () => this.confirmRestore(),
+    });
+    this._cancelButton = new Button({
+      label: 'CANCEL',
+      onClick: () => this.cancelRestore(),
+    });
+    this._confirmPanel = new Container({
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x4,
+      borderWidth: 1,
+      borderColor: Number(theme.borderColor),
+      padding: SPACING_TOKENS.grid.x8,
+    });
+    this._confirmPanel.add(this._confirmText, this._confirmButton, this._cancelButton);
+
+    this._actions.add(
+      new Text({
+        text: 'OPERATIONS',
+        fontSize: 16 * this._textScale,
+        fontWeight: 'bold',
+        color: Number(theme.textPrimary),
+      }),
+      this._freezeButton,
+      this._restoreButton,
+      this._exportButton,
+      this._deleteButton
+    );
+
+    this.add(left, this._actions);
+    this._syncPresentation();
   }
 
   setArchives(archives: ArchiveEntry[]): void {
-    this.archives = archives;
+    this.archives = [...archives];
     if (this.selectedArchiveId && !archives.some((a) => a.archiveId === this.selectedArchiveId)) {
       this.selectedArchiveId = null;
+      this.showConfirmRestore = false;
     }
-    const maxPage = Math.max(0, Math.ceil(this.archives.length / 4) - 1);
+    const maxPage = Math.max(0, Math.ceil(this.archives.length / PAGE_SIZE) - 1);
     if (this.currentPage > maxPage) this.currentPage = maxPage;
-    this.render();
+    this._syncPresentation();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const dividerX = 460;
-
-    ctx.strokeStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.surface.border);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(dividerX, 10);
-    ctx.lineTo(dividerX, contentH - 10);
-    ctx.stroke();
-
-    this._renderLeftPane(ctx, dividerX, contentH);
-    this._renderRightPane(ctx, dividerX, w, contentH);
+  selectArchive(archiveId: string): void {
+    if (!this.archives.some((archive) => archive.archiveId === archiveId)) return;
+    this.selectedArchiveId = archiveId;
+    this.showConfirmRestore = false;
+    this._syncPresentation();
   }
 
-  private _renderLeftPane(ctx: CanvasRenderingContext2D, paneW: number, _h: number): void {
-    const pad = 24;
-    ctx.fillStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.text.primary);
-    ctx.font = this._scaleFont('bold 16px monospace');
-    ctx.fillText('FROZEN ARCHIVES', pad, 30);
+  previousPage(): void {
+    if (this.currentPage <= 0) return;
+    this.currentPage--;
+    this.showConfirmRestore = false;
+    this._syncPresentation();
+  }
 
-    const startIndex = this.currentPage * 4;
-    const pageArchives = this.archives.slice(startIndex, startIndex + 4);
+  nextPage(): void {
+    const maxPage = Math.max(0, Math.ceil(this.archives.length / PAGE_SIZE) - 1);
+    if (this.currentPage >= maxPage) return;
+    this.currentPage++;
+    this.showConfirmRestore = false;
+    this._syncPresentation();
+  }
 
-    if (this.archives.length === 0) {
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : cssHex(COLOR_TOKENS.text.muted);
-      ctx.font = this._scaleFont('14px monospace');
-      ctx.fillText('No frozen archives found.', pad, 90);
-      return;
-    }
+  requestRestore(): void {
+    if (!this.selectedArchiveId) return;
+    this.showConfirmRestore = true;
+    this._syncPresentation();
+  }
 
-    pageArchives.forEach((archive, i) => {
-      const y = 60 + i * 80;
-      const isSelected = archive.archiveId === this.selectedArchiveId;
+  confirmRestore(): void {
+    if (!this.showConfirmRestore || !this.selectedArchiveId) return;
+    this.onRestore?.(this.selectedArchiveId);
+    this.showConfirmRestore = false;
+    this._syncPresentation();
+  }
 
-      ctx.fillStyle = isSelected
-        ? this.highContrast
-          ? '#333333'
-          : rgba(COLOR_TOKENS.interaction.focus, 0.15)
-        : rgba(COLOR_TOKENS.surface.raised, 0.35);
-      ctx.fillRect(pad, y, paneW - pad * 2, 70);
+  cancelRestore(): void {
+    if (!this.showConfirmRestore) return;
+    this.showConfirmRestore = false;
+    this._syncPresentation();
+  }
 
-      ctx.strokeStyle = isSelected
-        ? this.highContrast
-          ? '#ffffff'
-          : cssHex(COLOR_TOKENS.interaction.focus)
-        : this.highContrast
-          ? '#444444'
-          : cssHex(COLOR_TOKENS.surface.border);
-      ctx.strokeRect(pad, y, paneW - pad * 2, 70);
+  exportSelected(): void {
+    if (this.selectedArchiveId) this.onExport?.(this.selectedArchiveId);
+  }
 
-      ctx.fillStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.text.primary);
-      ctx.font = this._scaleFont('bold 14px monospace');
-      ctx.fillText(archive.label, pad + 12, y + 22);
+  deleteSelected(): void {
+    if (this.selectedArchiveId) this.onDelete?.(this.selectedArchiveId);
+  }
 
-      ctx.fillStyle = this.highContrast ? '#aaaaaa' : cssHex(COLOR_TOKENS.text.secondary);
-      ctx.font = this._scaleFont('11px monospace');
-      const dateStr = new Date(archive.frozenAt).toLocaleString();
-      ctx.fillText(dateStr, pad + 12, y + 42);
-
-      ctx.fillStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.interaction.commit);
-      ctx.fillText(
-        `Events: ${archive.eventCount} | Discoveries: ${archive.discoveryCount}`,
-        pad + 12,
-        y + 58
-      );
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
     });
+    this._summary.setProperties({
+      fontSize: 16 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+    this._pageText.setProperties({
+      fontSize: 13 * this._textScale,
+      color: Number(theme.textMuted),
+    });
+    this._confirmText.setProperties({
+      fontSize: 12 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+    this._syncPresentation();
+  }
 
-    const totalPages = Math.ceil(this.archives.length / 4);
-    if (totalPages > 1) {
-      ctx.fillStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.text.primary);
-      ctx.font = this._scaleFont('14px monospace');
-      ctx.textAlign = 'center';
-      ctx.fillText(`Page ${this.currentPage + 1} of ${totalPages}`, paneW / 2, 395);
-      ctx.textAlign = 'left';
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
 
-      ctx.fillStyle =
-        this.currentPage > 0
-          ? this.highContrast
-            ? '#ffffff'
-            : cssHex(COLOR_TOKENS.interaction.focus)
-          : cssHex(COLOR_TOKENS.text.muted);
-      ctx.strokeRect(pad, 375, 80, 32);
-      ctx.font = this._scaleFont('bold 12px monospace');
-      ctx.fillText('◀ PREV', pad + 18, 395);
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
 
-      ctx.fillStyle =
-        this.currentPage < totalPages - 1
-          ? this.highContrast
-            ? '#ffffff'
-            : cssHex(COLOR_TOKENS.interaction.focus)
-          : cssHex(COLOR_TOKENS.text.muted);
-      ctx.strokeRect(paneW - pad - 80, 375, 80, 32);
-      ctx.fillText('NEXT ▶', paneW - pad - 80 + 18, 395);
+  render(): void {
+    this._syncPresentation();
+  }
+
+  private _syncPresentation(): void {
+    for (const button of this._archiveButtons) {
+      this._archiveList.remove(button);
+      button.dispose();
     }
-  }
+    this._archiveButtons = [];
 
-  private _renderRightPane(
-    ctx: CanvasRenderingContext2D,
-    paneX: number,
-    totalW: number,
-    _h: number
-  ): void {
-    const pad = 24;
-    const btnW = totalW - paneX - pad * 2;
-    const startX = paneX + pad;
-
-    ctx.fillStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.text.primary);
-    ctx.font = this._scaleFont('bold 16px monospace');
-    ctx.fillText('OPERATIONS', startX, 30);
-
-    const hasSelection = this.selectedArchiveId !== null;
-
-    this._drawButton(ctx, 'FREEZE SNAPSHOT', startX, 60, btnW, 40, true, false);
-    this._drawButton(ctx, 'RESTORE SELECTED', startX, 115, btnW, 40, hasSelection, false);
-    this._drawButton(ctx, 'EXPORT PACKAGE', startX, 170, btnW, 40, hasSelection, false);
-    this._drawButton(ctx, 'DELETE ARCHIVE', startX, 225, btnW, 40, hasSelection, true);
-
-    if (this.showConfirmRestore) {
-      ctx.fillStyle = rgba(COLOR_TOKENS.space.void, 0.94);
-      ctx.fillRect(startX, 280, btnW, 140);
-      ctx.strokeStyle = this.highContrast
-        ? '#ffffff'
-        : cssHex(COLOR_TOKENS.epistemic.contradiction);
-      ctx.strokeRect(startX, 280, btnW, 140);
-
-      ctx.fillStyle = this.highContrast
-        ? '#ffffff'
-        : cssHex(COLOR_TOKENS.epistemic.contradiction);
-      ctx.font = this._scaleFont('bold 12px monospace');
-      ctx.fillText('OVERWRITE ACTIVE SESSION?', startX + 12, 310);
-      ctx.fillStyle = this.highContrast ? '#ffffff' : cssHex(COLOR_TOKENS.text.secondary);
-      ctx.font = this._scaleFont('10px monospace');
-      ctx.fillText('Unsaved progress will be lost.', startX + 12, 330);
-
-      this._drawButton(ctx, 'CONFIRM', startX + 12, 360, 100, 32, true, false);
-      this._drawButton(ctx, 'CANCEL', startX + 130, 360, 100, 32, true, false);
-    }
-  }
-
-  private _drawButton(
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    enabled: boolean,
-    isDanger: boolean
-  ): void {
-    const activeToken = isDanger
-      ? COLOR_TOKENS.danger.destructive
-      : COLOR_TOKENS.interaction.focus;
-    ctx.fillStyle = enabled
-      ? rgba(activeToken, 0.12)
-      : rgba(COLOR_TOKENS.surface.raised, 0.25);
-    ctx.fillRect(x, y, w, h);
-
-    ctx.strokeStyle = enabled
-      ? cssHex(activeToken)
-      : cssHex(COLOR_TOKENS.surface.border);
-    ctx.strokeRect(x, y, w, h);
-
-    ctx.fillStyle = enabled ? cssHex(activeToken) : cssHex(COLOR_TOKENS.text.muted);
-    ctx.font = this._scaleFont(`bold ${h > 35 ? '12' : '10'}px monospace`);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x + w / 2, y + h / 2);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-  }
-
-  handleContentClick(worldRaycaster: THREE.Raycaster): void {
-    const hits = worldRaycaster.intersectObject(this.mesh, false);
-    if (hits.length === 0) return;
-
-    const uv = hits[0].uv;
-    if (!uv) return;
-    const cx = uv.x * this.width;
-    const cy = (1 - uv.y) * this.height;
-
-    const contentY = cy - (this.titleBarHeight + 4);
-    const paneDivider = 460;
-    const pad = 24;
-
-    if (cx < paneDivider) {
-      this._handleLeftPaneClick(cx, contentY, paneDivider, pad);
+    const start = this.currentPage * PAGE_SIZE;
+    const pageArchives = this.archives.slice(start, start + PAGE_SIZE);
+    if (pageArchives.length === 0) {
+      const empty = new Button({
+        label: 'No frozen archives found',
+        disabled: true,
+      });
+      this._archiveButtons.push(empty);
+      this._archiveList.add(empty);
     } else {
-      this._handleRightPaneClick(cx, contentY, paneDivider, pad);
-    }
-  }
-
-  private _handleLeftPaneClick(cx: number, cy: number, paneW: number, pad: number): void {
-    const startIndex = this.currentPage * 4;
-    const pageArchives = this.archives.slice(startIndex, startIndex + 4);
-
-    for (let i = 0; i < pageArchives.length; i++) {
-      const y = 60 + i * 80;
-      if (cx >= pad && cx <= paneW - pad && cy >= y && cy <= y + 70) {
-        this.selectedArchiveId = pageArchives[i].archiveId;
-        this.showConfirmRestore = false;
-        this.render();
-        return;
+      for (const archive of pageArchives) {
+        const selected = archive.archiveId === this.selectedArchiveId;
+        const date = new Date(archive.frozenAt).toLocaleString();
+        const button = new Button({
+          label:
+            (selected ? '✓ ' : '') +
+            archive.label +
+            '\n' +
+            date +
+            '\nEvents: ' +
+            archive.eventCount +
+            ' · Discoveries: ' +
+            archive.discoveryCount,
+          variant: selected ? 'primary' : 'secondary',
+          onClick: () => this.selectArchive(archive.archiveId),
+        });
+        this._archiveButtons.push(button);
+        this._archiveList.add(button);
       }
     }
 
-    const totalPages = Math.ceil(this.archives.length / 4);
-    if (totalPages > 1) {
-      if (
-        this.currentPage > 0 &&
-        cx >= pad &&
-        cx <= pad + 80 &&
-        cy >= 375 &&
-        cy <= 375 + 32
-      ) {
-        this.currentPage--;
-        this.render();
-        return;
-      }
-      if (
-        this.currentPage < totalPages - 1 &&
-        cx >= paneW - pad - 80 &&
-        cx <= paneW - pad &&
-        cy >= 375 &&
-        cy <= 375 + 32
-      ) {
-        this.currentPage++;
-        this.render();
-      }
-    }
-  }
+    const totalPages = Math.max(1, Math.ceil(this.archives.length / PAGE_SIZE));
+    this._pageText.setProperties({
+      text: 'Page ' + (this.currentPage + 1) + ' of ' + totalPages,
+    });
+    this._prevButton.disabled = this.currentPage <= 0;
+    this._nextButton.disabled = this.currentPage >= totalPages - 1;
 
-  private _handleRightPaneClick(cx: number, cy: number, paneX: number, pad: number): void {
-    const btnW = this.width - paneX - pad * 2;
-    const startX = paneX + pad;
     const hasSelection = this.selectedArchiveId !== null;
+    this._restoreButton.disabled = !hasSelection;
+    this._exportButton.disabled = !hasSelection;
+    this._deleteButton.disabled = !hasSelection;
 
-    if (this.showConfirmRestore) {
-      if (
-        cx >= startX + 12 &&
-        cx <= startX + 112 &&
-        cy >= 360 &&
-        cy <= 360 + 32
-      ) {
-        if (this.selectedArchiveId && this.onRestore) this.onRestore(this.selectedArchiveId);
-        this.showConfirmRestore = false;
-        this.render();
-        return;
-      }
-
-      if (
-        cx >= startX + 130 &&
-        cx <= startX + 230 &&
-        cy >= 360 &&
-        cy <= 360 + 32
-      ) {
-        this.showConfirmRestore = false;
-        this.render();
-        return;
-      }
-    }
-
-    if (cx >= startX && cx <= startX + btnW && cy >= 60 && cy <= 100) {
-      this.onFreeze?.();
-      return;
-    }
-
-    if (hasSelection && cx >= startX && cx <= startX + btnW && cy >= 115 && cy <= 155) {
-      this.showConfirmRestore = true;
-      this.render();
-      return;
-    }
-
-    if (hasSelection && cx >= startX && cx <= startX + btnW && cy >= 170 && cy <= 210) {
-      if (this.selectedArchiveId && this.onExport) this.onExport(this.selectedArchiveId);
-      return;
-    }
-
-    if (hasSelection && cx >= startX && cx <= startX + btnW && cy >= 225 && cy <= 265) {
-      if (this.selectedArchiveId && this.onDelete) this.onDelete(this.selectedArchiveId);
+    const confirmAttached = this._confirmPanel.parent === this._actions;
+    if (this.showConfirmRestore && !confirmAttached) {
+      this._actions.add(this._confirmPanel);
+    } else if (!this.showConfirmRestore && confirmAttached) {
+      this._actions.remove(this._confirmPanel);
     }
   }
 }
