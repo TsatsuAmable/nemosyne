@@ -112,7 +112,7 @@ describe('World coverage extensions', () => {
     vi.restoreAllMocks();
   });
 
-  it('toggles portal visibility and syncs the VR menu button', () => {
+  it('toggles portal visibility independently of the retired legacy menu', () => {
     world = new World(); wireKernel(world);
     expect(world.portalsEnabled).toBe(true);
     expect(world.portalA.group.visible).toBe(true);
@@ -121,12 +121,8 @@ describe('World coverage extensions', () => {
     expect(world.portalsEnabled).toBe(false);
     expect(world.portalA.group.visible).toBe(false);
     expect(world.portalB.group.visible).toBe(false);
-    expect(world.uiManager.vrMenu.portalsEnabled).toBe(false);
-
     world.setPortalsEnabled(true);
-    expect(world.portalA.group.visible).toBe(true);
-    expect(world.uiManager.vrMenu.portalsEnabled).toBe(true);
-  });
+    expect(world.portalA.group.visible).toBe(true);  });
 
   it('warps the camera and changes theme colors', () => {
     world = new World(); wireKernel(world);

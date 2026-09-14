@@ -23,7 +23,7 @@ import type {
 } from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AnalysisHistory } from '../../data/AnalysisHistory.ts';
-import type { EncodingMapping, TopologyType } from '../../data/types.ts';
+import type { EncodingMapping } from '../../data/types.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
 import type { NemosyneEventMap } from '../../utils/EventBus.ts';
 
@@ -232,7 +232,7 @@ export interface WorldUIManagerLike {
   panelManager?: PanelManagerLike;
   dashboard?: DashboardLike;
   handWheelMenu?: HandWheelMenuLike;
-  vrMenu?: (PanelLike & { setLiveConnected?(connected: boolean): void }) | null;
+  dataSourcePanel?: (PanelLike & { setLiveConnected?(connected: boolean): void }) | null;
   vrConsole?: VRConsoleLike | null;
   telemetryPanel?: PanelLike | null;
   settingsPanel?: (SettingsPanelLike & PanelLike) | null;
@@ -279,31 +279,6 @@ export interface WheelMenuCategory {
   label: string;
   icon?: string;
   items: WheelMenuAction[];
-}
-
-/** Callbacks supplied to {@link VRMenu} for in-world dataset/operation actions. */
-export interface VRMenuCallbacks {
-  onLoadDataset?: (entry: {
-    name: string;
-    topology: TopologyType;
-    dataset: Dataset;
-    maxDepth?: number;
-    encodings: EncodingMapping;
-  }) => void;
-  onTogglePortals?: (enabled: boolean) => void;
-  onConnectStream?: () => void;
-  onDisconnectStream?: () => void;
-  onSelectLiveSource?: (sourceKey: string) => void;
-  onFilter?: () => void;
-  onSort?: () => void;
-  onAggregate?: () => void;
-  onCluster?: () => void;
-  onHierarchicalCluster?: () => void;
-  onDensityCluster?: () => void;
-  onAnomaly?: () => void;
-  onTimeSlice?: () => void;
-  onCompare?: () => void;
-  onReset?: () => void;
 }
 
 /** Typed shape of {@link SettingsPanel}.DEFAULTS. */

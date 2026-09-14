@@ -71,7 +71,7 @@ describe('RF-062F production feature ports', () => {
   it('projects an explicit live disconnect through the installed status sink', () => {
     world = new World();
     const disconnect = vi.fn();
-    const setLiveConnected = vi.spyOn(world.uiManager.vrMenu, 'setLiveConnected');
+    const setLiveConnected = vi.spyOn(world.uiManager.dataSourcePanel, 'setLiveConnected');
     world.liveStreamCoordinator.liveConnector = {
       topology: 'TIME_SERIES',
       windowSize: 50,

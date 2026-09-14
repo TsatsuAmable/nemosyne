@@ -70,7 +70,7 @@ describe('WorldUIManager', () => {
     expect(ui.panelManager).toBeTruthy();
     expect(ui.dashboard).toBeTruthy();
     expect(ui.handWheelMenu).toBeTruthy();
-    expect(ui.vrMenu).toBeTruthy();
+    expect(ui.dataSourcePanel).toBeTruthy();
     expect(ui.vrConsole).toBeTruthy();
     expect(ui.telemetryPanel).toBeTruthy();
     expect(ui.settingsPanel).toBeTruthy();
@@ -212,13 +212,13 @@ describe('WorldUIManager', () => {
   it('registers the telemetry panel, console, and VR menu with PanelManager', () => {
     expect(ui.panelManager.panels).toContain(ui.telemetryPanel);
     expect(ui.panelManager.panels).toContain(ui.vrConsole);
-    expect(ui.panelManager.panels).toContain(ui.vrMenu);
+    expect(ui.panelManager.panels).toContain(ui.dataSourcePanel);
   });
 
   it('registers interactive legacy panels but keeps the persistent status strip off input routing', () => {
     expect(engine.input.panels).toContain(ui.telemetryPanel);
     expect(engine.input.panels).toContain(ui.vrConsole);
-    expect(engine.input.panels).toContain(ui.vrMenu);
+    expect(engine.input.panels).toContain(ui.dataSourcePanel);
     expect(engine.input.panels).not.toContain(ui.statusStripPanel);
     expect(ui.panelManager.panels).not.toContain(ui.statusStripPanel);
     expect(ui.statusStripPanel.parent).toBe(anchor);

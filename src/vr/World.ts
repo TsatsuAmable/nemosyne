@@ -659,7 +659,7 @@ export class World {
       },
       status: {
         publish: (status, detail, connected) => {
-          this.uiManager.vrMenu?.setLiveConnected?.(connected);
+          this.uiManager.dataSourcePanel?.setLiveConnected?.(connected);
           if (status === 'connected') {
             this.uiManager.vrConsole?.log?.('log', ['Live stream connected']);
           } else if (status === 'disconnected') {
@@ -2293,7 +2293,6 @@ export class World {
     this.portalsEnabled = enabled;
     this.portalA.group.visible = enabled;
     this.portalB.group.visible = enabled;
-    this.uiManager.vrMenu?.setPortalsEnabled?.(enabled);
     this._logInteraction('Portals', { result: enabled ? 'visible' : 'hidden' });
   }
 
