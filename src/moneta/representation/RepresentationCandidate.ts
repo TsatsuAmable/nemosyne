@@ -216,7 +216,12 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
       occlusionResistance: 0.9,
       cognitiveLoad: 0.35,
     },
-    constraints: [{ description: 'Requires at least 1 aggregate metric' }],
+    constraints: [
+      {
+        description:
+          'Requires explicit grouped-aggregate semantics with a grouping field and COUNT or a numeric measure',
+      },
+    ],
   },
 
   TEMPORAL_TRAJECTORY: {

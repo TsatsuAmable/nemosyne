@@ -8,6 +8,7 @@ import {
   FITNESS_TREATMENT_ID,
 } from '../src/moneta/representation/FitnessModel.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
+import { NoFeasibleRepresentationError } from '../src/moneta/representation/NoFeasibleRepresentationError.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../src/moneta/representation/RepresentationCandidate.ts';
 import {
   createDefaultRequirements,
@@ -30,6 +31,18 @@ function clusterSignature() {
   markDatasetSignatureFact(signature.epistemic, 'clusterStructure.hasClusters', 'measured');
   markDatasetSignatureFact(signature.epistemic, 'clusterStructure.densityVariation', 'measured');
   return signature;
+}
+
+function arbitrateOrNearMisses(
+  signature: ReturnType<typeof clusterSignature>,
+  requirements: RepresentationRequirements
+) {
+  try {
+    return MonetaHypothesisEngine.arbitrate(signature, requirements).rankedCandidates ?? [];
+  } catch (error) {
+    if (error instanceof NoFeasibleRepresentationError) return error.nearMisses;
+    throw error;
+  }
 }
 
 describe('P1-R2D C1 source-partition cluster authority', () => {
@@ -106,13 +119,12 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
 
     const requirements = createDefaultRequirements('cluster-comparison', 'MEDIUM');
     requirements.primaryDimensions = ['x', 'y', 'z'];
-    const decision = MonetaHypothesisEngine.arbitrate(signature, requirements);
-
-    const clusterCandidates = (decision.rankedCandidates ?? []).filter(
+    const candidates = arbitrateOrNearMisses(signature, requirements);
+    const clusterCandidates = candidates.filter(
       (candidate) => candidate.candidateId === 'CLUSTER_REGIONS'
     );
     expect(clusterCandidates.every((candidate) => candidate.disqualified)).toBe(true);
-    expect(decision.chosenCandidateId).not.toBe('CLUSTER_REGIONS');
+    expect(clusterCandidates.length).toBeGreaterThan(0);
   });
 
   it('admits the cluster candidate only when explicit authority and coordinate dimensionality are present', () => {
@@ -130,19 +142,19 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
       clusterCandidates.some((candidate) => candidate.disqualificationCode === 'cluster-authority-required')
     ).toBe(false);
     expect(decision.provenance.fitnessTreatmentId).toBe('fitness-treatment-v5');
-    expect(decision.provenance.version).toBe('2.1.2-v5-bootstrap');
+    expect(decision.provenance.version).toBe('2.1.3-v5-bootstrap');
   });
 
   it('fails the cluster candidate closed when the dataset signature cannot support the declaration', () => {
     const requirements = sourcePartitionRequirements();
 
     const noCategorical = minimalDatasetSignature(5_000, 3, 0, 0, 'r2d-no-partition-column', 0);
-    const decisionWithoutPartitionCapacity = MonetaHypothesisEngine.arbitrate(
+    const candidatesWithoutPartitionCapacity = arbitrateOrNearMisses(
       noCategorical,
       requirements
     );
     expect(
-      (decisionWithoutPartitionCapacity.rankedCandidates ?? [])
+      candidatesWithoutPartitionCapacity
         .filter((candidate) => candidate.candidateId === 'CLUSTER_REGIONS')
         .every(
           (candidate) =>
@@ -152,12 +164,12 @@ describe('P1-R2D C1 source-partition cluster authority', () => {
     ).toBe(true);
 
     const tooFewNumeric = minimalDatasetSignature(5_000, 1, 1, 0, 'r2d-too-few-coordinates', 0);
-    const decisionWithoutCoordinateCapacity = MonetaHypothesisEngine.arbitrate(
+    const candidatesWithoutCoordinateCapacity = arbitrateOrNearMisses(
       tooFewNumeric,
       requirements
     );
     expect(
-      (decisionWithoutCoordinateCapacity.rankedCandidates ?? [])
+      candidatesWithoutCoordinateCapacity
         .filter((candidate) => candidate.candidateId === 'CLUSTER_REGIONS')
         .every(
           (candidate) =>

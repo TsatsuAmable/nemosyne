@@ -157,7 +157,7 @@ export class LoadDatasetUseCase {
         this.atlas,
         embodiedDataset,
         representationDecision,
-        encodings
+        activeRequirements.aggregateSemantics,
       );
     } else if (representationDecision?.chosenCandidateId === 'DISTRIBUTION_FIELD') {
       dataInput.semanticEmbodimentPromise = loadDistributionSemanticEmbodiment(

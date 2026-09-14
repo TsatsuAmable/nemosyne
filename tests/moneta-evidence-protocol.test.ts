@@ -40,14 +40,17 @@ describe('Moneta evidence validity protocol', () => {
     expect(decision.disposition).toBe('INVALID');
   });
 
-  it('abstains in p >= n regimes until explicit perturbation evidence exists', () => {
-    const decision = adjudicateMonetaEvidence({
-      ...base(),
-      sampleSize: 20,
-      featureCount: 200,
-    });
-    expect(decision.disposition).toBe('ABSTAIN');
-  });
+  it.each([20, 200])(
+    'abstains when featureCount=%i is p >= n until explicit perturbation evidence exists',
+    (featureCount) => {
+      const decision = adjudicateMonetaEvidence({
+        ...base(),
+        sampleSize: 20,
+        featureCount,
+      });
+      expect(decision.disposition).toBe('ABSTAIN');
+    },
+  );
 
   it('keeps diagnostic benchmarks in falsification-only authority', () => {
     const decision = adjudicateMonetaEvidence({

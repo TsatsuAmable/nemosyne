@@ -618,8 +618,8 @@ fn validate_aggregate_payload(
 
     match payload.measure.function {
         AggregateFunctionV1::Count => {
-            if let Some(field) = &payload.measure.field {
-                validate_short_text(field, "aggregate measure field")?;
+            if payload.measure.field.is_some() {
+                return Err("COUNT aggregate must not declare a measure field".to_string());
             }
         }
         _ => {
@@ -1621,6 +1621,20 @@ mod tests {
         };
         assert_eq!(payload.groups[0].semantic_id, "group:a");
         assert_eq!(payload.groups[1].semantic_id, "group:b");
+    }
+
+    #[test]
+    fn aggregate_count_payload_rejects_an_ambiguous_measure_field() {
+        let mut envelope = fixture();
+        let SemanticEmbodimentResultV1::Ready { payload } = &mut envelope.result else {
+            panic!("expected ready payload");
+        };
+        let RepresentationPayloadV1::AggregateVolume(payload) = payload else {
+            panic!("expected aggregate payload");
+        };
+        payload.measure.function = AggregateFunctionV1::Count;
+
+        assert!(validate_and_normalize(&mut envelope).is_err());
     }
 
     #[test]

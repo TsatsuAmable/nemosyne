@@ -86,6 +86,27 @@ function graphDataset(name = 'r2e-b3-graph'): Dataset {
   );
 }
 
+function graphArbitrationDataset(name = 'r2e-b3-arbitration'): Dataset {
+  return new Dataset(
+    name,
+    [
+      { name: 'id', type: 'CATEGORICAL' },
+      { name: 'name', type: 'CATEGORICAL' },
+      { name: 'label', type: 'CATEGORICAL' },
+      { name: 'value', type: 'NUMERIC' },
+      { name: 'notes', type: 'CATEGORICAL' },
+    ],
+    [
+      ...baitRows(),
+      { id: 'row-zeta', name: 'row-epsilon', label: 'bait-3', value: 11, notes: RAW_ROW_BAIT },
+      { id: 'row-delta', name: 'row-zeta', label: 'bait-4', value: 13, notes: RAW_ROW_BAIT },
+      { id: 'row-epsilon', name: 'row-delta', label: 'bait-5', value: 17, notes: RAW_ROW_BAIT },
+    ],
+    sourceEdges(),
+    [...ROW_IDS, 'row-delta', 'row-epsilon', 'row-zeta']
+  );
+}
+
 function decision(id = 'decision-graph-b3'): RepresentationDecision {
   return {
     id,
@@ -717,7 +738,12 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
 
   it('extends source binding through signature, arbitration and the resident payload', () => {
     const data = graphDataset('r2e-b3-arbitration');
-    const signature = buildDatasetSignature(data, null, data.fingerprint);
+    const arbitrationData = graphArbitrationDataset();
+    const signature = buildDatasetSignature(
+      arbitrationData,
+      null,
+      arbitrationData.fingerprint
+    );
     expect(signature.topologicalStructure.topology).toBe('GRAPH');
     expect(signature.cardinality.edgeCount).toBe(sourceEdges().length);
 
