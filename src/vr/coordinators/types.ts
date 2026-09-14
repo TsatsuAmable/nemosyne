@@ -152,6 +152,7 @@ export interface PanelLike {
   tilt?: number;
   parentGroup?: Group | null;
   drag?: DragState;
+  isGrabbed?: boolean;
   applyAccessibility?(options: AccessibilityOptions): void;
   hide?(): void;
   render?(): void;

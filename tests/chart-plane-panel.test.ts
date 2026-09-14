@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { ChartPlane, ChartType } from '../src/vr/artifacts/ChartPlane.ts';
 import { ChartPlanePanel } from '../src/vr/ui/ChartPlanePanel.ts';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import { DashboardManager } from '../src/vr/ui/DashboardManager.ts';
 
 describe('ChartPlanePanel', () => {
@@ -29,14 +29,49 @@ describe('ChartPlanePanel', () => {
     );
   });
 
-  it('extends MovablePanel', () => {
+  it('uses SpatialPanel without copying the chart into a second canvas', () => {
     const panel = new ChartPlanePanel(cameraGroup, dataset, {
       title: 'Values',
       chartType: 'BAR',
       column: 'value',
     });
-    expect(panel).toBeInstanceOf(MovablePanel);
+    expect(panel).toBeInstanceOf(SpatialPanel);
     expect(panel.mesh).toBeTruthy();
+  });
+
+
+  it('projects the ChartPlane texture through a UIKit Custom surface without mounting the legacy chart mesh', () => {
+    const panel = new ChartPlanePanel(cameraGroup, dataset, {
+      chartType: 'BAR',
+      column: 'value',
+    });
+    expect(panel.chartPlane.mesh.parent).toBeNull();
+    const projected = panel.children.find((child) => child.material === panel.chartPlane.material);
+    expect(projected).toBeTruthy();
+    expect(panel.chartPlane.material.map).toBe(panel.chartPlane.texture);
+  });
+
+  it('exposes pixel dimensions so dashboard autoscaling preserves the UIKit panel physical footprint', () => {
+    const panel = new ChartPlanePanel(cameraGroup, dataset, {
+      chartType: 'BAR',
+      column: 'value',
+      worldSize: [1.1, 0.75],
+    });
+    const dashboard = new DashboardManager(cameraGroup, {
+      columns: 1,
+      rows: 1,
+      cellWidth: 1,
+      cellHeight: 0.7,
+      wallPosition: [0, 1.6, 1.5],
+    });
+
+    dashboard.registerPanel(panel, 0);
+
+    expect(panel.userData.panelPixelSize).toEqual([1024, 768]);
+    const physicalWidth = panel.width * panel.scale.x;
+    const physicalHeight = panel.height * panel.scale.y;
+    expect(physicalWidth).toBeLessThanOrEqual(0.92 + 1e-6);
+    expect(physicalHeight).toBeLessThanOrEqual(0.7 * 0.92 + 1e-6);
   });
 
   it('hosts a ChartPlane and renders its title', () => {
@@ -110,7 +145,7 @@ describe('ChartPlanePanel', () => {
       chartType: 'BAR',
       column: 'value',
     });
-    const before = panel.texture.version;
+    const before = panel.chartPlane.texture.version;
 
     const updated = new Dataset(
       'Updated',
@@ -122,7 +157,7 @@ describe('ChartPlanePanel', () => {
     );
     panel.setDataset(updated);
 
-    expect(panel.texture.version).toBeGreaterThan(before);
+    expect(panel.chartPlane.texture.version).toBeGreaterThan(before);
   });
 
   it('can be registered and snapped to a dashboard zone', () => {
@@ -151,9 +186,9 @@ describe('ChartPlanePanel', () => {
       chartType: 'BAR',
       column: 'value',
     });
-    const before = panel.texture.version;
+    const before = panel.chartPlane.texture.version;
     panel.update();
-    expect(panel.texture.version).toBeGreaterThanOrEqual(before);
+    expect(panel.chartPlane.texture.version).toBeGreaterThanOrEqual(before);
   });
 
   it('disposes the chart GPU resources with the panel', () => {

@@ -33,7 +33,7 @@ export class WorldRendererLifecycle {
   readonly getAtlas: () => AtlasCore | null;
 
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
-  dashboardTooltipTargets: THREE.Mesh[] = [];
+  dashboardTooltipTargets: THREE.Object3D[] = [];
   tdaGroup: THREE.Group | null = null;
   tdaCompute: (() => Promise<TDAComputationResult | null>) | null = null;
   tdaApply: ((result: TDAComputationResult) => boolean) | null = null;

@@ -208,7 +208,7 @@ export class World {
   archiveStore: VaultArchiveStore;
   loader: FileLoaderUI;
   telemetry: HTMLElement | null;
-  _dashboardTooltipTargets: THREE.Mesh[];
+  _dashboardTooltipTargets: THREE.Object3D[];
   sessionStore: SessionStore;
   _initPromises: Promise<unknown>[];
   _autosaveRestoreStarted: boolean;
