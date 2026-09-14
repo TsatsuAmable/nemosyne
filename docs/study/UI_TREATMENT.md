@@ -1,7 +1,7 @@
 # Participant-Facing UI Treatment Declaration
 
-**Treatment identity (`uiTreatmentVersion`):** `panel-layout/5+intent-wheel/1+frames/body-stable`
-**Declared:** 5 September 2026 · **Authority:** decision records
+**Treatment identity (`uiTreatmentVersion`):** `panel-layout/5+intent-wheel/2+frames/body-stable`
+**Declared:** 14 September 2026 · **Authority:** decision records
 `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` revisions 1–4 plus
 `docs/decisions/VR_PANEL_BODY_FRAME_REVISION_5.md` · **Vision basis:**
 `Nemosyne_Definitive_Vision_and_Roadmap.md` §14 (research safeguards) and §15
@@ -42,7 +42,7 @@ layout in the first place:
 | Tier | Distance | Contents |
 |---|---|---|
 | Near (embodied/attention) | 0.45–0.8 m | MiniOverview (+0.55), PeerPresenceHUD (−0.55), InteractionCoach (0, −0.2, −0.75) |
-| Mid workspace fan | r=1.15 m, ±45°, ±12° eye-line center cone reserved for data | Settings −45°, OperationLog −30°, Recommendation −15°, MonetaExplainer +15°, Vault +30°, LegacyMenu +45° (all at local y +0.2) |
+| Mid workspace fan | r=1.15 m, ±45°, ±12° eye-line center cone reserved for data | Settings −45°, OperationLog −30°, Recommendation −15°, MonetaExplainer +15°, Vault +30°, DataSourcePanel +45° (all at local y +0.2) |
 | Mid lower grounding/log | 0.9–1.4 m, below the data centerline | VRConsole `(0,−0.3,−1.05)`; NarrativeStrip `(0,−0.5,−0.95)`; persistent StatusStrip `45° @ r=1.15, local y −0.58` |
 | Far diagnostic | r=1.6 m | LoadTest −50°, SchemaMapping −25°, MonetaDiagnostic 0°, TelemetryPanel +25°, InputTelemetry +50° (upper row); NetworkPanel −50°, PerformancePanel −25°, GestureConfidenceHUD +50° (lower row) |
 | Behind | wall | ChartPlanePanel |
@@ -59,13 +59,25 @@ manipulation semantics are pinned independently in `tests/torso-anchor.test.ts`,
 F9/F10 cross-feature suites. These are repository/simulator assertions, not a
 claim of Quest ergonomics or human-subject comfort.
 
-### 2. Command surface — intent wheel v1 (`buildIntentWheelMenuCategories`)
+### 2. Command surface — intent wheel v2 (`buildIntentWheelMenuCategories`)
 
-Task-oriented categories ANALYSE / VIEW / DATA / STUDY / COLLABORATE / SYSTEM
-plus a SUPERUSER annex excluded from the participant command surface. Novice
-vocabulary coverage per UX spec §6.1: Move (teleport/flight/floor),
-Undo/Redo (ANALYSE), Return-to-Overview (VIEW). Contract tests:
-`tests/vr-ux-convergence.test.ts`.
+The six canonical task intents remain ANALYSE / VIEW / DATA / STUDY /
+COLLABORATE / SYSTEM. Intent wheel v2 adds a participant-facing GUIDE annex
+before the SUPERUSER annex. GUIDE contains `What can I do here?` plus the
+Interaction Coach; SUPERUSER remains excluded from the participant command
+surface.
+
+The GUIDE change is a controlled-treatment modification motivated by the
+2026-09-14 physical Quest owner observation that the post-migration UI did not
+materially improve capability discoverability or cognitive comfort. The guide
+derives its global map from the live wheel categories and its selected-object
+actions and disabled reasons from the canonical InvestigatorTaskIntent /
+ContextualTaskSurface authority. It does not own a second capability taxonomy.
+
+Novice vocabulary coverage per UX spec §6.1 remains: Move
+(teleport/flight/floor), Undo/Redo (ANALYSE), Return-to-Overview (VIEW).
+Contract tests: `tests/vr-ux-convergence.test.ts`,
+`tests/capability-guide-panel.test.ts`.
 
 ### 3. Reference-frame policy
 
