@@ -3,6 +3,7 @@ import type { CandidateScore } from './RepresentationDecision.ts';
 export type RepresentationDecisionStatus =
   | 'DECISIVE'
   | 'AMBIGUOUS'
+  | 'ABSTAIN'
   | 'INFEASIBLE'
   | 'UNDERDETERMINED';
 

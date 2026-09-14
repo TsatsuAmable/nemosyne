@@ -12,6 +12,7 @@ import {
 import { MonetaHypothesisEngine } from './MonetaHypothesisEngine.ts';
 import { BOOTSTRAP_FITNESS_MODEL_VERSION } from './FitnessModel.ts';
 import { NoFeasibleRepresentationError } from './NoFeasibleRepresentationError.ts';
+import type { VerifiedStabilityAdmissionClaimV1 } from './StabilityCertificate.ts';
 import {
   DEFAULT_MONETA_COMPUTE_BUDGET,
   assertMonetaWithinComputeBudget,
@@ -62,6 +63,7 @@ export class EvidenceBackedMoneta {
     signature: DatasetSignature,
     requirements?: RepresentationRequirements,
     intent?: AnalyticalIntent,
+    stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1,
   ): EvidenceBoundRepresentationDecision {
     const evidenceIds = assertEvidenceBacksSignature(evidence, signature);
 
@@ -77,7 +79,14 @@ export class EvidenceBackedMoneta {
 
     let decision: RepresentationDecision;
     try {
-      decision = this.engine.arbitrate(authoritativeSignature, requirements, intent);
+      decision = this.engine.arbitrate(
+        authoritativeSignature,
+        requirements,
+        intent,
+        undefined,
+        undefined,
+        stabilityAdmissionClaim,
+      );
     } catch (error) {
       if (error instanceof NoFeasibleRepresentationError) {
         throw error.withProvenance({

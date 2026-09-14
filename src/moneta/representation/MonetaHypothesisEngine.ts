@@ -66,6 +66,12 @@ import {
   SOURCE_RELATIONSHIP_GRAPH_V1_LIMITS,
   validateSourceRelationshipGraphAuthority,
 } from './RelationshipGraphAuthority.ts';
+import {
+  isStabilityAdmissionPromotableV1,
+  isVerifiedStabilityAdmissionClaimV1,
+  type StabilityRuntimeIdentityV1,
+  type VerifiedStabilityAdmissionClaimV1,
+} from './StabilityCertificate.ts';
 
 /**
  * Backward-compatible weight envelope. New code should prefer
@@ -171,6 +177,7 @@ export class MonetaHypothesisEngine {
       spectralFacts?: import('./DatasetSignature.ts').SpectralFacts | null;
       signature?: DatasetSignature;
       perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>;
+      stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1;
     } = {}
   ): RepresentationDecision {
     const signature =
@@ -184,16 +191,31 @@ export class MonetaHypothesisEngine {
         0
       );
 
-    return new MonetaHypothesisEngine().arbitrate(signature, requirements, undefined, facts, options.perceptualEvidence);
+    return new MonetaHypothesisEngine().arbitrate(
+      signature,
+      requirements,
+      undefined,
+      facts,
+      options.perceptualEvidence,
+      options.stabilityAdmissionClaim,
+    );
   }
 
   public static arbitrate(
     signature: DatasetSignature,
     requirements?: RepresentationRequirements,
     facts?: MonetaFacts,
-    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>
+    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>,
+    stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1,
   ): RepresentationDecision {
-    return new MonetaHypothesisEngine().arbitrate(signature, requirements, undefined, facts, perceptualEvidence);
+    return new MonetaHypothesisEngine().arbitrate(
+      signature,
+      requirements,
+      undefined,
+      facts,
+      perceptualEvidence,
+      stabilityAdmissionClaim,
+    );
   }
 
   public arbitrate(
@@ -201,7 +223,8 @@ export class MonetaHypothesisEngine {
     requirements?: RepresentationRequirements,
     intent?: AnalyticalIntent,
     _fallbackFacts?: MonetaFacts,
-    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>
+    perceptualEvidence?: PerceptualFitnessEvidence | Map<string, PerceptualFitnessEvidence> | Record<string, PerceptualFitnessEvidence>,
+    stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1,
   ): RepresentationDecision {
     const reqs =
       requirements ??
@@ -265,21 +288,30 @@ export class MonetaHypothesisEngine {
 
     this.sortCandidates(scoredCandidates);
 
-    // Evidence admission is deliberately downstream of utility ranking and is
-    // never represented as a score component. The current production contract
-    // has no durable, authority-certified stability envelope, so p >= n
-    // candidates remain inspectable as scored near-misses but cannot be
-    // promoted into a RepresentationDecision. The standalone evidence protocol
-    // owns certification; wiring an accepted certificate is a separate change.
+    // Scientific admission is downstream of utility ranking and never becomes
+    // a score component. This RFC tranche can authenticate a verifier claim,
+    // but cannot mint a promotable one without Rust authority and a governing
+    // scientific criterion.
     const sampleSize = signature.cardinality.rowCount;
     const featureCount = signature.cardinality.columnCount;
+    let matchedAdmissionClaim: VerifiedStabilityAdmissionClaimV1 | undefined;
     if (sampleSize > 0 && featureCount > 0 && featureCount >= sampleSize) {
       for (const candidate of scoredCandidates) {
         if (candidate.disqualified) continue;
+        const admissionContext = {
+          datasetFingerprint: signature.provenance.datasetFingerprint,
+          candidateId: candidate.candidateId,
+          representationFamily: candidate.family,
+          runtimeIdentity: this.stabilityRuntimeIdentity(signature),
+        };
+        if (isVerifiedStabilityAdmissionClaimV1(stabilityAdmissionClaim, admissionContext)) {
+          matchedAdmissionClaim = stabilityAdmissionClaim;
+        }
+        if (isStabilityAdmissionPromotableV1(stabilityAdmissionClaim, admissionContext)) continue;
         candidate.disqualified = true;
-        candidate.disqualificationReason =
-          `p >= n (${featureCount} features, ${sampleSize} observations) requires ` +
-          'authority-certified perturbation/stability evidence before promotion';
+        candidate.disqualificationReason = matchedAdmissionClaim?.candidateId === candidate.candidateId
+          ? `p >= n (${featureCount} features, ${sampleSize} observations) has a verified but non-promotable stability certificate; Moneta abstains`
+          : `p >= n (${featureCount} features, ${sampleSize} observations) requires authority-certified perturbation/stability evidence before promotion`;
         candidate.disqualificationCode = 'stability-evidence-required';
         hardTraces.push({
           ruleName: `${candidate.candidateId}_on_${candidate.layout}_stability_admission`,
@@ -290,8 +322,26 @@ export class MonetaHypothesisEngine {
       }
     }
 
-    const assessment = assessRepresentationDecision(scoredCandidates);
-    const winner = assessment.winner;
+    let assessment = assessRepresentationDecision(scoredCandidates);
+    let winner = assessment.winner;
+    if (!winner) {
+      const abstained = scoredCandidates.filter(
+        (candidate) => candidate.disqualificationCode === 'stability-evidence-required',
+      );
+      if (abstained.length > 0) {
+        winner = abstained[0];
+        const runnerUp = abstained[1] ?? null;
+        assessment = {
+          status: 'ABSTAIN',
+          winner,
+          runnerUp,
+          margin: runnerUp ? winner.score - runnerUp.score : null,
+          rationale: matchedAdmissionClaim
+            ? 'Signed stability evidence is verified, but no Rust authority receipt and scientifically promotable governing criterion exist.'
+            : 'Current evidence and authority are insufficient to promote a representation in the p >= n regime.',
+        };
+      }
+    }
     if (!winner) {
       throw new NoFeasibleRepresentationError(hardTraces, scoredCandidates);
     }
@@ -305,7 +355,9 @@ export class MonetaHypothesisEngine {
 
     const candidateDef = MONETA_REPRESENTATION_CANDIDATES[winner.candidateId];
     const explanation =
-      `${assessment.status}: Moneta ranks ${candidateDef.name} (${winner.layout}) ` +
+      `${assessment.status}: ${assessment.status === 'ABSTAIN'
+        ? `Moneta did not promote a representation; the highest-ranked near-miss is ${candidateDef.name} (${winner.layout})`
+        : `Moneta ranks ${candidateDef.name} (${winner.layout})`} ` +
       `at utility ${winner.score.toFixed(3)}. ${assessment.rationale} ` +
       `Under ±10% single-weight perturbations, the winner changes in ` +
       `${(weightSensitivity.winnerChangeRate * 100).toFixed(1)}% of scenarios. ` +
@@ -429,13 +481,19 @@ export class MonetaHypothesisEngine {
       perceptualDeviceClass: winnerPerceptual?.measured?.deviceClass ?? 'desktop',
       stalePerceptualEvidenceDropped: staleEvidenceDropped,
       fitnessTreatmentId: FITNESS_TREATMENT_ID,
+      ...(matchedAdmissionClaim ? {
+        stabilityCertificateDigest: matchedAdmissionClaim.certificateDigest.value,
+        stabilityAdmissionDisposition: matchedAdmissionClaim.promotionDisposition,
+      } : {}),
     };
 
     return {
-      id: `decision_${winner.candidateId}_${signature.provenance.datasetFingerprint.slice(0, 8)}`,
-      chosenCandidateId: winner.candidateId,
-      chosenFamily: winner.family,
-      chosenLayout: winner.layout,
+      id: `${assessment.status === 'ABSTAIN' ? 'abstention' : 'decision'}_${winner.candidateId}_${signature.provenance.datasetFingerprint.slice(0, 8)}`,
+      ...(assessment.status === 'ABSTAIN' ? {} : {
+        chosenCandidateId: winner.candidateId,
+        chosenFamily: winner.family,
+        chosenLayout: winner.layout,
+      }),
       explanation,
       rulesEvaluated: hardTraces,
       rankedCandidates: scoredCandidates,
@@ -458,6 +516,17 @@ export class MonetaHypothesisEngine {
       rejectedAlternatives,
       provenance,
       datasetSignature: signature,
+    };
+  }
+
+  private stabilityRuntimeIdentity(signature: DatasetSignature): StabilityRuntimeIdentityV1 {
+    return {
+      analyticalKernelVersion: signature.provenance.kernelVersion,
+      monetaVersion: MONETA_HYPOTHESIS_ENGINE_VERSION,
+      fitnessModelVersion: this.fitnessModel.version,
+      fitnessModelArtifactDigest: this.fitnessModelArtifactHash && /^[0-9a-f]{64}$/.test(this.fitnessModelArtifactHash)
+        ? { algorithm: 'SHA256', value: this.fitnessModelArtifactHash }
+        : null,
     };
   }
 

@@ -16,6 +16,11 @@ export type AnalystRepresentationOutcome =
       nilId: string;
       failedConstraintCount: number;
       nearMissCount: number;
+    }
+  | {
+      kind: 'abstain';
+      decisionId: string;
+      nearMissCount: number;
     };
 
 export function assessAnalystRepresentation(
@@ -55,6 +60,13 @@ export function assessAnalystRepresentation(
       maxElements === undefined && activeDecision
         ? activeDecision
         : atlas.arbitrateRepresentation(requirements);
+    if (decision.decisionStatus === 'ABSTAIN') {
+      return {
+        kind: 'abstain',
+        decisionId: decision.id ?? 'unidentified-abstention',
+        nearMissCount: decision.rankedCandidates?.length ?? 0,
+      };
+    }
     return {
       kind: 'decision',
       decisionId: decision.id ?? 'unidentified-decision',

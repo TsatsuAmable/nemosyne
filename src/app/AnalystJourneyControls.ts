@@ -157,6 +157,12 @@ export function mountAnalystJourneyControls(
         `(utility ${outcome.utilityScore.toFixed(3)})`;
       return;
     }
+    if (outcome.kind === 'abstain') {
+      representationOutcome.textContent =
+        `Scientific abstention · no representation promoted ` +
+        `(${outcome.nearMissCount} ranked near-misses remain inspectable)`;
+      return;
+    }
     representationOutcome.textContent =
       `No feasible view · NIL: no feasible representation ` +
       `(${outcome.failedConstraintCount} constraints unresolved; ${outcome.nearMissCount} alternatives remain)`;
@@ -250,9 +256,9 @@ export function mountAnalystJourneyControls(
     );
     showRepresentationOutcome(outcome);
     setStatus(
-      outcome.kind === 'decision'
-        ? `View decision recorded: ${outcome.decisionId}`
-        : `NIL outcome recorded: ${outcome.nilId}`,
+      outcome.kind === 'nil'
+        ? `NIL outcome recorded: ${outcome.nilId}`
+        : `${outcome.kind === 'decision' ? 'View decision' : 'Scientific abstention'} recorded: ${outcome.decisionId}`,
       'success',
     );
   });

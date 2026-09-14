@@ -81,8 +81,8 @@ export class FunctionalWorldObjectsPresenter {
   }
 
   /** Preserve an explicit assessment result without translating its score. */
-  noteAssessmentOutcome(kind: 'decision' | 'nil'): void {
-    this.assessmentOverride = kind === 'nil' ? 'INFEASIBLE' : null;
+  noteAssessmentOutcome(kind: 'decision' | 'nil' | 'abstain'): void {
+    this.assessmentOverride = kind === 'nil' ? 'INFEASIBLE' : kind === 'abstain' ? 'ABSTAIN' : null;
     this.syncNow();
   }
 

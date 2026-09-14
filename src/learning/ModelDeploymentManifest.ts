@@ -1,6 +1,12 @@
 import type { ImmutableReferenceV1, Sha256DigestV1 } from '../governance/GovernedEventContracts.ts';
 import { canonicalSha256Hex } from '../security/CryptoHash.ts';
 import {
+  ED25519_SIGNATURE_ALGORITHM,
+  ED25519_SIGNATURE_HEX,
+  signEd25519DigestHex,
+  verifyEd25519DigestHex,
+} from '../security/TrustedEd25519Keys.ts';
+import {
   LEARNING_SAFE_ID,
   LEARNING_STABLE_VERSION,
   cloneImmutableReferenceV1,
@@ -13,7 +19,7 @@ import {
 
 export const MODEL_DEPLOYMENT_MANIFEST_SCHEMA_VERSION = '1' as const;
 export const MODEL_DEPLOYMENT_POLICY_VERSION = 'signed-staged-model-deployment-v1' as const;
-export const MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM = 'Ed25519' as const;
+export const MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM = ED25519_SIGNATURE_ALGORITHM;
 
 export type ModelDeploymentStage = 'SHADOW' | 'CANARY' | 'PRODUCTION' | 'ROLLBACK';
 
@@ -68,21 +74,6 @@ export class ModelDeploymentManifestError extends Error {
     this.name = 'ModelDeploymentManifestError';
     this.issues = Object.freeze([...issues]);
   }
-}
-
-const SIGNATURE_HEX = /^[0-9a-f]{128}$/;
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToArrayBuffer(value: string): ArrayBuffer {
-  const buffer = new ArrayBuffer(value.length / 2);
-  const bytes = new Uint8Array(buffer);
-  for (let index = 0; index < bytes.length; index += 1) {
-    bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
-  }
-  return buffer;
 }
 
 function cloneNullableReference(reference: ImmutableReferenceV1 | null): ImmutableReferenceV1 | null {
@@ -178,13 +169,9 @@ export async function signModelDeploymentManifestV1(
 ): Promise<SignedModelDeploymentManifestV1> {
   const content = buildModelDeploymentManifestContentV1(input);
   const manifestDigest = { algorithm: 'SHA256' as const, value: canonicalSha256Hex(content) };
-  let signatureBytes: ArrayBuffer;
+  let signatureValue: string;
   try {
-    signatureBytes = await globalThis.crypto.subtle.sign(
-      MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM,
-      privateKey,
-      new TextEncoder().encode(manifestDigest.value),
-    );
+    signatureValue = await signEd25519DigestHex(privateKey, manifestDigest.value);
   } catch (error) {
     throw new ModelDeploymentManifestError([{
       code: 'INVALID_SIGNATURE',
@@ -197,7 +184,7 @@ export async function signModelDeploymentManifestV1(
     manifestDigest,
     signature: {
       algorithm: MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM,
-      value: bytesToHex(new Uint8Array(signatureBytes)),
+      value: signatureValue,
     },
   });
 }
@@ -223,7 +210,7 @@ export function validateSignedModelDeploymentManifestStructureV1(
     !manifest?.signature ||
     !exactObjectKeys(manifest.signature, ['algorithm', 'value']) ||
     manifest.signature.algorithm !== MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM ||
-    !SIGNATURE_HEX.test(manifest.signature.value)
+    !ED25519_SIGNATURE_HEX.test(manifest.signature.value)
   ) {
     issues.push({ code: 'INVALID_SIGNATURE', path: 'signature', message: 'deployment signature must be a 64-byte Ed25519 signature encoded as lower-case hex' });
   }
@@ -236,17 +223,11 @@ export async function verifySignedModelDeploymentManifestV1(
 ): Promise<readonly ModelDeploymentManifestIssueV1[]> {
   const issues = [...validateSignedModelDeploymentManifestStructureV1(manifest)];
   if (issues.length > 0) return issues;
-  let valid = false;
-  try {
-    valid = await globalThis.crypto.subtle.verify(
-      MODEL_DEPLOYMENT_SIGNATURE_ALGORITHM,
-      publicKey,
-      hexToArrayBuffer(manifest.signature.value),
-      new TextEncoder().encode(manifest.manifestDigest.value),
-    );
-  } catch {
-    valid = false;
-  }
+  const valid = await verifyEd25519DigestHex(
+    publicKey,
+    manifest.manifestDigest.value,
+    manifest.signature.value,
+  );
   if (!valid) {
     issues.push({ code: 'INVALID_SIGNATURE', path: 'signature', message: 'Ed25519 signature does not verify for the exact deployment manifest digest' });
   }

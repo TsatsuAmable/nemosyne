@@ -229,6 +229,50 @@ describe('RF-062C RepresentationSurface', () => {
     surface.dispose();
   });
 
+  it('clears a promoted representation without constructing a fallback', () => {
+    const node = fakeNode('row-1');
+    const diagnostic = fakeDiagnostic();
+    const createNode = vi.fn(() => node);
+    const removeUpdatable = vi.fn();
+    const removeDiagnosticPanel = vi.fn();
+    const removeInteractable = vi.fn();
+
+    const surface = new RepresentationSurface(
+      {
+        scene: new THREE.Scene(),
+        cameraGroup: new THREE.Group(),
+        analystAnchor: new THREE.Group(),
+        getColorblindMode: () => 'none',
+        getFactProvider: () => ({ facts: () => null }),
+        addUpdatable: vi.fn(),
+        removeUpdatable,
+        addInteractable: vi.fn(),
+        removeInteractable,
+        addDiagnosticPanel: vi.fn(),
+        removeDiagnosticPanel,
+        setTooltipTargets: vi.fn(),
+        clearStructureHandles: vi.fn(),
+        rebuildStructureHandles: vi.fn(),
+        onSelectNode: vi.fn(),
+      },
+      { createNode, createDiagnostic: () => diagnostic }
+    );
+
+    surface.replace({ topology: 'TABULAR' }, null);
+    expect(createNode).toHaveBeenCalledOnce();
+
+    surface.clear();
+
+    expect(createNode).toHaveBeenCalledOnce();
+    expect(node.cancelPendingSemanticEmbodiment).toHaveBeenCalledOnce();
+    expect(removeUpdatable).toHaveBeenCalledWith(node);
+    expect(removeInteractable).toHaveBeenCalledWith(node.artifact!.nodeMeshes[0]);
+    expect(removeDiagnosticPanel).toHaveBeenCalledWith(diagnostic);
+    expect(surface.currentNode).toBeNull();
+    expect(surface.diagnostic).toBeNull();
+    expect(surface.selectedMesh).toBeNull();
+  });
+
   it('disposes owned resources idempotently', () => {
     const node = fakeNode('row-1');
     const diagnostic = fakeDiagnostic();

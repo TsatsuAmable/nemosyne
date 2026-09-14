@@ -23,6 +23,7 @@ import {
   type DatasetSignature,
   type RepresentationDecision,
   type SpectralFacts,
+  type VerifiedStabilityAdmissionClaimV1,
   buildDatasetSignature,
   MonetaHypothesisEngine,
   EvidenceBackedMoneta,
@@ -331,13 +332,17 @@ export class RepresentationState {
     requirements?: RepresentationRequirements,
     datasetFingerprint?: string
   ): SpatialStrategy {
-    return this.arbitrateRepresentation(
+    const decision = this.arbitrateRepresentation(
       input,
       kernelFacts,
       undefined,
       requirements,
       datasetFingerprint
-    ).embodiment.spatialStrategy;
+    );
+    if (decision.decisionStatus === 'ABSTAIN') {
+      throw new Error('Moneta abstained: no promoted spatial strategy is available');
+    }
+    return decision.embodiment.spatialStrategy;
   }
 
   arbitrateRepresentation(
@@ -359,7 +364,9 @@ export class RepresentationState {
       ? applyPinnedLearnedFitnessRuntime(bootstrapDecision, this.learnedRuntime)
       : bootstrapDecision;
     this.activeDecision = decision;
-    this.activeStrategy = decision.embodiment.spatialStrategy;
+    this.activeStrategy = decision.decisionStatus === 'ABSTAIN'
+      ? null
+      : decision.embodiment.spatialStrategy;
     this.activeRequirements = req;
     return decision;
   }
@@ -376,23 +383,27 @@ export class RepresentationState {
   previewRepresentationFromEvidence(
     evidence: DatasetEvidence,
     requirements?: RepresentationRequirements,
+    stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1,
   ): RepresentationDecision {
     const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
     // Deliberately bypass computeDatasetSignatureFromEvidence(), which updates
     // activeSignature. Preview must leave every active* field untouched.
     const signature = datasetEvidenceToSignature(evidence);
-    return this.rankRepresentationFromEvidence(evidence, signature, req);
+    return this.rankRepresentationFromEvidence(evidence, signature, req, stabilityAdmissionClaim);
   }
 
   arbitrateRepresentationFromEvidence(
     evidence: DatasetEvidence,
     requirements?: RepresentationRequirements,
+    stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1,
   ): RepresentationDecision {
     const req = requirements ?? this.activeRequirements ?? createDefaultRequirements();
     const signature = this.computeDatasetSignatureFromEvidence(evidence);
-    const decision = this.rankRepresentationFromEvidence(evidence, signature, req);
+    const decision = this.rankRepresentationFromEvidence(evidence, signature, req, stabilityAdmissionClaim);
     this.activeDecision = decision;
-    this.activeStrategy = decision.embodiment.spatialStrategy;
+    this.activeStrategy = decision.decisionStatus === 'ABSTAIN'
+      ? null
+      : decision.embodiment.spatialStrategy;
     this.activeRequirements = req;
     return decision;
   }
@@ -401,11 +412,14 @@ export class RepresentationState {
     evidence: DatasetEvidence,
     signature: DatasetSignature,
     requirements: RepresentationRequirements,
+    stabilityAdmissionClaim?: VerifiedStabilityAdmissionClaimV1,
   ): RepresentationDecision {
     const bootstrapDecision = new EvidenceBackedMoneta().arbitrate(
       evidence,
       signature,
       requirements,
+      undefined,
+      stabilityAdmissionClaim,
     ).decision;
     return this.learnedRuntime
       ? applyPinnedLearnedFitnessRuntime(bootstrapDecision, this.learnedRuntime)
@@ -416,11 +430,17 @@ export class RepresentationState {
     evidence: DatasetEvidence,
     requirements?: RepresentationRequirements,
   ): SpatialStrategy {
-    return this.arbitrateRepresentationFromEvidence(evidence, requirements).embodiment.spatialStrategy;
+    const decision = this.arbitrateRepresentationFromEvidence(evidence, requirements);
+    if (decision.decisionStatus === 'ABSTAIN') {
+      throw new Error('Moneta abstained: no promoted spatial strategy is available');
+    }
+    return decision.embodiment.spatialStrategy;
   }
 
   restoreDecision(decision: RepresentationDecision | null): void {
     this.activeDecision = decision;
-    this.activeStrategy = decision?.embodiment.spatialStrategy ?? null;
+    this.activeStrategy = decision?.decisionStatus === 'ABSTAIN'
+      ? null
+      : decision?.embodiment.spatialStrategy ?? null;
   }
 }
