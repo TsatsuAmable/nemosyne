@@ -208,6 +208,16 @@ fn aggregate_from_columnar(
             None,
         );
     }
+    if request.measure.function == AggregateFunctionV1::Count && request.measure.field.is_some() {
+        return refusal(
+            fingerprint,
+            source_row_count,
+            request,
+            SemanticRefusalCodeV1::InvalidParameters,
+            "COUNT aggregate must not declare a measure field",
+            None,
+        );
+    }
 
     let Some(grouping_index) = find_column_index(columns, &request.grouping_field) else {
         return refusal(
@@ -514,8 +524,10 @@ mod tests {
     #[test]
     fn count_is_explicit_and_keeps_missing_grouping_as_null() {
         let handle = dataset_handle();
-        let envelope = build_aggregate_embodiment_v1(handle, &request(AggregateFunctionV1::Count))
-            .expect("aggregate envelope");
+        let mut count_request = request(AggregateFunctionV1::Count);
+        count_request.measure.field = None;
+        let envelope =
+            build_aggregate_embodiment_v1(handle, &count_request).expect("aggregate envelope");
         let SemanticEmbodimentResultV1::Ready { payload } = envelope.result else {
             panic!("expected ready aggregate payload");
         };
@@ -524,6 +536,17 @@ mod tests {
         };
         assert!(payload.groups.iter().all(|group| group.aggregate_value == Some(group.count as f64)));
         assert!(payload.groups.iter().any(|group| group.key.is_null()));
+    }
+
+    #[test]
+    fn count_with_measure_field_refuses_instead_of_silently_ignoring_the_field() {
+        let handle = dataset_handle();
+        let envelope = build_aggregate_embodiment_v1(handle, &request(AggregateFunctionV1::Count))
+            .expect("refusal envelope");
+        let SemanticEmbodimentResultV1::Refused { refusal } = envelope.result else {
+            panic!("expected refusal");
+        };
+        assert_eq!(refusal.code, SemanticRefusalCodeV1::InvalidParameters);
     }
 
     #[test]

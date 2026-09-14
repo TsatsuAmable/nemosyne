@@ -1,9 +1,12 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import { Container, Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
 import { downloadText } from '../../utils/Download.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
-import type { WorldEventBusLike, MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions, WorldEventBusLike, MovablePanelOptions } from '../coordinators/types.ts';
 import {
   DEFAULT_LOAD_TEST_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
@@ -17,7 +20,6 @@ import type {
   QuestBoundarySummary,
 } from '../scalability/QuestBoundaryProbe.ts';
 
-/** Live sample payload emitted on LOADTEST_SAMPLE. */
 interface LoadTestSample {
   stepIndex: number;
   totalSteps: number;
@@ -29,81 +31,76 @@ interface LoadTestSample {
   criticalFrames: number;
 }
 
-/** Step transition payload emitted on LOADTEST_STEP. */
 interface LoadTestStepEvent {
   phase: string;
   stepIndex: number;
   totalSteps: number;
-  spec?: { topology: string; rowCount: number; durationSec: number; label?: string };
   result?: {
     grade: VerdictGrade;
     reasons: string[];
     spec: { rowCount: number };
     frames: StepFrameStats;
   };
-  partial?: boolean;
 }
 
 interface LoadTestPanelOptions extends MovablePanelOptions {
   driver: LoadTestDriver;
   eventBus: WorldEventBusLike;
-  /** Start a run with the given profile (World wraps telemetry-consent around it). */
   onStart?: (profile: LoadTestProfile) => void;
   onStartBoundary?: () => void;
   onStop?: () => void;
-  /** Re-POST the last summary to the local dev-server log endpoint. */
   onFlush?: () => void;
 }
 
-interface BtnRect {
-  id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+type LoadAction =
+  | 'size:1k'
+  | 'size:8k'
+  | 'size:65k'
+  | 'size:100k'
+  | 'size:250k'
+  | 'size:full'
+  | 'start-full'
+  | 'start-quest'
+  | 'start-quest-10m'
+  | 'stop'
+  | 'flush'
+  | 'download';
 
-const GRADE_COLOR: Record<VerdictGrade, string> = {
-  green: cssHex(COLOR_TOKENS.status.verified),
-  yellow: cssHex(COLOR_TOKENS.epistemic.uncertain),
-  red: cssHex(COLOR_TOKENS.danger.destructive),
-};
+const PANEL_WIDTH = 920;
+const PANEL_HEIGHT = 820;
 
-/** Single-N presets + the full staircase. Clicking one starts that run. */
 function singleStepProfile(rowCount: number, durationSec: number, label: string): LoadTestProfile {
   return {
-    name: `single-${label}`,
+    name: 'single-' + label,
     settleSec: 2,
     steps: [{ topology: 'TABULAR', rowCount, durationSec, label }],
   };
 }
 
-const SIZE_PRESETS: { id: string; label: string; profile: LoadTestProfile }[] = [
-  { id: '1k', label: '1k', profile: singleStepProfile(1_000, 20, '1k') },
-  { id: '8k', label: '8k', profile: singleStepProfile(8_000, 20, '8k') },
-  { id: '65k', label: '65k', profile: singleStepProfile(65_000, 30, '65k') },
-  { id: '100k', label: '100k', profile: singleStepProfile(100_000, 30, '100k') },
-  { id: '250k', label: '250k', profile: singleStepProfile(250_000, 30, '250k') },
-  { id: 'full', label: 'Full', profile: DEFAULT_LOAD_TEST_PROFILE },
-];
+const SIZE_PRESETS: Record<string, LoadTestProfile> = {
+  'size:1k': singleStepProfile(1_000, 20, '1k'),
+  'size:8k': singleStepProfile(8_000, 20, '8k'),
+  'size:65k': singleStepProfile(65_000, 30, '65k'),
+  'size:100k': singleStepProfile(100_000, 30, '100k'),
+  'size:250k': singleStepProfile(250_000, 30, '250k'),
+  'size:full': DEFAULT_LOAD_TEST_PROFILE,
+};
 
-/**
- * In-VR panel for the load-test harness. Shows live per-frame p50/p95/p99, FPS,
- * dropped rate, GPU counters, and the green/yellow/red verdict as the staircase
- * runs; on completion shows the overall recommendation (whether the command
- * buffer is warranted and the perf level it must meet). Buttons start a single-N
- * or full-staircase run, stop, flush the summary to the local dev-server log,
- * and download it.
- *
- * The panel only displays perf/UX aggregates computed by the driver — never
- * user dataset rows or session snapshots.
- */
-export class LoadTestPanel extends MovablePanel {
+export class LoadTestPanel extends SpatialPanel {
+  readonly title = 'LOAD TEST';
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   private readonly _driver: LoadTestDriver;
   private readonly _onStart?: (profile: LoadTestProfile) => void;
   private readonly _onStartBoundary?: () => void;
   private readonly _onStop?: () => void;
   private readonly _onFlush?: () => void;
+
   private _lastSample: LoadTestSample | null = null;
   private _lastStep: LoadTestStepEvent | null = null;
   private _lastSummary: LoadTestSummary | null = null;
@@ -112,96 +109,97 @@ export class LoadTestPanel extends MovablePanel {
   private _boundaryProgress: QuestBoundaryProgress | null = null;
   private _boundaryRunning = false;
   private _dirty = true;
-  private _buttons: BtnRect[] = [];
   private _unsubs: Array<() => void> = [];
 
-  constructor(cameraGroup: THREE.Group, options: LoadTestPanelOptions) {
-    super(cameraGroup, {
-      title: 'LOAD TEST',
-      width: 920,
-      height: 820,
-      position: options.position ?? [-0.9, 1.55, -1.1],
-      worldSize: options.worldSize ?? [0.92, 0.82],
-      titleBarHeight: 44,
-      tilt: 0.22,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-    });
+  private readonly _summaryText: Text;
+  private readonly _actions: Container;
+  private _buttons: Button[] = [];
+  private _textScale = 1;
+  private _highContrast = false;
+
+  constructor(analystAnchor: THREE.Object3D, options: LoadTestPanelOptions) {
+    const highContrast = options.highContrast ?? false;
+    const theme = getTheme(highContrast);
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'column',
+        gap: SPACING_TOKENS.grid.x8,
+        padding: SPACING_TOKENS.grid.x12,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      options.parentGroup ?? analystAnchor,
+      null
+    );
+
+    this.name = 'load-test-panel';
     this._driver = options.driver;
     this._onStart = options.onStart;
     this._onStartBoundary = options.onStartBoundary;
     this._onStop = options.onStop;
     this._onFlush = options.onFlush;
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
 
-    // Subscribe to load-test events for live display. Handlers set a dirty flag;
-    // the actual canvas re-render happens in update() to avoid mid-event writes.
+    const worldWidth = options.worldSize?.[0] ?? 0.92;
+    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.defaultPosition = new THREE.Vector3(...(options.position ?? [-0.9, 1.55, -1.1]));
+    this.position.copy(this.defaultPosition);
+
+    this._summaryText = new Text({
+      text: '',
+      fontSize: 15 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+    this._actions = new Container({
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING_TOKENS.grid.x4,
+    });
+    this.add(this._summaryText, this._actions);
+
     const bus = options.eventBus;
     this._unsubs.push(
-      bus.on(WorldTopics.LOADTEST_SAMPLE, (p) => {
-        this._lastSample = p as LoadTestSample;
+      bus.on(WorldTopics.LOADTEST_SAMPLE, (payload) => {
+        this._lastSample = payload as LoadTestSample;
         this._dirty = true;
-      })
-    );
-    this._unsubs.push(
-      bus.on(WorldTopics.LOADTEST_STEP, (p) => {
-        this._lastStep = p as LoadTestStepEvent;
+      }),
+      bus.on(WorldTopics.LOADTEST_STEP, (payload) => {
+        this._lastStep = payload as LoadTestStepEvent;
         this._dirty = true;
-      })
-    );
-    this._unsubs.push(
-      bus.on(WorldTopics.LOADTEST_COMPLETE, (p) => {
-        this._lastSummary = p as LoadTestSummary;
+      }),
+      bus.on(WorldTopics.LOADTEST_COMPLETE, (payload) => {
+        this._lastSummary = payload as LoadTestSummary;
         this._lastDownloadPayload = this._lastSummary;
         this._lastSample = null;
         this._dirty = true;
-      })
-    );
-    this._unsubs.push(
+      }),
       bus.on(WorldTopics.QUEST_BOUNDARY_START, () => {
         this._boundaryRunning = true;
         this._lastBoundarySummary = null;
         this._lastDownloadPayload = null;
         this._dirty = true;
-      })
-    );
-    this._unsubs.push(
-      bus.on(WorldTopics.QUEST_BOUNDARY_PROGRESS, (p) => {
-        this._boundaryProgress = p as QuestBoundaryProgress;
+      }),
+      bus.on(WorldTopics.QUEST_BOUNDARY_PROGRESS, (payload) => {
+        this._boundaryProgress = payload as QuestBoundaryProgress;
         this._dirty = true;
-      })
-    );
-    this._unsubs.push(
-      bus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, (p) => {
+      }),
+      bus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, (payload) => {
         this._boundaryRunning = false;
-        this._lastBoundarySummary = p as QuestBoundarySummary;
+        this._lastBoundarySummary = payload as QuestBoundarySummary;
         this._lastDownloadPayload = this._lastBoundarySummary;
         this._dirty = true;
       })
     );
 
+    this._rebuildButtons();
     this.render();
   }
 
-  update(): void {
-    if (this._dirty) {
-      this._dirty = false;
-      this.render();
-    }
-  }
-
-  dispose(): void {
-    for (const unsub of this._unsubs) {
-      try {
-        unsub();
-      } catch {
-        // ignore
-      }
-    }
-    this._unsubs = [];
-  }
-
-  /** Holds the last completed summary so World can flush/download it. */
   get lastSummary(): LoadTestSummary | null {
     return this._lastSummary;
   }
@@ -210,270 +208,209 @@ export class LoadTestPanel extends MovablePanel {
     return this._lastBoundarySummary;
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const pad = 20;
-    const lineH = 26;
-    let y = pad;
-    this._buttons = [];
-
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-
-    const driver = this._driver;
-    const phase = driver.phase;
-    const cur = driver.currentStep;
-    const total = driver.totalSteps;
-    const idx = driver.stepIndex;
-
-    // --- STATUS ---
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.fillText('// STATUS', pad, y + lineH);
-    y += lineH + 4;
-    ctx.font = this._scaleFont('15px monospace');
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    const stepLabel = cur ? `${cur.label ?? cur.rowCount} (${cur.topology})` : '-';
-    const boundary = this._boundaryProgress;
-    ctx.fillText(
-      this._boundaryRunning && boundary ? `Phase: QUEST 10M ${boundary.phase}` : `Phase: ${phase}`,
-      pad + 8,
-      y + lineH
-    );
-    ctx.fillText(
-      this._boundaryRunning && boundary
-        ? `Fixture: ${boundary.progressPercent.toFixed(1)}%`
-        : `Step: ${idx}/${total}  ${stepLabel}`,
-      pad + 8,
-      y + lineH * 2
-    );
-    y += lineH * 2 + 8;
-
-    // --- LIVE METRICS (from last sample) ---
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.fillText('// LIVE METRICS', pad, y + lineH);
-    y += lineH + 4;
-
-    const s = this._lastSample;
-    ctx.font = this._scaleFont('15px monospace');
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    if (this._boundaryRunning && boundary) {
-      ctx.fillText(`Rust boundary phase: ${boundary.phase}`, pad + 8, y + lineH);
-      ctx.fillText(
-        `Synthetic column fill: ${boundary.progressPercent.toFixed(1)}%`,
-        pad + 8,
-        y + lineH * 2
-      );
-      ctx.fillText('Frame gaps and WASM memory are being recorded.', pad + 8, y + lineH * 3);
-      y += lineH * 3 + 8;
-    } else if (s) {
-      const f = s.frames;
-      const progress = Math.min(100, (s.elapsedMs / (s.spec.durationSec * 1000)) * 100);
-      ctx.fillText(
-        `p50 ${f.p50Ms.toFixed(1)}  p95 ${f.p95Ms.toFixed(1)}  p99 ${f.p99Ms.toFixed(1)} ms`,
-        pad + 8,
-        y + lineH
-      );
-      ctx.fillText(
-        `fps ${f.fpsAvg.toFixed(0)}  dropped ${f.droppedPct.toFixed(1)}%  gc-spikes ${f.gcSpikes}`,
-        pad + 8,
-        y + lineH * 2
-      );
-      ctx.fillText(
-        `draw ${s.gpu.drawCalls}  tri ${s.gpu.triangles}  pts ${s.gpu.points}  lines ${s.gpu.lines}`,
-        pad + 8,
-        y + lineH * 3
-      );
-      ctx.fillText(
-        `frames ${s.frameCount}  progress ${progress.toFixed(0)}%  crit ${s.criticalFrames}`,
-        pad + 8,
-        y + lineH * 4
-      );
-      y += lineH * 4 + 8;
-    } else {
-      ctx.fillText('Idle — select a size to start.', pad + 8, y + lineH);
-      y += lineH + 8;
-    }
-
-    // --- VERDICT (completed steps + overall) ---
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.fillText('// VERDICT', pad, y + lineH);
-    y += lineH + 4;
-
-    const boundarySummary = this._lastBoundarySummary;
-    const summary = this._lastSummary;
-    if (boundarySummary && this._lastDownloadPayload === boundarySummary) {
-      ctx.font = this._scaleFont('15px monospace');
-      ctx.fillStyle = boundarySummary.outcome.status === 'completed' ? cssHex(COLOR_TOKENS.status.verified) : cssHex(COLOR_TOKENS.danger.destructive);
-      ctx.fillText(
-        `10M boundary: ${boundarySummary.outcome.status.toUpperCase()}`,
-        pad + 8,
-        y + lineH
-      );
-      ctx.fillText(
-        `WASM retained: ${boundarySummary.memory.retainedWasmGrowthBytes ?? 'unknown'} bytes`,
-        pad + 8,
-        y + lineH * 2
-      );
-      ctx.fillText(
-        `Max XR frame gap: ${boundarySummary.maximumFrameGapMs?.toFixed(1) ?? 'unknown'} ms`,
-        pad + 8,
-        y + lineH * 3
-      );
-      ctx.fillStyle = cssHex(COLOR_TOKENS.epistemic.uncertain);
-      ctx.fillText('Device qualification remains blocked pending audits.', pad + 8, y + lineH * 4);
-      y += lineH * 4 + 8;
-    } else if (summary) {
-      ctx.font = this._scaleFont('15px monospace');
-      for (const step of summary.steps) {
-        const color = GRADE_COLOR[step.grade] ?? cssHex(COLOR_TOKENS.text.secondary);
-        const reasons = step.reasons.length ? ` — ${step.reasons.join('; ')}` : '';
-        ctx.fillStyle = color;
-        const line = `${step.spec.rowCount}: ${step.grade.toUpperCase()}${reasons}`;
-        ctx.fillText(this._truncate(ctx, line, w - pad * 2 - 8), pad + 8, y + lineH);
-        y += lineH;
-        if (y > contentH - 180) break;
-      }
-      // Overall recommendation.
-      ctx.fillStyle = cssHex(COLOR_TOKENS.status.verified);
-      ctx.font = this._scaleFont('bold 15px monospace');
-      y = this._wrapText(
-        ctx,
-        summary.verdict.recommendation,
-        pad + 8,
-        y,
-        w - pad * 2 - 8,
-        lineH,
-        contentH - 130
-      );
-      y += 6;
-    } else {
-      ctx.font = this._scaleFont('15px monospace');
-      ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-      ctx.fillText('No run completed yet.', pad + 8, y + lineH);
-      y += lineH + 8;
-    }
-
-    // --- BUTTONS ---
-    this._renderButtons(ctx, w, contentH);
-  }
-
-  private _renderButtons(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const pad = 20;
-    const btnH = 38;
-    const gap = 8;
-    // Row 1: size presets (6 buttons).
-    const presetW = Math.floor(
-      (w - pad * 2 - gap * (SIZE_PRESETS.length - 1)) / SIZE_PRESETS.length
-    );
-    const y1 = contentH - btnH * 2 - pad - gap;
-    for (let i = 0; i < SIZE_PRESETS.length; i++) {
-      const p = SIZE_PRESETS[i];
-      const x = pad + i * (presetW + gap);
-      this._drawButton(ctx, p.id, p.label, x, y1, presetW, btnH, false);
-      this._buttons.push({ id: `size:${p.id}`, x, y: y1, w: presetW, h: btnH });
-    }
-    // Row 2: Start (full), Stop, Flush, Download.
-    const actions: { id: string; label: string }[] = [
-      { id: 'start-full', label: 'START FULL' },
-      { id: 'start-quest', label: 'QUEST 3S' },
-      { id: 'start-quest-10m', label: 'QUEST 10M' },
-      { id: 'stop', label: 'STOP' },
-      { id: 'flush', label: 'FLUSH LOG' },
-      { id: 'download', label: 'DOWNLOAD' },
-    ];
-    const actionW = Math.floor((w - pad * 2 - gap * (actions.length - 1)) / actions.length);
-    const y2 = contentH - btnH - pad;
-    for (let i = 0; i < actions.length; i++) {
-      const a = actions[i];
-      const x = pad + i * (actionW + gap);
-      const active =
-        a.id === 'stop' &&
-        (this._boundaryRunning ||
-          (this._driver.phase !== 'IDLE' && this._driver.phase !== 'COMPLETE'));
-      this._drawButton(ctx, a.id, a.label, x, y2, actionW, btnH, active);
-      this._buttons.push({ id: a.id, x, y: y2, w: actionW, h: btnH });
-    }
-  }
-
   get lastStep(): LoadTestStepEvent | null {
     return this._lastStep;
   }
 
-  private _drawButton(
-    ctx: CanvasRenderingContext2D,
-    _id: string,
-    label: string,
-    x: number,
-    y: number,
-    bw: number,
-    bh: number,
-    active: boolean
-  ): void {
-    ctx.fillStyle = active
-      ? cssHex(COLOR_TOKENS.danger.destructive) + '40'
-      : this.highContrast
-        ? 'rgba(255,255,255,0.9)'
-        : cssHex(COLOR_TOKENS.interaction.focus) + '26';
-    ctx.fillRect(x, y, bw, bh);
-    ctx.strokeStyle = active ? cssHex(COLOR_TOKENS.danger.destructive) : this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.lineWidth = this.highContrast ? 3 : 2;
-    ctx.strokeRect(x, y, bw, bh);
-    ctx.font = this._scaleFont('bold 14px monospace');
-    ctx.fillStyle = active ? cssHex(COLOR_TOKENS.danger.destructive) : this.highContrast ? cssHex(COLOR_TOKENS.space.void) : cssHex(COLOR_TOKENS.interaction.focus);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, x + bw / 2, y + bh / 2);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+  update(delta = 0): void {
+    super.update(delta);
+    if (!this._dirty) return;
+    this._dirty = false;
+    this.render();
   }
 
-  handleContentClick(worldRaycaster: THREE.Raycaster): boolean {
-    const hits = worldRaycaster.intersectObject(this.mesh, false);
-    if (hits.length === 0) return false;
-    const uv = hits[0].uv;
-    if (!uv) return false;
-    const cx = uv.x * this.width;
-    const cy = (1 - uv.y) * this.height;
-
-    for (const b of this._buttons) {
-      if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
-        this._dispatchButton(b.id);
-        return true;
-      }
+  dispatchAction(id: LoadAction): boolean {
+    if (id in SIZE_PRESETS) {
+      this._start(SIZE_PRESETS[id]);
+      return true;
     }
-    return false;
-  }
 
-  private _dispatchButton(id: string): void {
-    if (id.startsWith('size:')) {
-      const presetId = id.slice('size:'.length);
-      const preset = SIZE_PRESETS.find((p) => p.id === presetId);
-      if (preset) this._start(preset.profile);
-      return;
-    }
     switch (id) {
       case 'start-full':
         this._start(DEFAULT_LOAD_TEST_PROFILE);
-        break;
+        return true;
       case 'start-quest':
         this._start(QUEST_3S_QUALIFICATION_PROFILE);
-        break;
+        return true;
       case 'start-quest-10m':
         this._startBoundary();
-        break;
+        return true;
       case 'stop':
         this._onStop?.();
-        break;
+        return true;
       case 'flush':
         this._onFlush?.();
-        break;
+        return true;
       case 'download':
         this._downloadSummary();
-        break;
+        return true;
       default:
-        break;
+        return false;
+    }
+  }
+
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this.render();
+  }
+
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
+
+  override dispose(): void {
+    for (const unsub of this._unsubs) {
+      try {
+        unsub();
+      } catch {
+        // Best-effort cleanup only.
+      }
+    }
+    this._unsubs = [];
+    super.dispose();
+  }
+
+  render(): void {
+    const theme = getTheme(this._highContrast);
+    this._summaryText.setProperties({
+      text: this._formatSummary(),
+      fontSize: 15 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+  }
+
+  private _formatSummary(): string {
+    const lines: string[] = ['LOAD TEST / QUEST BOUNDARY', ''];
+
+    if (this._boundaryRunning && this._boundaryProgress) {
+      lines.push(
+        'Mode: QUEST 10M boundary probe',
+        'Phase: ' + this._boundaryProgress.phase,
+        'Progress: ' + this._boundaryProgress.progressPercent.toFixed(1) + '%',
+        'Frame gaps and WASM memory are being recorded.',
+        'Device qualification remains blocked pending required audits.'
+      );
+      return lines.join('\n');
+    }
+
+    if (this._lastBoundarySummary && this._lastDownloadPayload === this._lastBoundarySummary) {
+      lines.push(
+        'Quest 10M boundary: ' + this._lastBoundarySummary.outcome.status.toUpperCase(),
+        'WASM retained: ' +
+          String(this._lastBoundarySummary.memory.retainedWasmGrowthBytes ?? 'unknown') +
+          ' bytes',
+        'Max XR frame gap: ' +
+          (this._lastBoundarySummary.maximumFrameGapMs?.toFixed(1) ?? 'unknown') +
+          ' ms',
+        'Device qualification remains blocked pending required audits.'
+      );
+      return lines.join('\n');
+    }
+
+    if (this._lastSummary) {
+      lines.push('Completed load test: ' + this._lastSummary.profileName);
+      for (const step of this._lastSummary.steps.slice(-8)) {
+        lines.push(
+          step.spec.rowCount +
+            ': ' +
+            step.grade.toUpperCase() +
+            (step.reasons.length ? ' · ' + step.reasons.join('; ') : '')
+        );
+      }
+      lines.push('', this._lastSummary.verdict.recommendation);
+      return lines.join('\n');
+    }
+
+    if (this._lastSample) {
+      const frame = this._lastSample.frames;
+      const progress = Math.min(
+        100,
+        (this._lastSample.elapsedMs / (this._lastSample.spec.durationSec * 1000)) * 100
+      );
+      lines.push(
+        'Phase: ' + this._driver.phase,
+        'Step: ' +
+          this._lastSample.stepIndex +
+          '/' +
+          this._lastSample.totalSteps +
+          ' · ' +
+          (this._lastSample.spec.label ?? this._lastSample.spec.rowCount),
+        'p50 ' +
+          frame.p50Ms.toFixed(1) +
+          ' · p95 ' +
+          frame.p95Ms.toFixed(1) +
+          ' · p99 ' +
+          frame.p99Ms.toFixed(1) +
+          ' ms',
+        'FPS ' +
+          frame.fpsAvg.toFixed(0) +
+          ' · dropped ' +
+          frame.droppedPct.toFixed(1) +
+          '% · GC spikes ' +
+          frame.gcSpikes,
+        'draw ' +
+          this._lastSample.gpu.drawCalls +
+          ' · tri ' +
+          this._lastSample.gpu.triangles +
+          ' · pts ' +
+          this._lastSample.gpu.points +
+          ' · lines ' +
+          this._lastSample.gpu.lines,
+        'Progress ' + progress.toFixed(0) + '% · critical frames ' + this._lastSample.criticalFrames
+      );
+      return lines.join('\n');
+    }
+
+    lines.push('Idle · select a size or qualification profile to start.');
+    return lines.join('\n');
+  }
+
+  private _rebuildButtons(): void {
+    for (const button of this._buttons) {
+      this._actions.remove(button);
+      button.dispose();
+    }
+    this._buttons = [];
+
+    const definitions: Array<[LoadAction, string, 'primary' | 'secondary' | 'danger']> = [
+      ['size:1k', '1k', 'secondary'],
+      ['size:8k', '8k', 'secondary'],
+      ['size:65k', '65k', 'secondary'],
+      ['size:100k', '100k', 'secondary'],
+      ['size:250k', '250k', 'secondary'],
+      ['size:full', 'Full', 'secondary'],
+      ['start-full', 'START FULL', 'primary'],
+      ['start-quest', 'QUEST 3S', 'primary'],
+      ['start-quest-10m', 'QUEST 10M', 'primary'],
+      ['stop', 'STOP', 'danger'],
+      ['flush', 'FLUSH LOG', 'secondary'],
+      ['download', 'DOWNLOAD', 'secondary'],
+    ];
+
+    for (const [id, label, variant] of definitions) {
+      const button = new Button({
+        label,
+        variant,
+        onClick: () => {
+          this.dispatchAction(id);
+        },
+      });
+      button.name = id;
+      this._buttons.push(button);
+      this._actions.add(button);
     }
   }
 
@@ -483,11 +420,8 @@ export class LoadTestPanel extends MovablePanel {
     this._lastDownloadPayload = null;
     this._lastSample = null;
     this._dirty = true;
-    if (this._onStart) {
-      this._onStart(profile);
-    } else {
-      this._driver.run(profile);
-    }
+    if (this._onStart) this._onStart(profile);
+    else this._driver.run(profile);
     this.render();
   }
 
@@ -504,52 +438,15 @@ export class LoadTestPanel extends MovablePanel {
   private _downloadSummary(): void {
     const summary = this._lastDownloadPayload;
     if (!summary) return;
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const prefix =
       summary.profileName === 'quest-3s-rust-boundary-10m'
         ? 'nemosyne-quest-boundary'
         : 'nemosyne-loadtest';
-    downloadText(
+    void downloadText(
       JSON.stringify(summary, null, 2),
-      `${prefix}-${ts}.json`,
+      prefix + '-' + timestamp + '.json',
       'application/json'
     ).catch(() => {});
-  }
-
-  private _truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-    if (ctx.measureText(text).width <= maxWidth) return text;
-    let t = text;
-    while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
-    return t + '…';
-  }
-
-  private _wrapText(
-    ctx: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineH: number,
-    maxY: number
-  ): number {
-    const words = text.split(/\s+/);
-    let line = '';
-    let cy = y;
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        ctx.fillText(line, x, cy + lineH);
-        cy += lineH;
-        line = word;
-        if (cy > maxY) return cy;
-      } else {
-        line = test;
-      }
-    }
-    if (line) {
-      ctx.fillText(line, x, cy + lineH);
-      cy += lineH;
-    }
-    return cy;
   }
 }

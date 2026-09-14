@@ -44,6 +44,7 @@ export interface MonetaEvidenceDecision {
     adaptiveSelection: boolean;
     compositional: boolean;
     stabilityEvidencePresent: boolean;
+    stabilityCertificationApplied: boolean;
   };
 }
 
@@ -61,10 +62,17 @@ export function adjudicateMonetaEvidence(
   const highDimensional = candidate.featureCount >= candidate.sampleSize;
   const adaptiveSelection = candidate.selectionMode === 'adaptive-after-data';
   const compositional = candidate.measurementScales.includes('compositional');
-  const stabilityEvidencePresent =
-    candidate.perturbation !== undefined &&
-    Number.isFinite(candidate.perturbation.value) &&
-    candidate.perturbation.runs > 0;
+  const perturbationWellFormed = candidate.perturbation !== undefined &&
+    Number.isInteger(candidate.perturbation.runs) &&
+    candidate.perturbation.runs > 0 &&
+    typeof candidate.perturbation.metric === 'string' &&
+    candidate.perturbation.metric.trim().length > 0 &&
+    Number.isFinite(candidate.perturbation.value);
+  // No authority-bearing stability certificate exists yet. Well-formed
+  // perturbation diagnostics remain inspectable but cannot self-promote a
+  // high-dimensional candidate into admissible evidence.
+  const stabilityCertificationApplied = false;
+  const stabilityEvidencePresent = false;
 
   if (candidate.sampleSize <= 0 || candidate.featureCount <= 0) {
     reasons.push('sampleSize and featureCount must both be positive');
@@ -100,10 +108,10 @@ export function adjudicateMonetaEvidence(
     reasons.push('inferential claims require an explicit calibration/inference strategy');
   }
 
-  if (candidate.perturbation) {
-    if (candidate.perturbation.runs <= 0 || !Number.isFinite(candidate.perturbation.value)) {
-      reasons.push('perturbation evidence must contain positive run count and finite metric value');
-    }
+  if (candidate.perturbation && !perturbationWellFormed) {
+    reasons.push(
+      'perturbation evidence must contain a positive integer run count, non-empty metric identifier and finite metric value'
+    );
   }
 
   if (candidate.hardViolations?.length) {
@@ -115,14 +123,22 @@ export function adjudicateMonetaEvidence(
     adaptiveSelection,
     compositional,
     stabilityEvidencePresent,
+    stabilityCertificationApplied,
   };
 
   if (reasons.length > 0) return { disposition: 'INVALID', reasons, flags };
 
   if (highDimensional && !stabilityEvidencePresent) {
+    const detail = candidate.perturbation === undefined
+      ? 'no perturbation evidence supplied'
+      : !stabilityCertificationApplied
+        ? 'perturbation evidence cannot be certified because no benchmark-family stability policy is in scope'
+        : 'perturbation evidence is not admissible under the benchmark-family stability policy';
     return {
       disposition: 'ABSTAIN',
-      reasons: ['p >= n requires explicit perturbation/stability evidence before promotion'],
+      reasons: [
+        `p >= n requires explicit perturbation/stability evidence before promotion: ${detail}`,
+      ],
       flags,
     };
   }

@@ -9,6 +9,7 @@
 import * as v from 'valibot';
 import type { InformationType } from './RepresentationCandidate.ts';
 import type { SourceRelationshipGraphAuthority } from './RelationshipGraphAuthority.ts';
+import type { AggregateFunctionV1 } from './SemanticEmbodimentPayload.ts';
 
 export type AnalyticalTask =
   | 'overview'
@@ -105,6 +106,20 @@ export interface SourcePartitionClusterAuthority {
 
 export type ClusterAuthorityRequirement = SourcePartitionClusterAuthority;
 
+/**
+ * Explicit investigator/experiment-declared semantics for the bounded V1
+ * grouped aggregate. Presentation encodings are deliberately not authority for
+ * either field selection or aggregate function.
+ */
+export interface GroupedAggregateSemanticsRequirement {
+  kind: 'GROUPED_AGGREGATE';
+  groupingField: string;
+  measure: {
+    field?: string;
+    function: AggregateFunctionV1;
+  };
+}
+
 export interface RepresentationRequirements {
   task: AnalyticalTask;
   primaryDimensions?: string[];
@@ -133,6 +148,8 @@ export interface RepresentationRequirements {
    * proximity or correlation is not a substitute for this declaration.
    */
   graphAuthority?: SourceRelationshipGraphAuthority;
+  /** Required before AGGREGATE_VOLUME may enter representation arbitration. */
+  aggregateSemantics?: GroupedAggregateSemanticsRequirement;
   /**
    * Maximum fraction of marks that may be excluded from the view frustum /
    * depth range before a candidate is disqualified. Renamed from
@@ -239,6 +256,15 @@ const GraphAuthorityRequirementSchema = v.strictObject({
   selfLoopPolicy: v.literal('PRESERVE'),
 });
 
+const GroupedAggregateSemanticsRequirementSchema = v.strictObject({
+  kind: v.literal('GROUPED_AGGREGATE'),
+  groupingField: NonEmptyString,
+  measure: v.strictObject({
+    field: v.optional(NonEmptyString),
+    function: v.picklist(['COUNT', 'SUM', 'MEAN', 'MIN', 'MAX']),
+  }),
+});
+
 export const RepresentationRequirementsSchema = v.strictObject({
   task: AnalyticalTaskSchema,
   primaryDimensions: v.optional(v.array(v.string())),
@@ -279,9 +305,48 @@ export const RepresentationRequirementsSchema = v.strictObject({
   ),
   clusterAuthority: v.optional(ClusterAuthorityRequirementSchema),
   graphAuthority: v.optional(GraphAuthorityRequirementSchema),
+  aggregateSemantics: v.optional(GroupedAggregateSemanticsRequirementSchema),
   maxFrustumExclusionTolerance: UnitInterval,
   interactionBudget: v.picklist(['LOW', 'MEDIUM', 'HIGH']),
 });
+
+export function validateGroupedAggregateSemantics(
+  input: unknown,
+): GroupedAggregateSemanticsRequirement {
+  const semantics = v.parse(
+    GroupedAggregateSemanticsRequirementSchema,
+    input,
+  ) as GroupedAggregateSemanticsRequirement;
+  if (semantics.groupingField.trim() !== semantics.groupingField) {
+    throw new Error(
+      'RepresentationRequirements: aggregate groupingField must not contain surrounding whitespace',
+    );
+  }
+
+  const measureField = semantics.measure.field;
+  if (measureField !== undefined && measureField.trim() !== measureField) {
+    throw new Error(
+      'RepresentationRequirements: aggregate measure field must not contain surrounding whitespace',
+    );
+  }
+  if (semantics.measure.function === 'COUNT') {
+    if (measureField !== undefined) {
+      throw new Error(
+        'RepresentationRequirements: COUNT aggregate must not declare a measure field',
+      );
+    }
+  } else if (measureField === undefined) {
+    throw new Error(
+      'RepresentationRequirements: non-COUNT aggregate requires an explicit measure field',
+    );
+  }
+  if (measureField === semantics.groupingField) {
+    throw new Error(
+      'RepresentationRequirements: aggregate grouping and measure fields must be distinct',
+    );
+  }
+  return semantics;
+}
 
 /** Validate all runtime invariants not expressible as local schema fields. */
 export function validateRepresentationRequirements(input: unknown): RepresentationRequirements {
@@ -344,6 +409,10 @@ export function validateRepresentationRequirements(input: unknown): Representati
         'RepresentationRequirements: cluster partition field must be distinct from coordinate fields'
       );
     }
+  }
+
+  if (requirements.aggregateSemantics) {
+    validateGroupedAggregateSemantics(requirements.aggregateSemantics);
   }
 
   return requirements;

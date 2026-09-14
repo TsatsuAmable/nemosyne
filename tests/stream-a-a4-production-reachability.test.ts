@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MonetaFacts } from '../src/moneta/types.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
+import { NoFeasibleRepresentationError } from '../src/moneta/representation/NoFeasibleRepresentationError.ts';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
 import type { RepresentationRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
@@ -61,10 +62,49 @@ function groupComparisonRequirements(): RepresentationRequirements {
     },
     maxFrustumExclusionTolerance: 0.7,
     interactionBudget: 'MEDIUM',
+    aggregateSemantics: {
+      kind: 'GROUPED_AGGREGATE',
+      groupingField: 'group',
+      measure: { field: 'value', function: 'MEAN' },
+    },
   };
 }
 
 describe('Stream A A4 production reachability', () => {
+  it('disqualifies AGGREGATE_VOLUME when grouping and measure semantics are undeclared', () => {
+    const signature = buildDatasetSignature(
+      facts(100_001),
+      null,
+      'c'.repeat(64),
+      '0.1.0',
+      null,
+      0,
+    );
+    const requirements = groupComparisonRequirements();
+    delete requirements.aggregateSemantics;
+
+    let error: NoFeasibleRepresentationError | null = null;
+    try {
+      new MonetaHypothesisEngine().arbitrate(signature, requirements);
+    } catch (caught) {
+      if (caught instanceof NoFeasibleRepresentationError) error = caught;
+      else throw caught;
+    }
+    expect(error).not.toBeNull();
+    const aggregateCandidates = (error?.nearMisses ?? []).filter(
+      (candidate) => candidate.candidateId === 'AGGREGATE_VOLUME',
+    );
+
+    expect(aggregateCandidates.length).toBeGreaterThan(0);
+    expect(
+      aggregateCandidates.every(
+        (candidate) =>
+          candidate.disqualified &&
+          candidate.disqualificationCode === 'aggregate-semantics-required',
+      ),
+    ).toBe(true);
+  });
+
   it('allows AGGREGATE_VOLUME to win for a legitimate group-level requirement at scale', () => {
     // 100,001 rows is deliberate: the current CLUSTER_REGIONS candidate is
     // outside its declared max-N envelope, while AGGREGATE_VOLUME remains in

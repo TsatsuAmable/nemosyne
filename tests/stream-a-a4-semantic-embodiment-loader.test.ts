@@ -79,6 +79,41 @@ function portFor(value: SemanticEmbodimentEnvelopeV1, resident: boolean) {
 }
 
 describe('Stream A A4 semantic embodiment loader', () => {
+  it.each([
+    undefined,
+    {
+      kind: 'GROUPED_AGGREGATE',
+      groupingField: ' group ',
+      measure: { field: 'value', function: 'MEAN' },
+    },
+    {
+      kind: 'GROUPED_AGGREGATE',
+      groupingField: 'group',
+      measure: { field: 'value', function: 'COUNT' },
+    },
+  ])('refuses malformed or missing aggregate authority before worker execution', async (semantics) => {
+    const data = dataset();
+    const fingerprint = data.fingerprint;
+    const { port, execute, registerDataset } = portFor(envelope(fingerprint), false);
+    const authority = {
+      executionPort: port,
+      generation: 3,
+      datasetVersion: 7,
+      datasetFingerprint: fingerprint,
+    };
+
+    const result = await loadAggregateSemanticEmbodiment(
+      authority,
+      data,
+      decision(),
+      semantics as never,
+    );
+
+    expect(result).toBeNull();
+    expect(registerDataset).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('uses a resident worker handle without sending rows in the semantic execution request', async () => {
     const data = dataset();
     const fingerprint = data.fingerprint;
@@ -89,7 +124,11 @@ describe('Stream A A4 semantic embodiment loader', () => {
       authority,
       data,
       decision(),
-      { color: 'group', size: 'value' },
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'group',
+        measure: { field: 'value', function: 'SUM' },
+      },
     );
 
     expect(result?.candidateId).toBe('AGGREGATE_VOLUME');
@@ -103,7 +142,7 @@ describe('Stream A A4 semantic embodiment loader', () => {
       schemaVersion: 1,
       candidateId: 'AGGREGATE_VOLUME',
       groupingField: 'group',
-      measure: { field: 'value', function: 'MEAN' },
+      measure: { field: 'value', function: 'SUM' },
     });
   });
 
@@ -129,7 +168,11 @@ describe('Stream A A4 semantic embodiment loader', () => {
       authority,
       data,
       decision(),
-      { color: 'group', size: 'value' },
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'group',
+        measure: { field: 'value', function: 'MEAN' },
+      },
     );
     await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
     authority.datasetVersion = 3;

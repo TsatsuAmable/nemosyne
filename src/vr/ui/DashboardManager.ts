@@ -218,7 +218,7 @@ export class DashboardManager {
     for (const entry of this.panels) {
       const panel = entry.panel;
       const wasDragging = this._dragStates.get(panel)?.dragging ?? false;
-      const isDragging = panel.drag?.active ?? false;
+      const isDragging = panel.isGrabbed ?? panel.drag?.active ?? false;
 
       if (!wasDragging && isDragging) {
         this._showZones();
@@ -251,7 +251,10 @@ export class DashboardManager {
     // Panels snapped to off-screen zones roll in as the carousel scrolls.
     if (this.layoutMode === 'semicircle' && this.scrollOffset !== this._lastScrollOffset) {
       for (const entry of this.panels) {
-        if (entry.zoneIndex !== null && !entry.panel.drag?.active) {
+        if (
+          entry.zoneIndex !== null &&
+          !(entry.panel.isGrabbed ?? entry.panel.drag?.active ?? false)
+        ) {
           this._snapPanelToZone(entry.panel, entry.zoneIndex);
         }
       }
@@ -466,9 +469,12 @@ export class DashboardManager {
 
     if (this.autoScale) {
       const mesh = panel.mesh as THREE.Mesh;
-      const geom = mesh.geometry as THREE.PlaneGeometry & { parameters?: { width?: number; height?: number } };
-      const panelW = geom?.parameters?.width ?? 1;
-      const panelH = geom?.parameters?.height ?? 1;
+      const pixelSize = mesh.userData.panelPixelSize as [number, number] | undefined;
+      const geom = mesh.geometry as
+        | (THREE.PlaneGeometry & { parameters?: { width?: number; height?: number } })
+        | undefined;
+      const panelW = pixelSize?.[0] ?? geom?.parameters?.width ?? 1;
+      const panelH = pixelSize?.[1] ?? geom?.parameters?.height ?? 1;
       const scaleX = (zone.width * 0.92) / panelW;
       const scaleY = (zone.height * 0.92) / panelH;
       const scale = Math.min(scaleX, scaleY);

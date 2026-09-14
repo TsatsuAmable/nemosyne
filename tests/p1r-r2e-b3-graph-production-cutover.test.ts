@@ -86,6 +86,27 @@ function graphDataset(name = 'r2e-b3-graph'): Dataset {
   );
 }
 
+function graphArbitrationDataset(name = 'r2e-b3-arbitration'): Dataset {
+  return new Dataset(
+    name,
+    [
+      { name: 'id', type: 'CATEGORICAL' },
+      { name: 'name', type: 'CATEGORICAL' },
+      { name: 'label', type: 'CATEGORICAL' },
+      { name: 'value', type: 'NUMERIC' },
+      { name: 'notes', type: 'CATEGORICAL' },
+    ],
+    [
+      ...baitRows(),
+      { id: 'row-zeta', name: 'row-epsilon', label: 'bait-3', value: 11, notes: RAW_ROW_BAIT },
+      { id: 'row-delta', name: 'row-zeta', label: 'bait-4', value: 13, notes: RAW_ROW_BAIT },
+      { id: 'row-epsilon', name: 'row-delta', label: 'bait-5', value: 17, notes: RAW_ROW_BAIT },
+    ],
+    sourceEdges(),
+    [...ROW_IDS, 'row-delta', 'row-epsilon', 'row-zeta']
+  );
+}
+
 function decision(id = 'decision-graph-b3'): RepresentationDecision {
   return {
     id,
@@ -716,8 +737,12 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
   });
 
   it('extends source binding through signature, arbitration and the resident payload', () => {
-    const data = graphDataset('r2e-b3-arbitration');
-    const signature = buildDatasetSignature(data, null, data.fingerprint);
+    const data = graphArbitrationDataset();
+    const signature = buildDatasetSignature(
+      data,
+      null,
+      data.fingerprint
+    );
     expect(signature.topologicalStructure.topology).toBe('GRAPH');
     expect(signature.cardinality.edgeCount).toBe(sourceEdges().length);
 
@@ -732,11 +757,18 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     // arbitration, still bind endpoints to the declared durable row IDs.
     const envelope = realEnvelope(data);
     const payload = payloadOf(envelope);
-    expect(payload.nodes.map((node) => node.sourceRowId)).toEqual([...ROW_IDS]);
+    expect(payload.nodes.map((node) => node.sourceRowId)).toEqual([
+      'row-alpha',
+      'row-beta',
+      'row-delta',
+      'row-epsilon',
+      'row-gamma',
+      'row-zeta',
+    ]);
     expect(payload.counts).toMatchObject({
-      sourceNodeCount: 3,
+      sourceNodeCount: 6,
       sourceEdgeCount: sourceEdges().length,
-      retainedNodeCount: 3,
+      retainedNodeCount: 6,
       retainedEdgeCount: sourceEdges().length,
       refusedEdgeCount: 0,
     });

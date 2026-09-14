@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { xrDatasetLibraryBridge } from '../src/data/catalog/XRDatasetLibraryBridge.ts';
-import { VRMenu } from '../src/vr/ui/VRMenu.ts';
+import { DataSourcePanel } from '../src/vr/ui/DataSourcePanel.ts';
 
 let detach: (() => void) | null = null;
 
@@ -38,11 +38,11 @@ describe('PT5B XR dataset library', () => {
       openDataset,
     });
 
-    const menu = new VRMenu(new THREE.Group(), {});
+    const menu = new DataSourcePanel(new THREE.Group(), {});
     await menu.refreshDatasetLibrary();
 
     expect(menu.libraryStatus).toMatch(/1 approved dataset/i);
-    expect(menu.buttons.some((button) => button.type === 'libraryDataset')).toBe(true);
+    expect(menu.libraryEntries.some((entry) => entry.id === 'public.example')).toBe(true);
 
     await menu.openLibraryDataset('public.example', 'smoke');
     expect(openDataset).toHaveBeenCalledWith('public.example', 'smoke');
@@ -79,7 +79,7 @@ describe('PT5B XR dataset library', () => {
       },
     });
 
-    const menu = new VRMenu(new THREE.Group(), {});
+    const menu = new DataSourcePanel(new THREE.Group(), {});
     await menu.openLibraryDataset('retired.example', 'smoke');
     expect(menu.libraryStatus).toMatch(/could not open dataset/i);
     expect(menu.libraryStatus).toMatch(/not approved/i);

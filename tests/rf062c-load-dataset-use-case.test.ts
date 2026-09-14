@@ -6,6 +6,11 @@ import {
 } from '../src/app/dataset/LoadDatasetUseCase.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
 import type { RepresentationDecision } from '../src/moneta/representation/RepresentationDecision.ts';
+import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
+import type {
+  AnalyticalExecutionPort,
+  AnalyticalExecutionRequest,
+} from '../src/atlas/ports/AnalyticalExecutionPort.ts';
 
 function dataset(name = 'fixture'): Dataset {
   return new Dataset(
@@ -45,6 +50,80 @@ function fakeAuthority(initial: Dataset) {
 }
 
 describe('RF-062C LoadDatasetUseCase', () => {
+  it('uses declared aggregate semantics instead of conflicting presentation encodings', async () => {
+    const active = new Dataset(
+      'aggregate-active',
+      [
+        { name: 'group', type: 'CATEGORICAL' },
+        { name: 'value', type: 'NUMERIC' },
+        { name: 'decoyGroup', type: 'CATEGORICAL' },
+        { name: 'decoyValue', type: 'NUMERIC' },
+      ],
+      [{ group: 'a', value: 1, decoyGroup: 'x', decoyValue: 99 }],
+    );
+    const { authority } = fakeAuthority(active);
+    const execute = vi.fn(async (request: AnalyticalExecutionRequest) => ({
+      requestId: request.requestId,
+      generation: request.generation,
+      datasetVersion: request.dataset.version,
+      datasetFingerprint: request.dataset.fingerprint,
+      value: null,
+    }));
+    const executionPort: AnalyticalExecutionPort = {
+      isAsync: true,
+      supersede: vi.fn(),
+      hasRegisteredDataset: vi.fn(() => true),
+      execute: execute as unknown as AnalyticalExecutionPort['execute'],
+    };
+    const decision = {
+      id: 'aggregate-decision',
+      chosenCandidateId: 'AGGREGATE_VOLUME',
+      decisionStatus: 'DECISIVE',
+      rankedCandidates: [],
+      utilityScore: 0.5,
+      provenance: { fitnessModelVersion: 'bootstrap-fitness-v1' },
+    } as unknown as RepresentationDecision;
+    Object.assign(authority, {
+      executionPort,
+      generation: 4,
+      datasetVersion: 7,
+      datasetFingerprint: active.fingerprint,
+    });
+    authority.computeDatasetSignature = vi.fn(() =>
+      minimalDatasetSignature(100, 2, 2, 0, active.fingerprint, 0),
+    );
+    const requirements = {
+      ...createDefaultRequirements('group-comparison', 'LARGE'),
+      aggregateSemantics: {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'group',
+        measure: { field: 'value', function: 'MEAN' },
+      },
+    } as const;
+
+    const result = new LoadDatasetUseCase(authority).execute(
+      {
+        name: 'Aggregate fixture',
+        topology: 'TABULAR',
+        dataset: active,
+        encodings: { color: 'decoyGroup', size: 'decoyValue' },
+      },
+      {
+        preserveAnalyticalState: true,
+        requirements,
+        authoritativeRepresentation: { decision },
+      },
+    );
+    await result.dataInput.semanticEmbodimentPromise;
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(execute.mock.calls[0][0].params).toMatchObject({
+      groupingField: 'group',
+      measure: { field: 'value', function: 'MEAN' },
+    });
+    expect(JSON.stringify(execute.mock.calls[0][0].params)).not.toContain('decoy');
+  });
+
   it('routes a fresh load through Atlas ownership with dataset-level overview intent', () => {
     const source = dataset('source');
     const { authority, setOriginalDataset, setCurrentDataset } = fakeAuthority(source);

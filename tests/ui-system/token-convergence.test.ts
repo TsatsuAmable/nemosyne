@@ -63,14 +63,16 @@ describe('B-V1 canonical token authority', () => {
 });
 
 describe('B-V1 functional convergence', () => {
-  it('retains the hidden advanced VRMenu until curated live-source selection has a replacement', () => {
-    const menu = read('src/vr/ui/VRMenu.ts');
+  it('retires VRMenu only after its unique data-source capabilities have a focused replacement', () => {
+    const panel = read('src/vr/ui/DataSourcePanel.ts');
     const manager = read('src/vr/coordinators/WorldUIManager.ts');
-    expect(menu).toContain('OPEN_DATA_SOURCES');
-    expect(menu).toContain('onSelectLiveSource?.(btn.source.key)');
-    expect(manager).toContain('new VRMenu');
+    expect(fs.existsSync(path.join(repoRoot, 'src/vr/ui/VRMenu.ts'))).toBe(false);
+    expect(panel).toContain('OPEN_DATA_SOURCES');
+    expect(panel).toContain('xrDatasetLibraryBridge');
+    expect(panel).toContain('allSampleDatasets');
+    expect(manager).toContain('new DataSourcePanel');
     expect(manager).toContain('onSelectLiveSource: callbacks.onSelectLiveSource');
-    expect(manager).toContain('this.vrMenu.hide()');
+    expect(manager).toContain('this.dataSourcePanel.hide()');
   });
 
   it('removes decorative SpatialAssetRegistry plumbing without deleting HandWheel behavior', () => {

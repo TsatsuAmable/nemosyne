@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { ValidationOperatorPanel } from '../src/vr/ui/ValidationOperatorPanel.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import {
   deriveValidationManifest,
   type ValidationMode,
@@ -8,29 +9,13 @@ import {
 import type { BrowserValidationContext } from '../src/validation/browser-validation-session.ts';
 import type { ValidationServerStatus } from '../src/validation/validation-delivery.ts';
 import type { WorldEventBusLike } from '../src/vr/coordinators/types.ts';
+import type { GuidedUxSubmission } from '../src/validation/guided-ux-validation.ts';
 
 const BUILD = '277c2e73f9206f5b387a856bc8298d8247e39376';
 const SESSION = {
   label: 'PERF04-277c2e7-20260905T020000',
   id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
 };
-
-type ReflectedButton = {
-  id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  disabled?: boolean;
-};
-
-type PanelReflection = {
-  _buttons: ReflectedButton[];
-};
-
-function buttons(panel: ValidationOperatorPanel): ReflectedButton[] {
-  return (panel as unknown as PanelReflection)._buttons;
-}
 
 function manifest(mode: ValidationMode = 'quest-perf') {
   return deriveValidationManifest({
@@ -81,22 +66,10 @@ function status(mode: ValidationMode = 'quest-perf'): ValidationServerStatus {
   };
 }
 
-function rayHitButton(panel: ValidationOperatorPanel, id: string): THREE.Raycaster {
-  const btn = buttons(panel).find((button) => button.id === id);
-  if (!btn) throw new Error(`no button '${id}'`);
-  const u = (btn.x + btn.w / 2) / panel.width;
-  const v = 1 - (btn.y + btn.h / 2) / panel.height;
-  const raycaster = new THREE.Raycaster();
-  const hit = {
-    object: panel.mesh,
-    uv: new THREE.Vector2(u, v),
-  } as unknown as THREE.Intersection<THREE.Object3D>;
-  vi.spyOn(raycaster, 'intersectObject').mockReturnValue([hit]);
-  return raycaster;
-}
-
 function panelFor(mode: ValidationMode = 'quest-perf') {
   const handlers: Record<string, Array<(value: unknown) => void>> = {};
+  const unsubs = [vi.fn(), vi.fn(), vi.fn(), vi.fn()];
+  let unsubIndex = 0;
   const callbacks = {
     onStartPerformance: vi.fn(),
     onStartBoundary: vi.fn(),
@@ -109,7 +82,7 @@ function panelFor(mode: ValidationMode = 'quest-perf') {
   const eventBus = {
     on(topic: string, handler: (value: unknown) => void) {
       (handlers[topic] ||= []).push(handler);
-      return () => {};
+      return unsubs[unsubIndex++];
     },
   } as unknown as WorldEventBusLike;
   const panel = new ValidationOperatorPanel(new THREE.Group(), {
@@ -118,19 +91,19 @@ function panelFor(mode: ValidationMode = 'quest-perf') {
     ...callbacks,
   });
   panel.show();
-  panel.mesh.updateMatrixWorld();
-  return { panel, callbacks, handlers };
+  return { panel, callbacks, handlers, unsubs };
 }
 
-describe('ValidationOperatorPanel governed start fencing', () => {
+describe('ValidationOperatorPanel governed semantic dispatch', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('does not expose a clickable performance start until the sink confirms the exact manifest', () => {
+  it('uses SpatialPanel/UIKit and keeps performance start disabled until sink confirmation', () => {
     const { panel, callbacks } = panelFor('quest-perf');
-    const arm = buttons(panel).find((button) => button.id === 'run-performance');
-    expect(arm?.disabled).toBe(true);
-    expect(panel.handleContentClick(rayHitButton(panel, 'run-performance'))).toBe(false);
+    expect(panel).toBeInstanceOf(SpatialPanel);
+    expect(panel.getActionState('run-performance')?.disabled).toBe(true);
+    expect(panel.dispatchAction('run-performance')).toBe(false);
     expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
+    panel.dispose();
   });
 
   it('requires arm then confirm after sink confirmation before performance starts', () => {
@@ -138,12 +111,13 @@ describe('ValidationOperatorPanel governed start fencing', () => {
     panel.setServerStatus(status('quest-perf'));
     panel.update();
 
-    expect(panel.handleContentClick(rayHitButton(panel, 'run-performance'))).toBe(true);
+    expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
-    panel.update();
+    expect(panel.getActionState('run-performance')?.label).toBe('CONFIRM PERF');
 
-    expect(panel.handleContentClick(rayHitButton(panel, 'run-performance'))).toBe(true);
+    expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);
+    panel.dispose();
   });
 
   it('requires the same two-action confirmation before the 10M boundary starts', () => {
@@ -151,22 +125,59 @@ describe('ValidationOperatorPanel governed start fencing', () => {
     panel.setServerStatus(status('quest-10m'));
     panel.update();
 
-    panel.handleContentClick(rayHitButton(panel, 'run-boundary'));
+    panel.dispatchAction('run-boundary');
     expect(callbacks.onStartBoundary).not.toHaveBeenCalled();
-    panel.update();
-    panel.handleContentClick(rayHitButton(panel, 'run-boundary'));
+    panel.dispatchAction('run-boundary');
     expect(callbacks.onStartBoundary).toHaveBeenCalledTimes(1);
+    panel.dispose();
   });
 
   it('keeps guided UX controls disabled until the sink confirms the quest-ux manifest', () => {
     const { panel } = panelFor('quest-ux');
-    for (const id of ['ux-pass', 'ux-fail', 'ux-skip', 'ux-submit']) {
-      expect(buttons(panel).find((button) => button.id === id)?.disabled).toBe(true);
+    for (const id of ['ux-pass', 'ux-fail', 'ux-skip'] as const) {
+      expect(panel.getActionState(id)?.disabled).toBe(true);
+      expect(panel.dispatchAction(id)).toBe(false);
     }
     panel.setServerStatus(status('quest-ux'));
     panel.update();
-    for (const id of ['ux-pass', 'ux-fail', 'ux-skip', 'ux-submit']) {
-      expect(buttons(panel).find((button) => button.id === id)?.disabled).toBe(false);
+    for (const id of ['ux-pass', 'ux-fail', 'ux-skip'] as const) {
+      expect(panel.getActionState(id)?.disabled).toBe(false);
     }
+    expect(panel.getActionState('ux-submit')?.disabled).toBe(true);
+    panel.dispose();
+  });
+
+  it('records guided UX only after confirmation and submits only when complete with comfort', async () => {
+    const { panel, callbacks } = panelFor('quest-ux');
+    panel.setServerStatus(status('quest-ux'));
+
+    const taskCount = panel
+      .getRenderedSummary()
+      .match(/Task 1\/(\d+)/)?.[1];
+    expect(taskCount).toBeTruthy();
+    const total = Number(taskCount);
+
+    for (let index = 0; index < total; index++) {
+      expect(panel.dispatchAction('ux-pass')).toBe(true);
+    }
+    expect(panel.getActionState('ux-submit')?.disabled).toBe(true);
+
+    expect(panel.dispatchAction('comfort-ok')).toBe(true);
+    expect(panel.getActionState('ux-submit')?.disabled).toBe(false);
+    expect(panel.dispatchAction('ux-submit')).toBe(true);
+
+    await vi.waitFor(() => expect(callbacks.onSubmitUx).toHaveBeenCalledTimes(1));
+    const submission = (callbacks.onSubmitUx.mock.calls as unknown as Array<[GuidedUxSubmission]>)[0]?.[0];
+    expect(submission).toBeDefined();
+    expect(submission?.results).toHaveLength(total);
+    expect(submission?.results.every((result) => result.outcome === 'pass')).toBe(true);
+    expect(submission?.comfortObservation.outcome).toBe('comfortable');
+    panel.dispose();
+  });
+
+  it('unsubscribes all validation event streams and disposes UIKit on teardown', () => {
+    const { panel, unsubs } = panelFor('quest-perf');
+    panel.dispose();
+    expect(unsubs.every((unsub) => unsub.mock.calls.length === 1)).toBe(true);
   });
 });

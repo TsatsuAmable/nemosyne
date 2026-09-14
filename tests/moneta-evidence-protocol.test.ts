@@ -40,14 +40,17 @@ describe('Moneta evidence validity protocol', () => {
     expect(decision.disposition).toBe('INVALID');
   });
 
-  it('abstains in p >= n regimes until explicit perturbation evidence exists', () => {
-    const decision = adjudicateMonetaEvidence({
-      ...base(),
-      sampleSize: 20,
-      featureCount: 200,
-    });
-    expect(decision.disposition).toBe('ABSTAIN');
-  });
+  it.each([20, 200])(
+    'abstains when featureCount=%i is p >= n until explicit perturbation evidence exists',
+    (featureCount) => {
+      const decision = adjudicateMonetaEvidence({
+        ...base(),
+        sampleSize: 20,
+        featureCount,
+      });
+      expect(decision.disposition).toBe('ABSTAIN');
+    },
+  );
 
   it('keeps diagnostic benchmarks in falsification-only authority', () => {
     const decision = adjudicateMonetaEvidence({
@@ -67,14 +70,63 @@ describe('Moneta evidence validity protocol', () => {
     expect(decision.disposition).toBe('REQUIRES-HUMAN');
   });
 
-  it('allows a high-dimensional candidate to proceed when explicit stability evidence exists', () => {
+  it('does not let a caller-supplied policy self-certify high-dimensional evidence', () => {
+    const decision = (
+      adjudicateMonetaEvidence as unknown as (
+        candidate: MonetaEvidenceCandidate,
+        context: unknown,
+      ) => ReturnType<typeof adjudicateMonetaEvidence>
+    )(
+      {
+        ...base(),
+        sampleSize: 20,
+        featureCount: 200,
+        perturbation: { runs: 1, metric: 'nonsense', value: -999 },
+      },
+      {
+        stabilityPolicy: {
+          acceptedMetrics: ['nonsense'],
+          minRuns: 1,
+          valueRange: { minInclusive: -999, maxInclusive: -999 },
+        },
+      }
+    );
+    expect(decision.disposition).toBe('ABSTAIN');
+    expect(decision.flags.stabilityEvidencePresent).toBe(false);
+    expect(decision.flags.stabilityCertificationApplied).toBe(false);
+  });
+
+  it('fails closed when high-dimensional perturbation evidence has no authority-owned policy', () => {
     const decision = adjudicateMonetaEvidence({
       ...base(),
       sampleSize: 20,
       featureCount: 200,
       perturbation: { runs: 100, metric: 'candidate-rank-stability', value: 0.91 },
     });
-    expect(decision.disposition).toBe('ELIGIBLE');
+    expect(decision.disposition).toBe('ABSTAIN');
+    expect(decision.flags.stabilityEvidencePresent).toBe(false);
+    expect(decision.flags.stabilityCertificationApplied).toBe(false);
+  });
+
+  it('rejects malformed perturbation evidence instead of treating presence as stability', () => {
+    const decision = adjudicateMonetaEvidence({
+      ...base(),
+      sampleSize: 20,
+      featureCount: 200,
+      perturbation: { runs: 1, metric: '', value: -999 },
+    });
+    expect(decision.disposition).toBe('INVALID');
+  });
+
+  it('keeps well-formed but uncertified perturbation evidence in abstention', () => {
+    const decision = adjudicateMonetaEvidence({
+      ...base(),
+      sampleSize: 20,
+      featureCount: 200,
+      perturbation: { runs: 1, metric: 'nonsense', value: 0 },
+    });
+    expect(decision.disposition).toBe('ABSTAIN');
+    expect(decision.flags.stabilityEvidencePresent).toBe(false);
   });
 
   it('takes oracle authority and human requirement from the benchmark registry', () => {
