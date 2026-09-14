@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
-import type { MovablePanelOptions } from '../coordinators/types.ts';
+import { Container, Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
 import type { AnalysisHistory, HistoryFrame } from '../../data/AnalysisHistory.ts';
 
 export interface NarrativeStripOptions extends MovablePanelOptions {
@@ -10,45 +13,76 @@ export interface NarrativeStripOptions extends MovablePanelOptions {
   onSeek?: (index: number) => void;
 }
 
-interface ChipBounds {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+const PANEL_WIDTH = 900;
+const PANEL_HEIGHT = 220;
 
 /**
- * Analyst-anchored breadcrumb strip that visualises the AnalysisHistory stack.
+ * Analyst-anchored breadcrumb strip for AnalysisHistory.
  *
- * Each applied operation becomes a clickable chip on a horizontal timeline. The
- * current frame is highlighted; clicking any chip jumps directly to that point
- * in the analysis (undo/redo to the selected frame). The strip stays attached to
- * the analyst anchor so it is always within arm's reach without blocking the
- * data palace.
+ * UXR1 migrates the timeline from MovablePanel/CanvasTexture to SpatialPanel +
+ * UIKit. AnalysisHistory remains authoritative; this surface only projects the
+ * current stack and forwards explicit seek requests through onSeek.
  */
-export class NarrativeStrip extends MovablePanel {
+export class NarrativeStrip extends SpatialPanel {
+  readonly title = 'ANALYSIS TIMELINE';
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt = 0.18;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   history: AnalysisHistory | null;
   onSeek: (index: number) => void;
-  _chipBounds: ChipBounds[];
 
-  constructor(cameraGroup: THREE.Group, options: NarrativeStripOptions = {}) {
-    super(cameraGroup, {
-      title: 'ANALYSIS TIMELINE',
-      width: 900,
-      height: 220,
-      position: options.position ?? [0, 1.35, -1.05],
-      worldSize: options.worldSize ?? [0.9, 0.22],
-      titleBarHeight: 40,
-      tilt: 0.18,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-      parentGroup: options.analystAnchor ?? null,
-    });
+  private readonly _timeline: Container;
+  private readonly _emptyText: Text;
+  private _buttons: Button[] = [];
+  private _textScale: number;
+  private _highContrast: boolean;
 
+  constructor(analystAnchor: THREE.Object3D, options: NarrativeStripOptions = {}) {
+    const highContrast = options.highContrast ?? false;
+    const theme = getTheme(highContrast);
+    super(
+      {
+        width: PANEL_WIDTH,
+        height: PANEL_HEIGHT,
+        flexDirection: 'column',
+        gap: SPACING_TOKENS.grid.x8,
+        padding: SPACING_TOKENS.grid.x12,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      options.analystAnchor ?? analystAnchor,
+      null
+    );
+
+    this.name = 'narrative-strip';
     this.history = options.history ?? null;
     this.onSeek = options.onSeek ?? (() => {});
-    this._chipBounds = [];
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
+
+    const worldWidth = options.worldSize?.[0] ?? 0.9;
+    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.defaultPosition = new THREE.Vector3(...(options.position ?? [0, 1.35, -1.05]));
+    this.position.copy(this.defaultPosition);
+
+    this._emptyText = new Text({
+      text: '',
+      fontSize: 15 * this._textScale,
+      color: Number(theme.textMuted),
+    });
+    this._timeline = new Container({
+      flexDirection: 'row',
+      gap: SPACING_TOKENS.grid.x4,
+      alignItems: 'center',
+    });
+
+    this.add(this._emptyText, this._timeline);
     this.render();
   }
 
@@ -57,87 +91,76 @@ export class NarrativeStrip extends MovablePanel {
     this.render();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const margin = 24;
+  seekTo(index: number): boolean {
+    const frames = this.history?.frames() ?? [];
+    if (!Number.isInteger(index) || index < 0 || index >= frames.length) return false;
+    this.onSeek(index);
+    return true;
+  }
+
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this._emptyText.setProperties({
+      fontSize: 15 * this._textScale,
+      color: Number(theme.textMuted),
+    });
+    this.render();
+  }
+
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
+
+  render(): void {
+    for (const button of this._buttons) {
+      this._timeline.remove(button);
+      button.dispose();
+    }
+    this._buttons = [];
+
     const frames: HistoryFrame[] = this.history?.frames() ?? [];
-
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-
     if (frames.length === 0) {
-      ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText(
-        'Apply a data operation (filter, sort, aggregate, cluster, anomaly, time-slice) to build a timeline.',
-        margin,
-        contentH / 2
-      );
-      this._chipBounds = [];
+      this._emptyText.setProperties({
+        text:
+          'Apply a data operation (filter, sort, aggregate, cluster, anomaly, time-slice) to build a timeline.',
+      });
       return;
     }
 
-    const accent = cssHex(COLOR_TOKENS.interaction.focus);
-    const dim = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.surface.border);
-    const trackY = contentH / 2;
-
-    // Compute chip geometry so the full timeline fits with a minimum width.
-    const gap = 12;
-    const minChipW = 80;
-    const maxChipW = 160;
-    const available = w - margin * 2 - gap * (frames.length - 1);
-    const chipW = Math.max(minChipW, Math.min(maxChipW, Math.floor(available / frames.length)));
-    const chipH = 48;
-
-    // Draw connecting track.
-    const trackLeft = margin + chipW / 2;
-    const trackRight = margin + chipW / 2 + (chipW + gap) * (frames.length - 1);
-    ctx.strokeStyle = dim;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(trackLeft, trackY);
-    ctx.lineTo(trackRight, trackY);
-    ctx.stroke();
-
-    this._chipBounds = [];
+    this._emptyText.setProperties({ text: '' });
     const current = this.history?.currentIndex ?? -1;
 
-    for (let i = 0; i < frames.length; i++) {
-      const frame = frames[i];
-      const x = margin + i * (chipW + gap);
-      const y = trackY - chipH / 2;
-      const isCurrent = i === current;
-
-      // Chip background.
-      ctx.fillStyle = isCurrent ? cssHex(COLOR_TOKENS.interaction.focus) + '38' : cssHex(COLOR_TOKENS.surface.raised) + '73';
-      ctx.fillRect(x, y, chipW, chipH);
-      ctx.strokeStyle = isCurrent ? accent : dim;
-      ctx.lineWidth = isCurrent ? 3 : 2;
-      ctx.strokeRect(x, y, chipW, chipH);
-
-      // Operation label.
-      ctx.font = this._scaleFont(isCurrent ? 'bold 16px monospace' : '14px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : isCurrent ? cssHex(COLOR_TOKENS.interaction.focus) : cssHex(COLOR_TOKENS.text.secondary);
-      ctx.textAlign = 'center';
-      const label = this._formatLabel(frame.operation, frame.parameters);
-      this._clipText(ctx, label, chipW - 12);
-      ctx.fillText(label, x + chipW / 2, y + chipH / 2 - 5);
-
-      // Optional row-count hint.
+    for (let index = 0; index < frames.length; index++) {
+      const frame = frames[index];
       const count =
         frame.rowCountAfter ??
         frame.rowCountBefore ??
         frame.datasetAfter?.rowCount ??
         frame.datasetBefore?.rowCount;
-      if (typeof count === 'number') {
-        ctx.font = this._scaleFont('12px monospace');
-        ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.secondary) : cssHex(COLOR_TOKENS.text.secondary);
-        ctx.fillText(`${count} rows`, x + chipW / 2, y + chipH / 2 + 14);
-      }
-
-      this._chipBounds.push({ x, y, w: chipW, h: chipH });
+      const label = this._formatLabel(frame.operation, frame.parameters);
+      const button = new Button({
+        label: label + (typeof count === 'number' ? '\n' + count + ' rows' : ''),
+        variant: index === current ? 'primary' : 'secondary',
+        onClick: () => {
+          this.seekTo(index);
+        },
+      });
+      this._buttons.push(button);
+      this._timeline.add(button);
     }
-
-    ctx.textAlign = 'left';
   }
 
   private _formatLabel(operation: string, parameters: Record<string, unknown> = {}): string {
@@ -147,35 +170,6 @@ export class NarrativeStrip extends MovablePanel {
     const firstValue = parameters[firstKey];
     const value =
       typeof firstValue === 'number' ? Number(firstValue.toFixed(2)) : String(firstValue);
-    return `${operation}: ${firstKey}=${value}`;
-  }
-
-  private _clipText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-    const measured = ctx.measureText(text).width;
-    if (measured <= maxWidth) return text;
-    let clipped = text;
-    while (clipped.length > 0 && ctx.measureText(`${clipped}…`).width > maxWidth) {
-      clipped = clipped.slice(0, -1);
-    }
-    return `${clipped}…`;
-  }
-
-  handleContentClick(worldRaycaster: THREE.Raycaster): boolean {
-    const hits = worldRaycaster.intersectObject(this.mesh, false);
-    if (hits.length === 0) return false;
-
-    const uv = hits[0].uv;
-    if (!uv) return false;
-    const cx = uv.x * this.width;
-    const cy = (1 - uv.y) * this.height;
-
-    for (let i = 0; i < this._chipBounds.length; i++) {
-      const b = this._chipBounds[i];
-      if (cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h) {
-        this.onSeek(i);
-        return true;
-      }
-    }
-    return false;
+    return operation + ': ' + firstKey + '=' + value;
   }
 }
