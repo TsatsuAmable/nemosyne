@@ -1,17 +1,17 @@
 import * as THREE from 'three';
+import { Container, Text } from '@pmndrs/uikit';
 import type { InvestigationContinuityController } from '../../app/investigation/InvestigationContinuityController.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
-import { MovablePanel } from './MovablePanel.ts';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import type { AccessibilityOptions } from '../coordinators/types.ts';
 
 type ContinuityAction = 'refresh' | 'save' | 'checkpoint' | 'restore' | 'recover' | 'export' | 'open';
 
 interface ContinuityButton {
   id: ContinuityAction;
   label: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
   enabled: boolean;
 }
 
@@ -22,7 +22,7 @@ function downloadPackage(bytes: Uint8Array): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `nemosyne-investigation-${new Date().toISOString().slice(0, 10)}.nemosyne`;
+  anchor.download = 'nemosyne-investigation-' + new Date().toISOString().slice(0, 10) + '.nemosyne';
   anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
@@ -53,8 +53,18 @@ function choosePackage(): Promise<Uint8Array | null> {
   });
 }
 
-/** XR presentation for the same PT5D continuity controller used by desktop. */
-export class InvestigationContinuityPanel extends MovablePanel {
+const PANEL_WIDTH = 720;
+const PANEL_HEIGHT = 700;
+
+export class InvestigationContinuityPanel extends SpatialPanel {
+  readonly title = 'SAVE & RECOVER';
+  readonly defaultPosition = new THREE.Vector3(-0.7, 1.45, -1.05);
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   private readonly continuity: InvestigationContinuityController;
   private busy = false;
   private hasCheckpoint = false;
@@ -62,17 +72,42 @@ export class InvestigationContinuityPanel extends MovablePanel {
   status = 'Ready';
   buttons: ContinuityButton[] = [];
 
-  constructor(cameraGroup: THREE.Group, continuity: InvestigationContinuityController) {
-    super(cameraGroup, {
-      title: 'SAVE & RECOVER',
-      width: 720,
-      height: 700,
-      position: [-0.7, 1.45, -1.05],
-      worldSize: [0.86, 0.84],
-      titleBarHeight: 44,
-      contentPadding: 18,
-    });
+  private readonly _statusText: Text;
+  private readonly _actions: Container;
+  private _actionButtons: Button[] = [];
+  private _textScale = 1;
+  private _highContrast = false;
+
+  constructor(analystAnchor: THREE.Object3D, continuity: InvestigationContinuityController) {
+    const theme = getTheme(false);
+    super({
+      width: PANEL_WIDTH,
+      height: PANEL_HEIGHT,
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+      padding: SPACING_TOKENS.grid.x16,
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+      borderWidth: 2,
+      borderRadius: 8,
+    }, analystAnchor, null);
+
+    this.name = 'investigation-continuity-panel';
     this.continuity = continuity;
+    this.scale.setScalar(0.86 / PANEL_WIDTH);
+    this.position.copy(this.defaultPosition);
+
+    this._statusText = new Text({
+      text: '',
+      fontSize: 16,
+      color: Number(theme.textPrimary),
+    });
+    this._actions = new Container({
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+    });
+    this.add(this._statusText, this._actions);
+
     this.registerButtons();
     this.render();
     void this.refreshContinuity();
@@ -84,7 +119,9 @@ export class InvestigationContinuityPanel extends MovablePanel {
       this.hasCheckpoint = Boolean(summary.latestCheckpoint);
       this.canRecoverAutosave = summary.canRecoverAutosave;
       this.status = summary.latestCheckpoint
-        ? `${summary.checkpointCount} saved ${summary.checkpointCount === 1 ? 'checkpoint' : 'checkpoints'} · latest ${summary.latestCheckpoint.label}`
+        ? String(summary.checkpointCount) + ' saved ' +
+          (summary.checkpointCount === 1 ? 'checkpoint' : 'checkpoints') +
+          ' · latest ' + summary.latestCheckpoint.label
         : 'No checkpoints yet';
     } catch (error) {
       this.status = error instanceof Error ? error.message : String(error);
@@ -94,14 +131,8 @@ export class InvestigationContinuityPanel extends MovablePanel {
   }
 
   private registerButtons(): void {
-    const x = 40;
-    const w = 640;
-    const h = 50;
-    const gap = 10;
-    let y = 140;
     const add = (id: ContinuityAction, label: string, enabled = true): void => {
-      this.buttons.push({ id, label, x, y, w, h, enabled: enabled && !this.busy });
-      y += h + gap;
+      this.buttons.push({ id, label, enabled: enabled && !this.busy });
     };
     this.buttons = [];
     add('refresh', 'Refresh save status');
@@ -111,7 +142,6 @@ export class InvestigationContinuityPanel extends MovablePanel {
     add('recover', 'Recover autosave', this.canRecoverAutosave !== false);
     add('export', 'Export .nemosyne');
     add('open', 'Open .nemosyne');
-    this.totalContentHeight = y + 30;
   }
 
   private async run(action: () => Promise<string>): Promise<void> {
@@ -131,6 +161,9 @@ export class InvestigationContinuityPanel extends MovablePanel {
   }
 
   async activate(id: ContinuityAction): Promise<void> {
+    const button = this.buttons.find((candidate) => candidate.id === id);
+    if (!button?.enabled) return;
+
     if (id === 'refresh') {
       await this.refreshContinuity();
       return;
@@ -146,14 +179,14 @@ export class InvestigationContinuityPanel extends MovablePanel {
       await this.run(async () => {
         const entry = await this.continuity.createCheckpoint();
         await this.refreshContinuity();
-        return `Checkpoint created · ${entry.discoveryCount} discoveries`;
+        return 'Checkpoint created · ' + entry.discoveryCount + ' discoveries';
       });
       return;
     }
     if (id === 'restore') {
       await this.run(async () => {
         const entry = await this.continuity.restoreLatestCheckpoint();
-        return `Checkpoint restored · ${entry.label}`;
+        return 'Checkpoint restored · ' + entry.label;
       });
       return;
     }
@@ -168,7 +201,7 @@ export class InvestigationContinuityPanel extends MovablePanel {
       await this.run(async () => {
         const bytes = await this.continuity.exportCurrent();
         downloadPackage(bytes);
-        return `Portable investigation ready · ${bytes.byteLength} bytes`;
+        return 'Portable investigation ready · ' + bytes.byteLength + ' bytes';
       });
       return;
     }
@@ -186,52 +219,53 @@ export class InvestigationContinuityPanel extends MovablePanel {
     }
   }
 
-  renderContent(ctx: CanvasRenderingContext2D): void {
-    ctx.textAlign = 'left';
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('INVESTIGATION CONTINUITY', 40, 42);
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    ctx.font = '16px monospace';
-    ctx.fillText('Save, checkpoint, carry or recover your work', 40, 74, 640);
-    ctx.fillText(this.status, 40, 104, 640);
-
-    ctx.font = 'bold 17px monospace';
-    for (const button of this.buttons) {
-      ctx.fillStyle = button.enabled
-        ? cssHex(COLOR_TOKENS.surface.raised)
-        : 'rgba(70, 78, 88, 0.35)';
-      ctx.fillRect(button.x, button.y, button.w, button.h);
-      ctx.strokeStyle = button.enabled
-        ? cssHex(COLOR_TOKENS.surface.border)
-        : 'rgba(120, 128, 138, 0.3)';
-      ctx.strokeRect(button.x, button.y, button.w, button.h);
-      ctx.fillStyle = button.enabled
-        ? cssHex(COLOR_TOKENS.text.primary)
-        : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText(button.label, button.x + 14, button.y + 32, button.w - 28);
-    }
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this.render();
   }
 
-  handleContentClick(raycaster: THREE.Raycaster): boolean {
-    this.mesh.updateMatrixWorld(true);
-    const hits = raycaster.intersectObject(this.mesh, false);
-    if (hits.length === 0 || !hits[0].uv) return false;
-    const canvasX = hits[0].uv.x * this.width;
-    const canvasY = (1 - hits[0].uv.y) * this.height;
-    const contentY = canvasY + this.scrollOffset;
-    for (const button of this.buttons) {
-      if (
-        button.enabled &&
-        canvasX >= button.x &&
-        canvasX <= button.x + button.w &&
-        contentY >= button.y &&
-        contentY <= button.y + button.h
-      ) {
-        void this.activate(button.id);
-        return true;
-      }
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
+
+  render(): void {
+    const theme = getTheme(this._highContrast);
+    this._statusText.setProperties({
+      text: 'INVESTIGATION CONTINUITY\nSave, checkpoint, carry or recover your work\n\n' + this.status,
+      fontSize: 16 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+
+    for (const button of this._actionButtons) {
+      this._actions.remove(button);
+      button.dispose();
     }
-    return false;
+    this._actionButtons = [];
+
+    for (const action of this.buttons) {
+      const button = new Button({
+        label: action.label,
+        variant: action.id === 'restore' || action.id === 'recover' ? 'secondary' : 'primary',
+        disabled: !action.enabled,
+        onClick: () => {
+          void this.activate(action.id);
+        },
+      });
+      this._actionButtons.push(button);
+      this._actions.add(button);
+    }
   }
 }
