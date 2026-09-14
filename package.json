@@ -115,7 +115,7 @@
     "apache-arrow": "^21.2.0",
     "colord": "^2.10.0",
     "fflate": "^0.8.3",
-    "three": "^0.185.1",
+    "three": "^0.186.0",
     "three-mesh-bvh": "^0.9.14",
     "valibot": "^1.4.2",
     "ws": "^8.17.1"
