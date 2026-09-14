@@ -18,7 +18,7 @@ describe('panelLayout (role-aware depth tiers, stable body frame)', () => {
 
   it('keeps the forward center cone (±12°) clear in the mid tier', () => {
     const midFan = [
-      'legacyMenu',
+      'dataSourcePanel',
       'operationLogPanel',
       'recommendationPanel',
       'monetaExplainerPanel',
@@ -44,7 +44,7 @@ describe('panelLayout (role-aware depth tiers, stable body frame)', () => {
 
   it('keeps mid-tier panels inside the 0.9–1.4 m comfort band', () => {
     const mid = [
-      'legacyMenu',
+      'dataSourcePanel',
       'operationLogPanel',
       'recommendationPanel',
       'monetaExplainerPanel',

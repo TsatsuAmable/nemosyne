@@ -7,7 +7,7 @@
 import type { Group, Mesh } from 'three';
 import { InputTelemetry } from '../InputTelemetry.ts';
 import { VRConsole } from '../ui/VRConsole.ts';
-import { VRMenu } from '../ui/VRMenu.ts';
+import { DataSourcePanel } from '../ui/DataSourcePanel.ts';
 import { PanelManager } from '../ui/PanelManager.ts';
 import { SettingsPanel } from '../ui/SettingsPanel.ts';
 import { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
@@ -151,7 +151,7 @@ export class WorldUIManager {
 
   telemetryPanel: InputTelemetry;
   vrConsole: VRConsole;
-  vrMenu: VRMenu;
+  dataSourcePanel: DataSourcePanel;
   panelManager: PanelManager;
   miniOverview: MiniOverview;
   peerPresenceHUD: PeerPresenceHUD;
@@ -242,30 +242,18 @@ export class WorldUIManager {
     applyPanelLayout(this.statusStripPanel, PANEL_LAYOUT.statusStrip);
     this.engine.addUpdatable(this.statusStripPanel);
 
-    // Main operation / dataset menu — retired as primary navigation per P1-U8.
-    // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.
-    // Kept for advanced users but hidden by default.
-    this.vrMenu = new VRMenu(this.analystAnchor, {
+    // Focused data-acquisition surface. The retired kitchen-sink VRMenu was
+    // removed after its analytical/task actions converged into the contextual
+    // task surface and hand wheel. This panel retains the unique curated/live
+    // and governed-dataset-library capabilities.
+    this.dataSourcePanel = new DataSourcePanel(this.analystAnchor, {
       onLoadDataset: callbacks.onLoadDataset,
-      onTogglePortals: callbacks.onTogglePortals,
       onConnectStream: callbacks.onConnectStream,
       onDisconnectStream: callbacks.onDisconnectStream,
       onSelectLiveSource: callbacks.onSelectLiveSource,
-      onFilter: callbacks.onFilter,
-      onSort: callbacks.onSort,
-      onAggregate: callbacks.onAggregate,
-      onCluster: callbacks.onCluster,
-      onHierarchicalCluster: callbacks.onHierarchicalCluster,
-      onDensityCluster: callbacks.onDensityCluster,
-      onAnomaly: callbacks.onAnomaly,
-      onTimeSlice: callbacks.onTimeSlice,
-      onCompare: callbacks.onCompare,
-      onReset: callbacks.onReset,
     } as LooseOptions);
-    this.engine.addUpdatable(this.vrMenu);
-    // Apply layout but keep hidden by default (retired as primary navigation)
-    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.legacyMenu);
-    this.vrMenu.hide();
+    applyPanelLayout(this.dataSourcePanel, PANEL_LAYOUT.dataSourcePanel);
+    this.dataSourcePanel.hide();
 
     // Panel manager owns the launcher ring and per-panel visibility.
     this.panelManager = new PanelManager(engine.cameraGroup, {
@@ -275,12 +263,11 @@ export class WorldUIManager {
     });
     this.panelManager.register(this.telemetryPanel);
     this.panelManager.register(this.vrConsole);
-    // VRMenu registered but hidden by default (retired as primary navigation)
-    this.panelManager.register(this.vrMenu);
+    this.panelManager.register(this.dataSourcePanel);
     this.engine.input.setPanelManager(this.panelManager);
     this.engine.input.addPanel(this.telemetryPanel);
     this.engine.input.addPanel(this.vrConsole);
-    this.engine.input.addPanel(this.vrMenu);
+    this.engine.input.addPanel(this.dataSourcePanel);
 
     // Mini-overview / mini-map showing palace and camera frustum.
     // Position is anchor-local (near tier); see finding F1 in the decision record.
@@ -448,8 +435,7 @@ export class WorldUIManager {
     // Extensions register their own roles when installed.
     this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
     this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
-    // VRMenu retired as primary navigation per P1-U8; reclassified as diagnostic.
-    this.panelRolesManager.registerPanel('vrMenu', 'Legacy Menu', 'diagnostic');
+    this.panelRolesManager.registerPanel('dataSources', 'Data Sources', 'primary');
     this.panelRolesManager.registerPanel('settings', 'Settings', 'system');
     this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
