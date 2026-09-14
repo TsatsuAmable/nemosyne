@@ -16,6 +16,11 @@ describe('Moneta scalability contract', () => {
       const signature = minimalDatasetSignature(rowCount, 3, 1, 0, `scale-${rowCount}`, 0);
       signature.clusterStructure.densityVariation = 0.6;
       const requirements = createDefaultRequirements('distribution-analysis', 'MASSIVE');
+      requirements.aggregateSemantics = {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'group',
+        measure: { field: 'value', function: 'MEAN' },
+      };
 
       const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
       expect(decision.rankedCandidates).toBeDefined();

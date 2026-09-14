@@ -10,6 +10,7 @@ import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import { InputTelemetry } from '../src/vr/InputTelemetry.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 
 /**
  * Minimal mock EventTarget for controller spaces.
@@ -629,109 +630,49 @@ describe('DracoDiagnosticHUD', () => {
   let engine;
   let dracoNode;
   let cameraGroup;
-  let originalCreateElement;
-  let mockCtx;
 
   beforeEach(() => {
-    originalCreateElement = document.createElement.bind(document);
-
-    mockCtx = {
-      clearRect: () => {},
-      fillRect: () => {},
-      strokeRect: () => {},
-      fillText: () => {},
-      measureText: () => ({ width: 0 }),
-      beginPath: () => {},
-      moveTo: () => {},
-      lineTo: () => {},
-      stroke: () => {},
-      save: () => {},
-      restore: () => {},
-      translate: () => {},
-    };
-
-    // jsdom does not implement the 2D canvas context without the native
-    // `canvas` package, so we provide a minimal mock context for the HUD tests.
-    document.createElement = (tag) => {
-      if (tag === 'canvas') {
-        const canvas = originalCreateElement('canvas');
-        canvas.getContext = (type) => (type === '2d' ? mockCtx : null);
-        return canvas;
-      }
-      return originalCreateElement(tag);
-    };
-
     engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataset = new Dataset('Test', [{ name: 'a', type: ColumnType.NUMERIC }], [{ a: 1 }]);
-
     dracoNode = {
       engine,
       solverResult: engine.solve({ topology: TopologyTypes.TABULAR, dataset }),
       adjustWeight: (name, delta) => engine.adjustWeight(name, delta),
     };
-
-    cameraGroup = { add: () => {}, remove: () => {} };
+    cameraGroup = new THREE.Group();
   });
 
-  afterEach(() => {
-    document.createElement = originalCreateElement;
-  });
-
-  it('registers one INC and one DEC button per soft constraint', () => {
+  it('projects one UIKit constraint row per soft constraint', () => {
     const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
-    const inc = hud.buttons.filter((b) => b.action === 'INC');
-    const dec = hud.buttons.filter((b) => b.action === 'DEC');
-
-    expect(inc.length).toBe(engine.softConstraints.length);
-    expect(dec.length).toBe(engine.softConstraints.length);
+    expect(hud.monetaNode.engine.softConstraints.length).toBe(engine.softConstraints.length);
   });
 
-  it('handles a click on the INC button by increasing the weight', () => {
+  it('forwards an explicit INC adjustment to the Moneta node', () => {
     const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
     const firstRule = engine.softConstraints[0];
     const startWeight = firstRule.weight;
 
-    const incButton = hud.buttons.find((b) => b.action === 'INC' && b.ruleName === firstRule.name);
-
-    // Build a ray that hits the center of the INC button.
-    const raycaster = makeRaycasterForButton(hud, incButton);
-    const consumed = hud.handleContentClick(raycaster);
-
-    expect(consumed).toBe(true);
+    expect(hud.adjustConstraint(firstRule.name, 5, 1000)).toBe(true);
     expect(firstRule.weight).toBe(startWeight + 5);
   });
 
-  it('handles a click on the DEC button by decreasing the weight', () => {
+  it('forwards an explicit DEC adjustment to the Moneta node', () => {
     const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
     const firstRule = engine.softConstraints[0];
-    // Start high enough that a -5 decrement is allowed.
     engine.setWeight(firstRule.name, 20);
+
+    expect(hud.adjustConstraint(firstRule.name, -5, 1000)).toBe(true);
+    expect(firstRule.weight).toBe(15);
+  });
+
+  it('rejects duplicate rapid adjustments through the preserved cooldown', () => {
+    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
+    const firstRule = engine.softConstraints[0];
     const startWeight = firstRule.weight;
 
-    const decButton = hud.buttons.find((b) => b.action === 'DEC' && b.ruleName === firstRule.name);
-    const raycaster = makeRaycasterForButton(hud, decButton);
-    const consumed = hud.handleContentClick(raycaster);
-
-    expect(consumed).toBe(true);
-    expect(firstRule.weight).toBe(startWeight - 5);
-  });
-
-  it('returns false when the ray misses the panel', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
-    const raycaster = new THREE.Raycaster(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0));
-
-    const consumed = hud.handleContentClick(raycaster);
-    expect(consumed).toBe(false);
-  });
-
-  it('returns false when the ray hits the panel but not a button', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
-
-    // Hit the panel in the top-left corner, far from any button.
-    const raycaster = makeRaycasterForUV(hud, 0.05, 0.95);
-    const consumed = hud.handleContentClick(raycaster);
-
-    expect(consumed).toBe(false);
+    expect(hud.adjustConstraint(firstRule.name, 5, 1000)).toBe(true);
+    expect(hud.adjustConstraint(firstRule.name, 5, 1100)).toBe(false);
+    expect(firstRule.weight).toBe(startWeight + 5);
   });
 
   it('does not decrement a weight below zero', () => {
@@ -739,16 +680,20 @@ describe('DracoDiagnosticHUD', () => {
     const firstRule = engine.softConstraints[0];
     engine.setWeight(firstRule.name, 3);
 
-    const decButton = hud.buttons.find((b) => b.action === 'DEC' && b.ruleName === firstRule.name);
-    const raycaster = makeRaycasterForButton(hud, decButton);
-
-    hud.handleContentClick(raycaster); // -5 would go below 0
-
+    expect(hud.adjustConstraint(firstRule.name, -5, 1000)).toBe(true);
     expect(firstRule.weight).toBe(0);
   });
 });
 
 describe('InputTelemetry', () => {
+  it('uses SpatialPanel/UIKit rather than the legacy canvas substrate', () => {
+    const engine = makeMockEngine(null);
+    const telemetry = new InputTelemetry(engine);
+    expect(telemetry).toBeInstanceOf(SpatialPanel);
+    telemetry.dispose();
+  });
+
+
   function makeMockHand(index, handedness, pinched) {
     const origin = new THREE.Vector3(index + 1, index + 2, index + 3);
     return {
@@ -862,49 +807,3 @@ describe('InputTelemetry', () => {
     expect(line).toContain('jointsValid=N');
   });
 });
-
-/**
- * Build a Raycaster whose ray intersects the HUD mesh at the center of a
- * given button in canvas coordinates.
- */
-function makeRaycasterForButton(hud, button) {
-  const u = (button.x + button.w / 2) / hud.canvas.width;
-  const v = 1 - (button.y + button.h / 2) / hud.canvas.height;
-  return makeRaycasterForUV(hud, u, v);
-}
-
-/**
- * Build a Raycaster that hits the HUD mesh at the given UV coordinates.
- *
- * PlaneGeometry vertices (with default UVs):
- *   0: (-w/2,  h/2, 0)  uv(0,1)
- *   1: ( w/2,  h/2, 0)  uv(1,1)
- *   2: (-w/2, -h/2, 0)  uv(0,0)
- *   3: ( w/2, -h/2, 0)  uv(1,0)
- */
-function makeRaycasterForUV(hud, u, v) {
-  const geom = hud.mesh.geometry;
-  const posAttr = geom.attributes.position;
-  const topLeft = new THREE.Vector3().fromBufferAttribute(posAttr, 0); // uv(0,1)
-  const topRight = new THREE.Vector3().fromBufferAttribute(posAttr, 1); // uv(1,1)
-  const bottomLeft = new THREE.Vector3().fromBufferAttribute(posAttr, 2); // uv(0,0)
-  const bottomRight = new THREE.Vector3().fromBufferAttribute(posAttr, 3); // uv(1,0)
-
-  const localPoint = new THREE.Vector3()
-    .addScaledVector(bottomLeft, (1 - u) * (1 - v))
-    .addScaledVector(bottomRight, u * (1 - v))
-    .addScaledVector(topLeft, (1 - u) * v)
-    .addScaledVector(topRight, u * v);
-
-  hud.mesh.updateMatrixWorld(true);
-  const worldPoint = localPoint.applyMatrix4(hud.mesh.matrixWorld);
-
-  // Start slightly in front of the panel along its local +Z normal so the
-  // ray reliably intersects the front face.
-  const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(
-    hud.mesh.getWorldQuaternion(new THREE.Quaternion())
-  );
-  const origin = worldPoint.clone().add(normal.multiplyScalar(0.1));
-  const direction = worldPoint.clone().sub(origin).normalize();
-  return new THREE.Raycaster(origin, direction);
-}

@@ -328,7 +328,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
   });
 
   describe('7. WheelMenuBuilder Intent Structure & Study Actions', () => {
-    it('constructs complete 6-intent taxonomy with Study Mark Moment action', () => {
+    it('constructs six canonical intents plus Guide and Dev Lab annexes with Study Mark Moment action', () => {
       const markMomentSpy = vi.fn();
       const applyOpSpy = vi.fn();
       const stubWorld: WheelMenuHost = {
@@ -359,9 +359,9 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       };
 
       const categories = buildIntentWheelMenuCategories(stubWorld);
-      expect(categories.length).toBe(7);
+      expect(categories.length).toBe(8);
       const catIds = categories.map((c) => c.id);
-      expect(catIds).toEqual(['ANALYSE', 'VIEW', 'DATA', 'STUDY', 'COLLABORATE', 'SYSTEM', 'SUPERUSER']);
+      expect(catIds).toEqual(['ANALYSE', 'VIEW', 'DATA', 'STUDY', 'COLLABORATE', 'SYSTEM', 'GUIDE', 'SUPERUSER']);
 
       // Study category contains Mark Moment
       const studyCat = categories.find((c) => c.id === 'STUDY');

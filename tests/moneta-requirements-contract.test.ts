@@ -58,4 +58,63 @@ describe('Moneta requirements contract', () => {
       /requires at least one level/
     );
   });
+
+  it('accepts only explicit, unambiguous grouped-aggregate semantics', () => {
+    const valid = {
+      ...createDefaultRequirements('group-comparison'),
+      aggregateSemantics: {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'cohort',
+        measure: { field: 'value', function: 'MEAN' },
+      },
+    };
+    expect(validateRepresentationRequirements(valid).aggregateSemantics).toEqual(
+      valid.aggregateSemantics,
+    );
+
+    for (const aggregateSemantics of [
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: '',
+        measure: { field: 'value', function: 'MEAN' },
+      },
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: ' cohort ',
+        measure: { field: 'value', function: 'MEAN' },
+      },
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'cohort',
+        measure: { function: 'MEAN' },
+      },
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'cohort',
+        measure: { field: 'value', function: 'COUNT' },
+      },
+      {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'cohort',
+        measure: { field: 'cohort', function: 'SUM' },
+      },
+    ]) {
+      expect(() =>
+        validateRepresentationRequirements({
+          ...createDefaultRequirements('group-comparison'),
+          aggregateSemantics,
+        }),
+      ).toThrow();
+    }
+
+    const count = validateRepresentationRequirements({
+      ...createDefaultRequirements('group-comparison'),
+      aggregateSemantics: {
+        kind: 'GROUPED_AGGREGATE',
+        groupingField: 'cohort',
+        measure: { function: 'COUNT' },
+      },
+    });
+    expect(count.aggregateSemantics?.measure).toEqual({ function: 'COUNT' });
+  });
 });

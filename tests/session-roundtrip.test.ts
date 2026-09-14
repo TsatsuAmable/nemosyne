@@ -17,6 +17,8 @@ import { VaultArchiveStore } from '../src/session/VaultArchiveStore.ts';
 import { FocusContextController } from '../src/vr/interactions/FocusContextController.ts';
 import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
+import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
+import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
 
 /**
  * Minimal transaction-correct in-memory IndexedDB fake. The production store
@@ -435,7 +437,10 @@ describe('WorldSessionController save/load roundtrip', () => {
     const saved: any = await store.loadSession('no-representation-decision');
     expect(saved.representationDecision).toBeNull();
 
-    stub.atlas.arbitrateRepresentation();
+    const staleDecision = MonetaHypothesisEngine.arbitrate(
+      minimalDatasetSignature(10, 2, 0, 0, 'stale-session-decision', 0)
+    );
+    stub.atlas._aggregate.representation.restoreDecision(staleDecision);
     expect(stub.atlas.activeRepresentationDecision).not.toBeNull();
 
     await expect(controller.loadSession('no-representation-decision')).resolves.toBe(true);

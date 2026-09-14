@@ -1,13 +1,13 @@
 /**
  * Owns construction and lifecycle of all HUD panels, the dashboard, the hand
- * wheel menu, and the launcher ring. `World.js` keeps these objects reachable
+ * wheel menu, and diagnostic-only panel launcher. `World.js` keeps these objects reachable
  * through legacy facade properties so existing tests remain valid.
  */
 
 import type { Group, Mesh } from 'three';
 import { InputTelemetry } from '../InputTelemetry.ts';
 import { VRConsole } from '../ui/VRConsole.ts';
-import { VRMenu } from '../ui/VRMenu.ts';
+import { DataSourcePanel } from '../ui/DataSourcePanel.ts';
 import { PanelManager } from '../ui/PanelManager.ts';
 import { SettingsPanel } from '../ui/SettingsPanel.ts';
 import { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
@@ -37,6 +37,7 @@ import { StatusStripPanel } from '../ui/StatusStripPanel.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { PANEL_LAYOUT, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
+import { CapabilityGuidePanel } from '../ui/CapabilityGuidePanel.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import { Dataset as DatasetClass } from '../../data/Dataset.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
@@ -141,6 +142,7 @@ export class WorldUIManager {
   statusStrip: StatusStripController;
   panelRolesManager: PanelRolesManager;
   contextualTaskSurface: ContextualTaskSurface;
+  capabilityGuidePanel: CapabilityGuidePanel;
   /**
    * Enforces the analyst workspace panel budget for SpatialPanel-based surfaces
    * (HolographicInspector, SettingsPanel, and future migrated precision
@@ -151,7 +153,7 @@ export class WorldUIManager {
 
   telemetryPanel: InputTelemetry;
   vrConsole: VRConsole;
-  vrMenu: VRMenu;
+  dataSourcePanel: DataSourcePanel;
   panelManager: PanelManager;
   miniOverview: MiniOverview;
   peerPresenceHUD: PeerPresenceHUD;
@@ -179,6 +181,7 @@ export class WorldUIManager {
   frustrationResponseManager: FrustrationResponseManager | null = null;
   jitGestureHintManager: JITGestureHintManager | null = null;
   progressiveDisclosureController: ProgressiveDisclosureController | null = null;
+  private _wheelCategories: WheelMenuCategory[] = [];
   private _borrowedResources = new Set<object>();
   private _disposed = false;
 
@@ -220,6 +223,14 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.contextualTaskSurface);
     this.engine.input.addPanel(this.contextualTaskSurface);
 
+    this.capabilityGuidePanel = new CapabilityGuidePanel({
+      parent: this.analystAnchor,
+      getWheelCategories: () => this._wheelCategories,
+      contextualTaskSurface: this.contextualTaskSurface,
+    });
+    this.engine.addUpdatable(this.capabilityGuidePanel);
+    this.engine.input.addPanel(this.capabilityGuidePanel);
+
     // SpatialPanel workspace budget (governs inspector/settings/future surfaces).
     this.panelBudgetController = new PanelBudgetController();
 
@@ -242,32 +253,20 @@ export class WorldUIManager {
     applyPanelLayout(this.statusStripPanel, PANEL_LAYOUT.statusStrip);
     this.engine.addUpdatable(this.statusStripPanel);
 
-    // Main operation / dataset menu — retired as primary navigation per P1-U8.
-    // Functionality folded into TechnoCore, ContextualTaskSurface, and HandWheelMenu.
-    // Kept for advanced users but hidden by default.
-    this.vrMenu = new VRMenu(this.analystAnchor, {
+    // Focused data-acquisition surface. The retired kitchen-sink VRMenu was
+    // removed after its analytical/task actions converged into the contextual
+    // task surface and hand wheel. This panel retains the unique curated/live
+    // and governed-dataset-library capabilities.
+    this.dataSourcePanel = new DataSourcePanel(this.analystAnchor, {
       onLoadDataset: callbacks.onLoadDataset,
-      onTogglePortals: callbacks.onTogglePortals,
       onConnectStream: callbacks.onConnectStream,
       onDisconnectStream: callbacks.onDisconnectStream,
       onSelectLiveSource: callbacks.onSelectLiveSource,
-      onFilter: callbacks.onFilter,
-      onSort: callbacks.onSort,
-      onAggregate: callbacks.onAggregate,
-      onCluster: callbacks.onCluster,
-      onHierarchicalCluster: callbacks.onHierarchicalCluster,
-      onDensityCluster: callbacks.onDensityCluster,
-      onAnomaly: callbacks.onAnomaly,
-      onTimeSlice: callbacks.onTimeSlice,
-      onCompare: callbacks.onCompare,
-      onReset: callbacks.onReset,
     } as LooseOptions);
-    this.engine.addUpdatable(this.vrMenu);
-    // Apply layout but keep hidden by default (retired as primary navigation)
-    applyPanelLayout(this.vrMenu, PANEL_LAYOUT.legacyMenu);
-    this.vrMenu.hide();
+    applyPanelLayout(this.dataSourcePanel, PANEL_LAYOUT.dataSourcePanel);
+    this.dataSourcePanel.hide();
 
-    // Panel manager owns the launcher ring and per-panel visibility.
+    // Panel manager owns per-panel visibility and a Dev Lab-only fallback launcher.
     this.panelManager = new PanelManager(engine.cameraGroup, {
       analystAnchor,
       freeFloating: true,
@@ -275,12 +274,11 @@ export class WorldUIManager {
     });
     this.panelManager.register(this.telemetryPanel);
     this.panelManager.register(this.vrConsole);
-    // VRMenu registered but hidden by default (retired as primary navigation)
-    this.panelManager.register(this.vrMenu);
+    this.panelManager.register(this.dataSourcePanel);
     this.engine.input.setPanelManager(this.panelManager);
     this.engine.input.addPanel(this.telemetryPanel);
     this.engine.input.addPanel(this.vrConsole);
-    this.engine.input.addPanel(this.vrMenu);
+    this.engine.input.addPanel(this.dataSourcePanel);
 
     // Mini-overview / mini-map showing palace and camera frustum.
     // Position is anchor-local (near tier); see finding F1 in the decision record.
@@ -448,8 +446,7 @@ export class WorldUIManager {
     // Extensions register their own roles when installed.
     this.panelRolesManager.registerPanel('telemetry', 'Input Telemetry', 'diagnostic');
     this.panelRolesManager.registerPanel('vrConsole', 'VR Console', 'diagnostic');
-    // VRMenu retired as primary navigation per P1-U8; reclassified as diagnostic.
-    this.panelRolesManager.registerPanel('vrMenu', 'Legacy Menu', 'diagnostic');
+    this.panelRolesManager.registerPanel('dataSources', 'Data Sources', 'primary');
     this.panelRolesManager.registerPanel('settings', 'Settings', 'system');
     this.panelRolesManager.registerPanel('metrics', 'Telemetry Metrics', 'diagnostic');
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
@@ -712,7 +709,9 @@ export class WorldUIManager {
    * Populate the hand wheel menu from a pre-built category/action list.
    */
   buildWheelMenu(categories: WheelMenuCategory[]): void {
+    this._wheelCategories = categories.slice();
     this.handWheelMenu.setMenu(categories);
+    if (this.capabilityGuidePanel.visible) this.capabilityGuidePanel.refresh();
   }
 
   /**
@@ -755,7 +754,7 @@ export class WorldUIManager {
     this.panelManager.recenter();
   }
 
-  /** Toggle the launcher ring. */
+  /** Toggle the diagnostic-only fallback launcher. */
   toggleLauncher(): void {
     this.panelManager.toggleLauncher();
   }
@@ -806,10 +805,12 @@ export class WorldUIManager {
     this.engine.removeUpdatable(this.dashboard);
     this.engine.removeUpdatable(this.handWheelMenu);
     this.engine.removeUpdatable(this.contextualTaskSurface);
+    this.engine.removeUpdatable(this.capabilityGuidePanel);
     this.engine.removeUpdatable(this.statusStripPanel);
     this.engine.removeHudObject(this.handWheelMenu);
     this.engine.input.removePanel(this.handWheelMenu);
     this.engine.input.removePanel(this.contextualTaskSurface);
+    this.engine.input.removePanel(this.capabilityGuidePanel);
     this.engine.input.setHandWheelMenu(null);
     this.engine.input.setPanelManager(null);
 
@@ -821,6 +822,7 @@ export class WorldUIManager {
     if (!this._borrowedResources.has(this.contextualTaskSurface)) {
       this.contextualTaskSurface.dispose?.();
     }
+    this.capabilityGuidePanel.dispose?.();
     this.panelManager.dispose();
 
     if (this.representationCarousel && !this._borrowedResources.has(this.representationCarousel)) {

@@ -221,10 +221,9 @@ describe('PT5C/PT5E XR investigation presentation', () => {
     };
     const journey = { snapshot: () => snapshot } as unknown as InvestigationJourneyController;
     const panel = new InvestigationJourneyPanel(new THREE.Group(), journey);
-    const fillText = vi.spyOn(panel.ctx, 'fillText');
 
     panel.render();
-    const rendered = fillText.mock.calls.map(([text]) => String(text)).join(' | ');
+    const rendered = panel.getRenderedSummary();
     expect(rendered).toContain('Status · Hypothesis supported');
     expect(rendered).not.toContain('SUPPORTED');
     expect(rendered).not.toContain('UNDER_INVESTIGATION');

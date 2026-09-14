@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import { Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.ts';
-import type { MovablePanelOptions, UserMode } from '../coordinators/types.ts';
+import type { AccessibilityOptions, MovablePanelOptions, UserMode } from '../coordinators/types.ts';
 
 export interface InteractionCoachOptions extends MovablePanelOptions {
   userMode?: UserMode;
@@ -13,8 +15,6 @@ interface GestureMeta {
   label?: string;
   icon?: string;
   controller?: string;
-  hand?: string;
-  action?: string;
 }
 
 interface CoachEntry {
@@ -25,44 +25,60 @@ interface CoachEntry {
   result?: string;
 }
 
-/**
- * Running commentary panel that teaches gesture and controller navigation.
- *
- * Every significant interaction (gesture, controller action, wheel menu
- * selection, data operation, portal warp) is logged with:
- *   - a human-readable description
- * - the hand gesture that triggered it (if any)
- * - the Meta Quest controller equivalent
- * - a timestamp
- *
- * The panel is meant to sit beside the analyst so they can learn the
- * gesture/controller vocabulary by seeing the system react in real time.
- */
-export class InteractionCoach extends MovablePanel {
+const PANEL_WIDTH = 800;
+const PANEL_HEIGHT = 700;
+
+export class InteractionCoach extends SpatialPanel {
+  readonly title = 'INTERACTION COACH';
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   userMode: UserMode;
   private _requestedMaxEntries: number;
   maxEntries: number;
   entries: CoachEntry[];
+  private readonly _content: Text;
+  private _textScale: number;
+  private _highContrast: boolean;
 
-  constructor(cameraGroup: THREE.Group, options: InteractionCoachOptions = {}) {
-    super(cameraGroup, {
-      title: 'INTERACTION COACH',
-      width: 800,
-      height: 700,
-      position: options.position ?? [0.75, 1.45, -1.0],
-      worldSize: options.worldSize ?? [0.8, 0.7],
-      titleBarHeight: 44,
-      tilt: 0.22,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-      parentGroup: options.parentGroup ?? null,
-    });
+  constructor(analystAnchor: THREE.Object3D, options: InteractionCoachOptions = {}) {
+    const highContrast = options.highContrast ?? false;
+    const theme = getTheme(highContrast);
+    super({
+      width: PANEL_WIDTH,
+      height: PANEL_HEIGHT,
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+      padding: SPACING_TOKENS.grid.x16,
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+      borderWidth: 2,
+      borderRadius: 8,
+    }, options.parentGroup ?? analystAnchor, null);
 
+    this.name = 'interaction-coach';
     this.userMode = options.userMode ?? 'novice';
     this._requestedMaxEntries = options.maxEntries ?? 16;
     this.maxEntries = this._effectiveMaxEntries();
     this.entries = [];
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
+
+    const worldWidth = options.worldSize?.[0] ?? 0.8;
+    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.defaultPosition = new THREE.Vector3(...(options.position ?? [0.75, 1.45, -1.0]));
+    this.position.copy(this.defaultPosition);
+
+    this._content = new Text({
+      text: '',
+      fontSize: 16 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+    this.add(this._content);
     this.render();
   }
 
@@ -73,34 +89,32 @@ export class InteractionCoach extends MovablePanel {
   }
 
   setUserMode(mode: UserMode | string): void {
-    const valid: UserMode = ['novice', 'intermediate', 'expert'].includes(mode) ? (mode as UserMode) : 'novice';
+    const valid: UserMode = ['novice', 'intermediate', 'expert'].includes(mode)
+      ? (mode as UserMode)
+      : 'novice';
     if (this.userMode === valid) return;
+
     this.userMode = valid;
     this.maxEntries = this._effectiveMaxEntries();
     if (this.userMode === 'expert') {
       this.entries = [];
-    } else {
-      while (this.entries.length > this.maxEntries) {
-        this.entries.pop();
-      }
+    } else if (this.entries.length > this.maxEntries) {
+      this.entries = this.entries.slice(0, this.maxEntries);
     }
     this.render();
   }
 
-  /**
-   * Log a general interaction event.
-   * @param param
-   * @param param.action - short action label, e.g. 'Filter'
-   * @param param.gesture - gesture name from HandGestureRecognizer
-   * @param param.controller - controller input description
-   * @param param.result - outcome text, e.g. '12 rows'
-   */
-  log({ action, gesture, controller, result }: { action: string; gesture?: string; controller?: string; result?: string }): void {
+  log({ action, gesture, controller, result }: {
+    action: string;
+    gesture?: string;
+    controller?: string;
+    result?: string;
+  }): void {
     if (this.userMode === 'expert') return;
 
     const meta = gesture ? (getGestureMeta(gesture) as GestureMeta | null) : null;
     const controllerText = controller ?? meta?.controller ?? null;
-    const gestureText = gesture ? `${meta?.icon ?? ''} ${meta?.label ?? gesture}`.trim() : null;
+    const gestureText = gesture ? ((meta?.icon ?? '') + ' ' + (meta?.label ?? gesture)).trim() : null;
 
     this.entries.unshift({
       time: Date.now(),
@@ -109,83 +123,71 @@ export class InteractionCoach extends MovablePanel {
       controller: controllerText,
       result,
     });
-
-    while (this.entries.length > this.maxEntries) {
-      this.entries.pop();
-    }
-
+    if (this.entries.length > this.maxEntries) this.entries.length = this.maxEntries;
     this.render();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    const margin = 24;
-    const lineHeight = 26;
-    const rowPad = 10;
-    const rowHeight = lineHeight * 2 + rowPad * 2;
-    let y = margin;
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this.render();
+  }
 
-    ctx.font = this._scaleFont('bold 18px monospace');
-    ctx.textAlign = 'left';
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
 
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
+
+  render(): void {
+    const theme = getTheme(this._highContrast);
+    this._content.setProperties({
+      text: this._formatContent(),
+      fontSize: 16 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+  }
+
+  private _formatContent(): string {
     if (this.userMode === 'expert') {
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
-      ctx.fillText('Expert mode', margin, y + lineHeight / 2);
-      y += lineHeight + margin;
-      ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText(
-        'Gesture and controller help are disabled. Open this panel from the wheel menu to re-enable.',
-        margin,
-        y + lineHeight / 2
-      );
-      return;
+      return [
+        'Expert mode',
+        '',
+        'Gesture and controller help are disabled.',
+        'Open this panel from the wheel menu to re-enable.',
+      ].join('\n');
     }
 
-    ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus);
-    const header =
+    const lines = [
       this.userMode === 'intermediate'
         ? 'Recent interaction (last only)'
-        : 'Recent interactions (newest first)';
-    ctx.fillText(header, margin, y + lineHeight / 2);
-    y += lineHeight + margin;
+        : 'Recent interactions (newest first)',
+      '',
+    ];
 
     if (this.entries.length === 0) {
-      ctx.font = this._scaleFont('16px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.muted) : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText(
-        'Perform a gesture, controller action, or menu selection to see it here.',
-        margin,
-        y + lineHeight / 2
-      );
-      return;
+      lines.push('Perform a gesture, controller action, or menu selection to see it here.');
+      return lines.join('\n');
     }
 
     for (const entry of this.entries) {
-      if (y + rowHeight > contentH - margin) break;
-
-      // Row background.
-      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus) + '10';
-      ctx.fillRect(margin, y, w - margin * 2, rowHeight);
-      ctx.strokeStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.interaction.focus) + '40';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(margin, y, w - margin * 2, rowHeight);
-
-      // Action + result.
-      ctx.font = this._scaleFont('bold 16px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.primary) : cssHex(COLOR_TOKENS.text.secondary);
-      const resultText = entry.result ? ` → ${entry.result}` : '';
-      ctx.fillText(`${entry.action}${resultText}`, margin + 10, y + lineHeight);
-
-      // Input source line.
-      ctx.font = this._scaleFont('14px monospace');
-      ctx.fillStyle = this.highContrast ? cssHex(COLOR_TOKENS.text.secondary) : cssHex(COLOR_TOKENS.text.secondary);
-      const inputParts: string[] = [];
-      if (entry.gesture) inputParts.push(entry.gesture);
-      if (entry.controller) inputParts.push(entry.controller);
-      const inputText = inputParts.length ? inputParts.join('  |  ') : 'Wheel menu / panel';
-      ctx.fillText(inputText, margin + 10, y + lineHeight * 2);
-
-      y += rowHeight + 6;
+      const resultText = entry.result ? ' -> ' + entry.result : '';
+      lines.push(entry.action + resultText);
+      const inputs: string[] = [];
+      if (entry.gesture) inputs.push(entry.gesture);
+      if (entry.controller) inputs.push(entry.controller);
+      lines.push(inputs.length ? inputs.join('  |  ') : 'Wheel menu / panel', '');
     }
+    return lines.join('\n').trimEnd();
   }
 }

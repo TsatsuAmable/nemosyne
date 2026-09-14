@@ -78,15 +78,15 @@ describe('P1-U5 RecommendationPanel Diagnostic Views', () => {
     expect((panel as any)._activeTab).toBe('guidance');
 
     // Simulate clicking Alternatives tab
-    (panel as any)._dispatchButton('alternatives-tab');
+    panel.dispatchAction('alternatives-tab');
     expect((panel as any)._activeTab).toBe('alternatives');
 
     // Simulate clicking Constraints tab
-    (panel as any)._dispatchButton('constraints-tab');
+    panel.dispatchAction('constraints-tab');
     expect((panel as any)._activeTab).toBe('constraints');
 
     // Simulate clicking Remediation tab
-    (panel as any)._dispatchButton('remediation-tab');
+    panel.dispatchAction('remediation-tab');
     expect((panel as any)._activeTab).toBe('remediation');
   });
 
@@ -102,7 +102,66 @@ describe('P1-U5 RecommendationPanel Diagnostic Views', () => {
     });
 
     // Dispatch a click on the remediation button
-    (panel as any)._dispatchButton('remedi-remedi-adjust-hardware-limit');
+    panel.dispatchAction('remedi-remedi-adjust-hardware-limit');
     expect(onApplyRemediation).toHaveBeenCalledWith(mockRemediation);
   });
+  it('requires an accepted preview of the same remediation before commit', () => {
+    const onPreviewRemediation = vi.fn(() => true);
+    const onCommitRemediation = vi.fn();
+    const panel = new RecommendationPanel(cameraGroup, {
+      getRecommendation: () => mockRecommendation,
+      getOutcome: () => mockOutcome,
+      onPreviewRemediation,
+      onCommitRemediation,
+      getPreviewDecision: () => ({
+        chosenCandidateId: 'RELATIONSHIP_GRAPH',
+        representationFamily: 'RELATIONSHIP_GRAPH',
+        chosenLayout: 'FORCE_3D',
+        embodiment: { primaryLayout: 'FORCE_3D' },
+        utilityScore: 0.71,
+        decisionStatus: 'DECISIVE',
+      } as any),
+    });
+
+    expect(panel.dispatchAction('remedi-commit-remedi-adjust-hardware-limit')).toBe(false);
+    expect(onCommitRemediation).not.toHaveBeenCalled();
+
+    expect(panel.dispatchAction('remedi-preview-remedi-adjust-hardware-limit')).toBe(true);
+    expect(onPreviewRemediation).toHaveBeenCalledWith(mockRemediation);
+    expect(panel.getRenderedSummary()).not.toContain('PREVIEW:');
+
+    panel.setActiveTab('remediation');
+    expect(panel.getRenderedSummary()).toContain('PREVIEW: RELATIONSHIP_GRAPH · FORCE_3D');
+
+    expect(panel.dispatchAction('remedi-commit-remedi-adjust-hardware-limit')).toBe(true);
+    expect(onCommitRemediation).toHaveBeenCalledWith(mockRemediation);
+    panel.dispose();
+  });
+
+  it('does not record a preview when preview authority refuses it', () => {
+    const panel = new RecommendationPanel(cameraGroup, {
+      getRecommendation: () => mockRecommendation,
+      getOutcome: () => mockOutcome,
+      onPreviewRemediation: () => false,
+    });
+    panel.setActiveTab('remediation');
+
+    expect(panel.dispatchAction('remedi-preview-remedi-adjust-hardware-limit')).toBe(false);
+    expect(panel.getRenderedSummary()).not.toContain('PREVIEW:');
+    panel.dispose();
+  });
+
+  it('dispatches recommendation decisions only while recommendation is pending', () => {
+    const onAccept = vi.fn();
+    const accepted = { ...mockRecommendation, decision: 'accepted' as const };
+    const panel = new RecommendationPanel(cameraGroup, {
+      getRecommendation: () => accepted,
+      onAccept,
+    });
+
+    expect(panel.dispatchAction('accept')).toBe(false);
+    expect(onAccept).not.toHaveBeenCalled();
+    panel.dispose();
+  });
+
 });

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Container, Text } from '@pmndrs/uikit';
 import type { DiscoveryEpisode } from '../../investigation/DiscoveryEpisode.ts';
 import type {
   DiscoveryReasoningSnapshot,
@@ -8,8 +9,11 @@ import type {
   InvestigationJourneyController,
   RecordUnderstandingInput,
 } from '../../app/investigation/InvestigationJourneyController.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
-import { MovablePanel } from './MovablePanel.ts';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { Button } from '../ui-system/components/Button.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
+import type { AccessibilityOptions } from '../coordinators/types.ts';
 
 type JourneyActionId =
   | 'refresh'
@@ -25,10 +29,6 @@ type JourneyActionId =
 interface JourneyButton {
   id: JourneyActionId;
   label: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
   enabled: boolean;
 }
 
@@ -36,10 +36,6 @@ interface TextEntryButton {
   id: string;
   label: string;
   value?: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
 }
 
 interface TextEntrySession {
@@ -57,6 +53,9 @@ const TEXT_LIMITS = Object.freeze({
   understandingTitle: 120,
   understandingDescription: 1000,
 });
+
+const PANEL_WIDTH = 760;
+const PANEL_HEIGHT = 900;
 
 function terminal(episode: DiscoveryEpisode | null): boolean {
   return Boolean(
@@ -88,41 +87,21 @@ function stageLabel(snapshot: DiscoveryReasoningSnapshot, episode: DiscoveryEpis
   return 'Discovery recorded';
 }
 
-function wrapText(value: string, maxColumns = 66): string[] {
-  const words = value.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [''];
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    if (word.length > maxColumns) {
-      if (line) {
-        lines.push(line);
-        line = '';
-      }
-      for (let offset = 0; offset < word.length; offset += maxColumns) {
-        lines.push(word.slice(offset, offset + maxColumns));
-      }
-      continue;
-    }
-    const candidate = line ? `${line} ${word}` : word;
-    if (candidate.length <= maxColumns) {
-      line = candidate;
-    } else {
-      if (line) lines.push(line);
-      line = word;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
 /**
- * XR presentation for the same NIL-backed investigation controller used by desktop.
- * It owns no investigation state. Text authoring stays inside this spatial panel as
- * bounded ephemeral presentation state until explicit submit delegates to the shared
- * journey controller.
+ * XR presentation for the NIL-backed investigation controller.
+ *
+ * The panel owns only bounded, ephemeral text-entry state. Investigation and
+ * evidence state remain authoritative in InvestigationJourneyController.
  */
-export class InvestigationJourneyPanel extends MovablePanel {
+export class InvestigationJourneyPanel extends SpatialPanel {
+  readonly title = 'INVESTIGATION';
+  readonly defaultPosition = new THREE.Vector3(0.7, 1.45, -1.05);
+  readonly tilt = 0.22;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   private readonly journey: InvestigationJourneyController;
   private snapshotValue: DiscoveryReasoningSnapshot;
   private selectedDiscoveryId: string | null = null;
@@ -130,21 +109,54 @@ export class InvestigationJourneyPanel extends MovablePanel {
   private textEntry: TextEntrySession | null = null;
   private uppercase = false;
   private keyboardButtons: TextEntryButton[] = [];
+
   status = 'Ready';
   buttons: JourneyButton[] = [];
 
-  constructor(cameraGroup: THREE.Group, journey: InvestigationJourneyController) {
-    super(cameraGroup, {
-      title: 'INVESTIGATION',
-      width: 760,
-      height: 900,
-      position: [0.7, 1.45, -1.05],
-      worldSize: [0.9, 1.08],
-      titleBarHeight: 44,
-      contentPadding: 18,
-    });
+  private readonly _summary: Text;
+  private readonly _actions: Container;
+  private readonly _keyboard: Container;
+  private _actionButtons: Button[] = [];
+  private _keyboardControls: Array<Button | Container> = [];
+  private _keyboardSignature = '';
+  private _textScale = 1;
+  private _highContrast = false;
+
+  constructor(analystAnchor: THREE.Object3D, journey: InvestigationJourneyController) {
+    const theme = getTheme(false);
+    super({
+      width: PANEL_WIDTH,
+      height: PANEL_HEIGHT,
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x8,
+      padding: SPACING_TOKENS.grid.x12,
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+      borderWidth: 2,
+      borderRadius: 8,
+    }, analystAnchor, null);
+
+    this.name = 'investigation-journey-panel';
     this.journey = journey;
     this.snapshotValue = journey.snapshot();
+    this.scale.setScalar(0.9 / PANEL_WIDTH);
+    this.position.copy(this.defaultPosition);
+
+    this._summary = new Text({
+      text: '',
+      fontSize: 16,
+      color: Number(theme.textPrimary),
+    });
+    this._actions = new Container({
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x4,
+    });
+    this._keyboard = new Container({
+      flexDirection: 'column',
+      gap: SPACING_TOKENS.grid.x4,
+    });
+    this.add(this._summary, this._actions, this._keyboard);
+
     this.syncSelection();
     this.registerButtons();
     this.render();
@@ -172,6 +184,10 @@ export class InvestigationJourneyPanel extends MovablePanel {
     return this.textEntry !== null;
   }
 
+  getRenderedSummary(): string {
+    return this._formatSummary();
+  }
+
   private selectedEpisode(): DiscoveryEpisode | null {
     return (
       this.snapshotValue.discoveries.find(
@@ -184,7 +200,6 @@ export class InvestigationJourneyPanel extends MovablePanel {
     if (this.textEntry) {
       this.buttons = [];
       this.registerTextEntryButtons();
-      this.totalContentHeight = 790;
       return;
     }
 
@@ -192,14 +207,9 @@ export class InvestigationJourneyPanel extends MovablePanel {
     const episode = this.selectedEpisode();
     const hasObservation = Boolean(this.snapshotValue.latestObservation);
     const hasResult = Boolean(this.snapshotValue.latestResult);
-    const rowH = 48;
-    const gap = 8;
-    const x = 40;
-    const w = 680;
-    let y = 190;
+
     const add = (id: JourneyActionId, label: string, enabled: boolean): void => {
-      this.buttons.push({ id, label, x, y, w, h: rowH, enabled: enabled && !this.busy });
-      y += rowH + gap;
+      this.buttons.push({ id, label, enabled: enabled && !this.busy });
     };
 
     this.buttons = [];
@@ -221,47 +231,23 @@ export class InvestigationJourneyPanel extends MovablePanel {
           hasResult,
       ),
     );
-    add(
-      'support',
-      '5 · Evidence supports the hypothesis',
-      Boolean(episode?.conclusion && !terminal(episode) && hasResult),
-    );
-    add(
-      'refute',
-      '5 · Evidence refutes the hypothesis',
-      Boolean(episode?.conclusion && !terminal(episode) && hasResult),
-    );
-    add(
-      'inconclusive',
-      '5 · Evidence is inconclusive',
-      Boolean(episode?.conclusion && !terminal(episode) && hasResult),
-    );
+    const canValidate = Boolean(episode?.conclusion && !terminal(episode) && hasResult);
+    add('support', '5 · Evidence supports the hypothesis', canValidate);
+    add('refute', '5 · Evidence refutes the hypothesis', canValidate);
+    add('inconclusive', '5 · Evidence is inconclusive', canValidate);
     add('return', 'Return to recorded discovery', Boolean(episode?.conclusion));
-    this.totalContentHeight = y + 40;
   }
 
   private registerTextEntryButtons(): void {
     const buttons: TextEntryButton[] = [];
-    const left = 40;
-    const availableWidth = 680;
-    const keyHeight = 52;
-    const gap = 6;
-    let y = 300;
-
     const addRow = (characters: readonly string[]): void => {
-      const keyWidth = (availableWidth - gap * (characters.length - 1)) / characters.length;
-      characters.forEach((character, index) => {
+      for (const character of characters) {
         buttons.push({
-          id: `char:${character}`,
+          id: 'char:' + character,
           label: this.uppercase ? character.toUpperCase() : character,
           value: character,
-          x: left + index * (keyWidth + gap),
-          y,
-          w: keyWidth,
-          h: keyHeight,
         });
-      });
-      y += keyHeight + gap;
+      }
     };
 
     addRow(['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p']);
@@ -272,22 +258,12 @@ export class InvestigationJourneyPanel extends MovablePanel {
     addRow(['(', ')', ':', ';', "'", '"', '_', '#', '@', '&']);
 
     buttons.push(
-      { id: 'shift', label: this.uppercase ? 'SHIFT ON' : 'Shift', x: left, y, w: 120, h: keyHeight },
-      { id: 'space', label: 'Space', value: ' ', x: left + 128, y, w: 316, h: keyHeight },
-      { id: 'backspace', label: 'Backspace', x: left + 452, y, w: 228, h: keyHeight },
-    );
-    y += keyHeight + gap;
-    buttons.push(
-      { id: 'cancel', label: 'Cancel', x: left, y, w: 210, h: keyHeight },
-      { id: 'clear', label: 'Clear', x: left + 218, y, w: 210, h: keyHeight },
-      {
-        id: 'submit',
-        label: this.textEntry?.submitLabel ?? 'Save',
-        x: left + 436,
-        y,
-        w: 244,
-        h: keyHeight,
-      },
+      { id: 'shift', label: this.uppercase ? 'SHIFT ON' : 'Shift' },
+      { id: 'space', label: 'Space', value: ' ' },
+      { id: 'backspace', label: 'Backspace' },
+      { id: 'cancel', label: 'Cancel' },
+      { id: 'clear', label: 'Clear' },
+      { id: 'submit', label: this.textEntry?.submitLabel ?? 'Save' },
     );
     this.keyboardButtons = buttons;
   }
@@ -305,8 +281,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
       onSubmit,
     };
     this.uppercase = false;
-    this.scrollOffset = 0;
-    this.status = `Enter text · 0/${options.maxLength}`;
+    this.status = 'Enter text · 0/' + options.maxLength;
     this.registerButtons();
     this.render();
   }
@@ -324,7 +299,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
     if (!session) return;
     const normalized = session.value.trim();
     if (!normalized) {
-      this.status = `${session.label} cannot be empty`;
+      this.status = session.label + ' cannot be empty';
       this.render();
       return;
     }
@@ -354,13 +329,13 @@ export class InvestigationJourneyPanel extends MovablePanel {
     }
     if (id === 'clear') {
       session.value = '';
-      this.status = `Enter text · 0/${session.maxLength}`;
+      this.status = 'Enter text · 0/' + session.maxLength;
       this.render();
       return;
     }
     if (id === 'backspace') {
       session.value = session.value.slice(0, -1);
-      this.status = `Enter text · ${session.value.length}/${session.maxLength}`;
+      this.status = 'Enter text · ' + session.value.length + '/' + session.maxLength;
       this.render();
       return;
     }
@@ -378,7 +353,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
     const raw = button.value;
     if (raw === undefined) return;
     if (session.value.length >= session.maxLength) {
-      this.status = `Text limit reached · ${session.maxLength} characters`;
+      this.status = 'Text limit reached · ' + session.maxLength + ' characters';
       this.render();
       return;
     }
@@ -388,7 +363,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
       this.uppercase = false;
       this.registerTextEntryButtons();
     }
-    this.status = `Enter text · ${session.value.length}/${session.maxLength}`;
+    this.status = 'Enter text · ' + session.value.length + '/' + session.maxLength;
     this.render();
   }
 
@@ -414,6 +389,9 @@ export class InvestigationJourneyPanel extends MovablePanel {
       return;
     }
 
+    const button = this.buttons.find((candidate) => candidate.id === id);
+    if (!button?.enabled) return;
+
     if (id === 'refresh') {
       this.status = 'Investigation refreshed';
       this.refreshJourney();
@@ -426,7 +404,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
         async (note) => {
           await this.run(async () => {
             const observation = await this.journey.observe(note);
-            this.status = `Notice saved · ${observation.id}`;
+            this.status = 'Notice saved · ' + observation.id;
           });
         },
         { maxLength: TEXT_LIMITS.notice, submitLabel: 'Save notice' },
@@ -436,12 +414,10 @@ export class InvestigationJourneyPanel extends MovablePanel {
 
     const snapshot = this.journey.snapshot();
     const episode = this.selectedEpisode();
+
     if (id === 'question') {
       const observation = snapshot.latestObservation;
-      if (!observation) {
-        this.status = 'Save a notice first';
-        return this.render();
-      }
+      if (!observation) return;
       this.beginTextEntry(
         'What question does this notice raise?',
         async (question) => {
@@ -455,10 +431,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
       return;
     }
 
-    if (!episode) {
-      this.status = 'Ask a research question first';
-      return this.render();
-    }
+    if (!episode) return;
 
     if (id === 'hypothesis') {
       this.beginTextEntry(
@@ -476,10 +449,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
 
     if (id === 'understanding') {
       const result = snapshot.latestResult;
-      if (!result) {
-        this.status = 'Run an analysis before recording understanding';
-        return this.render();
-      }
+      if (!result) return;
       this.beginTextEntry(
         'Short title for what you now understand',
         (title) => {
@@ -510,10 +480,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
 
     if (id === 'support' || id === 'refute' || id === 'inconclusive') {
       const result = snapshot.latestResult;
-      if (!result) {
-        this.status = 'No analytical evidence is ready for validation';
-        return this.render();
-      }
+      if (!result) return;
       const outcome: DiscoveryTestOutcome =
         id === 'support' ? 'SUPPORTS' : id === 'refute' ? 'REFUTES' : 'INCONCLUSIVE';
       await this.run(async () => {
@@ -531,7 +498,7 @@ export class InvestigationJourneyPanel extends MovablePanel {
     if (id === 'return') {
       try {
         const node = this.journey.returnToDiscovery(episode.discoveryId);
-        this.status = `Returned to discovery · ${node.id}`;
+        this.status = 'Returned to discovery · ' + node.id;
       } catch (error: unknown) {
         this.status = error instanceof Error ? error.message : String(error);
       }
@@ -539,126 +506,149 @@ export class InvestigationJourneyPanel extends MovablePanel {
     }
   }
 
-  private renderTextEntry(ctx: CanvasRenderingContext2D): void {
-    const session = this.textEntry;
-    if (!session) return;
-
-    ctx.textAlign = 'left';
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('IN-HEADSET TEXT ENTRY', 40, 42);
-
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    ctx.font = '16px monospace';
-    ctx.fillText(session.label, 40, 76, 680);
-    ctx.fillText(this.status, 40, 104, 680);
-
-    ctx.fillStyle = cssHex(COLOR_TOKENS.surface.raised);
-    ctx.fillRect(40, 126, 680, 142);
-    ctx.strokeStyle = cssHex(COLOR_TOKENS.surface.border);
-    ctx.strokeRect(40, 126, 680, 142);
-
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
-    ctx.font = '17px monospace';
-    const lines = wrapText(session.value || 'Type with the spatial keyboard below.');
-    const visibleLines = lines.slice(-6);
-    visibleLines.forEach((line, index) => {
-      ctx.fillText(line, 54, 152 + index * 20, 650);
+  applyAccessibility(options: AccessibilityOptions): void {
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
     });
-
-    ctx.font = 'bold 17px monospace';
-    for (const button of this.keyboardButtons) {
-      const destructive = button.id === 'cancel' || button.id === 'clear';
-      ctx.fillStyle = destructive
-        ? 'rgba(120, 70, 70, 0.72)'
-        : cssHex(COLOR_TOKENS.surface.raised);
-      ctx.fillRect(button.x, button.y, button.w, button.h);
-      ctx.strokeStyle = cssHex(COLOR_TOKENS.surface.border);
-      ctx.strokeRect(button.x, button.y, button.w, button.h);
-      ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
-      ctx.textAlign = 'center';
-      ctx.fillText(button.label, button.x + button.w / 2, button.y + 31, button.w - 12);
-    }
-    ctx.textAlign = 'left';
+    this.render();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D): void {
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
+
+  render(): void {
+    const theme = getTheme(this._highContrast);
+    this._summary.setProperties({
+      text: this._formatSummary(),
+      fontSize: 16 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
+    this._renderActions();
+    this._renderKeyboard();
+  }
+
+  private _formatSummary(): string {
     if (this.textEntry) {
-      this.renderTextEntry(ctx);
-      return;
+      return [
+        'IN-HEADSET TEXT ENTRY',
+        this.textEntry.label,
+        this.status,
+        '',
+        this.textEntry.value || 'Type with the spatial keyboard below.',
+      ].join('\n');
     }
 
     const episode = this.selectedEpisode();
-    ctx.textAlign = 'left';
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.primary);
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText('GUIDED INVESTIGATION', 40, 42);
-
-    ctx.fillStyle = cssHex(COLOR_TOKENS.text.secondary);
-    ctx.font = '16px monospace';
-    ctx.fillText(`Next · ${stageLabel(this.snapshotValue, episode)}`, 40, 76, 680);
-    ctx.fillText(this.status, 40, 104, 680);
-
+    const lines = [
+      'GUIDED INVESTIGATION',
+      'Next · ' + stageLabel(this.snapshotValue, episode),
+      this.status,
+    ];
     if (episode) {
-      ctx.fillText(`Question · ${(episode.question ?? 'not set').slice(0, 68)}`, 40, 132, 680);
-      ctx.fillText(`Status · ${friendlyStatus(episode.validationStatus)}`, 40, 158, 680);
+      lines.push(
+        'Question · ' + (episode.question ?? 'not set').slice(0, 68),
+        'Status · ' + friendlyStatus(episode.validationStatus),
+      );
     } else if (this.snapshotValue.latestObservation) {
-      ctx.fillText(`Notice · ${this.snapshotValue.latestObservation.notes.slice(0, 68)}`, 40, 132, 680);
+      lines.push('Notice · ' + this.snapshotValue.latestObservation.notes.slice(0, 68));
     }
+    return lines.join('\n');
+  }
 
-    ctx.font = 'bold 17px monospace';
-    for (const button of this.buttons) {
-      ctx.fillStyle = button.enabled
-        ? cssHex(COLOR_TOKENS.surface.raised)
-        : 'rgba(70, 78, 88, 0.35)';
-      ctx.fillRect(button.x, button.y, button.w, button.h);
-      ctx.strokeStyle = button.enabled
-        ? cssHex(COLOR_TOKENS.surface.border)
-        : 'rgba(120, 128, 138, 0.3)';
-      ctx.strokeRect(button.x, button.y, button.w, button.h);
-      ctx.fillStyle = button.enabled
-        ? cssHex(COLOR_TOKENS.text.primary)
-        : cssHex(COLOR_TOKENS.text.muted);
-      ctx.fillText(button.label, button.x + 14, button.y + 30, button.w - 28);
+  private _renderActions(): void {
+    for (const button of this._actionButtons) {
+      this._actions.remove(button);
+      button.dispose();
+    }
+    this._actionButtons = [];
+
+    if (this.textEntry) return;
+    for (const action of this.buttons) {
+      const button = new Button({
+        label: action.label,
+        variant:
+          action.id === 'refute' || action.id === 'inconclusive' ? 'secondary' : 'primary',
+        disabled: !action.enabled,
+        onClick: () => {
+          void this.activate(action.id);
+        },
+      });
+      this._actionButtons.push(button);
+      this._actions.add(button);
     }
   }
 
-  handleContentClick(raycaster: THREE.Raycaster): boolean {
-    this.mesh.updateMatrixWorld(true);
-    const hits = raycaster.intersectObject(this.mesh, false);
-    if (hits.length === 0 || !hits[0].uv) return false;
-    const canvasX = hits[0].uv.x * this.width;
-    const canvasY = (1 - hits[0].uv.y) * this.height;
-    const contentY = canvasY - (this.titleBarHeight + 4) + this.scrollOffset;
-    if (contentY < 0) return false;
+  private _renderKeyboard(): void {
+    const signature = this.textEntry
+      ? (this.uppercase ? 'upper:' : 'lower:') + this.textEntry.submitLabel
+      : 'none';
+    if (signature === this._keyboardSignature) return;
+    this._keyboardSignature = signature;
 
-    if (this.textEntry) {
-      for (const button of this.keyboardButtons) {
-        if (
-          canvasX >= button.x &&
-          canvasX <= button.x + button.w &&
-          contentY >= button.y &&
-          contentY <= button.y + button.h
-        ) {
-          void this.activateTextKey(button.id);
-          return true;
-        }
-      }
-      return false;
+    for (const control of this._keyboardControls) {
+      this._keyboard.remove(control);
+      control.dispose();
     }
+    this._keyboardControls = [];
 
-    for (const button of this.buttons) {
-      if (
-        button.enabled &&
-        canvasX >= button.x &&
-        canvasX <= button.x + button.w &&
-        contentY >= button.y &&
-        contentY <= button.y + button.h
-      ) {
-        void this.activate(button.id);
-        return true;
+    if (!this.textEntry) return;
+
+    const rows: TextEntryButton[][] = [];
+    const rowDefinitions = [
+      ['q','w','e','r','t','y','u','i','o','p'],
+      ['a','s','d','f','g','h','j','k','l'],
+      ['z','x','c','v','b','n','m'],
+      ['1','2','3','4','5','6','7','8','9','0'],
+      ['.',',','?','-','+','=','/','%','<','>'],
+      ['(',')',':',';',"'","'",'_','#','@','&'],
+    ];
+    for (const values of rowDefinitions) {
+      rows.push(
+        values
+          .map((value) => this.keyboardButtons.find((entry) => entry.id === 'char:' + value))
+          .filter((entry): entry is TextEntryButton => Boolean(entry)),
+      );
+    }
+    rows.push(
+      ['shift', 'space', 'backspace']
+        .map((id) => this.keyboardButtons.find((entry) => entry.id === id))
+        .filter((entry): entry is TextEntryButton => Boolean(entry)),
+    );
+    rows.push(
+      ['cancel', 'clear', 'submit']
+        .map((id) => this.keyboardButtons.find((entry) => entry.id === id))
+        .filter((entry): entry is TextEntryButton => Boolean(entry)),
+    );
+
+    for (const entries of rows) {
+      const row = new Container({
+        flexDirection: 'row',
+        gap: SPACING_TOKENS.grid.x4,
+      });
+      this._keyboardControls.push(row);
+      this._keyboard.add(row);
+      for (const entry of entries) {
+        const button = new Button({
+          label: entry.label,
+          variant: entry.id === 'cancel' || entry.id === 'clear' ? 'danger' : 'secondary',
+          onClick: () => {
+            void this.activateTextKey(entry.id);
+          },
+        });
+        row.add(button);
       }
     }
-    return false;
   }
 }

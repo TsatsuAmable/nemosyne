@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
 import { InteractionCoach } from '../src/vr/ui/InteractionCoach.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import { getGestureMeta, gesturesForAction } from '../src/utils/GestureMapping.ts';
 
 interface GestureMeta {
@@ -18,6 +19,14 @@ describe('InteractionCoach', () => {
   beforeEach(() => {
     cameraGroup = new THREE.Group();
     coach = new InteractionCoach(cameraGroup, { maxEntries: 4 });
+  });
+
+  it('uses SpatialPanel/UIKit while preserving lifecycle', () => {
+    expect(coach).toBeInstanceOf(SpatialPanel);
+    coach.hide();
+    expect(coach.visible).toBe(false);
+    coach.show();
+    expect(coach.visible).toBe(true);
   });
 
   it('renders empty-state text before any interaction', () => {

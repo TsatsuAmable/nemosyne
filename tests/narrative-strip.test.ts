@@ -1,9 +1,9 @@
-// @ts-nocheck
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import * as THREE from 'three';
 import { NarrativeStrip } from '../src/vr/ui/NarrativeStrip.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import { AnalysisHistory } from '../src/data/AnalysisHistory.ts';
 import { Dataset } from '../src/data/Dataset.ts';
 
@@ -23,16 +23,17 @@ describe('NarrativeStrip', () => {
   });
 
   afterEach(() => {
-    if (strip?.mesh?.parent) strip.mesh.parent.remove(strip.mesh);
-    strip = null as unknown as NarrativeStrip;
+    strip?.dispose();
   });
 
-  it('renders empty-state text when history is empty', () => {
-    strip.render();
-    expect(strip._chipBounds.length).toBe(0);
+  it('uses SpatialPanel/UIKit and renders empty history without seeking', () => {
+    expect(strip).toBeInstanceOf(SpatialPanel);
+    expect(strip.history).toBeNull();
+    expect(strip.seekTo(0)).toBe(false);
+    expect(onSeek).not.toHaveBeenCalled();
   });
 
-  it('computes chip bounds from history frames', () => {
+  it('binds supplied history without taking ownership of AnalysisHistory state', () => {
     const history = new AnalysisHistory();
     const before = makeDataset([{ id: 1 }]);
     const after = makeDataset([{ id: 2 }]);
@@ -40,52 +41,44 @@ describe('NarrativeStrip', () => {
     history.push('sort', after, after, { key: 'value' });
 
     strip.setHistory(history);
-    expect(strip._chipBounds.length).toBe(2);
-    expect(strip._chipBounds[0].w).toBeGreaterThan(0);
+
+    expect(strip.history).toBe(history);
+    expect(history.currentIndex).toBe(1);
   });
 
-  it('highlights the current frame chip', () => {
+  it('forwards an explicit valid seek request without mutating history itself', () => {
     const history = new AnalysisHistory();
-    const before = makeDataset([{ id: 1 }]);
-    const after = makeDataset([{ id: 2 }]);
-    history.push('filter', before, after, {});
-    history.push('sort', after, after, {});
-    history.undo();
-
+    const ds = makeDataset([{ id: 1 }]);
+    history.push('filter', ds, ds, {});
+    history.push('sort', ds, ds, {});
     strip.setHistory(history);
-    expect(strip._chipBounds.length).toBe(2);
-    // currentIndex should be 0 after undo.
-    expect(history.currentIndex).toBe(0);
-  });
 
-  it('calls onSeek with chip index when a chip is clicked', () => {
-    const history = new AnalysisHistory();
-    const before = makeDataset([{ id: 1 }]);
-    const after = makeDataset([{ id: 2 }]);
-    history.push('filter', before, after, {});
-
-    strip.setHistory(history);
-    strip.show();
-    strip.mesh.updateMatrixWorld();
-
-    const b = strip._chipBounds[0];
-    const u = (b.x + b.w / 2) / strip.width;
-    const v = 1 - (b.y + b.h / 2) / strip.height;
-
-    const hitPoint = new THREE.Vector3(
-      (u - 0.5) * strip.worldSize[0],
-      (v - 0.5) * strip.worldSize[1],
-      0
-    );
-    hitPoint.applyMatrix4(strip.mesh.matrixWorld);
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.ray.origin.copy(hitPoint);
-    raycaster.ray.origin.z += 0.1;
-    raycaster.ray.direction.set(0, 0, -1);
-
-    expect(strip.handleContentClick(raycaster)).toBe(true);
+    expect(strip.seekTo(0)).toBe(true);
     expect(onSeek).toHaveBeenCalledWith(0);
+    expect(history.currentIndex).toBe(1);
+  });
+
+  it('rejects invalid seek indices', () => {
+    const history = new AnalysisHistory();
+    const ds = makeDataset([{ id: 1 }]);
+    history.push('filter', ds, ds, {});
+    strip.setHistory(history);
+
+    expect(strip.seekTo(-1)).toBe(false);
+    expect(strip.seekTo(3)).toBe(false);
+    expect(strip.seekTo(0.5)).toBe(false);
+    expect(onSeek).not.toHaveBeenCalled();
+  });
+
+  it('preserves accessibility mutation on the UIKit path', () => {
+    expect(() =>
+      strip.applyAccessibility({
+        textScale: 1.25,
+        highContrast: true,
+        colorblindMode: 'none',
+        reducedMotion: false,
+      })
+    ).not.toThrow();
   });
 });
 

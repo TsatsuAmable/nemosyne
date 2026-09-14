@@ -1,15 +1,16 @@
 /**
  * A draggable dashboard panel that hosts a ChartPlane.
  *
- * The chart is rendered to its own CanvasTexture by ChartPlane, then copied
- * into the MovablePanel canvas below the title bar. This lets the chart
- * participate in the dashboard snapping system while keeping the chart drawing
- * logic unchanged.
+ * UXR1 removes the legacy MovablePanel canvas-copy layer. ChartPlane keeps
+ * authority over its own CanvasTexture/rendering; SpatialPanel/UIKit provides
+ * the panel chrome and dashboard-compatible spatial container.
  */
 
 import * as THREE from 'three';
-import { MovablePanel } from './MovablePanel.ts';
-import { COLOR_TOKENS, cssHex } from '../ui-system/tokens.ts';
+import { Custom, Text } from '@pmndrs/uikit';
+import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { SPACING_TOKENS } from '../ui-system/tokens.ts';
+import { getTheme } from '../ui-system/theme.ts';
 import { ChartPlane, ChartType, type ChartKind } from '../artifacts/ChartPlane.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
@@ -23,97 +24,140 @@ interface ChartPlanePanelOptions extends MovablePanelOptions {
   color?: string;
 }
 
-export class ChartPlanePanel extends MovablePanel {
+export class ChartPlanePanel extends SpatialPanel {
+  readonly defaultPosition: THREE.Vector3;
+  readonly tilt: number;
+  readonly width: number;
+  readonly height: number;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragDelta: ((delta: THREE.Vector3) => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   chartPlane: ChartPlane;
   chartType: ChartKind;
-  private _datasetVersion = 0;
+  title: string;
 
-  constructor(cameraGroup: THREE.Group, dataset: Dataset | null | undefined, options: ChartPlanePanelOptions = {}) {
+  private readonly _titleText: Text;
+  private readonly _chartSurface: Custom;
+  private _textScale: number;
+  private _highContrast: boolean;
+
+  constructor(
+    analystAnchor: THREE.Object3D,
+    dataset: Dataset | null | undefined,
+    options: ChartPlanePanelOptions = {}
+  ) {
+    const width = options.width ?? 1024;
+    const height = options.height ?? 768;
     const worldSize = options.worldSize ?? [1.1, 0.75];
-    super(cameraGroup, {
-      title: options.title ?? 'CHART',
-      width: options.width ?? 1024,
-      height: options.height ?? 768,
-      position: options.position ?? [0, 1.6, 1.5],
-      worldSize,
-      titleBarHeight: options.titleBarHeight ?? 44,
-      tilt: options.tilt ?? 0,
-      minDistance: options.minDistance ?? 0.3,
-      maxDistance: options.maxDistance ?? 2.5,
-      textScale: options.textScale ?? 1,
-      highContrast: options.highContrast ?? false,
-      colorblindMode: options.colorblindMode ?? 'none',
-    });
+    const highContrast = options.highContrast ?? false;
+    const theme = getTheme(highContrast);
 
+    super(
+      {
+        width,
+        height,
+        flexDirection: 'column',
+        gap: SPACING_TOKENS.grid.x8,
+        padding: SPACING_TOKENS.grid.x8,
+        backgroundColor: Number(theme.backgroundColor),
+        borderColor: Number(theme.borderColor),
+        borderWidth: 2,
+        borderRadius: 8,
+      },
+      analystAnchor,
+      null
+    );
+
+    this.name = 'chart-plane-panel';
+    this.width = width;
+    this.height = height;
+    this.tilt = options.tilt ?? 0;
+    this._textScale = options.textScale ?? 1;
+    this._highContrast = highContrast;
+
+    this.scale.setScalar(worldSize[0] / width);
+    this.defaultPosition = new THREE.Vector3(...(options.position ?? [0, 1.6, 1.5]));
+    this.position.copy(this.defaultPosition);
+    this.userData.panelPixelSize = [width, height];
+
+    const chartTitle = options.title ?? 'CHART';
+    this.title = chartTitle;
+    this._titleText = new Text({
+      text: chartTitle,
+      fontSize: 22 * this._textScale,
+      fontWeight: 'bold',
+      color: Number(theme.textPrimary),
+    });
+    this.add(this._titleText);
+
+    const chartHeight = height - 70;
     this.chartPlane = new ChartPlane({
       chartType: options.chartType,
       column: options.column,
       xColumn: options.xColumn,
       yColumn: options.yColumn,
-      title: options.title ?? 'CHART',
+      title: chartTitle,
       color: options.color,
       colorblindMode: options.colorblindMode ?? 'none',
-      worldSize,
-      width: this.width,
-      height: this.height - this.titleBarHeight,
+      // The mesh is mounted under a pixel-space SpatialPanel root, so use
+      // panel-local dimensions. Root scaling converts these to world metres.
+      worldSize: [width - 32, chartHeight - 16],
+      width,
+      height: chartHeight,
     });
     this.chartType = options.chartType ?? ChartType.BAR;
+    this._chartSurface = new Custom(
+      {
+        width: width - 32,
+        height: chartHeight - 16,
+      },
+      undefined,
+      { material: this.chartPlane.material }
+    );
+    this.add(this._chartSurface);
 
-    this.title = this.chartPlane.title;
     if (dataset) this.setDataset(dataset);
   }
 
   setDataset(dataset: Dataset | null | undefined): void {
-    this._datasetVersion++;
     this.chartPlane.setDataset(dataset);
-    this.render();
-    // Force texture upload unconditionally: the CanvasTextureCacheManager
-    // hashes panel UI state (title/scroll/scale) but not dataset identity,
-    // so it would otherwise skip the GPU upload on unchanged UI state.
-    (this.texture as unknown as { needsUpdate: boolean }).needsUpdate = true;
   }
 
-  update(): void {
-    // ChartPlane does not animate, but this hook lets the panel refresh when
-    // the underlying dataset is changed externally.
+  update(delta = 0): void {
+    super.update(delta);
     this.chartPlane.update();
-    this.render();
   }
 
   applyAccessibility(options: AccessibilityOptions): void {
-    super.applyAccessibility(options);
+    this._textScale = options.textScale;
+    this._highContrast = options.highContrast;
+    const theme = getTheme(this._highContrast);
+    this.setProperties({
+      backgroundColor: Number(theme.backgroundColor),
+      borderColor: Number(theme.borderColor),
+    });
+    this._titleText.setProperties({
+      fontSize: 22 * this._textScale,
+      color: Number(theme.textPrimary),
+    });
     this.chartPlane.colorblindMode = options.colorblindMode ?? 'none';
     this.chartPlane.update();
-    this.render();
   }
 
-  renderContent(ctx: CanvasRenderingContext2D, w: number, contentH: number): void {
-    if (!this.chartPlane?.canvas) return;
-
-    const chart = this.chartPlane.canvas;
-    const chartW = chart.width;
-    const chartH = chart.height;
-    if (!chartW || !chartH) return;
-
-    // Scale the chart to fit the content area while preserving aspect ratio.
-    const scale = Math.min(w / chartW, contentH / chartH);
-    const drawW = chartW * scale;
-    const drawH = chartH * scale;
-    const x = (w - drawW) / 2;
-    const y = (contentH - drawH) / 2;
-
-    if (typeof ctx.drawImage === 'function') {
-      ctx.drawImage(chart, x, y, drawW, drawH);
-    } else {
-      // Fallback for test environments that mock the 2D context.
-      ctx.font = 'bold 20px monospace';
-      ctx.fillStyle = cssHex(COLOR_TOKENS.interaction.focus);
-      ctx.textAlign = 'center';
-      ctx.fillText(this.chartPlane.title, w / 2, contentH / 2);
-    }
+  show(): void {
+    this.visible = true;
+    this.isMinimized = false;
   }
 
-  dispose(): void {
+  hide(): void {
+    const changed = this.visible;
+    this.visible = false;
+    if (changed) this.onHide?.();
+  }
+
+  override dispose(): void {
     this.chartPlane.dispose();
     super.dispose();
   }

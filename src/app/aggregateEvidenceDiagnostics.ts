@@ -97,6 +97,11 @@ function aggregateRequirements(): RepresentationRequirements {
     },
     maxFrustumExclusionTolerance: 0.7,
     interactionBudget: 'MEDIUM',
+    aggregateSemantics: {
+      kind: 'GROUPED_AGGREGATE',
+      groupingField: 'group',
+      measure: { field: 'value', function: 'MEAN' },
+    },
   };
 }
 

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { InvestigationContinuityController } from '../src/app/investigation/InvestigationContinuityController.ts';
 import { mountDesktopInvestigationContinuity } from '../src/app/investigation/DesktopInvestigationContinuity.ts';
 import { InvestigationContinuityPanel } from '../src/vr/ui/InvestigationContinuityPanel.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 
 function controller(overrides: Partial<Record<keyof InvestigationContinuityController, unknown>> = {}): InvestigationContinuityController {
   return {
@@ -82,6 +83,25 @@ describe('PT5D continuity presentation', () => {
     expect(c.saveNow).toHaveBeenCalledTimes(1);
 
     handle.dispose();
+  });
+
+  it('XR continuity uses SpatialPanel/UIKit and rejects disabled actions', async () => {
+    const restoreLatestCheckpoint = vi.fn();
+    const c = controller({
+      summary: vi.fn(async () => ({
+        checkpointCount: 0,
+        latestCheckpoint: null,
+        canRecoverAutosave: false,
+      })),
+      restoreLatestCheckpoint,
+    });
+    const panel = new InvestigationContinuityPanel(new THREE.Group(), c);
+    await panel.refreshContinuity();
+
+    expect(panel).toBeInstanceOf(SpatialPanel);
+    await panel.activate('restore');
+    expect(restoreLatestCheckpoint).not.toHaveBeenCalled();
+    panel.dispose();
   });
 
   it('XR save and recovery actions call the same controller and present human-friendly status', async () => {

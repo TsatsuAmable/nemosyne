@@ -12,6 +12,10 @@ import type {
 import type { SourceRelationshipGraphAuthority } from '../../moneta/representation/RelationshipGraphAuthority.ts';
 import { validateSourceRelationshipGraphAuthority } from '../../moneta/representation/RelationshipGraphAuthority.ts';
 import {
+  validateGroupedAggregateSemantics,
+  type GroupedAggregateSemanticsRequirement,
+} from '../../moneta/representation/RepresentationRequirements.ts';
+import {
   SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
   type AggregateEmbodimentRequestV1,
   type DensityEmbodimentRequestV1,
@@ -24,11 +28,6 @@ export interface SemanticEmbodimentAuthority {
   readonly generation: number;
   readonly datasetVersion: number;
   readonly datasetFingerprint: string | null;
-}
-
-export interface AggregateEncodingSelection {
-  readonly color?: string;
-  readonly size?: string;
 }
 
 const DENSITY_PRODUCT_BINS_X_V1 = 10;
@@ -59,9 +58,16 @@ export function loadAggregateSemanticEmbodiment(
   authority: SemanticEmbodimentAuthority,
   dataset: Dataset,
   decision: RepresentationDecision,
-  encodings: AggregateEncodingSelection
+  aggregateSemantics: GroupedAggregateSemanticsRequirement | undefined,
 ): Promise<SemanticEmbodimentEnvelopeV1 | null> | undefined {
   if (decision.chosenCandidateId !== 'AGGREGATE_VOLUME') return undefined;
+
+  let semantics: GroupedAggregateSemanticsRequirement;
+  try {
+    semantics = validateGroupedAggregateSemantics(aggregateSemantics);
+  } catch {
+    return Promise.resolve(null);
+  }
 
   const port = authority.executionPort;
   const fingerprint = authority.datasetFingerprint;
@@ -72,8 +78,8 @@ export function loadAggregateSemanticEmbodiment(
   const request: AggregateEmbodimentRequestV1 = {
     schemaVersion: SEMANTIC_EMBODIMENT_SCHEMA_VERSION,
     candidateId: 'AGGREGATE_VOLUME',
-    groupingField: encodings.color ?? '',
-    measure: { field: encodings.size, function: 'MEAN' },
+    groupingField: semantics.groupingField,
+    measure: { ...semantics.measure },
     decisionId: decision.id,
     decisionModelVersion: decision.fitnessModelVersion ?? decision.provenance.fitnessModelVersion,
     decisionModelArtifactHash:
