@@ -34,6 +34,7 @@ import {
 } from './RepresentationCandidate.ts';
 import {
   createDefaultRequirements,
+  validateGroupedAggregateSemantics,
   type RepresentationRequirements,
   type AnalyticalIntent,
 } from './RepresentationRequirements.ts';
@@ -129,7 +130,7 @@ function geometryForLayout(layout: VRLayout, candidateId?: SemanticRepresentatio
 
 /** Rank-effective engine provenance. Bump (with fitness/ontology provenance) whenever
  * admissibility or information semantics change ranking. */
-export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.2-v5-bootstrap';
+export const MONETA_HYPOTHESIS_ENGINE_VERSION = '2.1.3-v5-bootstrap';
 
 export class MonetaHypothesisEngine {
   readonly version = MONETA_HYPOTHESIS_ENGINE_VERSION;
@@ -263,6 +264,31 @@ export class MonetaHypothesisEngine {
     }
 
     this.sortCandidates(scoredCandidates);
+
+    // Evidence admission is deliberately downstream of utility ranking and is
+    // never represented as a score component. The current production contract
+    // has no durable, authority-certified stability envelope, so p >= n
+    // candidates remain inspectable as scored near-misses but cannot be
+    // promoted into a RepresentationDecision. The standalone evidence protocol
+    // owns certification; wiring an accepted certificate is a separate change.
+    const sampleSize = signature.cardinality.rowCount;
+    const featureCount = signature.cardinality.columnCount;
+    if (sampleSize > 0 && featureCount > 0 && featureCount >= sampleSize) {
+      for (const candidate of scoredCandidates) {
+        if (candidate.disqualified) continue;
+        candidate.disqualified = true;
+        candidate.disqualificationReason =
+          `p >= n (${featureCount} features, ${sampleSize} observations) requires ` +
+          'authority-certified perturbation/stability evidence before promotion';
+        candidate.disqualificationCode = 'stability-evidence-required';
+        hardTraces.push({
+          ruleName: `${candidate.candidateId}_on_${candidate.layout}_stability_admission`,
+          passed: false,
+          reason: candidate.disqualificationReason,
+          code: candidate.disqualificationCode,
+        });
+      }
+    }
 
     const assessment = assessRepresentationDecision(scoredCandidates);
     const winner = assessment.winner;
@@ -713,6 +739,19 @@ export class MonetaHypothesisEngine {
           reason:
             'DENSITY_FIELD requires exactly two explicit, distinct primary analytical dimensions; dataset numeric-column availability is not analytical intent',
           code: 'analytical-dimensions-required',
+        };
+      }
+    }
+
+    if (candidate.id === 'AGGREGATE_VOLUME') {
+      try {
+        validateGroupedAggregateSemantics(reqs.aggregateSemantics);
+      } catch {
+        return {
+          passed: false,
+          reason:
+            'AGGREGATE_VOLUME requires explicit grouped-aggregate semantics; presentation encodings and dataset columns are not analytical intent',
+          code: 'aggregate-semantics-required',
         };
       }
     }

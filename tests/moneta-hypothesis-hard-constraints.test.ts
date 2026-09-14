@@ -7,6 +7,58 @@ import {
 } from '../src/moneta/index.ts';
 
 describe('Moneta hypothesis hard constraints', () => {
+  it.each([
+    { rows: 40, numeric: 40, label: 'p = n' },
+    { rows: 40, numeric: 80, label: 'p > n' },
+  ])(
+    'keeps ranked $label candidates as scored near-misses but refuses promotion without certified stability evidence',
+    ({ rows, numeric }) => {
+      const signature = minimalDatasetSignature(
+        rows,
+        numeric,
+        0,
+        0,
+        `uncertified-${rows}-${numeric}`,
+        0,
+      );
+      const requirements = createDefaultRequirements('distribution-analysis', ['value']);
+
+      let error: NoFeasibleRepresentationError | null = null;
+      try {
+        new MonetaHypothesisEngine().arbitrate(signature, requirements);
+      } catch (caught) {
+        if (caught instanceof NoFeasibleRepresentationError) error = caught;
+        else throw caught;
+      }
+
+      expect(error).not.toBeNull();
+      const stabilityBlocked = (error?.nearMisses ?? []).filter(
+        (candidate) => candidate.disqualificationCode === 'stability-evidence-required',
+      );
+      expect(stabilityBlocked.length).toBeGreaterThan(0);
+      expect(
+        stabilityBlocked.some(
+          (candidate) => candidate.candidateId === 'MATRIX_FIELD' && candidate.score > 0,
+        ),
+      ).toBe(true);
+      expect(stabilityBlocked.every((candidate) => candidate.components.length > 0)).toBe(true);
+    },
+  );
+
+  it('does not apply the high-dimensional stability gate when p < n', () => {
+    const signature = minimalDatasetSignature(40, 39, 0, 0, 'p-below-n', 0);
+    const requirements = createDefaultRequirements('distribution-analysis', ['value']);
+
+    const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
+
+    expect(decision.chosenCandidateId).toBe('MATRIX_FIELD');
+    expect(
+      (decision.rankedCandidates ?? []).some(
+        (candidate) => candidate.disqualificationCode === 'stability-evidence-required',
+      ),
+    ).toBe(false);
+  });
+
   it('returns a typed infeasibility outcome rather than selecting a disqualified candidate', () => {
     const signature = minimalDatasetSignature(1_000, 3, 1, 0, 'hardware-infeasible', 0);
     const requirements = createDefaultRequirements('individual-inspection');

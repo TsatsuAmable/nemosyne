@@ -16,6 +16,8 @@ export type HardConstraintCode =
   | 'exact-metric-loss'
   | 'cluster-separation-loss'
   | 'analytical-dimensions-required'
+  | 'aggregate-semantics-required'
+  | 'stability-evidence-required'
   | 'cluster-authority-required'
   | 'graph-authority-required'
   | 'graph-resource-envelope'

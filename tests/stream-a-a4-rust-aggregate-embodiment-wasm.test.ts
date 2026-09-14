@@ -77,6 +77,28 @@ describe('Stream A A4 Rust aggregate embodiment', () => {
     }
   });
 
+  it('refuses COUNT with a measure field instead of silently counting rows', () => {
+    const handle = bridge.loadDatasetJson({
+      name: 'a4-count-authority',
+      columns: [
+        { name: 'group', type: 'CATEGORICAL' },
+        { name: 'value', type: 'NUMERIC' },
+      ],
+      rows: [{ group: 'a', value: 1 }, { group: 'a', value: null }],
+    });
+    try {
+      const envelope = buildAggregateSemanticEmbodimentV1(handle, {
+        ...request,
+        measure: { field: 'value', function: 'COUNT' },
+      });
+      expect(envelope?.result.status).toBe('REFUSED');
+      if (envelope?.result.status !== 'REFUSED') throw new Error('expected refusal');
+      expect(envelope.result.refusal.code).toBe('INVALID_PARAMETERS');
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  });
+
   it('keeps semantic output bounded by group cardinality rather than source row count', () => {
     const source = {
       name: 'a4-bounded-output',
