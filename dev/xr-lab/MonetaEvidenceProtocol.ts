@@ -1,8 +1,4 @@
-import type {
-  MonetaBenchmarkFamily,
-  OracleStrength,
-  StabilityEvidencePolicy,
-} from './MonetaBenchmarkCorpus.ts';
+import type { MonetaBenchmarkFamily, OracleStrength } from './MonetaBenchmarkCorpus.ts';
 
 export type MeasurementScale =
   'nominal' | 'ordinal' | 'interval' | 'ratio' | 'compositional' | 'unknown';
@@ -59,25 +55,8 @@ export interface MonetaEvidenceDecision {
  * evidence is admissible for further consideration. Hard scientific validity
  * boundaries must not be traded away inside a utility/fitness scalar.
  */
-export interface MonetaEvidenceContext {
-  stabilityPolicy?: StabilityEvidencePolicy;
-}
-
-function stabilityPolicyAccepts(
-  policy: StabilityEvidencePolicy | undefined,
-  evidence: PerturbationEvidence | undefined
-): boolean {
-  if (!policy || !evidence) return false;
-  if (!policy.acceptedMetrics.includes(evidence.metric)) return false;
-  if (policy.minRuns !== undefined && evidence.runs < policy.minRuns) return false;
-  if (policy.valueRange?.minInclusive !== undefined && evidence.value < policy.valueRange.minInclusive) return false;
-  if (policy.valueRange?.maxInclusive !== undefined && evidence.value > policy.valueRange.maxInclusive) return false;
-  return true;
-}
-
 export function adjudicateMonetaEvidence(
-  candidate: MonetaEvidenceCandidate,
-  context: MonetaEvidenceContext = {}
+  candidate: MonetaEvidenceCandidate
 ): MonetaEvidenceDecision {
   const reasons: string[] = [];
   const highDimensional = candidate.featureCount >= candidate.sampleSize;
@@ -89,10 +68,11 @@ export function adjudicateMonetaEvidence(
     typeof candidate.perturbation.metric === 'string' &&
     candidate.perturbation.metric.trim().length > 0 &&
     Number.isFinite(candidate.perturbation.value);
-  const stabilityCertificationApplied = context.stabilityPolicy !== undefined;
-  const stabilityEvidencePresent =
-    perturbationWellFormed &&
-    stabilityPolicyAccepts(context.stabilityPolicy, candidate.perturbation);
+  // No authority-bearing stability certificate exists yet. Well-formed
+  // perturbation diagnostics remain inspectable but cannot self-promote a
+  // high-dimensional candidate into admissible evidence.
+  const stabilityCertificationApplied = false;
+  const stabilityEvidencePresent = false;
 
   if (candidate.sampleSize <= 0 || candidate.featureCount <= 0) {
     reasons.push('sampleSize and featureCount must both be positive');
@@ -193,12 +173,9 @@ export function adjudicateBenchmarkCandidate(
   family: MonetaBenchmarkFamily,
   candidate: Omit<MonetaEvidenceCandidate, 'oracleStrength' | 'requiresHumanValidation'>
 ): MonetaEvidenceDecision {
-  return adjudicateMonetaEvidence(
-    {
-      ...candidate,
-      oracleStrength: family.oracleStrength,
-      requiresHumanValidation: family.requiresHumanValidation,
-    },
-    { stabilityPolicy: family.stabilityPolicy }
-  );
+  return adjudicateMonetaEvidence({
+    ...candidate,
+    oracleStrength: family.oracleStrength,
+    requiresHumanValidation: family.requiresHumanValidation,
+  });
 }

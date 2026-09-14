@@ -737,12 +737,11 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
   });
 
   it('extends source binding through signature, arbitration and the resident payload', () => {
-    const data = graphDataset('r2e-b3-arbitration');
-    const arbitrationData = graphArbitrationDataset();
+    const data = graphArbitrationDataset();
     const signature = buildDatasetSignature(
-      arbitrationData,
+      data,
       null,
-      arbitrationData.fingerprint
+      data.fingerprint
     );
     expect(signature.topologicalStructure.topology).toBe('GRAPH');
     expect(signature.cardinality.edgeCount).toBe(sourceEdges().length);
@@ -758,11 +757,18 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     // arbitration, still bind endpoints to the declared durable row IDs.
     const envelope = realEnvelope(data);
     const payload = payloadOf(envelope);
-    expect(payload.nodes.map((node) => node.sourceRowId)).toEqual([...ROW_IDS]);
+    expect(payload.nodes.map((node) => node.sourceRowId)).toEqual([
+      'row-alpha',
+      'row-beta',
+      'row-delta',
+      'row-epsilon',
+      'row-gamma',
+      'row-zeta',
+    ]);
     expect(payload.counts).toMatchObject({
-      sourceNodeCount: 3,
+      sourceNodeCount: 6,
       sourceEdgeCount: sourceEdges().length,
-      retainedNodeCount: 3,
+      retainedNodeCount: 6,
       retainedEdgeCount: sourceEdges().length,
       refusedEdgeCount: 0,
     });

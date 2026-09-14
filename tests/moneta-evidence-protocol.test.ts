@@ -70,25 +70,30 @@ describe('Moneta evidence validity protocol', () => {
     expect(decision.disposition).toBe('REQUIRES-HUMAN');
   });
 
-  it('allows high-dimensional evidence only when an authority-owned policy certifies it', () => {
-    const decision = adjudicateMonetaEvidence(
+  it('does not let a caller-supplied policy self-certify high-dimensional evidence', () => {
+    const decision = (
+      adjudicateMonetaEvidence as unknown as (
+        candidate: MonetaEvidenceCandidate,
+        context: unknown,
+      ) => ReturnType<typeof adjudicateMonetaEvidence>
+    )(
       {
         ...base(),
         sampleSize: 20,
         featureCount: 200,
-        perturbation: { runs: 100, metric: 'candidate-rank-stability', value: 0.91 },
+        perturbation: { runs: 1, metric: 'nonsense', value: -999 },
       },
       {
         stabilityPolicy: {
-          acceptedMetrics: ['candidate-rank-stability'],
-          minRuns: 50,
-          valueRange: { minInclusive: 0, maxInclusive: 1 },
+          acceptedMetrics: ['nonsense'],
+          minRuns: 1,
+          valueRange: { minInclusive: -999, maxInclusive: -999 },
         },
       }
     );
-    expect(decision.disposition).toBe('ELIGIBLE');
-    expect(decision.flags.stabilityEvidencePresent).toBe(true);
-    expect(decision.flags.stabilityCertificationApplied).toBe(true);
+    expect(decision.disposition).toBe('ABSTAIN');
+    expect(decision.flags.stabilityEvidencePresent).toBe(false);
+    expect(decision.flags.stabilityCertificationApplied).toBe(false);
   });
 
   it('fails closed when high-dimensional perturbation evidence has no authority-owned policy', () => {
@@ -104,40 +109,22 @@ describe('Moneta evidence validity protocol', () => {
   });
 
   it('rejects malformed perturbation evidence instead of treating presence as stability', () => {
-    const decision = adjudicateMonetaEvidence(
-      {
-        ...base(),
-        sampleSize: 20,
-        featureCount: 200,
-        perturbation: { runs: 1, metric: '', value: -999 },
-      },
-      {
-        stabilityPolicy: {
-          acceptedMetrics: ['candidate-rank-stability'],
-          minRuns: 50,
-          valueRange: { minInclusive: 0, maxInclusive: 1 },
-        },
-      }
-    );
+    const decision = adjudicateMonetaEvidence({
+      ...base(),
+      sampleSize: 20,
+      featureCount: 200,
+      perturbation: { runs: 1, metric: '', value: -999 },
+    });
     expect(decision.disposition).toBe('INVALID');
   });
 
   it('keeps well-formed but uncertified perturbation evidence in abstention', () => {
-    const decision = adjudicateMonetaEvidence(
-      {
-        ...base(),
-        sampleSize: 20,
-        featureCount: 200,
-        perturbation: { runs: 1, metric: 'nonsense', value: 0 },
-      },
-      {
-        stabilityPolicy: {
-          acceptedMetrics: ['candidate-rank-stability'],
-          minRuns: 50,
-          valueRange: { minInclusive: 0, maxInclusive: 1 },
-        },
-      }
-    );
+    const decision = adjudicateMonetaEvidence({
+      ...base(),
+      sampleSize: 20,
+      featureCount: 200,
+      perturbation: { runs: 1, metric: 'nonsense', value: 0 },
+    });
     expect(decision.disposition).toBe('ABSTAIN');
     expect(decision.flags.stabilityEvidencePresent).toBe(false);
   });
