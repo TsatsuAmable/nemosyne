@@ -10,6 +10,7 @@ import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 import { InputTelemetry } from '../src/vr/InputTelemetry.ts';
+import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 
 /**
  * Minimal mock EventTarget for controller spaces.
@@ -685,6 +686,14 @@ describe('DracoDiagnosticHUD', () => {
 });
 
 describe('InputTelemetry', () => {
+  it('uses SpatialPanel/UIKit rather than the legacy canvas substrate', () => {
+    const engine = makeMockEngine(null);
+    const telemetry = new InputTelemetry(engine);
+    expect(telemetry).toBeInstanceOf(SpatialPanel);
+    telemetry.dispose();
+  });
+
+
   function makeMockHand(index, handedness, pinched) {
     const origin = new THREE.Vector3(index + 1, index + 2, index + 3);
     return {
