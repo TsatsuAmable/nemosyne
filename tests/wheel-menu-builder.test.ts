@@ -46,6 +46,7 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
   const recPanel = panel();
   const dataSourcePanel = panel();
   const vaultPanel = panel();
+  const capabilityGuidePanel = { mesh: new THREE.Object3D(), toggle: fn('capabilityGuidePanel.toggle') } as any;
   const schemaMapPanel = panel();
   const gestureConfPanel = panel();
 
@@ -62,6 +63,7 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
       recommendationPanel: recPanel,
       dataSourcePanel,
       vaultPanel,
+      capabilityGuidePanel,
       // Lazy panel accessors (return the pre-built stub panels so `toggle` fires).
       getOrCreateOperationLogPanel: () => opLog,
       getOrCreateInteractionCoach: () => coachPanel,
@@ -331,6 +333,16 @@ describe('WheelMenuBuilder', () => {
 
     superuser.items.find((item) => item.id === 'su-panel-launcher')!.callback();
     expect(spy['panelManager.toggleLauncher']).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('wires the participant Guide annex to the context capability surface', () => {
+    const { world, spy } = makeStubWorld();
+    const guide = buildIntentWheelMenuCategories(world).find((c) => c.id === 'GUIDE');
+    const whatCanIDo = guide?.items.find((item) => item.id === 'what-can-i-do');
+    expect(whatCanIDo).toBeDefined();
+    whatCanIDo?.callback();
+    expect(spy['capabilityGuidePanel.toggle']).toHaveBeenCalledTimes(1);
   });
 
 

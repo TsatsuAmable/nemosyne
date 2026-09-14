@@ -17,6 +17,7 @@ export interface WheelMenuHost {
     WorldUIManagerLike,
     | 'dashboard'
     | 'dataSourcePanel'
+    | 'capabilityGuidePanel'
     | 'getOrCreateGestureConfidenceHUD'
     | 'getOrCreateInteractionCoach'
     | 'getOrCreateNarrativeStrip'
@@ -838,6 +839,25 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           label: 'Exit VR',
           icon: '🚪',
           callback: () => (world.exitVR ? world.exitVR() : world.engine?.exitVR?.()),
+        },
+      ],
+    },
+    {
+      id: 'GUIDE',
+      label: 'Guide',
+      icon: '?',
+      items: [
+        {
+          id: 'what-can-i-do',
+          label: 'What can I do here?',
+          icon: '?',
+          callback: () => world.uiManager?.capabilityGuidePanel?.toggle?.(),
+        },
+        {
+          id: 'coach',
+          label: 'Interaction Coach',
+          icon: '🎓',
+          callback: () => toggle(world.uiManager?.getOrCreateInteractionCoach?.()),
         },
       ],
     },

@@ -37,6 +37,7 @@ import { StatusStripPanel } from '../ui/StatusStripPanel.ts';
 import { PanelRolesManager, type UIMode } from '../ui/PanelRolesManager.ts';
 import { PANEL_LAYOUT, type Vec3 } from '../ui/panelLayout.ts';
 import { ContextualTaskSurface } from '../ui/ContextualTaskSurface.ts';
+import { CapabilityGuidePanel } from '../ui/CapabilityGuidePanel.ts';
 import type { Dataset } from '../../data/Dataset.ts';
 import { Dataset as DatasetClass } from '../../data/Dataset.ts';
 import type { UXFrustrationAnalyzer } from '../../utils/UXFrustrationAnalyzer.ts';
@@ -141,6 +142,7 @@ export class WorldUIManager {
   statusStrip: StatusStripController;
   panelRolesManager: PanelRolesManager;
   contextualTaskSurface: ContextualTaskSurface;
+  capabilityGuidePanel: CapabilityGuidePanel;
   /**
    * Enforces the analyst workspace panel budget for SpatialPanel-based surfaces
    * (HolographicInspector, SettingsPanel, and future migrated precision
@@ -179,6 +181,7 @@ export class WorldUIManager {
   frustrationResponseManager: FrustrationResponseManager | null = null;
   jitGestureHintManager: JITGestureHintManager | null = null;
   progressiveDisclosureController: ProgressiveDisclosureController | null = null;
+  private _wheelCategories: WheelMenuCategory[] = [];
   private _borrowedResources = new Set<object>();
   private _disposed = false;
 
@@ -219,6 +222,14 @@ export class WorldUIManager {
     this.analystAnchor.add(this.contextualTaskSurface);
     this.engine.addUpdatable(this.contextualTaskSurface);
     this.engine.input.addPanel(this.contextualTaskSurface);
+
+    this.capabilityGuidePanel = new CapabilityGuidePanel({
+      parent: this.analystAnchor,
+      getWheelCategories: () => this._wheelCategories,
+      contextualTaskSurface: this.contextualTaskSurface,
+    });
+    this.engine.addUpdatable(this.capabilityGuidePanel);
+    this.engine.input.addPanel(this.capabilityGuidePanel);
 
     // SpatialPanel workspace budget (governs inspector/settings/future surfaces).
     this.panelBudgetController = new PanelBudgetController();
@@ -698,7 +709,9 @@ export class WorldUIManager {
    * Populate the hand wheel menu from a pre-built category/action list.
    */
   buildWheelMenu(categories: WheelMenuCategory[]): void {
+    this._wheelCategories = categories.slice();
     this.handWheelMenu.setMenu(categories);
+    if (this.capabilityGuidePanel.visible) this.capabilityGuidePanel.refresh();
   }
 
   /**
@@ -792,10 +805,12 @@ export class WorldUIManager {
     this.engine.removeUpdatable(this.dashboard);
     this.engine.removeUpdatable(this.handWheelMenu);
     this.engine.removeUpdatable(this.contextualTaskSurface);
+    this.engine.removeUpdatable(this.capabilityGuidePanel);
     this.engine.removeUpdatable(this.statusStripPanel);
     this.engine.removeHudObject(this.handWheelMenu);
     this.engine.input.removePanel(this.handWheelMenu);
     this.engine.input.removePanel(this.contextualTaskSurface);
+    this.engine.input.removePanel(this.capabilityGuidePanel);
     this.engine.input.setHandWheelMenu(null);
     this.engine.input.setPanelManager(null);
 
@@ -807,6 +822,7 @@ export class WorldUIManager {
     if (!this._borrowedResources.has(this.contextualTaskSurface)) {
       this.contextualTaskSurface.dispose?.();
     }
+    this.capabilityGuidePanel.dispose?.();
     this.panelManager.dispose();
 
     if (this.representationCarousel && !this._borrowedResources.has(this.representationCarousel)) {

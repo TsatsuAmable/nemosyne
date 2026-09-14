@@ -233,6 +233,7 @@ export interface WorldUIManagerLike {
   dashboard?: DashboardLike;
   handWheelMenu?: HandWheelMenuLike;
   dataSourcePanel?: (PanelLike & { setLiveConnected?(connected: boolean): void }) | null;
+  capabilityGuidePanel?: (PanelLike & { toggle?(): void; refresh?(): void }) | null;
   vrConsole?: VRConsoleLike | null;
   telemetryPanel?: PanelLike | null;
   settingsPanel?: (SettingsPanelLike & PanelLike) | null;
