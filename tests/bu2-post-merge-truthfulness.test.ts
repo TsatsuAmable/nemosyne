@@ -24,7 +24,7 @@ describe('B-U2 post-merge truthfulness', () => {
     expect(world).toContain('this.atlas.previewRepresentation(newReq)');
     expect(world).not.toContain('const previewDecision = this.atlas.arbitrateRepresentation(newReq)');
     expect(world).toContain('applyRemediation(this._activeRequirements, action)');
-    expect(panel).toContain('PREVIEW: ${candidate} · ${layout}');
+    expect(panel).toContain("lines.push('PREVIEW: ' + candidate + ' · ' + layout");
     expect(panel).toContain('PREVIEW STALE — run preview again');
   });
 
