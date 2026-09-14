@@ -58,6 +58,39 @@ describe('VRConsole', () => {
     expect(consolePanel.lines[4].text).toContain('line-9');
   });
 
+
+  it('does not recursively mirror logs emitted while projecting UIKit content', () => {
+    consolePanel = new VRConsole(new THREE.Group());
+    const content = consolePanel._content;
+    const originalSetProperties = content.setProperties.bind(content);
+
+    let nestedEmissions = 0;
+    content.setProperties = (properties) => {
+      nestedEmissions += 1;
+      console.warn('uikit-render-log');
+      return originalSetProperties(properties);
+    };
+
+    console.log('outer-log');
+    expect(nestedEmissions).toBe(0);
+
+    consolePanel.update();
+
+    expect(nestedEmissions).toBe(1);
+    expect(consolePanel.lines.filter((line) => line.text.includes('outer-log'))).toHaveLength(1);
+    expect(consolePanel.lines.some((line) => line.text.includes('uikit-render-log'))).toBe(false);
+  });
+
+  it('restores the patched browser console when disposed', () => {
+    consolePanel = new VRConsole(new THREE.Group());
+    consolePanel.dispose();
+
+    const beforeCount = consolePanel.lines.length;
+    console.log('after-dispose');
+    expect(consolePanel.lines.length).toBe(beforeCount);
+    consolePanel = null;
+  });
+
   it('unpatches console on request', () => {
     consolePanel = new VRConsole(new THREE.Group());
     consolePanel.unpatchConsole();
