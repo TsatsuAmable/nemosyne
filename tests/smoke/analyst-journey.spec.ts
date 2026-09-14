@@ -10,8 +10,10 @@ async function openPortableCommand(page: Page, bytes: Uint8Array): Promise<void>
   const search = page.locator('nms-command-palette .search-input');
   await expect(search).toBeVisible();
   await search.fill('Open .nemosyne');
+  const command = page.locator('nms-command-palette .command-item[data-command-id="replay"]');
+  await expect(command).toBeVisible();
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.keyboard.press('Enter');
+  await command.click();
   const chooser = await chooserPromise;
   await chooser.setFiles({
     name: 'investigation.nemosyne',

@@ -51,6 +51,8 @@ export class VRConsole extends SpatialPanel {
   private _originalConsole: ConsolePatch | null = null;
   private _textScale: number;
   private _highContrast: boolean;
+  private _mirrorInProgress = false;
+  private _projectionDirty = false;
 
   constructor(analystAnchor: THREE.Object3D, { maxLines = 24, textScale = 1, highContrast = false }: VRConsoleOptions = {}) {
     const theme = getTheme(highContrast);
@@ -86,11 +88,12 @@ export class VRConsole extends SpatialPanel {
     });
     this.add(this._content);
 
-    this._patchConsole();
     this.render();
+    this._patchConsole();
   }
 
   log(level: string, args: unknown[]): void {
+    if (this._mirrorInProgress) return;
     const text = args
       .map((value) => {
         try {
@@ -112,6 +115,12 @@ export class VRConsole extends SpatialPanel {
     if (this.lines.length > this.maxLines) {
       this.lines.splice(0, this.lines.length - this.maxLines);
     }
+    this._projectionDirty = true;
+  }
+
+  update(): void {
+    if (!this._projectionDirty) return;
+    this._projectionDirty = false;
     this.render();
   }
 
@@ -138,12 +147,19 @@ export class VRConsole extends SpatialPanel {
   }
 
   render(): void {
-    const theme = getTheme(this._highContrast);
-    this._content.setProperties({
-      text: this.lines.map((line) => line.text).join('\n'),
-      fontSize: 16 * this._textScale,
-      color: Number(theme.textPrimary),
-    });
+    if (this._mirrorInProgress) return;
+
+    this._mirrorInProgress = true;
+    try {
+      const theme = getTheme(this._highContrast);
+      this._content.setProperties({
+        text: this.lines.map((line) => line.text).join('\n'),
+        fontSize: 16 * this._textScale,
+        color: Number(theme.textPrimary),
+      });
+    } finally {
+      this._mirrorInProgress = false;
+    }
   }
 
   _patchConsole(): void {
