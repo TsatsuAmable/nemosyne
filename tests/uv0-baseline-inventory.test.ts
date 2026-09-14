@@ -48,6 +48,7 @@ const EAGER_WORLD_UI_DISPOSITIONS: Readonly<Record<string, string>> = {
   statusStrip: 'excluded: controller, not an independently visible surface',
   panelRolesManager: 'excluded: UI policy manager, not a visible surface',
   contextualTaskSurface: 'contextual-task-surface',
+  capabilityGuidePanel: 'excluded: transient GUIDE annex summoned through the canonical intent surface, not an independent UV0 baseline surface',
   panelBudgetController: 'excluded: workspace budget controller, not a visible surface',
   telemetryPanel: 'input-telemetry',
   vrConsole: 'vr-console',
