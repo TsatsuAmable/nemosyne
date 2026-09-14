@@ -247,6 +247,7 @@ export interface WorldUIManagerLike {
   peerPresenceHUD?: PanelLike | null;
   recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
   dracoExplainerPanel?: PanelLike | null;
+  vaultPanel?: PanelLike | null;
   dispose?(): void;
   /** Lazy accessors for panels deferred from boot. Construct + register on first call. */
   getOrCreateOperationLogPanel?(): PanelLike | null;

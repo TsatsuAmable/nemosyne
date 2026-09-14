@@ -284,16 +284,16 @@ describe('World integration', () => {
     }
   });
 
-  it('wires system toggle to the launcher ring', () => {
+  it('wires system toggle to the canonical hand wheel, not the generic panel launcher', () => {
     world = new World(); wireKernel(world);
+    const toggle = vi.spyOn(world.uiManager.handWheelMenu, 'toggle');
 
     expect(typeof world.engine.input.onSystemToggle).toBe('function');
     expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
 
     world.engine.input.onSystemToggle();
-    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(true);
 
-    world.engine.input.onSystemToggle();
+    expect(toggle).toHaveBeenCalledTimes(1);
     expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
   });
 
@@ -1021,15 +1021,16 @@ describe('World integration', () => {
     expect(filterCall[0].result).toMatch(/\d+ rows/);
   });
 
-  it('logs the launcher toggle to the interaction coach', () => {
+  it('logs the canonical command-wheel toggle to the interaction coach', () => {
     world = new World(); wireKernel(world);
     const logSpy = vi.spyOn(world.uiManager.getOrCreateInteractionCoach(), 'log');
 
     world._togglePanels();
 
-    const call = logSpy.mock.calls.find((c) => c[0].action === 'Launcher');
+    const call = logSpy.mock.calls.find((c) => c[0].action === 'Command wheel');
     expect(call).toBeTruthy();
     expect(call[0].result).toBe('opened');
+    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
   });
 
   it('wires the controller gesture mapper into input', () => {

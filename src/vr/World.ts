@@ -710,7 +710,8 @@ export class World {
     // Teleport anchors around the palace.
     this._setupTeleportAnchors();
 
-    // System gesture (controller grip or two-hand pinch) toggles launcher ring.
+    // System gesture (controller grip or two-hand pinch) opens the canonical
+    // hand wheel. The generic panel launcher is retained only as a Dev Lab fallback.
     this.engine.input.onSystemToggle = () => this._togglePanels();
 
     // RF-025: install the P1-F semantic targeting + focus/context layer on the
@@ -1415,13 +1416,11 @@ export class World {
   }
 
   _togglePanels(): void {
-    this.uiManager.panelManager.toggleLauncher();
-    this.adaptiveAssist.recordPanelToggle(
-      'launcher',
-      this.uiManager.panelManager.isLauncherVisible()
-    );
-    this._logInteraction('Launcher', {
-      result: this.uiManager.panelManager.isLauncherVisible() ? 'opened' : 'closed',
+    this.uiManager.handWheelMenu.toggle();
+    const visible = this.uiManager.handWheelMenu.isVisible();
+    this.adaptiveAssist.recordPanelToggle('command-wheel', visible);
+    this._logInteraction('Command wheel', {
+      result: visible ? 'opened' : 'closed',
     });
   }
 

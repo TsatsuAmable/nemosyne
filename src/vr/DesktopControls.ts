@@ -153,7 +153,6 @@ export class DesktopControls {
     }
     if (e.code === 'KeyM' || e.code === 'KeyL' || e.code === 'Backquote') {
       this.engine.uiManager?.handWheelMenu?.toggle?.();
-      this.engine.uiManager?.panelManager?.toggleLauncher?.();
     }
     if (e.code === 'KeyN' || e.code === 'ArrowRight') {
       this.engine.guidedTour?.next?.();
