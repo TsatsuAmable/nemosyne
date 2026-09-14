@@ -338,26 +338,6 @@ describe('Stream B-U1 interaction grammar', () => {
   });
 
   describe('guidance heuristic score is not labeled as statistical confidence', () => {
-    function makeRecordingCtx() {
-      const texts: string[] = [];
-      const ctx: any = {
-        texts,
-        font: '',
-        fillStyle: '',
-        strokeStyle: '',
-        lineWidth: 1,
-        textAlign: '',
-        textBaseline: '',
-        fillText: (t: string) => {
-          texts.push(t);
-        },
-        fillRect: () => {},
-        strokeRect: () => {},
-        measureText: (t: string) => ({ width: String(t).length * 8 }),
-      };
-      return ctx;
-    }
-
     it('renders the value under a HEURISTIC RANK label, never CONFIDENCE', () => {
       const cameraGroup = new THREE.Group();
       const rec: AtlasRecommendation = {
@@ -373,12 +353,11 @@ describe('Stream B-U1 interaction grammar', () => {
       const panel = new RecommendationPanel(cameraGroup, {
         getRecommendation: () => rec,
       });
-      const ctx = makeRecordingCtx();
-      panel.renderContent(ctx, 700, 500);
-      const labels = ctx.texts.filter((t) => t.startsWith('// '));
-      expect(labels).toContain('// HEURISTIC RANK');
-      expect(labels.some((t) => t.includes('CONFIDENCE'))).toBe(false);
-      expect(ctx.texts.some((t) => t.includes('not statistical confidence'))).toBe(true);
+      const rendered = panel.getRenderedSummary();
+      expect(rendered).toContain('HEURISTIC RANK');
+      expect(rendered).not.toContain('CONFIDENCE');
+      expect(rendered).toContain('not statistical confidence');
+      panel.dispose();
     });
   });
 
