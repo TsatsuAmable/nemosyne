@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import {
+  buildIntentWheelMenuCategories,
   buildWheelMenuCategories,
   type WheelMenuHost,
 } from '../src/vr/coordinators/WheelMenuBuilder.ts';
@@ -43,6 +44,8 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
   const narrStrip = panel();
   const netPanel = panel();
   const recPanel = panel();
+  const dataSourcePanel = panel();
+  const vaultPanel = panel();
   const schemaMapPanel = panel();
   const gestureConfPanel = panel();
 
@@ -57,6 +60,8 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
       narrativeStrip: narrStrip,
       networkPanel: netPanel,
       recommendationPanel: recPanel,
+      dataSourcePanel,
+      vaultPanel,
       // Lazy panel accessors (return the pre-built stub panels so `toggle` fires).
       getOrCreateOperationLogPanel: () => opLog,
       getOrCreateInteractionCoach: () => coachPanel,
@@ -291,4 +296,42 @@ describe('WheelMenuBuilder', () => {
     expect(spy.disconnectLiveStream).toHaveBeenCalledTimes(1);
     expect(spy.connectLiveStream).not.toHaveBeenCalled();
   });
+  it('keeps the generic launcher out of ordinary analyst menus and retains it only in Dev Lab', () => {
+    const { world, spy } = makeStubWorld();
+    const legacy = buildWheelMenuCategories(world);
+    const panels = legacy.find((c) => c.id === 'panels')!;
+    const superuser = legacy.find((c) => c.id === 'superuser')!;
+    expect(panels.items.some((item) => item.id === 'launcher')).toBe(false);
+
+    const devLauncher = superuser.items.find((item) => item.id === 'su-panel-launcher');
+    expect(devLauncher).toBeDefined();
+    devLauncher!.callback();
+    expect(spy['panelManager.toggleLauncher']).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps focused Data Sources and Vault directly reachable without the launcher', () => {
+    const { world, spy } = makeStubWorld();
+    const intent = buildIntentWheelMenuCategories(world);
+    const data = intent.find((c) => c.id === 'DATA')!;
+    const study = intent.find((c) => c.id === 'STUDY')!;
+    const system = intent.find((c) => c.id === 'SYSTEM')!;
+    const superuser = intent.find((c) => c.id === 'SUPERUSER')!;
+
+    expect(system.items.some((item) => item.id === 'launcher')).toBe(false);
+
+    data.items.find((item) => item.id === 'data-sources')!.callback();
+    expect(spy['panelManager.togglePanel']).toHaveBeenLastCalledWith(
+      (world.uiManager as any).dataSourcePanel,
+    );
+
+    study.items.find((item) => item.id === 'vault')!.callback();
+    expect(spy['panelManager.togglePanel']).toHaveBeenLastCalledWith(
+      (world.uiManager as any).vaultPanel,
+    );
+
+    superuser.items.find((item) => item.id === 'su-panel-launcher')!.callback();
+    expect(spy['panelManager.toggleLauncher']).toHaveBeenCalledTimes(1);
+  });
+
+
 });

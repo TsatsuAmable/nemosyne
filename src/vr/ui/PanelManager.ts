@@ -204,7 +204,7 @@ export class PanelManager implements PanelManagerLike {
     this.hideLauncher();
   }
 
-  /** Toggle the launcher ring on/off. */
+  /** Toggle the diagnostic-only fallback launcher on/off. Normal analyst navigation uses the hand wheel. */
   toggleLauncher(): void {
     if (this._launcherVisible) this.hideLauncher();
     else this.showLauncher();
@@ -500,7 +500,7 @@ export class PanelManager implements PanelManagerLike {
     return panel;
   }
 
-  /** Update loop hook: keep launcher oriented toward the viewer if desired. */
+  /** Dev-only fallback launcher update hook. */
   update(): void {
     if (!this._launcherVisible) return;
   }

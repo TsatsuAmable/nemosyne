@@ -1,6 +1,6 @@
 /**
  * Owns construction and lifecycle of all HUD panels, the dashboard, the hand
- * wheel menu, and the launcher ring. `World.js` keeps these objects reachable
+ * wheel menu, and diagnostic-only panel launcher. `World.js` keeps these objects reachable
  * through legacy facade properties so existing tests remain valid.
  */
 
@@ -255,7 +255,7 @@ export class WorldUIManager {
     applyPanelLayout(this.dataSourcePanel, PANEL_LAYOUT.dataSourcePanel);
     this.dataSourcePanel.hide();
 
-    // Panel manager owns the launcher ring and per-panel visibility.
+    // Panel manager owns per-panel visibility and a Dev Lab-only fallback launcher.
     this.panelManager = new PanelManager(engine.cameraGroup, {
       analystAnchor,
       freeFloating: true,
@@ -741,7 +741,7 @@ export class WorldUIManager {
     this.panelManager.recenter();
   }
 
-  /** Toggle the launcher ring. */
+  /** Toggle the diagnostic-only fallback launcher. */
   toggleLauncher(): void {
     this.panelManager.toggleLauncher();
   }

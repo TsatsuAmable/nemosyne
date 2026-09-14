@@ -16,6 +16,7 @@ export interface WheelMenuHost {
   uiManager: Pick<
     WorldUIManagerLike,
     | 'dashboard'
+    | 'dataSourcePanel'
     | 'getOrCreateGestureConfidenceHUD'
     | 'getOrCreateInteractionCoach'
     | 'getOrCreateNarrativeStrip'
@@ -33,6 +34,7 @@ export interface WheelMenuHost {
     | 'toggleRepresentationCarousel'
     | 'toggleSchemaMappingPanel'
     | 'toggleTransientContextCards'
+    | 'vaultPanel'
     | 'vrConsole'
   >;
   engine: Pick<
@@ -140,16 +142,22 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
       icon: '🪟',
       items: [
         {
-          id: 'launcher',
-          label: 'Launcher',
-          icon: '🚀',
-          callback: () => pm?.toggleLauncher(),
-        },
-        {
           id: 'settings',
           label: 'Settings',
           icon: '⚙️',
           callback: () => world._toggleSettingsPanel(),
+        },
+        {
+          id: 'data-sources',
+          label: 'Data Sources',
+          icon: '🗂️',
+          callback: () => toggle(world.uiManager?.dataSourcePanel),
+        },
+        {
+          id: 'vault',
+          label: 'Vault',
+          icon: '🧊',
+          callback: () => toggle(world.uiManager?.vaultPanel),
         },
         {
           id: 'draco-explainer',
@@ -465,6 +473,12 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
       icon: '🔬',
       items: [
         {
+          id: 'su-panel-launcher',
+          label: 'Panel Launcher',
+          icon: '🧪',
+          callback: () => pm?.toggleLauncher(),
+        },
+        {
           id: 'su-representation-carousel',
           label: 'Rep Carousel',
           icon: '🎠',
@@ -674,6 +688,12 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           callback: viaIntent(world, { type: 'dataset.cycle', step: 1 }, () => world._cycleDataset()),
         },
         {
+          id: 'data-sources',
+          label: 'Data Sources',
+          icon: '🗂️',
+          callback: () => toggle(world.uiManager?.dataSourcePanel),
+        },
+        {
           id: 'live-stream',
           label: world.isLiveConnected() ? 'Stop Stream' : 'Live Ingest',
           icon: world.isLiveConnected() ? '⏹️' : '📡',
@@ -731,6 +751,12 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           callback: () => toggle(world.uiManager?.recommendationPanel),
         },
         {
+          id: 'vault',
+          label: 'Vault',
+          icon: '🧊',
+          callback: () => toggle(world.uiManager?.vaultPanel),
+        },
+        {
           id: 'story',
           label: 'Export Story',
           icon: '📤',
@@ -784,12 +810,6 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           callback: () => world._toggleSettingsPanel(),
         },
         {
-          id: 'launcher',
-          label: 'Launcher',
-          icon: '🚀',
-          callback: () => pm?.toggleLauncher(),
-        },
-        {
           id: 'operation-log',
           label: 'Operation Log',
           icon: '📝',
@@ -829,6 +849,12 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
       label: 'Dev Lab',
       icon: '🔬',
       items: [
+        {
+          id: 'su-panel-launcher',
+          label: 'Panel Launcher',
+          icon: '🧪',
+          callback: () => pm?.toggleLauncher(),
+        },
         {
           id: 'su-representation-carousel',
           label: 'Rep Carousel',
