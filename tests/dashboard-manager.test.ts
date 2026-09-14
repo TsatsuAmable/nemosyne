@@ -80,6 +80,29 @@ describe('DashboardManager', () => {
     }
   });
 
+
+  it('recognizes SpatialPanel-style isGrabbed state for dashboard snapping', () => {
+    const panel = new TestPanel(cameraGroup, 'A');
+    Object.defineProperty(panel, 'isGrabbed', {
+      configurable: true,
+      get: () => panel.__grabbed ?? false,
+    });
+    panel.__grabbed = false;
+    manager.registerPanel(panel, 0);
+
+    panel.__grabbed = true;
+    manager.update();
+    expect(manager.zoneMeshes[0].visible).toBe(true);
+
+    panel.mesh.position.set(0.48, 1.94, 1.5);
+    panel.__grabbed = false;
+    manager.update();
+
+    expect(manager.zoneMeshes[0].visible).toBe(false);
+    expect(panel.mesh.position.x).toBeCloseTo(0.5, 3);
+    expect(panel.mesh.position.y).toBeCloseTo(1.95, 3);
+  });
+
   it('hides zones when dragging stops', () => {
     const panel = new TestPanel(cameraGroup, 'A');
     manager.registerPanel(panel, 0);
