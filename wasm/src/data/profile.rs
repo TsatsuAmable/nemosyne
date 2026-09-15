@@ -590,10 +590,7 @@ fn evaluate_clusters_columnar(
 /// connected source graph disconnected); cycles retain directed source/target
 /// semantics. A tree-shaped graph remains a graph. Hierarchy classification is a
 /// schema/explicit-topology concern, not an inference from `edge_count == n - 1`.
-fn analyze_graph(
-    row_count: usize,
-    edges: &[crate::data::dataset::Edge],
-) -> Option<GraphProfile> {
+fn analyze_graph(row_count: usize, edges: &[crate::data::dataset::Edge]) -> Option<GraphProfile> {
     if edges.is_empty() {
         return None;
     }
@@ -831,8 +828,12 @@ pub fn compute_columnar_dataset_structure_profile(
         dataset_fingerprint,
         kernel_version,
         |time_column, value_column| {
-            let time_index = columns.iter().position(|column| column.name == time_column)?;
-            let value_index = columns.iter().position(|column| column.name == value_column)?;
+            let time_index = columns
+                .iter()
+                .position(|column| column.name == time_column)?;
+            let value_index = columns
+                .iter()
+                .position(|column| column.name == value_column)?;
             compute_spectral_facts_columnar(
                 Some(columnar.primitive_column(time_index)?),
                 columnar.primitive_column(value_index)?,
@@ -886,8 +887,8 @@ fn assemble_structure_profile(
             let max_deviation = (stats.max - stats.mean)
                 .abs()
                 .max((stats.min - stats.mean).abs());
-            max_observed_anomaly_score = max_observed_anomaly_score
-                .max((max_deviation / stats.std / 5.0).clamp(0.0, 1.0));
+            max_observed_anomaly_score =
+                max_observed_anomaly_score.max((max_deviation / stats.std / 5.0).clamp(0.0, 1.0));
         }
         numeric_summaries.push(NumericDistributionSummary {
             column: stats.name.clone(),
@@ -905,7 +906,10 @@ fn assemble_structure_profile(
             is_heavy_tailed: stats.kurtosis > 3.0,
         });
     }
-    let total_anomalies = numeric_summaries.iter().map(|summary| summary.outlier_count).sum();
+    let total_anomalies = numeric_summaries
+        .iter()
+        .map(|summary| summary.outlier_count)
+        .sum();
     let distributions = DistributionProfile {
         numeric_summaries,
         global_has_outliers,
@@ -1017,7 +1021,11 @@ fn assemble_structure_profile(
                     .iter()
                     .map(|&frequency| PeriodicityProfile {
                         frequency,
-                        period_time_units: if frequency > 0.0 { 1.0 / frequency } else { 0.0 },
+                        period_time_units: if frequency > 0.0 {
+                            1.0 / frequency
+                        } else {
+                            0.0
+                        },
                         confidence: profile.periodicity_confidence,
                     })
                     .collect()
@@ -1165,6 +1173,138 @@ mod tests {
     }
 
     #[test]
+    fn effective_dimensions_does_not_claim_rank_for_duplicate_numeric_columns() {
+        let columns: Vec<Column> = (0..8)
+            .map(|index| Column::new(format!("x{index}"), ColumnType::Numeric))
+            .collect();
+        let rows = (0..16)
+            .map(|row| {
+                columns
+                    .iter()
+                    .map(|column| (column.name.clone(), Value::Number(row as f64)))
+                    .collect()
+            })
+            .collect();
+        let dataset = Dataset::new("duplicate-rank-control", columns, rows);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.dimensionality.effective_dimensions, 8,
+            "descriptive effective_dimensions must remain ambient nonconstant count, not masquerade as rank");
+        assert_eq!(
+            profile.dimensionality.redundant_columns, 1,
+            "legacy redundancy flag is only a coarse pairwise indicator"
+        );
+    }
+
+    #[test]
+    fn effective_dimensions_does_not_claim_rank_for_linear_dependence() {
+        let columns = vec![
+            Column::new("x", ColumnType::Numeric),
+            Column::new("y", ColumnType::Numeric),
+            Column::new("x_plus_y", ColumnType::Numeric),
+        ];
+        let rows = (0..32)
+            .map(|i| {
+                let x = i as f64;
+                let y = ((i * 7) % 19) as f64;
+                HashMap::from([
+                    ("x".to_string(), Value::Number(x)),
+                    ("y".to_string(), Value::Number(y)),
+                    ("x_plus_y".to_string(), Value::Number(x + y)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new("linear-dependence-control", columns, rows);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(
+            profile.dimensionality.effective_dimensions, 3,
+            "the profile is descriptive and must not be interpreted as numerical rank <= 2"
+        );
+    }
+    #[test]
+    fn effective_dimensions_does_not_claim_statistical_rank_for_noisy_low_rank_data() {
+        let columns: Vec<Column> = (0..6)
+            .map(|index| Column::new(format!("x{index}"), ColumnType::Numeric))
+            .collect();
+        let rows = (0..48)
+            .map(|i| {
+                let a = i as f64 / 7.0;
+                let b = ((i * 11) % 23) as f64 / 5.0;
+                columns
+                    .iter()
+                    .enumerate()
+                    .map(|(j, column)| {
+                        let noise = (((i * (j + 3)) % 17) as f64 - 8.0) * 1e-4;
+                        let value = (j as f64 + 1.0) * a + ((j % 3) as f64 - 1.0) * b + noise;
+                        (column.name.clone(), Value::Number(value))
+                    })
+                    .collect()
+            })
+            .collect();
+        let dataset = Dataset::new("noisy-low-rank-control", columns, rows);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(
+            profile.dimensionality.effective_dimensions, 6,
+            "ambient nonconstant count carries no claim about latent/effective rank under noise"
+        );
+    }
+
+    #[test]
+    fn effective_dimensions_does_not_unify_mixed_measurement_scales() {
+        let columns = vec![
+            Column::new("temperature", ColumnType::Numeric),
+            Column::new("severity", ColumnType::Categorical),
+            Column::new("timestamp", ColumnType::Temporal),
+        ];
+        let rows = (0..12)
+            .map(|i| {
+                HashMap::from([
+                    ("temperature".to_string(), Value::Number(18.0 + i as f64)),
+                    (
+                        "severity".to_string(),
+                        Value::Text(["low", "medium", "high"][i % 3].to_string()),
+                    ),
+                    (
+                        "timestamp".to_string(),
+                        Value::Number(1_700_000_000.0 + i as f64 * 60.0),
+                    ),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new("mixed-scale-control", columns, rows);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.dimensionality.effective_dimensions, 3,
+            "one descriptive count must not imply a lawful shared numeric geometry across measurement scales");
+        assert_eq!(profile.dimensionality.numeric_columns, 1);
+        assert_eq!(profile.dimensionality.categorical_columns, 1);
+        assert_eq!(profile.dimensionality.temporal_columns, 1);
+    }
+
+    #[test]
+    fn effective_dimensions_does_not_claim_simplex_intrinsic_dimension() {
+        let columns = vec![
+            Column::new("part_a", ColumnType::Numeric),
+            Column::new("part_b", ColumnType::Numeric),
+            Column::new("part_c", ColumnType::Numeric),
+        ];
+        let rows = (1..25)
+            .map(|i| {
+                let a = i as f64;
+                let b = (i * i) as f64;
+                let c = 700.0 - a - b;
+                HashMap::from([
+                    ("part_a".to_string(), Value::Number(a / 700.0)),
+                    ("part_b".to_string(), Value::Number(b / 700.0)),
+                    ("part_c".to_string(), Value::Number(c / 700.0)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new("simplex-closure-control", columns, rows);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.dimensionality.effective_dimensions, 3,
+            "three closed parts carry only relative information; ambient count is not compositional authority");
+    }
+
+    #[test]
     fn stable_string_endpoint_graph_has_truthful_profile() {
         let mut dataset = Dataset::new(
             "string-edge",
@@ -1246,7 +1386,10 @@ mod tests {
         )
         .expect("columnar profile");
         assert_eq!(columnar_profile, row_profile);
-        assert!(row_profile.spectral.is_none(), "missing sample creates a gap; FFT must fail closed");
+        assert!(
+            row_profile.spectral.is_none(),
+            "missing sample creates a gap; FFT must fail closed"
+        );
     }
 
     #[test]
