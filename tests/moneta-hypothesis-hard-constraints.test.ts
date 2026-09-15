@@ -23,16 +23,11 @@ describe('Moneta hypothesis hard constraints', () => {
       );
       const requirements = createDefaultRequirements('distribution-analysis', ['value']);
 
-      let error: NoFeasibleRepresentationError | null = null;
-      try {
-        new MonetaHypothesisEngine().arbitrate(signature, requirements);
-      } catch (caught) {
-        if (caught instanceof NoFeasibleRepresentationError) error = caught;
-        else throw caught;
-      }
+      const decision = new MonetaHypothesisEngine().arbitrate(signature, requirements);
 
-      expect(error).not.toBeNull();
-      const stabilityBlocked = (error?.nearMisses ?? []).filter(
+      expect(decision.decisionStatus).toBe('ABSTAIN');
+      expect(decision.chosenCandidateId).toBeUndefined();
+      const stabilityBlocked = (decision.rankedCandidates ?? []).filter(
         (candidate) => candidate.disqualificationCode === 'stability-evidence-required',
       );
       expect(stabilityBlocked.length).toBeGreaterThan(0);

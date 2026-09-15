@@ -49,6 +49,27 @@ describe('analyst representation outcomes', () => {
     expect(arbitrateRepresentation).not.toHaveBeenCalled();
   });
 
+  it('reports scientific abstention without presenting the ranked near-miss as a decision', () => {
+    const abstention = {
+      ...decision(),
+      id: 'abstention-point-grid',
+      decisionStatus: 'ABSTAIN' as const,
+      chosenCandidateId: undefined,
+      rankedCandidates: [{ candidateId: 'POINT_SET' }, { candidateId: 'DISTRIBUTION_FIELD' }],
+    } as RepresentationDecision;
+    const assess = assessmentWith({
+      isReady: () => true,
+      activeRepresentationDecision: abstention,
+      arbitrateRepresentation: vi.fn(),
+    });
+
+    expect(assess()).toEqual({
+      kind: 'abstain',
+      decisionId: 'abstention-point-grid',
+      nearMissCount: 2,
+    });
+  });
+
   it('persists a provenance-complete NIL outcome under an explicit element budget', () => {
     const recordNoFeasibleRepresentation = vi.fn();
     const nil = new NoFeasibleRepresentationError(

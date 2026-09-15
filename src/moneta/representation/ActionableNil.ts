@@ -18,9 +18,9 @@ import type {
   SemanticRepresentationId,
 } from './RepresentationCandidate.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from './RepresentationCandidate.ts';
-import type {
+import {
   NoFeasibleRepresentationError,
-  NoFeasibleRepresentationProvenance,
+  type NoFeasibleRepresentationProvenance,
 } from './NoFeasibleRepresentationError.ts';
 import type { RepresentationDecisionStatus } from './DecisionPolicy.ts';
 import {
@@ -131,11 +131,13 @@ export function diagnoseInvestigatorOutcome(
   requirements: RepresentationRequirements,
   decisionOrError: RepresentationDecision | NoFeasibleRepresentationError
 ): InvestigatorActionableOutcome {
-  if ('chosenCandidateId' in decisionOrError) {
+  if (!(decisionOrError instanceof NoFeasibleRepresentationError)) {
     const decision = decisionOrError;
-    const nearMisses = (decision.rankedCandidates ?? [])
-      .filter((c) => c.candidateId !== decision.chosenCandidateId && !c.disqualified)
-      .slice(0, 3);
+    const nearMisses = decision.decisionStatus === 'ABSTAIN'
+      ? (decision.rankedCandidates ?? []).slice(0, 3)
+      : (decision.rankedCandidates ?? [])
+        .filter((c) => c.candidateId !== decision.chosenCandidateId && !c.disqualified)
+        .slice(0, 3);
 
     const availableRemediations: RemedialAction[] = [];
     if (decision.decisionStatus === 'AMBIGUOUS' && decision.runnerUp) {
@@ -153,7 +155,10 @@ export function diagnoseInvestigatorOutcome(
     }
 
     let readableExplanation = decision.explanation ?? '';
-    if (decision.decisionStatus === 'UNDERDETERMINED') {
+    if (decision.decisionStatus === 'ABSTAIN') {
+      readableExplanation =
+        `Abstained: ${decision.decisionRationale ?? 'Current scientific evidence is insufficient for promotion.'}`;
+    } else if (decision.decisionStatus === 'UNDERDETERMINED') {
       readableExplanation =
         `Underdetermined: ${decision.decisionRationale ?? 'Top candidates are closely tied or below decisive utility threshold.'} ` +
         `Consider refining task intent or applying structural focus.`;

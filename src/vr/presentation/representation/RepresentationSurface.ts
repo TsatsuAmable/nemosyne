@@ -149,6 +149,16 @@ export class RepresentationSurface {
     return nextNode;
   }
 
+  /**
+   * Clears any promoted representation without constructing a replacement.
+   * Used for scientific ABSTAIN: the dataset/investigation remains active, but
+   * no near-miss or fallback representation is promoted into the scene.
+   */
+  clear(): void {
+    if (this.disposed) throw new Error('RepresentationSurface is disposed');
+    this.disposeCurrent();
+  }
+
   subscribeSelection(listener: RepresentationSelectionListener): () => void {
     this.selectionListeners.add(listener);
     return () => this.selectionListeners.delete(listener);

@@ -67,4 +67,57 @@ describe('RF-062C production World path', () => {
     expect(world.diagnostic).toBeNull();
     world = null;
   });
+
+  it('clears the production surface when the authoritative load result abstains', async () => {
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
+
+    const abstainDecision = {
+      decisionStatus: 'ABSTAIN',
+      decisionId: 'decision-abstain',
+      policyId: 'policy',
+      policyVersion: '1',
+      datasetSignatureHash: 'dataset',
+      requirementsHash: 'requirements',
+      chosenCandidateId: undefined,
+      chosenLayout: undefined,
+      embodiment: {
+        spatialStrategy: null,
+        representationType: 'NONE',
+      },
+      rankedCandidates: [],
+      rejectedAlternatives: [],
+      timestamp: 0,
+    };
+    const execute = vi.spyOn(world.loadDatasetUseCase, 'execute').mockReturnValue({
+      entry: {
+        name: sample.label,
+        topology: sample.topology,
+        dataset: sample.dataset,
+        maxDepth: sample.depth,
+      },
+      embodiedDataset: sample.dataset,
+      dataInput: { topology: sample.topology, dataset: sample.dataset },
+      requirements: {} as never,
+      representationDecision: abstainDecision as never,
+      outcome: { kind: 'ABSTAIN' } as never,
+    });
+    const clear = vi.spyOn(world.representationSurface, 'clear');
+    const replace = vi.spyOn(world.representationSurface, 'replace');
+
+    await world.loadDataset({
+      name: sample.label,
+      topology: sample.topology,
+      dataset: sample.dataset,
+      maxDepth: sample.depth,
+    });
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(clear).toHaveBeenCalledOnce();
+    expect(replace).not.toHaveBeenCalled();
+    expect(world.dracoNode).toBeNull();
+    expect(world.representationSurface.currentNode).toBeNull();
+  });;
 });

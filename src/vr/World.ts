@@ -1204,10 +1204,15 @@ export class World {
     this._activeOutcome = result.outcome;
     this.uiManager?.recommendationPanel?.markDirty();
 
-    this.dracoNode = this.representationSurface.replace(
-      result.dataInput,
-      result.representationDecision
-    );
+    if (result.representationDecision?.decisionStatus === 'ABSTAIN') {
+      this.representationSurface.clear();
+      this.dracoNode = null;
+    } else {
+      this.dracoNode = this.representationSurface.replace(
+        result.dataInput,
+        result.representationDecision
+      );
+    }
     this.diagnostic = this.representationSurface.diagnostic;
     this._lastSelectedMesh = this.representationSurface.selectedMesh;
 

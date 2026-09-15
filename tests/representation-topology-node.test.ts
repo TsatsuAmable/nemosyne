@@ -114,4 +114,28 @@ describe('Phase 4: Integrate RepresentationDecision into DracoTopologyNode', () 
     expect(node.solverResult.spec.layout).toBe(decision.embodiment.primaryLayout);
     expect(node.artifact).toBeDefined();
   });
+
+  it('never renders an ABSTAIN near-miss as a promoted representation', () => {
+    const abstention = RepresentationHypothesisEngine.reason(
+      mockFacts,
+      null,
+      createDefaultRequirements('temporal-trend'),
+    );
+    abstention.decisionStatus = 'ABSTAIN';
+
+    expect(() => new DracoTopologyNode(
+      scene,
+      dataInput,
+      [0, 0, 0],
+      {},
+      factProvider,
+      false,
+      abstention,
+    )).toThrow('ABSTAIN has no promoted representation');
+
+    const node = new DracoTopologyNode(scene, dataInput, [0, 0, 0], {}, factProvider);
+    expect(() => node.setRepresentationDecision(abstention)).toThrow(
+      'ABSTAIN has no promoted representation',
+    );
+  });
 });

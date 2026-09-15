@@ -62,6 +62,9 @@ export class MonetaTopologyNode {
     representationDecision: RepresentationDecision | null = null,
     representationGraph: RepresentationGraph | null = null
   ) {
+    if (representationDecision?.decisionStatus === 'ABSTAIN') {
+      throw new Error('MonetaTopologyNode: scientific ABSTAIN has no promoted representation to render');
+    }
     this.scene = scene;
     this.dataInput = dataInput;
     this.position = position;
@@ -75,6 +78,9 @@ export class MonetaTopologyNode {
   }
 
   setRepresentationDecision(decision: RepresentationDecision | null): void {
+    if (decision?.decisionStatus === 'ABSTAIN') {
+      throw new Error('MonetaTopologyNode: scientific ABSTAIN has no promoted representation to render');
+    }
     this.representationGraph = null;
     this.representationDecision = decision;
     this.reSolveAndSynthesize();

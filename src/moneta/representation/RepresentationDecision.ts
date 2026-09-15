@@ -74,6 +74,10 @@ export interface DecisionProvenance {
   stalePerceptualEvidenceDropped?: number;
   /** RF-024: frozen study-treatment id whose default ranking weights produced this decision. */
   fitnessTreatmentId?: string;
+  /** Signed certificate considered by the scientific-admission gate, when authentically verified. */
+  stabilityCertificateDigest?: string;
+  /** RFC 0006 tranche is deliberately verified but non-promotable. */
+  stabilityAdmissionDisposition?: 'VERIFIED_NON_PROMOTABLE';
 }
 
 export interface RepresentationDecision {
@@ -106,9 +110,11 @@ export interface RepresentationDecision {
   confidenceScore?: number;
 
   // Compatibility aliases retained while downstream call sites migrate.
+  /** Chosen family, or the highest-ranked near-miss family when decisionStatus is ABSTAIN. */
   representationFamily: RepresentationFamily;
   /** @deprecated Use utilityScore + decisionStatus. */
   confidence?: number;
+  /** Promoted embodiment, or an inspectable non-active preview when decisionStatus is ABSTAIN. */
   embodiment: DecisionEmbodiment;
   evidence: DecisionEvidenceItem[];
   rejectedAlternatives: RejectedAlternative[];

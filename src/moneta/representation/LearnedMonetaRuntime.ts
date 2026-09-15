@@ -153,6 +153,9 @@ export function applyPinnedLearnedFitnessRuntime(
   bootstrapDecision: RepresentationDecision,
   config: PinnedLearnedMonetaRuntimeConfig,
 ): RepresentationDecision {
+  // Learned utility cannot upgrade a scientific-admission abstention.
+  if (bootstrapDecision.decisionStatus === 'ABSTAIN') return structuredClone(bootstrapDecision);
+
   const expectedArtifactHash = nonEmpty(config.artifactHash, 'Pinned learned artifact hash');
   const expectedModelVersion = nonEmpty(config.modelVersion, 'Pinned learned model version');
   const candidates = bootstrapDecision.rankedCandidates;

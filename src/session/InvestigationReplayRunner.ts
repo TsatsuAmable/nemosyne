@@ -126,6 +126,11 @@ function parseRepresentationDecision(bytes: Uint8Array): RepresentationDecision 
   }
   const candidate = parsed as Partial<RepresentationDecision>;
   if (typeof candidate.utilityScore !== 'number') throw new Error('representation state is missing numeric utilityScore');
+  if (candidate.decisionStatus !== undefined && ![
+    'DECISIVE', 'AMBIGUOUS', 'ABSTAIN', 'INFEASIBLE', 'UNDERDETERMINED',
+  ].includes(candidate.decisionStatus)) {
+    throw new Error('representation state has an unknown historical decisionStatus');
+  }
   if (!candidate.provenance || typeof candidate.provenance !== 'object') throw new Error('representation state is missing provenance');
   if (!candidate.embodiment || typeof candidate.embodiment !== 'object') throw new Error('representation state is missing embodiment');
   if (!candidate.embodiment.spatialStrategy || typeof candidate.embodiment.spatialStrategy !== 'object') {

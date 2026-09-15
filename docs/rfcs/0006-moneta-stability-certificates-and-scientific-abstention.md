@@ -1,6 +1,6 @@
 # RFC 0006 — Moneta stability certificates and scientific abstention
 
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 
@@ -172,7 +172,7 @@ The verifier may expose a compact verified claim to synchronous arbitration, but
 
 **Cons:** adds key/policy lifecycle and asynchronous verification complexity.
 
-**Decision:** proposed.
+**Decision:** accepted and implemented by ADR-0006.
 
 ## Consequences
 
@@ -222,12 +222,5 @@ Implementation is fit for purpose only if tests prove:
 
 ## Resulting ADR
 
-If this RFC is accepted and implementation proves the design, record an immutable ADR defining:
-
-- stability-certificate authority ownership;
-- trusted-key and policy-registry ownership/lifecycle;
-- effective-dimensionality authority;
-- ABSTAIN versus INFEASIBLE semantics;
-- persistence/replay treatment of certificates and re-adjudication.
-
-No ADR is created while this RFC remains proposed.
+Accepted implementation authority is recorded in
+[ADR-0006: Moneta stability-certificate authority and scientific abstention](../architecture/decisions/0006-moneta-stability-certificate-authority-and-abstention.md).

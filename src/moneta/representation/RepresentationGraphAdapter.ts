@@ -84,6 +84,9 @@ function primaryPrimitive(
 export function representationDecisionToGraph(
   decision: RepresentationDecision,
 ): RepresentationGraph {
+  if (decision.decisionStatus === 'ABSTAIN') {
+    throw new Error('Cannot compile RepresentationGraph: scientific ABSTAIN has no promoted candidate');
+  }
   const chosenCandidateId = candidateId(decision);
   const primary = primaryPrimitive(decision, chosenCandidateId);
   const primitives: RepresentationPrimitive[] = [primary];

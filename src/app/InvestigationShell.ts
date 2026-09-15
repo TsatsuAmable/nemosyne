@@ -304,7 +304,7 @@ export function mountInvestigationShell(actions: InvestigationActions): Investig
         createAssessmentRow('Utility Score', outcome.utilityScore.toFixed(3)),
       );
       content.appendChild(createAssessmentRow('Decision ID', outcome.decisionId, true));
-    } else {
+    } else if (outcome.kind === 'nil') {
       const refusal = document.createElement('strong');
       refusal.style.color = 'var(--nms-color-epistemic-contradiction)';
       refusal.textContent = 'No feasible representation';
@@ -316,6 +316,15 @@ export function mountInvestigationShell(actions: InvestigationActions): Investig
         createAssessmentRow('Near-miss Alternatives', String(outcome.nearMissCount)),
       );
       content.appendChild(createAssessmentRow('NIL', outcome.nilId, true));
+    } else {
+      const refusal = document.createElement('strong');
+      refusal.style.color = 'var(--nms-color-epistemic-uncertain)';
+      refusal.textContent = 'Scientific abstention · no representation promoted';
+      content.appendChild(refusal);
+      content.appendChild(
+        createAssessmentRow('Ranked Near-misses', String(outcome.nearMissCount)),
+      );
+      content.appendChild(createAssessmentRow('Abstention ID', outcome.decisionId, true));
     }
 
     explainModal.replaceChildren(content);
@@ -328,9 +337,9 @@ export function mountInvestigationShell(actions: InvestigationActions): Investig
       const outcome = actions.assessRepresentation(maxRenderedElements);
       showRepresentationOutcome(outcome);
       setStatus(
-        outcome.kind === 'decision'
-          ? `View decision recorded: ${outcome.decisionId}`
-          : `NIL outcome recorded: ${outcome.nilId}`,
+        outcome.kind === 'nil'
+          ? `NIL outcome recorded: ${outcome.nilId}`
+          : `${outcome.kind === 'decision' ? 'View decision' : 'Scientific abstention'} recorded: ${outcome.decisionId}`,
         'success',
       );
     } catch (error) {
