@@ -1,7 +1,12 @@
 # P1 Product Transition, Platform & Learning Plan
 
-**Status:** ACTIVE STRATEGIC PLAN  
+**Status:** ACTIVE STRATEGIC SPECIFICATION / PT0-PT8 LANDED; P1-UXR PRECEDES PT9-PT10
+
 **Established:** 2 September 2026  
+**Status reconciled:** 15 September 2026
+
+**Integration base:** `main@f451f4dc6b955b91884aee5b4ba3354d0c2d7f78` (#751)
+
 **Canonical product/research vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3  
 **Canonical implementation-status authority:** `docs/ROADMAP.md`  
 **Execution cadence:** `docs/roadmap/P1_E_EVOLUTIONARY_IMPROVEMENT_CADENCE.md`  
@@ -24,6 +29,8 @@ The governing transition principle is:
 > **Optimise learning velocity toward a trustworthy product while preserving meaningful discovery, scientific authority, user privacy, maintainability, reproducibility and platform optionality.**
 
 This document does not itself mark implementation complete.
+
+For live status and next-work authority, use `docs/ROADMAP.md`. Issue #620 is a historical execution checklist: its unchecked items and former ordering are stale after PT0-PT8 and P1-UXR activation. At this integration base, PT0-PT8 have reached their bounded software/governance exits; P1-UXR remains ahead of PT9 and PT10. No bounded PT exit implies deployed-service readiness, physical-device success or human/scientific outcome evidence unless the owning review says so explicitly.
 
 ---
 
@@ -947,6 +954,8 @@ Implement only enough infrastructure to make this path operational and observabl
 
 ## PT6 — Gesture-learning collection pipeline
 
+**Current status:** VERIFIED COMPLETE / STOP FOR THE BOUNDED GOVERNED COLLECTION AND SNAPSHOT PATH via #661-#664. Purpose-separated learning families, lifecycle enforcement, immutable user-disjoint snapshots and held-out evaluation contracts are landed. Deployed collection, raw-trajectory research activation, trained-model quality and human evidence are not claimed.
+
 - collect explicitly consented derived features and confirmations/corrections;
 - support separately consented raw-trajectory research capture;
 - freeze label-provenance rules;
@@ -956,6 +965,8 @@ Implement only enough infrastructure to make this path operational and observabl
 Do not auto-retrain production models yet.
 
 ## PT7 — Runtime/model registry and reproducible training jobs
+
+**Current status:** IMPLEMENTATION LANDED / BOUNDED REGISTRY-JOB CONTRACT COMPLETE via #665. Repository-runnable artifact/runtime/model identity, reproducible job manifests/receipts and signed staged deployment/rollback metadata are present. Production artifact storage, deployed routing/canaries and live-service evidence remain open.
 
 - durable artifact store and registry metadata;
 - exact analytical/representation/NIL/perception runtime identities;
@@ -968,6 +979,8 @@ Operationalise existing in-code gesture/Moneta registry concepts without creatin
 
 ## PT8 — Gesture model update loop
 
+**Current status:** IMPLEMENTATION LANDED / BOUNDED GOVERNED UPDATE LOOP COMPLETE via #667. The repository-runnable Python/ONNX training, held-out evaluation, model-specific qualification, explicit human promotion decision, signed stage progression and exact rollback path are present. Automatic scheduling, production learning-plane deployment, live cohorts and physical/human model-quality evidence remain open.
+
 - reproducible Python training pipeline;
 - user-disjoint/device-stratified evaluation;
 - known-failure corpus;
@@ -976,7 +989,15 @@ Operationalise existing in-code gesture/Moneta registry concepts without creatin
 - promotion/rollback policy;
 - drift monitoring.
 
+### P1-UXR sequencing gate before PT9
+
+PT9 must not start merely because PT8 landed. P1-UXR remains the active programme first: UXR0 and UXR1 have bounded software landings, while the next forward frontier is UXR2's resource lifecycle at the UXR3 bounded-semantic-working-set seam, followed by UXR4 verification refocus and UXR5 physical STOP evidence. Only then does the sequence resume with PT9 and PT10. This gate preserves the one-forward-PR and recursive adversarial policy in `docs/ROADMAP.md`.
+
 ## PT9 — Moneta learning-evidence pipeline
+
+**Current status:** NOT COMPLETE / DOWNSTREAM OF P1-UXR. #712, #713 and #747-#749 are landed scientific prerequisites, not PT9 completion: they establish evidence admissibility, a known-structure falsification campaign, authority boundaries, signed certificate verification and explicit `ABSTAIN`. They do not provide the learned Moneta evidence/training/promotion loop required below.
+
+At `main@f451f4dc`, high-dimensional `p >= n` admission remains fail-closed. #749 verifies exact-context signed certificates but exposes only `VERIFIED_NON_PROMOTABLE` because a Rust/WASM candidate-specific effective-dimensionality receipt and a scientifically justified promotable policy are absent. Rust's existing `effectiveDimensions` subtracts constant columns from total schema columns; it is a non-constant-column/schema heuristic, not intrinsic-dimensionality authority. Production Moneta therefore uses dataset-wide `columnCount` as conservative `p` and returns `ABSTAIN` when promotable stability evidence is unavailable.
 
 - define admissible pairwise/judgement/discovery-outcome evidence;
 - preserve telemetry vs evidence vs training-data distinction;
@@ -987,6 +1008,8 @@ Operationalise existing in-code gesture/Moneta registry concepts without creatin
 - preserve the post-PT9 path to RepresentationOntology/RepresentationGraph/compositional search rather than freezing fixed candidates as the permanent architecture.
 
 ## PT10 — Private-preview product/discovery learning loop
+
+**Current status:** NOT STARTED / DOWNSTREAM OF PT9. No private-preview cohort, interview programme, consented product-learning corpus or human discovery-outcome claim is established by the repository evidence at this integration base.
 
 Once the product can responsibly operate:
 
