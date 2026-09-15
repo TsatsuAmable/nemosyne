@@ -2,9 +2,9 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
-## Status snapshot - 11 September 2026
+## Status snapshot - 15 September 2026
 
-**Current integration base for this planning update:** `main@4fd5e0cdaee8ce68853f08c29746d04277ed7480` (#710, provider-neutral free-compute routing merged after #706-#708 established the XR Experimental Engine, evidence calibration and governed calibration adapters). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. P1-UXR remains the active pre-PT9 product-development programme. UXR0 now has bounded simulator profiles plus S0-S3 -> S4/S5 calibration infrastructure; none of that is physical or human proof. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream. Experimental Full-Moneta work may be preserved off the integration path but may not jump those prerequisites.
+**Current integration base for this planning update:** `main@f451f4dc6b955b91884aee5b4ba3354d0c2d7f78` (#751). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. PT0-PT8 remain landed at their bounded exits. P1-UXR remains the active pre-PT9 product-development programme: UXR0's bounded software contract and UXR1's canonical UI migration are landed, UXR2-UXR4 are partial, and UXR5 physical STOP evidence is open. The next forward frontier is the UXR2 resource lifecycle governor at its UXR3 bounded-semantic-working-set seam, followed by UXR4/UXR5 evidence. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream. Experimental Full-Moneta work may be preserved off the integration path but may not jump those prerequisites.
 
 The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R2C, source-partition Cluster Regions R2D, Progressive Disclosure Stream A, the first selected Stream B structural family, and the bounded C1-C4 visible-product wave have reached their stated implementation exits. In particular:
 
@@ -20,8 +20,15 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - C4 on #616 landed the four canonical visible investigator journeys, including governed investigator-authored reasoning projected through the existing Memory Palace path. Browser/IWER evidence remains non-physical evidence; C4 does not close P1-U9.
 - QV0/QV1 validation manifest/launcher and the governed evidence sink are landed; #617 replaced error-prone governed manual Quest firmware/model attribution with fail-closed ADB machine capture; QV4 automatic adjudication and evidence chain of custody landed in #668 and was fidelity-hardened in #669. Physical QV5/QV7 and other explicitly device/human-dependent claims remain open and may not be inferred from browser/simulator evidence.
 - #619 completed PT0/E0: removed unused `unpkg` Three.js runtime trust, tightened CSP, refreshed feature truth, made architecture policy an every-PR check, and installed one-way TypeScript hygiene ratchets.
-- #621 and #622 completed PT1's bounded CI-feedback work while preserving exact-head evidence. The concrete rolling clean exact-head objective recorded by execution epic #620 is p50 <= 270 seconds and p95 <= 360 seconds; it remains an operational SLO to monitor rather than an indefinitely open implementation tranche.
+- #621 and #622 completed PT1's bounded CI-feedback work while preserving exact-head evidence. The concrete rolling clean exact-head objective recorded by the historical execution checklist in issue #620 is p50 <= 270 seconds and p95 <= 360 seconds; it remains an operational SLO to monitor rather than an indefinitely open implementation tranche.
 - `TsatsuAmable/nemosyne-data#3` completed PT2 at `nemosyne-data@8e6b2dfc74ea1c60283790668cc93030c61423f8`: catalogue schema 2.2 / corpus v0.4.0, five known-answer families, ten direct metamorphic variants and one explicitly production-pending NIL fixture are governed and independently validated outside Nemosyne production code.
+- PT3-PT5 reached their bounded reviewed exits; PT6's governed gesture-learning collection/snapshot path landed through #661-#664, PT7's runtime/model registry and reproducible-job path landed in #665, and PT8's repository-runnable governed gesture-model update loop landed in #667. These are software/governance exits, not deployed-service, live-cohort, physical-device or human model-quality evidence.
+- UXR0 baseline observability, replacement qualification and selected hot-path work landed through #701-#705; #706-#708 added the XR Experimental Engine, evidence calibration and governed adapters. These establish bounded software/simulator infrastructure, not completed 30/60-minute physical profiles or human evidence.
+- #711 preserved the one-forward-PR execution rule while making adversarial review recursive: challenge consequential claims before implementation, turn material disagreement into falsifiers, and attack the resulting evidence again before promotion.
+- #712 established the Moneta evidence-admissibility protocol and #713 added the first known-structure control campaign. #747 enforced evidence and grouped-aggregate authority boundaries; #748 accepted RFC 0006; #749 implemented signed certificate verification, explicit scientific `ABSTAIN`, and fail-closed `p >= n` admission. These are landed scientific prerequisites for PT9, not PT9 learning-pipeline completion.
+- UXR1's canonical UIKit and reachability software migration landed through #716, #720-#728, #734-#744 and #746: the active panels moved off the legacy `MovablePanel` substrate, VRMenu was retired, the generic panel launcher left the normal analyst path, and contextual capability guidance landed. The retained superuser diagnostic launcher and the physical-input/human-utility residuals prevent a physical or human completion claim.
+- #717 added fail-closed unsupported-manifold handling and qualified representation evidence; #718 batched the large-grid projection; #719 made the WASM JSON input boundary reject non-finite/lossy values. They close bounded correctness/performance defects but do not establish the UXR2 lifecycle governor, UXR3 bounded semantic working set, or physical Quest fitness.
+- #730, #731, #733, #750 and #751 are dependency/tooling maintenance. Their landing changes the integration base but does not promote a product, scientific or physical-evidence checkpoint.
 - Aggregate Volume is a verified Rust-owned bounded semantic embodiment.
 - Distribution Field is a verified bounded empirical-distribution embodiment rather than a density alias.
 - Density Field is a verified Rust-owned governed density embodiment.
@@ -32,7 +39,7 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 
 ## Sequential execution model
 
-The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream. From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. From #619 onward, `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` and issue #620 provide the rolling product-transition tranche sequence while this file remains the canonical status authority.
+The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeds as one forward stream. From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` remains the strategic tranche specification. Issue #620 is a historical execution checklist whose unchecked items and ordering are stale after PT0-PT8 and the P1-UXR activation; it is not current status authority. This file alone governs live status and next-work sequencing.
 
 Current order:
 
@@ -41,7 +48,7 @@ Stream A STOP
   -> Stream B Relationship Graph V1 STOP
     -> Stream C bounded C1-C4 implementation/evidence LANDED
       -> P1-PT PT0-PT8 LANDED / bounded STOP where declared
-        -> P1-UXR ACTIVE (UXR0 -> UXR5)
+        -> P1-UXR ACTIVE (UXR0/UXR1 bounded software landed; UXR2/UXR3 next frontier)
           -> PT9 Moneta learning-evidence pipeline
             -> PT10 private-preview product/discovery learning loop
               -> post-PT9 RepresentationOntology / RepresentationGraph / compositional full-Moneta work
@@ -87,7 +94,9 @@ The definitive vision may also seed exploratory analysis: reviewers may derive t
 
 Claims of **new knowledge** receive the strongest gate. Model consensus is insufficient. Require explicit prior-art/evidence search, measurement and inference audit, alternative explanations, held-out or independent replication where feasible, reproducible provenance, and human/domain-expert judgement proportionate to the claim. Without those controls, classify the result as an engineering result, product observation, hypothesis or supported-but-not-novel research result.
 
-**Full-Moneta scientific evidence boundary:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md` is the persistent public contract for representation-candidate evidence admissibility. Its executable gate is `dev/xr-lab/MonetaEvidenceProtocol.ts`. PT9 learning evidence and later RepresentationGraph/compositional search may extend this gate but may not bypass it: measurement-scale legality, compositional semantics, adaptive/post-selection calibration, high-dimensional stability requirements, benchmark-oracle authority, abstention and human-required claims remain feasibility/evidence constraints rather than tradeable utility terms. Weakening those boundaries is a high-risk scientific-governance change.
+**Full-Moneta scientific evidence boundary:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md` is the persistent public contract for representation-candidate evidence admissibility. Its executable lab gate is `dev/xr-lab/MonetaEvidenceProtocol.ts`; #749 adds the production signed-certificate verifier and first-class `ABSTAIN` path governed by RFC/ADR 0006. PT9 learning evidence and later RepresentationGraph/compositional search may extend these gates but may not bypass them: measurement-scale legality, compositional semantics, adaptive/post-selection calibration, high-dimensional stability requirements, benchmark-oracle authority, abstention and human-required claims remain feasibility/evidence constraints rather than tradeable utility terms. Weakening those boundaries is a high-risk scientific-governance change.
+
+At this integration base, `p >= n` remains fail-closed: absent a verified promotable stability claim, Moneta returns `ABSTAIN` and exposes ranked near misses without choosing or rendering a representation. #749 can authenticate a signed certificate, but deliberately exposes only `VERIFIED_NON_PROMOTABLE` because neither a Rust/WASM authority receipt for candidate-specific effective dimensionality nor a scientifically justified promotable governing policy exists. The existing Rust `effectiveDimensions` value subtracts constant columns from the schema column count; it is a non-constant-column/schema heuristic, not intrinsic-dimensionality or candidate-specific scientific authority. Production therefore continues to use dataset-wide `columnCount` as conservative `p`.
 
 | Programme | Mission | Current checkpoint | Sequential position | Finite exit |
 | --- | --- | --- | --- | --- |
@@ -95,10 +104,21 @@ Claims of **new knowledge** receive the strongest gate. Model consensus is insuf
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | Relationship Graph B4 STOP / #612 | **VERIFIED COMPLETE / STOP FOR FIRST SELECTED FAMILY** | Source-authoritative Relationship Graph V1 is verified complete; selecting another B family requires an explicit fresh-main choice. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C4 visible journeys / #616 | **IMPLEMENTATION LANDED / REVIEW ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; physical-input/comfort fitness remains later device evidence. |
 | **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT8 governed gesture-model update loop / #667 | **PT0-PT8 LANDED; PT9-PT10 DOWNSTREAM OF P1-UXR** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
-| **P1-UXR - Semantic-Efficiency UX, Runtime Simplification & Verification** | Make semantic spatial investigation cheaper, more natural and more stable while preserving analytical truth and provenance. | UXR0 baseline + replacement qualification contract | **ACTIVE / NEXT IMPLEMENTATION** | UXR0-UXR5 reach bounded STOP, with physical claims closed only by attributable device evidence; then PT9/PT10 resume. |
+| **P1-UXR - Semantic-Efficiency UX, Runtime Simplification & Verification** | Make semantic spatial investigation cheaper, more natural and more stable while preserving analytical truth and provenance. | UXR2 resource lifecycle + UXR3 bounded semantic working set | **ACTIVE / UXR0-UXR1 BOUNDED SOFTWARE LANDED; UXR2-UXR4 PARTIAL; UXR5 OPEN** | UXR0-UXR5 reach bounded STOP, with physical claims closed only by attributable device evidence; then PT9/PT10 resume. |
 | **D / assurance legacy boundary** | Preserve attributable validation, live-path security/privacy assurance and clean-production/device qualification contracts needed by the selected preview scope. | QV4 adjudication/custody landed (#668/#669); QV5/QV7 and selected physical/security residuals open | **CONSUMED BY P1-PT/P1-UXR / ACTIVE WHEN CLAIM-REQUIRED** | Required assurance gates for the selected private-preview scope are satisfied; no browser/simulator evidence is promoted into physical proof. |
 
 A is the shared semantic integration spine and is frozen at its finite P1-R5 boundary. B's first structural family is frozen at its Relationship Graph V1 boundary. C consumes A/B semantic state and may not manufacture analytical facts. PT0-PT8 have landed; P1-UXR now owns the forward implementation stream before PT9/PT10. Quest remains a useful reference/qualification platform, not a strategic ceiling or master blocker for unrelated product development. Work that does not depend on fresh physical evidence may continue; claims about physical comfort, interaction fitness, sustained device performance or live-human outcomes may not.
+
+### P1-UXR checkpoint status at the integration base
+
+| Checkpoint | Status | Evidence-conservative boundary |
+| --- | --- | --- |
+| UXR0 | **BOUNDED SOFTWARE CONTRACT LANDED / PHYSICAL PROFILES OPEN** | #701-#708 provide baseline telemetry, replacement qualification, selected allocation work and S0-S3 -> governed S4/S5 calibration plumbing. They do not supply completed 30/60-minute physical-device runs or human validation. |
+| UXR1 | **BOUNDED SOFTWARE IMPLEMENTATION LANDED / PHYSICAL REPLACEMENT QUALIFICATION OPEN** | #716, #720-#728, #734-#744 and #746 migrate the canonical panels/navigation to UIKit and semantic/contextual surfaces. Automated reachability/API evidence and one defect-triggering Quest observation do not prove controller/hand reliability, comfort or human utility; the superuser launcher remains diagnostic-only while that validation continues. |
+| UXR2 | **PARTIAL / NEXT FORWARD FRONTIER** | Selected allocation work and #718's large-grid batching are landed, but there is no complete `ACTIVE -> WARM -> COLD -> EVICTED` resource governor or proof that retained resources follow the active working set across long sessions. |
+| UXR3 | **PARTIAL / CO-OWNED NEXT FRONTIER** | Structure-first entry, bounded drill-down and some bounded/batched projections exist. Device/resource-aware residency, bounded streaming/backpressure and reconstructable refine/collapse/evict semantics are not yet established as one production working-set contract. |
+| UXR4 | **PARTIAL / DOWNSTREAM OF UXR2-UXR3** | QV4 adjudication/custody (#668/#669), governed headset-loop plumbing and UXR0 telemetry are reusable. The full interaction/responsiveness/render/resource/semantic-scale envelope and its independent adjudication are not complete. |
+| UXR5 | **OPEN / PHYSICAL EVIDENCE REQUIRED** | No evidence at this integration base closes the required attributable Quest input, comfort, 30-minute resource-trend or 60-minute sustained-device claims. Simulator/browser evidence and isolated physical observations cannot substitute. |
 
 ---
 
@@ -408,7 +428,7 @@ Quest is a concrete reference platform for standalone-XR performance, interactio
 
 ## D2 - evidence attribution, sink and adjudication
 
-**Status:** QV2 attribution + QV3 sink LANDED; QV4 ADJUDICATION OPEN
+**Status:** QV2 attribution + QV3 sink + QV4 adjudication/custody LANDED; physical claim-dependent qualification remains open
 
 - #617 makes host-side ADB machine capture the governed Quest model/build attribution path;
 - required machine facts include model, build incremental and build fingerprint, with optional manufacturer/display/security-patch facts;
@@ -417,7 +437,8 @@ Quest is a concrete reference platform for standalone-XR performance, interactio
 - manually typed model/firmware metadata cannot upgrade an unattributed governed run;
 - per-session bounded evidence directories and fail-closed session routing are landed;
 - analyzer validity remains separate from gate disposition;
-- QV4 must emit `PASS | FAIL | PARTIAL | INVALID_RUN | BLOCKED` from owned evidence/threshold contracts rather than manufacturing a verdict;
+- #668 makes QV4 emit `PASS | FAIL | PARTIAL | INVALID_RUN | BLOCKED` from owned evidence/threshold contracts and binds automatic adjudication to the governed evidence chain;
+- #669 hardens finalization fidelity, artifact/custody checks and verdict attribution rather than broadening the physical claims;
 - current 10M boundary evidence may not be relabelled as final device qualification.
 
 ## D3 - live-path security quick wins
@@ -439,7 +460,9 @@ Each remaining item stays high-risk or production-path evidence-bearing accordin
 
 ## D5 - guided physical UX validation readiness
 
-Implement QV5/QV6 when a selected product treatment/platform is stable enough to test:
+**Status:** BOUNDED QV5/QV6 SOFTWARE LOOP LANDED IN #656 / PHYSICAL AND HUMAN OUTCOMES OPEN
+
+#656 implemented the attributable governed launcher/browser/sink loop and bounded guided-task evidence plumbing. Use and extend it when a selected product treatment/platform is stable enough to test:
 
 - controller/direct-touch semantic tasks;
 - capture/cancel/tracking-loss recovery;
@@ -467,9 +490,10 @@ For the selected private-preview platform/scope:
 
 # P1-PT - Product Transition & Evolutionary Improvement
 
-**Status:** ACTIVE  
+**Status:** PT0-PT8 LANDED AT THEIR BOUNDED EXITS; P1-UXR ACTIVE BEFORE PT9/PT10
+
 **Primary plan:** `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md`  
-**Execution epic:** #620
+**Historical execution checklist:** issue #620; stale for live status and sequencing
 
 Current sequential status:
 
@@ -478,7 +502,19 @@ Current sequential status:
 - **PT2: COMPLETE** via `TsatsuAmable/nemosyne-data#3` and its PRs #4-#6, ending at `nemosyne-data@8e6b2dfc` with post-merge validation green.
 - **PT3A: COMPLETE / RFC ACCEPTED** - RFC 0003 fixes the production identity, purpose-scoped authorization, lifecycle, governed event-envelope, runtime-provenance and Product/Research Mode boundary for implementation.
 - **PT3B: COMPLETE** via #625 at `main@bafc4df` - the first closed TypeScript schema/validator tranche, independent adversarial review and exact-head promotion evidence are complete. No production event family or producer is wired, and no live ingestion, storage, export, erasure or production-collection property is claimed.
-- **PT4A: COMPLETE / RFC ACCEPTED** - RFC 0004 freezes the first family's data minimization, consent/identity authority, authenticated HTTPS boundary, transactional replay/store model and service-scoped export/erasure semantics. PT4B is authorized to implement only that bounded vertical slice; acceptance is not implementation or production-path evidence. PT5-PT10 remain planned in the primary product-transition plan and issue #620; they are not completion claims.
+- **PT4: VERIFIED COMPLETE / STOP FOR THE SELECTED BOUNDED PRODUCT-MODE VERTICAL SLICE** via #627-#641. The authenticated consent-aware ingestion/storage/export/registered-service-erasure path and production persistence boundary are landed. This is not managed-deployment, high-availability, backup/restore, physical-media-erasure or broad collection evidence.
+- **PT5: VERIFIED COMPLETE / STOP FOR THE BOUNDED SOFTWARE PATH** via #642-#659. Governed catalogue loading, canonical desktop/XR investigation semantics, continuity/reopen and bounded XR authoring are landed. Physical comfort, reachability, typing ergonomics and human discovery benefit remain open empirical claims.
+- **PT6: VERIFIED COMPLETE / STOP FOR THE BOUNDED GOVERNED COLLECTION/SNAPSHOT PATH** via #661-#664. Purpose-separated gesture-learning families, lifecycle, immutable profile-disjoint snapshots and held-out evaluation contracts are landed. This does not claim deployed production collection, raw-trajectory research activation, trained-model quality or human evidence.
+- **PT7: IMPLEMENTATION LANDED / BOUNDED REGISTRY-JOB CONTRACT COMPLETE** via #665. Artifact/runtime/model registry identity, reproducible job manifests/receipts and signed staged deployment metadata are repository-runnable. Live service routing, production artifact storage and deployed canary evidence remain unproven.
+- **PT8: IMPLEMENTATION LANDED / BOUNDED GOVERNED UPDATE LOOP COMPLETE** via #667. The repository-runnable Python/ONNX gesture training, held-out evaluation, qualification, explicit human promotion decision, signed lifecycle and rollback path are present. No automatic scheduling, production learning-plane deployment, live cohort success or physical/human model-quality claim is made.
+- **PT9: NOT COMPLETE / DOWNSTREAM OF P1-UXR.** #712, #713 and #747-#749 land scientific-admissibility, falsification and abstention prerequisites only. They do not implement the Moneta learning-evidence pipeline, learned-candidate comparison or governed promotion loop.
+- **PT10: NOT STARTED / DOWNSTREAM OF PT9.** No private-preview cohort, interviews, consented product-learning evidence or human discovery-outcome programme is claimed.
+
+Supporting opportunity lanes do not reorder the one-forward product stream or create completion by account preparation. History through this integration base records #709's repository tranche in #710; it records no merged implementation for issue lanes #714 or #715:
+
+- **#709 free-compute runway:** #710 landed provider-neutral fail-closed routing and the operating ledger only. No external provider is product-composed. Do not activate a short-lived trial without a concrete workload, daily consumption, duration, retained-artifact, exit and maximum post-credit-spend plan.
+- **#714 organisation/profile preparation:** limit repository work to non-sensitive public repository/profile material preparation only. No incorporated legal entity is evidenced at this integration base. Stripe, bank, tax, identity and legal attestations are human actions and may not be fabricated or inferred by an agent.
+- **#715 Swiss research-support lane:** eligibility requires a truthful qualifying Swiss research-institution collaborator and supporting PI. Do not misstate eligibility or affiliation, and do not contact a prospective collaborator or submit outreach/application material without explicit user approval.
 
 P1-PT may select bounded UX, security, reliability, maintainability, CI, documentation and operations ratchets between larger product slices. It must preserve the five product/research authority boundaries and the Notice -> Question -> Hypothesis -> Investigation -> Understanding -> Validation -> Discovery lifecycle.
 
@@ -616,7 +652,7 @@ These remain authoritative for their scoped contracts/evidence even when their s
 - `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` - active product-transition tranche specification;
 - `STREAM_C_SECURITY_ASSURANCE.md` - legacy-named security assurance finding set, now consumed by bounded P1-PT assurance tranches;
 - `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md` - implementation-quality policy from the prior wave, still useful as process guidance but not the current Stream A mission;
-- issue #620 - active product-transition execution epic;
+- issue #620 - historical product-transition checklist through the earlier tranches; stale for current status/ordering, which is governed by this roadmap;
 - issue #314 - post-Moneta hardening backlog;
 - issue #300 - major dependency modernization, deferred as a broad sprint during this wave.
 

@@ -9,21 +9,21 @@ PR #747 closed two concrete Moneta authority gaps:
 - fresh `p >= n` arbitration now fails closed with typed `stability-evidence-required` near misses instead of promoting a representation without certified stability evidence;
 - grouped aggregate intent is explicit in `RepresentationRequirements` rather than inferred from presentation encodings.
 
-The resulting system is intentionally conservative: Moneta can rank high-dimensional candidates, but cannot promote them because no authority-bearing stability certificate exists.
+At that intermediate #747 integration point, the resulting system was intentionally conservative: Moneta could rank high-dimensional candidates, but could not promote them because no authority-bearing stability-certificate path existed. #749 subsequently implemented the accepted certificate-verification and explicit `ABSTAIN` design recorded below. It deliberately did not add a promotable scientific policy or a Rust/WASM candidate-specific effective-dimensionality receipt, so `p >= n` remains non-promotable at the current integration base.
 
-A pre-implementation adversarial review of the next tranche found that a safe certificate cannot be introduced as an ordinary local fix. It changes scientific-admissibility semantics and creates a new trust boundary. Three currently absent authorities must be defined together:
+The pre-implementation adversarial review for #749 found that a safe certificate could not be introduced as an ordinary local fix. It changed scientific-admissibility semantics and created a new trust boundary. Three authorities absent at that point had to be defined together:
 
 1. who may issue or verify a certificate, including key/trust lifecycle;
 2. which Rust-owned evidence establishes effective dimensionality and perturbation/replay identity;
 3. which explicit governing policy may convert verified evidence into promotion eligibility.
 
-Without these authorities, any certificate-shaped object or caller-supplied acceptance policy would recreate the self-certification bug closed in #747.
+Without defining these authorities, any certificate-shaped object or caller-supplied acceptance policy would recreate the self-certification bug closed in #747.
 
-The same review found that scientific abstention is currently encoded indirectly through `NoFeasibleRepresentationError` / `INFEASIBLE` plus a typed trace. Structural infeasibility and scientific non-admissibility therefore share a transport even though they mean different things.
+The same review found that scientific abstention was then encoded indirectly through `NoFeasibleRepresentationError` / `INFEASIBLE` plus a typed trace. Structural infeasibility and scientific non-admissibility therefore shared a transport even though they meant different things. #749 corrected that transport as recorded in ADR-0006.
 
-## Decision requested
+## Decision
 
-Adopt a two-part authority model:
+The accepted decision adopts a two-part authority model:
 
 1. **Signed Stability Certificate V1**
    - a closed, versioned envelope whose content is canonically hashed and signed;

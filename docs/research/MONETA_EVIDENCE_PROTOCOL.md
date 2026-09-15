@@ -38,6 +38,14 @@ A learned or evolutionary search process may optimize only among candidates that
 
 `ELIGIBLE` does **not** mean correct, optimal, novel or ready for production. It means only that this gate found no known inadmissibility.
 
+## Current implementation status
+
+#712 landed this public protocol and its executable lab gate; #713 added the first known-structure control campaign. #747 then bound the production arbitration path to fail closed for high-dimensional evidence and explicit grouped-aggregate intent, while #748/#749 accepted and implemented signed stability-certificate verification plus a first-class scientific `ABSTAIN` disposition.
+
+Those changes are **pre-PT9 scientific prerequisites**, not a Moneta learning-evidence pipeline. At `main@f451f4dc`, a signed certificate can be structurally, cryptographically and contextually verified, but the only available disposition is `VERIFIED_NON_PROMOTABLE`: there is no Rust/WASM authority receipt for candidate-specific effective dimensionality and no accepted scientifically justified promotable governing policy. Production Moneta therefore uses dataset-wide `columnCount` as conservative `p` and returns `ABSTAIN` for `p >= n` unless a future authority-complete path supplies promotable evidence.
+
+Rust's existing `effectiveDimensions` field is computed as total schema columns minus constant columns. It is useful as a non-constant-column/schema heuristic, but it is not an intrinsic-dimensionality estimate, candidate-specific effective-feature authority or stability certificate. It must not be promoted into any of those claims by naming or adapter reuse.
+
 ## Current enforced boundaries
 
 1. Unknown or missing measurement scale is invalid.
