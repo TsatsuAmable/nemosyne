@@ -480,4 +480,37 @@ describe('ResourceLifecycleGovernor', () => {
     expect(forceDisposeA).toHaveBeenCalledTimes(1);
     expect(forceDisposeB).toHaveBeenCalledTimes(1);
   });
+
+  it('ignores a cool completion that settles after disposal', async () => {
+    let resolveDeferred!: (value: LifecycleStepResult<TestDescriptor>) => void;
+    const deferred = new Promise<LifecycleStepResult<TestDescriptor>>((resolve) => {
+      resolveDeferred = resolve;
+    });
+    const validateDescriptor = vi.fn((_value: unknown) => true);
+    const forceDispose = vi.fn();
+    const governor = new ResourceLifecycleGovernor({ ...policy, maxWarmResources: 0 });
+    const registration = fakeRegistration(identity('a'), {
+      coolStep: () => deferred,
+      validateDescriptor: (value): value is TestDescriptor => validateDescriptor(value),
+      forceDispose,
+    });
+    governor.register(registration);
+    governor.tick();
+
+    await expect(governor.dispose()).resolves.toBeUndefined();
+    const disposedSnapshot = governor.getSnapshot();
+    expect(forceDispose).toHaveBeenCalledTimes(1);
+    expect(forceDispose).toHaveBeenCalledWith(registration.runtime);
+
+    resolveDeferred({
+      status: 'COMPLETE',
+      descriptor: { schemaVersion: 'test/v1', id: 'late' },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(validateDescriptor).not.toHaveBeenCalled();
+    expect(forceDispose).toHaveBeenCalledTimes(1);
+    expect(governor.getSnapshot()).toEqual(disposedSnapshot);
+  });
 });

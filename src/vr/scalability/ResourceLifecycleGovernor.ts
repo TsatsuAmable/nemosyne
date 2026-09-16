@@ -297,20 +297,27 @@ export class ResourceLifecycleGovernor {
     if (this.disposePromise) return this.disposePromise;
 
     this.disposed = true;
-    const liveRuntimes = [...this.records.values()].filter(
-      (record): record is ResourceRecord & { runtime: unknown } => record.runtime !== null
-    );
+    const disposalTargets: { adapter: AnyLifecycleAdapter; runtime: unknown }[] = [];
+    for (const record of this.records.values()) {
+      if (record.runtime !== null) {
+        disposalTargets.push({ adapter: record.adapter, runtime: record.runtime });
+      }
+      record.runtime = null;
+      record.descriptor = null;
+      record.inFlightRevision = undefined;
+    }
     this.records.clear();
     this.declaredWorkingSetSize = 0;
 
     const disposals: Promise<void>[] = [];
-    for (const record of liveRuntimes) {
+    for (const { adapter, runtime } of disposalTargets) {
       try {
-        disposals.push(Promise.resolve(record.adapter.forceDispose(record.runtime)));
+        disposals.push(Promise.resolve(adapter.forceDispose(runtime)));
       } catch (error) {
         disposals.push(Promise.reject(error));
       }
     }
+    disposalTargets.length = 0;
 
     this.disposePromise = Promise.allSettled(disposals).then((results) => {
       const rejection = results.find(
@@ -378,29 +385,28 @@ export class ResourceLifecycleGovernor {
     try {
       result = record.adapter.coolStep(record.runtime);
     } catch (error) {
-      this.completeCoolFailure(key, record, capturedRevision, error);
+      this.completeCoolFailure(key, capturedRevision, error);
       return;
     }
 
     if (this.isPromiseLike(result)) {
       Promise.resolve(result).then(
-        (completion) => this.completeCoolStep(key, record, capturedRevision, completion),
-        (error) => this.completeCoolFailure(key, record, capturedRevision, error)
+        (completion) => this.completeCoolStep(key, capturedRevision, completion),
+        (error) => this.completeCoolFailure(key, capturedRevision, error)
       );
       return;
     }
 
-    this.completeCoolStep(key, record, capturedRevision, result);
+    this.completeCoolStep(key, capturedRevision, result);
   }
 
   private completeCoolStep(
     key: string,
-    record: ResourceRecord,
     capturedRevision: number,
     result: LifecycleStepResult<unknown>
   ): void {
     const current = this.records.get(key);
-    if (current !== record) return;
+    if (!current) return;
     if (current.inFlightRevision === capturedRevision) current.inFlightRevision = undefined;
     if (!this.canApplyCoolCompletion(current, capturedRevision)) return;
     if (result.status === 'PENDING') return;
@@ -437,14 +443,9 @@ export class ResourceLifecycleGovernor {
     this.enforceColdDescriptorLimit();
   }
 
-  private completeCoolFailure(
-    key: string,
-    record: ResourceRecord,
-    capturedRevision: number,
-    error: unknown
-  ): void {
+  private completeCoolFailure(key: string, capturedRevision: number, error: unknown): void {
     const current = this.records.get(key);
-    if (current !== record) return;
+    if (!current) return;
     if (current.inFlightRevision === capturedRevision) current.inFlightRevision = undefined;
     if (!this.canApplyCoolCompletion(current, capturedRevision)) return;
     this.recordCleanupFailure(current, error instanceof Error ? error.message : String(error));
