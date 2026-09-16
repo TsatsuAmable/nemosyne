@@ -167,6 +167,42 @@ export class ResourceLifecycleGovernor {
     });
   }
 
+  /**
+   * Removes a candidate that was registered for an atomic promotion but never claimed by a
+   * working-set declaration. This deliberately cannot release ACTIVE, declared, cooling, or
+   * analytical resources.
+   */
+  public discardUnclaimedWarm(identity: ResourceIdentity): WorkingSetValidationResult {
+    if (this.disposed) return this.refusal('Resource lifecycle governor is disposed');
+
+    const key = resourceIdentityKey(identity);
+    const record = this.records.get(key);
+    if (!record) return this.refusal(`Resource lifecycle identity is not registered: ${key}`);
+    if (
+      record.residency !== 'WARM' ||
+      record.desired !== null ||
+      record.inFlightRevision !== undefined ||
+      record.runtime === null
+    ) {
+      return this.refusal(`Resource lifecycle identity is not an unclaimed WARM candidate: ${key}`);
+    }
+
+    const { adapter, runtime } = record;
+    this.records.delete(key);
+    try {
+      const completion = adapter.forceDispose(runtime);
+      if (this.isPromiseLike(completion)) {
+        void Promise.resolve(completion).catch(() => {
+          this.cumulative.failed += 1;
+        });
+      }
+    } catch (error) {
+      this.cumulative.failed += 1;
+      throw error;
+    }
+    return { accepted: true };
+  }
+
   public validateWorkingSet(
     declarations: readonly WorkingSetDeclaration[]
   ): WorkingSetValidationResult {

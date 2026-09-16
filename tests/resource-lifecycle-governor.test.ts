@@ -258,6 +258,52 @@ describe('ResourceLifecycleGovernor', () => {
     expect(governor.getSnapshot().counts.WARM).toBe(0);
   });
 
+  it('discards only an unclaimed WARM candidate and force-disposes its runtime exactly once', () => {
+    const governor = new ResourceLifecycleGovernor(policy);
+    const registration = fakeRegistration(identity('candidate'));
+    governor.register(registration);
+
+    expect(governor.discardUnclaimedWarm(identity('candidate'))).toEqual({ accepted: true });
+    expect(registration.adapter.forceDispose).toHaveBeenCalledTimes(1);
+    expect(registration.adapter.forceDispose).toHaveBeenCalledWith(registration.runtime);
+    expect(governor.getSnapshot().counts).toEqual({
+      ACTIVE: 0,
+      WARM: 0,
+      COLD: 0,
+      EVICTED: 0,
+    });
+    expect(() => governor.register(fakeRegistration(identity('candidate')))).not.toThrow();
+  });
+
+  it('refuses discard for ACTIVE or declared records and preserves duplicate registration rules', () => {
+    const activeGovernor = new ResourceLifecycleGovernor(policy);
+    const activeRegistration = fakeRegistration(identity('active'));
+    activeGovernor.register(activeRegistration);
+    expect(activeGovernor.reconcile([declaration('active')])).toEqual({ accepted: true });
+
+    expect(activeGovernor.discardUnclaimedWarm(identity('active'))).toEqual(
+      expect.objectContaining({ accepted: false, reason: expect.any(String) })
+    );
+    expect(activeRegistration.adapter.forceDispose).not.toHaveBeenCalled();
+    expect(activeGovernor.getSnapshot().counts.ACTIVE).toBe(1);
+    expect(() => activeGovernor.register(fakeRegistration(identity('active')))).toThrow(
+      /already registered/i
+    );
+
+    const declaredWarmGovernor = new ResourceLifecycleGovernor(policy);
+    const declaredWarmRegistration = fakeRegistration(identity('declared-warm'));
+    declaredWarmGovernor.register(declaredWarmRegistration);
+    expect(declaredWarmGovernor.reconcile([declaration('declared-warm', 'WARM')])).toEqual({
+      accepted: true,
+    });
+
+    expect(declaredWarmGovernor.discardUnclaimedWarm(identity('declared-warm'))).toEqual(
+      expect.objectContaining({ accepted: false, reason: expect.any(String) })
+    );
+    expect(declaredWarmRegistration.adapter.forceDispose).not.toHaveBeenCalled();
+    expect(declaredWarmGovernor.getSnapshot().counts.WARM).toBe(1);
+  });
+
   it('starts no more than the cleanup budget per tick and does not restart in-flight work', () => {
     const started: string[] = [];
     const governor = new ResourceLifecycleGovernor({
