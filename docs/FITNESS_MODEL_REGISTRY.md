@@ -1,6 +1,6 @@
 # Fitness Model Registry
 
-The V3 Fitness Model Registry stores immutable, content-addressed model artifacts and an append-only activation history. Registration and activation are deliberately separate operations.
+The governing Fitness Model Registry stores immutable, content-addressed model artifacts and an append-only activation history. Registration and activation are deliberately separate operations.
 
 Every artifact records the training-dataset hash, curation-policy hash, feature-schema version, parameters, held-out evaluation summary, and optional parent model hash. Artifact hashes are deterministic over canonicalized content. Reusing the same semantic model ID/version with different content is rejected.
 

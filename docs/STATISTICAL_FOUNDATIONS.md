@@ -2,7 +2,7 @@
 
 Status: active methodological architecture
 
-This document defines the statistical boundary between raw data, Rust/WASM analytical evidence, Moneta representation reasoning, and Investigation/Discovery validation. It refines the V3 Dataset Evidence gate without changing the product thesis.
+This document defines the statistical boundary between raw data, Rust/WASM analytical evidence, Moneta representation reasoning, and Investigation/Discovery validation. It refines the governing Dataset Evidence contract without changing the product thesis.
 
 ## Governing principles
 
