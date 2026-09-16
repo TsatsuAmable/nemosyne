@@ -52,7 +52,7 @@ function createRuntimeFixture(
   if (options.diagnostic !== false) {
     const diagnosticGroup = new THREE.Group() as THREE.Group & {
       readonly mesh: THREE.Object3D;
-      dispose: ReturnType<typeof vi.fn>;
+      dispose: () => void;
     };
     Object.defineProperty(diagnosticGroup, 'mesh', {
       configurable: true,
