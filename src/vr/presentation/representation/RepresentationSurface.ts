@@ -3,8 +3,11 @@ import { MonetaTopologyNode } from '../../../moneta/MonetaTopologyNode.ts';
 import type { FactProvider, MonetaDataInput } from '../../../moneta/types.ts';
 import type { RepresentationDecision } from '../../../moneta/representation/RepresentationDecision.ts';
 import { disposeObject } from '../../../utils/Dispose.ts';
+import type { ResourceIdentity } from '../../scalability/ResourceLifecycleGovernor.ts';
+import { ResourceLifecycleGovernor } from '../../scalability/ResourceLifecycleGovernor.ts';
 import { MonetaDiagnosticHUD } from '../../ui/MonetaDiagnosticHUD.ts';
 import { PANEL_LAYOUT } from '../../ui/panelLayout.ts';
+import { createRepresentationResourceAdapter } from './RepresentationResourceLifecycle.ts';
 
 export interface RepresentationInteractableOptions {
   semantic?: { kind: string };
@@ -37,6 +40,11 @@ export interface RepresentationSurfaceDependencies {
   clearStructureHandles(): void;
   rebuildStructureHandles(node: MonetaTopologyNode): void;
   onSelectNode(mesh: Mesh): void;
+  resourceLifecycle?: ResourceLifecycleGovernor;
+  createResourceIdentity?: (
+    decision: RepresentationDecision | null,
+    projectionOrdinal: number
+  ) => ResourceIdentity | null;
 }
 
 export interface RepresentationSurfaceFactories {
@@ -90,6 +98,8 @@ export class RepresentationSurface {
   selectedMesh: Mesh | null = null;
 
   private disposed = false;
+  private projectionOrdinal = 0;
+  private currentResourceIdentity: ResourceIdentity | null = null;
   private readonly selectionListeners = new Set<RepresentationSelectionListener>();
   private readonly createNode: NonNullable<RepresentationSurfaceFactories['createNode']>;
   private readonly createDiagnostic: NonNullable<
@@ -129,23 +139,30 @@ export class RepresentationSurface {
       representationDecision,
       this.dependencies
     );
-    const selectedIdentity = semanticSelectionIdentity(this.selectedMesh);
-
-    this.disposeCurrent();
-    this.currentNode = nextNode;
-    this.dependencies.addUpdatable(nextNode);
-    this.bindNodeInteractions(nextNode);
-
-    const diagnostic = this.createDiagnostic(this.dependencies, nextNode);
-    this.diagnostic = diagnostic;
-    this.dependencies.addDiagnosticPanel(diagnostic);
-    this.dependencies.analystAnchor.add(diagnostic.mesh);
-
-    if (selectedIdentity && nextNode.artifact?.nodeMeshes) {
-      this.selectedMesh =
-        nextNode.artifact.nodeMeshes.find((mesh) => matchesSemanticSelection(mesh, selectedIdentity)) ??
-        null;
+    let nextDiagnostic: MonetaDiagnosticHUD;
+    try {
+      nextDiagnostic = this.createDiagnostic(this.dependencies, nextNode);
+    } catch (error) {
+      this.disposeUnboundCandidate(nextNode, null);
+      throw error;
     }
+
+    const selectedIdentity = semanticSelectionIdentity(this.selectedMesh);
+    const governor = this.dependencies.resourceLifecycle;
+    const createResourceIdentity = this.dependencies.createResourceIdentity;
+    if (governor && createResourceIdentity) {
+      return this.replaceGoverned(
+        nextNode,
+        nextDiagnostic,
+        representationDecision,
+        selectedIdentity,
+        governor,
+        createResourceIdentity
+      );
+    }
+
+    this.disposeCurrentImmediate();
+    this.activateCandidate(nextNode, nextDiagnostic, selectedIdentity);
     return nextNode;
   }
 
@@ -156,7 +173,7 @@ export class RepresentationSurface {
    */
   clear(): void {
     if (this.disposed) throw new Error('RepresentationSurface is disposed');
-    this.disposeCurrent();
+    this.retireCurrent();
   }
 
   subscribeSelection(listener: RepresentationSelectionListener): () => void {
@@ -187,8 +204,8 @@ export class RepresentationSurface {
 
   dispose(): void {
     if (this.disposed) return;
+    this.retireCurrent();
     this.disposed = true;
-    this.disposeCurrent();
     this.selectionListeners.clear();
   }
 
@@ -196,7 +213,165 @@ export class RepresentationSurface {
     for (const listener of this.selectionListeners) listener(mesh);
   }
 
-  private disposeCurrent(): void {
+  private replaceGoverned(
+    nextNode: MonetaTopologyNode,
+    nextDiagnostic: MonetaDiagnosticHUD,
+    representationDecision: RepresentationDecision | null,
+    selectedIdentity: SemanticSelectionIdentity | null,
+    governor: ResourceLifecycleGovernor,
+    createResourceIdentity: NonNullable<RepresentationSurfaceDependencies['createResourceIdentity']>
+  ): MonetaTopologyNode {
+    const ordinal = this.projectionOrdinal + 1;
+    let identity: ResourceIdentity | null;
+    try {
+      identity = createResourceIdentity(representationDecision, ordinal);
+    } catch (error) {
+      this.disposeUnboundCandidate(nextNode, nextDiagnostic);
+      throw error;
+    }
+    if (!identity) {
+      this.disposeUnboundCandidate(nextNode, nextDiagnostic);
+      throw new Error('Representation lifecycle identity is unavailable');
+    }
+
+    const declaration = { identity, desired: 'ACTIVE', priority: 'FOCUS' } as const;
+    let admission;
+    try {
+      admission = governor.validateWorkingSet([declaration]);
+    } catch (error) {
+      this.disposeUnboundCandidate(nextNode, nextDiagnostic);
+      throw error;
+    }
+    if (!admission.accepted) {
+      this.disposeUnboundCandidate(nextNode, nextDiagnostic);
+      throw new Error(
+        `Representation lifecycle admission refused${admission.reason ? `: ${admission.reason}` : ''}`
+      );
+    }
+
+    try {
+      governor.register({
+        identity,
+        runtime: {
+          identity,
+          node: nextNode,
+          diagnostic: nextDiagnostic,
+          disposalStack: nextNode.group ? [nextNode.group] : [],
+          diagnosticDisposed: false,
+        },
+        adapter: createRepresentationResourceAdapter(this.dependencies),
+      });
+    } catch (error) {
+      this.disposeUnboundCandidate(nextNode, nextDiagnostic);
+      throw error;
+    }
+
+    const previousSelection = this.selectedMesh;
+    if (previousSelection) {
+      this.selectedMesh = null;
+      this.publishSelection(null);
+    }
+
+    let reconciliation;
+    try {
+      reconciliation = governor.reconcile([declaration]);
+    } catch (error) {
+      this.rollbackRegisteredCandidate(
+        governor,
+        identity,
+        nextNode,
+        nextDiagnostic,
+        previousSelection
+      );
+      throw error;
+    }
+    if (!reconciliation.accepted) {
+      this.rollbackRegisteredCandidate(
+        governor,
+        identity,
+        nextNode,
+        nextDiagnostic,
+        previousSelection
+      );
+      throw new Error(
+        `Representation lifecycle swap refused${reconciliation.reason ? `: ${reconciliation.reason}` : ''}`
+      );
+    }
+
+    this.currentResourceIdentity = identity;
+    this.activateCandidate(nextNode, nextDiagnostic, selectedIdentity);
+    this.projectionOrdinal = ordinal;
+    return nextNode;
+  }
+
+  private rollbackRegisteredCandidate(
+    governor: ResourceLifecycleGovernor,
+    identity: ResourceIdentity,
+    node: MonetaTopologyNode,
+    diagnostic: MonetaDiagnosticHUD,
+    previousSelection: Mesh | null
+  ): void {
+    node.cancelPendingSemanticEmbodiment();
+    if (node.group?.parent) node.group.parent.remove(node.group);
+    if (diagnostic.mesh.parent) diagnostic.mesh.parent.remove(diagnostic.mesh);
+
+    let discard;
+    try {
+      discard = governor.discardUnclaimedWarm(identity);
+    } finally {
+      this.selectedMesh = previousSelection;
+      if (previousSelection) this.publishSelection(previousSelection);
+    }
+    if (!discard.accepted) {
+      throw new Error(
+        `Representation lifecycle candidate rollback refused${discard.reason ? `: ${discard.reason}` : ''}`
+      );
+    }
+  }
+
+  private activateCandidate(
+    node: MonetaTopologyNode,
+    diagnostic: MonetaDiagnosticHUD,
+    selectedIdentity: SemanticSelectionIdentity | null
+  ): void {
+    this.currentNode = node;
+    this.diagnostic = diagnostic;
+    this.dependencies.addUpdatable(node);
+    this.bindNodeInteractions(node);
+    this.dependencies.addDiagnosticPanel(diagnostic);
+    this.dependencies.analystAnchor.add(diagnostic.mesh);
+
+    this.selectedMesh =
+      selectedIdentity && node.artifact?.nodeMeshes
+        ? (node.artifact.nodeMeshes.find((mesh) =>
+            matchesSemanticSelection(mesh, selectedIdentity)
+          ) ?? null)
+        : null;
+    if (this.selectedMesh) this.publishSelection(this.selectedMesh);
+  }
+
+  private retireCurrent(): void {
+    if (this.currentResourceIdentity && this.dependencies.resourceLifecycle) {
+      const hadSelection = this.selectedMesh !== null;
+      const reconciliation = this.dependencies.resourceLifecycle.reconcile([]);
+      if (!reconciliation.accepted) {
+        throw new Error(
+          `Representation lifecycle retirement refused${reconciliation.reason ? `: ${reconciliation.reason}` : ''}`
+        );
+      }
+
+      this.currentNode = null;
+      this.diagnostic = null;
+      this.selectedMesh = null;
+      this.currentResourceIdentity = null;
+      if (hadSelection) this.publishSelection(null);
+      return;
+    }
+
+    this.disposeCurrentImmediate();
+  }
+
+  private disposeCurrentImmediate(): void {
     const node = this.currentNode;
     const diagnostic = this.diagnostic;
     this.dependencies.clearStructureHandles();
@@ -219,6 +394,17 @@ export class RepresentationSurface {
     this.currentNode = null;
     this.diagnostic = null;
     this.selectedMesh = null;
+    this.currentResourceIdentity = null;
+  }
+
+  private disposeUnboundCandidate(
+    node: MonetaTopologyNode,
+    diagnostic: MonetaDiagnosticHUD | null
+  ): void {
+    node.cancelPendingSemanticEmbodiment();
+    if (node.group) disposeObject(node.group);
+    if (diagnostic?.mesh.parent) diagnostic.mesh.parent.remove(diagnostic.mesh);
+    diagnostic?.dispose();
   }
 
   private bindNodeInteractions(node: MonetaTopologyNode): void {
