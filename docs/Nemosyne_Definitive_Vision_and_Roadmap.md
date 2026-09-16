@@ -243,34 +243,22 @@ No module may silently become a second authority for another ontology, and no ev
                  │ Disposition         │
                  └──────────┬──────────┘
                             │
-             ┌──────────────┼─────────────────────────┐
-             │              │                         │
-             ▼              ▼                         ▼
-          INVALID       REQUIRES-HUMAN              ELIGIBLE
-             │              │                         │
-             ▼              ▼                         │
-           reject     bounded study                  │
-                      selection + S5                 │
-                             │                       │
-                      re-adjudication                │
-                             │                       │
-                             └──────► disposition ◄──┘
-                                      │
-                    ┌─────────────────┴─────────────────┐
-                    │                                   │
-                    ▼                                   ▼
-          ABSTAIN / FALSIFY-ONLY              eligible after adjudication
-                    │                                   │
-                    ▼                                   ▼
-          bounded diagnostic               ┌─────────────────────┐
-          ranking / explanation            │ Moneta              │
-          / falsification only             │ Multi-objective     │
-          (no promotion/render)            │ Fitness / Decision  │
-                                           │ Explanation         │
-                                           └──────────┬──────────┘
-                                                      ▼
-                                            RepresentationGraph(s)
-                                            + inspectable alternatives
+                            ├─ INVALID -> reject
+                            ├─ ABSTAIN -> bounded ranked near-misses / explanation only
+                            ├─ MACHINE-FALSIFICATION-ONLY -> falsification only
+                            ├─ REQUIRES-HUMAN -> bounded study + S5 -> re-adjudicate
+                            └─ ELIGIBLE
+                                  │
+                                  ▼
+                        ┌─────────────────────┐
+                        │ Moneta              │
+                        │ Multi-objective     │
+                        │ Fitness / Decision  │
+                        │ Explanation         │
+                        └──────────┬──────────┘
+                                   ▼
+                         RepresentationGraph(s)
+                         + inspectable alternatives
                             │
                             ▼
                  ┌─────────────────────┐
@@ -417,7 +405,7 @@ DatasetEvidence
 + RepresentationOntology
 ```
 
-and, after claim-appropriate evidence admissibility, produces:
+records claim-appropriate `EvidenceDisposition` and, where that disposition permits promotion, produces:
 
 ```text
 EvidenceDisposition
@@ -451,7 +439,7 @@ Moneta is a **hypothesis engine and decision-support system**, not an oracle.
 
 The bootstrap stage remains deterministic, but heuristic weights and metadata MUST be labelled as heuristic priors, never as empirically validated truth. `confidence` terminology MUST NOT be used for uncalibrated heuristic utility.
 
-A decision may be `DECISIVE`, `AMBIGUOUS`, `INFEASIBLE` or `UNDERDETERMINED`. Moneta must be able to abstain rather than manufacture a winner.
+A decision may be `DECISIVE`, `AMBIGUOUS`, `ABSTAIN`, `INFEASIBLE` or `UNDERDETERMINED`. `ABSTAIN` is distinct from infeasibility: structurally feasible candidates may remain inspectable as ranked near-misses when evidence or authority is insufficient for promotion, while no active representation is chosen or rendered.
 
 A representation decision exposes its winner, alternatives, utility/fitness dimensions, margin, constraints, sensitivity to weight perturbation, model version and provenance.
 
