@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/vr/World.ts';
+import { REPRESENTATION_RESOURCE_POLICY_V1 } from '../src/vr/scalability/ResourceLifecycleGovernor.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
@@ -119,5 +120,96 @@ describe('RF-062C production World path', () => {
     expect(replace).not.toHaveBeenCalled();
     expect(world.dracoNode).toBeNull();
     expect(world.representationSurface.currentNode).toBeNull();
-  });;
+  });
+
+  it('owns one lifecycle governor with the representation-resource/v1 policy', () => {
+    world = new World();
+    expect(world.resourceLifecycleGovernor).toBeDefined();
+    const snapshot = world.resourceLifecycleGovernor.getSnapshot();
+    expect(snapshot.policyVersion).toBe(REPRESENTATION_RESOURCE_POLICY_V1.policyVersion);
+  });
+
+  it('records one ACTIVE representation record after a successful dataset load', async () => {
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const sample = getSampleDataset('sales-table');
+    if (!sample) throw new Error('sales-table sample is required');
+
+    await world.loadDataset({
+      name: sample.label,
+      topology: sample.topology,
+      dataset: sample.dataset,
+      maxDepth: sample.depth,
+    });
+
+    const snapshot = world.resourceLifecycleGovernor.getSnapshot();
+    expect(snapshot.counts.ACTIVE).toBe(1);
+    expect(snapshot.counts.WARM).toBe(0);
+    expect(snapshot.counts.COLD).toBe(0);
+  });
+
+  it('queues cleanup for the previous projection when replacing datasets', async () => {
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const first = getSampleDataset('sales-table');
+    if (!first) throw new Error('sales-table sample is required');
+    const second = getSampleDataset('fraud-graph');
+    if (!second) throw new Error('fraud-graph sample is required');
+
+    await world.loadDataset({
+      name: first.label,
+      topology: first.topology,
+      dataset: first.dataset,
+      maxDepth: first.depth,
+    });
+    expect(world.resourceLifecycleGovernor.getSnapshot().counts.ACTIVE).toBe(1);
+
+    await world.loadDataset({
+      name: second.label,
+      topology: second.topology,
+      dataset: second.dataset,
+      maxDepth: second.depth,
+    });
+
+    const snapshot = world.resourceLifecycleGovernor.getSnapshot();
+    expect(snapshot.counts.ACTIVE).toBe(1);
+    expect(snapshot.queuedCleanupCount).toBeGreaterThan(0);
+  });
+
+  it('tick advances cleanup and final disposal empties the lifecycle registry', async () => {
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const first = getSampleDataset('sales-table');
+    if (!first) throw new Error('sales-table sample is required');
+    const second = getSampleDataset('fraud-graph');
+    if (!second) throw new Error('fraud-graph sample is required');
+
+    await world.loadDataset({
+      name: first.label,
+      topology: first.topology,
+      dataset: first.dataset,
+      maxDepth: first.depth,
+    });
+
+    await world.loadDataset({
+      name: second.label,
+      topology: second.topology,
+      dataset: second.dataset,
+      maxDepth: second.depth,
+    });
+
+    const beforeTick = world.resourceLifecycleGovernor.getSnapshot();
+    expect(beforeTick.queuedCleanupCount).toBeGreaterThan(0);
+
+    world.resourceLifecycleGovernor.tick();
+
+    await world.dispose();
+
+    const afterDispose = world.resourceLifecycleGovernor.getSnapshot();
+    expect(afterDispose.counts.ACTIVE).toBe(0);
+    expect(afterDispose.counts.WARM).toBe(0);
+    expect(afterDispose.counts.COLD).toBe(0);
+    expect(afterDispose.queuedCleanupCount).toBe(0);
+    world = null;
+  });
 });

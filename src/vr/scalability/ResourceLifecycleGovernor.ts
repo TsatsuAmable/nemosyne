@@ -114,6 +114,16 @@ function encodeIdentityField(name: string, value: string | number | null): strin
   return `${name}:${taggedValue}`;
 }
 
+export const REPRESENTATION_RESOURCE_POLICY_V1: ResourceLifecyclePolicy = {
+  policyVersion: 'representation-resource/v1',
+  maxDeclarations: 1,
+  maxActiveResources: 1,
+  maxWarmResources: 0,
+  maxColdDescriptors: 0,
+  maxCleanupOperationsPerTick: 4,
+  maxTransitionEvents: 64,
+};
+
 export class ResourceLifecycleGovernor {
   private readonly records = new Map<string, ResourceRecord>();
   private readonly policy: Readonly<ResourceLifecyclePolicy>;
@@ -319,6 +329,10 @@ export class ResourceLifecycleGovernor {
 
     this.declaredWorkingSetSize = declarations.length;
     return { accepted: true };
+  }
+
+  public update(): void {
+    this.tick();
   }
 
   public tick(): void {

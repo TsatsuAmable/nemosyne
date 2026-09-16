@@ -118,6 +118,10 @@ import { bindAutosaveProjection } from './presentation/bindings/bindAutosaveProj
 import type { BindingDisposer } from './presentation/bindings/BindingDisposer.ts';
 import { WorldPresentationSnapshotAdapter } from './presentation/session/WorldPresentationSnapshotAdapter.ts';
 import { AnalyticalRuntimeOwner } from './runtime/AnalyticalRuntimeOwner.ts';
+import {
+  ResourceLifecycleGovernor,
+  REPRESENTATION_RESOURCE_POLICY_V1,
+} from './scalability/ResourceLifecycleGovernor.ts';
 
 // Map sample-dataset keys to atmospheric presets so each dataset has a distinct mood.
 const DATASET_THEME_MAP: Record<string, string> = {
@@ -158,6 +162,7 @@ export class World {
   dataOperationController: DataOperationController;
   loadDatasetUseCase: LoadDatasetUseCase;
   representationSurface!: RepresentationSurface;
+  resourceLifecycleGovernor: ResourceLifecycleGovernor;
   sceneComposer: WorldSceneComposer;
   analystAnchor: THREE.Group;
   datum: DatumPlane;
@@ -554,6 +559,11 @@ export class World {
         this.inPlaceHandles.update(delta, time, this.engine.input.raycaster.ray),
     });
 
+    this.resourceLifecycleGovernor = new ResourceLifecycleGovernor(
+      REPRESENTATION_RESOURCE_POLICY_V1
+    );
+    this.engine.addUpdatable(this.resourceLifecycleGovernor);
+
     this.representationSurface = new RepresentationSurface({
       scene: this.engine.scene,
       cameraGroup: this.engine.cameraGroup,
@@ -574,6 +584,15 @@ export class World {
       },
       rebuildStructureHandles: (node) => this._rebuildStructureHandles(node),
       onSelectNode: (mesh) => this._showDataCard(mesh),
+      resourceLifecycle: this.resourceLifecycleGovernor,
+      createResourceIdentity: (decision, projectionOrdinal) => ({
+        family: 'MONETA_REPRESENTATION',
+        datasetFingerprint: this.atlas.datasetFingerprint,
+        datasetGeneration: this.atlas.generation,
+        datasetVersion: this.atlas.datasetVersion,
+        decisionId: decision?.id ?? null,
+        semanticId: `representation:${decision?.id ?? `v${this.atlas.datasetVersion}`}:projection:${projectionOrdinal}`,
+      }),
     });
 
     this.derivedAnalysisPipeline = new DerivedAnalysisPipeline({
@@ -2311,9 +2330,11 @@ export class World {
     const pos = this.engine.headWorldPos;
     const spec = this.dracoNode?.solverResult?.spec;
     const name = this.currentEntry?.name ?? '-';
+    const resources = this.resourceLifecycleGovernor.getSnapshot();
+    const resourceText = `RES: A${resources.counts.ACTIVE}/W${resources.counts.WARM}/C${resources.counts.COLD}/Q${resources.queuedCleanupCount}`;
     const text =
       `${name}  |  POS: [${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}]  |  ` +
-      `LAYOUT: ${spec?.layout ?? '-'}  GEOM: ${spec?.geometry ?? '-'}  BEHAVIOR: ${spec?.behavior ?? '-'}`;
+      `LAYOUT: ${spec?.layout ?? '-'}  GEOM: ${spec?.geometry ?? '-'}  BEHAVIOR: ${spec?.behavior ?? '-'}  |  ${resourceText}`;
     if (text === this._lastTelemetryText) return;
     this._lastTelemetryText = text;
     if (this.telemetry.textContent !== text) this.telemetry.textContent = text;
@@ -2473,6 +2494,8 @@ export class World {
     this.dracoNode = null;
     this.diagnostic = null;
     this._lastSelectedMesh = null;
+    await run(() => this.engine.removeUpdatable(this.resourceLifecycleGovernor));
+    await run(() => this.resourceLifecycleGovernor?.dispose());
     await run(() => this.adaptiveAssist?.dispose());
     await run(() => this.engine.removeUpdatable(this.guidedTour));
     await run(() => this.engine.removeHudObject(this.guidedTour));

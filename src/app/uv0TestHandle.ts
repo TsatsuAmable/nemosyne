@@ -49,6 +49,16 @@ interface Uv0RuntimePort {
   session: {
     nilOutcomes: readonly unknown[];
   };
+  resourceLifecycleGovernor?: {
+    getSnapshot(): {
+      policyVersion: string;
+      declaredWorkingSetSize: number;
+      counts: Record<string, number>;
+      queuedCleanupCount: number;
+      transitions: readonly unknown[];
+      cumulative: { cooled: number; evicted: number; reconstructed: number; failed: number };
+    };
+  };
   _showDataCard(mesh: object): void;
 }
 
@@ -72,6 +82,14 @@ export interface Uv0RuntimeSnapshot {
   outcomeKind: string;
   /** True when the analytical kernel is live (WASM present + atlas ready). */
   kernelAvailable: boolean;
+  /** Lifecycle governor snapshot for dev/verification only. */
+  resourceLifecycle: {
+    policyVersion: string;
+    declaredWorkingSetSize: number;
+    counts: Record<string, number>;
+    queuedCleanupCount: number;
+    cumulative: { cooled: number; evicted: number; reconstructed: number; failed: number };
+  } | null;
 }
 
 export interface NemosyneUv0TestHandle {
@@ -127,6 +145,18 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
         nilCount: runtime.session.nilOutcomes.length,
         outcomeKind: visibleAssessmentKind(),
         kernelAvailable: !runtime.analyticalRuntime.isUnavailable && runtime.atlas.isReady(),
+        resourceLifecycle: runtime.resourceLifecycleGovernor
+          ? (() => {
+              const s = runtime.resourceLifecycleGovernor.getSnapshot();
+              return {
+                policyVersion: s.policyVersion,
+                declaredWorkingSetSize: s.declaredWorkingSetSize,
+                counts: s.counts,
+                queuedCleanupCount: s.queuedCleanupCount,
+                cumulative: s.cumulative,
+              };
+            })()
+          : null,
       };
     },
     selectNode(index = 0): boolean {
