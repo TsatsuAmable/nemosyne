@@ -20,7 +20,7 @@
     {
       "root": "inference",
       "classification": "development-only",
-      "reason": "Provider-neutral free-compute routing is preparatory infrastructure only; no external inference provider is product-composed or permitted to become analytical or scientific authority in this tranche."
+      "reason": "Provider-neutral inference routing is preparatory infrastructure only; no external inference provider is product-composed or permitted to become analytical or scientific authority in this tranche."
     },
     {
       "root": "learning",
