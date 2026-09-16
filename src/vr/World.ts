@@ -395,6 +395,8 @@ export class World {
       onExitVR: () => this.exitVR(),
       frustrationAnalyzer: this.telemetryCollector.frustrationAnalyzer,
       getDataset: () => this.atlas.dataset,
+      hasDataset: () => this.atlas.hasDataset,
+      hasRepresentation: () => Boolean(this.representationSurface?.currentNode),
       applySchemaMapping: (updated) => this.applySchemaMapping(updated),
       onInspectNode: (data) => {
         if (this._lastSelectedMesh) {

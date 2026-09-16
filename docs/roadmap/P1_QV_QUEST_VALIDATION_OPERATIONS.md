@@ -336,6 +336,11 @@ The runner should guide and record semantic outcomes for representative tasks su
 - panel grab/pin/follow/scroll where applicable;
 - representation change without semantic-command drift;
 - command availability / disabled reason comprehension;
+- unaided purpose/comprehension check: what Nemosyne is for, what the current
+  representation means, what the user can do here, and what they should try next;
+- representation-as-view comprehension: the participant must not describe the
+  spatial representation as identical to the underlying dataset or as analytical
+  truth merely because it is visible;
 - large text, high contrast and reduced-motion treatment;
 - error/recovery path;
 - core first-insight / skeptical-investigation tasks on the converged product treatment.
@@ -351,6 +356,18 @@ Record outcome-level evidence rather than exhaustive biometric/pose trails:
 - treatment/build identity.
 
 A separate sustained-session record should capture required comfort/fatigue observations without pretending a single self-run is a population usability study.
+
+For capability-discoverability issue #745, a physical owner-operated retest is a
+specific closure gate for the reported defect. The run must not pass merely
+because GUIDE renders. Starting without taxonomy coaching, record whether the
+user can: discover GUIDE; explain Nemosyne's purpose in their own words; explain
+that the representation is an inspectable governed view rather than the dataset
+itself; identify an available action and an unavailable action plus its reason;
+state the suggested next step; and execute a chosen capability without being told
+which intent category contains it. Failure on any of these is retained as product
+evidence and keeps #745 open. A successful owner retest resolves the reported
+regression but does not substitute for later independent-user/general-usability
+evidence.
 
 ### QV5 acceptance
 

@@ -83,21 +83,31 @@ export interface WorldUIManagerCallbacks {
   traceExporter?: (() => string | null) | null;
   analysisHistory?: unknown;
   getRecommendation?: () => import('../../atlas/types.ts').AtlasRecommendation | null;
-  getOutcome?: () => import('../../moneta/representation/ActionableNil.ts').InvestigatorActionableOutcome | null;
+  getOutcome?: () =>
+    import('../../moneta/representation/ActionableNil.ts').InvestigatorActionableOutcome | null;
   onAcceptRecommendation?: () => void;
   onRejectRecommendation?: () => void;
   onOverrideRecommendation?: () => void;
   onGenerateRecommendation?: () => void;
-  onApplyRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
-  onPreviewRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => boolean;
-  getPreviewDecision?: () => import('../../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
-  onCommitRemediation?: (action: import('../../moneta/representation/ActionableNil.ts').RemedialAction) => void;
+  onApplyRemediation?: (
+    action: import('../../moneta/representation/ActionableNil.ts').RemedialAction
+  ) => void;
+  onPreviewRemediation?: (
+    action: import('../../moneta/representation/ActionableNil.ts').RemedialAction
+  ) => boolean;
+  getPreviewDecision?: () =>
+    import('../../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+  onCommitRemediation?: (
+    action: import('../../moneta/representation/ActionableNil.ts').RemedialAction
+  ) => void;
   onCancelRemediationPreview?: () => void;
   onExitVR?: () => void;
   uiMode?: UIMode;
   onStatusUpdate?: (statusText: string) => void;
   frustrationAnalyzer?: UXFrustrationAnalyzer | null;
   getDataset?: () => Dataset | null;
+  hasDataset?: () => boolean;
+  hasRepresentation?: () => boolean;
   /** Apply a schema-mapping edit by reloading the dataset with new column types. */
   applySchemaMapping?: (updated: Dataset) => void;
   onInspectNode?: (data: Record<string, unknown> | null) => void;
@@ -227,6 +237,8 @@ export class WorldUIManager {
       parent: this.analystAnchor,
       getWheelCategories: () => this._wheelCategories,
       contextualTaskSurface: this.contextualTaskSurface,
+      hasDataset: () => callbacks.hasDataset?.() ?? false,
+      hasRepresentation: () => callbacks.hasRepresentation?.() ?? false,
     });
     this.engine.addUpdatable(this.capabilityGuidePanel);
     this.engine.input.addPanel(this.capabilityGuidePanel);
@@ -788,7 +800,8 @@ export class WorldUIManager {
     if (this.schemaMappingPanel) {
       this.engine.input.removePanel(this.schemaMappingPanel);
       this.panelBudgetController.close(this.schemaMappingPanel);
-      if (!this._borrowedResources.has(this.schemaMappingPanel)) this.schemaMappingPanel.dispose?.();
+      if (!this._borrowedResources.has(this.schemaMappingPanel))
+        this.schemaMappingPanel.dispose?.();
       this.schemaMappingPanel = null;
     }
 

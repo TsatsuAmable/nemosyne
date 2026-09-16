@@ -84,6 +84,20 @@ describe('WorldUIManager', () => {
     expect(ui.narrativeStrip).toBeNull();
   });
 
+  it('uses explicit dataset and representation presence authorities for GUIDE orientation', () => {
+    const localUi = new WorldUIManager(engine, anchor, bus, {
+      ...callbacks,
+      getDataset: () => ({}) as never,
+      hasDataset: () => false,
+      hasRepresentation: () => false,
+    });
+
+    localUi.capabilityGuidePanel.show();
+    expect(localUi.capabilityGuidePanel.getRenderedSummary()).toContain('No dataset loaded yet.');
+    expect(localUi.capabilityGuidePanel.getRenderedSummary()).toContain('NEXT: Open DATA');
+    localUi.dispose();
+  });
+
   it('constructs lazy panels on first access via getOrCreate accessors', () => {
     expect(ui.getOrCreateOperationLogPanel()).toBeTruthy();
     expect(ui.getOrCreateInteractionCoach()).toBeTruthy();
@@ -290,7 +304,9 @@ describe('WorldUIManager', () => {
 
   it('applies accessibility options to legacy and migrated SpatialPanel surfaces', () => {
     const panelSpy = vi.spyOn(ui.settingsPanel, 'applyAccessibility').mockImplementation(() => {});
-    const statusSpy = vi.spyOn(ui.statusStripPanel, 'applyAccessibility').mockImplementation(() => {});
+    const statusSpy = vi
+      .spyOn(ui.statusStripPanel, 'applyAccessibility')
+      .mockImplementation(() => {});
     const wheelSpy = vi.spyOn(ui.handWheelMenu, 'applyAccessibility').mockImplementation(() => {});
 
     ui.applyAccessibility({ textScale: 1.5, highContrast: true });
