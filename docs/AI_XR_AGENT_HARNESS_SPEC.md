@@ -1168,7 +1168,7 @@ Before changing code:
    instructions.
 2. Inspect the current branch, worktree and open implementation state. Preserve
    unrelated user changes.
-3. Confirm that the requested phase is still compatible with the governing V3
+3. Confirm that the requested phase is still compatible with the governing
    vision and current roadmap. If it would create a competing analytical,
    representation, semantic or investigation authority, stop and request
    project-owner approval with the exact conflict.

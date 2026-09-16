@@ -7,14 +7,14 @@
 
 **Integration base:** `main@f451f4dc6b955b91884aee5b4ba3354d0c2d7f78` (#751)
 
-**Canonical product/research vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3  
+**Canonical product/research vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3.1
 **Canonical implementation-status authority:** `docs/ROADMAP.md`  
 **Execution cadence:** `docs/roadmap/P1_E_EVOLUTIONARY_IMPROVEMENT_CADENCE.md`  
 **Data corpus:** `TsatsuAmable/nemosyne-data`
 
 ## Purpose
 
-Nemosyne is moving from broad exploratory development toward an actual product and production lifecycle. This plan captures the infrastructure, engineering, data, learning and product-development work needed to make the V3 vision operational.
+Nemosyne is moving from broad exploratory development toward an actual product and production lifecycle. This plan captures the infrastructure, engineering, data, learning and product-development work needed to make the governing vision operational.
 
 It does **not** replace the vision.
 
@@ -40,7 +40,7 @@ These invariants govern every product-transition tranche.
 
 ## 1.1 Meaningful discovery is the primary outcome
 
-The V3 discovery lifecycle remains the product-level success path:
+The governing discovery lifecycle remains the product-level success path:
 
 ```text
 NOTICE
@@ -126,7 +126,7 @@ No adaptive update may silently reinterpret an existing investigation or change 
 
 Current fixed candidate families and bounded learned ranking are productisation steps, not the final theory of representation.
 
-The long-term V3 destination remains:
+The long-term vision destination remains:
 
 ```text
 DatasetEvidence
@@ -149,7 +149,7 @@ Do not pull speculative compositional work forward before its prerequisites are 
 
 ## 1.6 Current execution governance supersedes the older parallelism suggestion
 
-V3 describes parallel implementation after authority reconciliation. The later project operating policy is intentionally stricter: **one forward implementation tranche at a time unless explicitly changed**.
+V3 historically described parallel implementation after authority reconciliation. V3.1 removes that stale embedded execution rule and delegates live sequencing to `docs/ROADMAP.md`; the current operating policy remains **one forward implementation tranche at a time unless explicitly changed**.
 
 This is a process/governance amendment, not a change to the product vision. It exists to reduce stale-main work, conflicting authorities, integration collisions and agentic overclaiming.
 
@@ -495,7 +495,7 @@ Need:
 
 # 6. Runtime provenance registry and reproducibility
 
-The V3 Model Registry is broader than an MLOps model store. Nemosyne must be able to identify the exact system configuration under which an investigation occurred.
+The governing vision's Model Registry is broader than an MLOps model store. Nemosyne must be able to identify the exact system configuration under which an investigation occurred.
 
 Each investigation should increasingly resolve exact versions/digests for:
 
@@ -630,7 +630,7 @@ Useful evidence may include:
 
 Discovery outcomes are ultimately stronger learning evidence than mere interaction acceptance.
 
-Prefer explicit pairwise judgements where possible because they align with the existing pairwise-learning architecture and V3 Human Judgement model.
+Prefer explicit pairwise judgements where possible because they align with the existing pairwise-learning architecture and the governing Human Judgement model.
 
 ## 8.3 Training and promotion
 
@@ -656,7 +656,7 @@ Passing offline metrics must not automatically activate a model.
 
 PT9 validates learned priors over the bounded current representation system. It is not the end state.
 
-Once product evidence, ontology maturity and safety justify it, the V3 continuation is:
+Once product evidence, ontology maturity and safety justify it, the governing-vision continuation is:
 
 ```text
 validated learned priors
@@ -846,7 +846,7 @@ Move toward a small active set:
 
 1. `README.md`;
 2. `docs/ROADMAP.md`;
-3. definitive V3 product/research vision;
+3. definitive product/research vision;
 4. current architecture/system design;
 5. current product/UX interaction specification;
 6. current security/privacy/production operations specification;

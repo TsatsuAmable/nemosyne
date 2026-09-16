@@ -119,7 +119,7 @@ Quest evidence.
 
 ## Before opening a PR
 
-- confirm the change aligns with V3 and does not add analytical authority in JavaScript;
+- confirm the change aligns with the governing vision and does not add analytical authority in JavaScript;
 - inspect the diff for resource ownership, unbounded input and per-frame allocation;
 - update `ROADMAP.md` when implementation status or blockers change;
 - record benchmark/device limits honestly;

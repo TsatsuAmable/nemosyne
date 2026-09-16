@@ -2,7 +2,7 @@
 
 **Status:** current technical reference
 **Updated:** 24 August 2026
-**Governing specification:** [Nemosyne Definitive Vision and Roadmap V3](Nemosyne_Definitive_Vision_and_Roadmap.md)
+**Governing specification:** [Nemosyne Definitive Vision and Roadmap V3.1](Nemosyne_Definitive_Vision_and_Roadmap.md)
 
 ## Authority model
 
