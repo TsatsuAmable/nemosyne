@@ -1,8 +1,8 @@
 # UXR2 Resource Ownership, Lifecycle, and Evaluation Plan
 
-**Status:** implementation-ready planning tranche  
-**Date:** 16 September 2026  
-**Integration base:** `main@8ca83ca61d26d6425dab7f07b90f30cfc489c814`  
+**Status:** implementation-ready planning tranche
+**Date:** 16 September 2026
+**Integration base:** `main@eed184279ea4b7e16534a20843f104ad2af9a592`
 **Roadmap authority:** `docs/ROADMAP.md`
 
 ## Decision
