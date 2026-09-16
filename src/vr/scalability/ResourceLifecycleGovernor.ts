@@ -76,15 +76,19 @@ const POLICY_LIMITS = [
 
 export function resourceIdentityKey(identity: ResourceIdentity): string {
   return [
-    identity.family,
-    identity.datasetFingerprint ?? '',
-    identity.datasetGeneration ?? '',
-    identity.datasetVersion ?? '',
-    identity.decisionId ?? '',
-    identity.semanticId,
-  ]
-    .map((part) => encodeURIComponent(String(part)))
-    .join('|');
+    encodeIdentityField('family', identity.family),
+    encodeIdentityField('datasetFingerprint', identity.datasetFingerprint),
+    encodeIdentityField('datasetGeneration', identity.datasetGeneration),
+    encodeIdentityField('datasetVersion', identity.datasetVersion),
+    encodeIdentityField('decisionId', identity.decisionId),
+    encodeIdentityField('semanticId', identity.semanticId),
+  ].join('|');
+}
+
+function encodeIdentityField(name: string, value: string | number | null): string {
+  const taggedValue =
+    value === null ? 'null' : `${typeof value}:${encodeURIComponent(String(value))}`;
+  return `${name}:${taggedValue}`;
 }
 
 export class ResourceLifecycleGovernor {
@@ -175,6 +179,27 @@ export class ResourceLifecycleGovernor {
       ])
     );
 
+    for (const key of desiredByKey.keys()) {
+      if (!this.records.has(key)) {
+        return this.refusal(`Working set resource identity is not registered: ${key}`);
+      }
+    }
+
+    const detachments: ResourceRecord[] = [];
+    for (const [key, record] of this.records) {
+      if (record.residency === 'ACTIVE' && desiredByKey.get(key) !== 'ACTIVE') {
+        detachments.push(record);
+      }
+    }
+
+    try {
+      // Production adapters must make detach idempotent and no-throw; the governor can preserve
+      // its own state on failure but cannot roll back arbitrary external adapter side effects.
+      for (const record of detachments) record.adapter.detach(record.runtime);
+    } catch (error) {
+      return this.refusal(error instanceof Error ? error.message : String(error));
+    }
+
     for (const [key, record] of this.records) {
       const desired = desiredByKey.get(key);
       if (desired === 'ACTIVE') {
@@ -183,7 +208,6 @@ export class ResourceLifecycleGovernor {
       }
 
       if (record.residency === 'ACTIVE') {
-        record.adapter.detach(record.runtime);
         record.residency = 'WARM';
       }
     }

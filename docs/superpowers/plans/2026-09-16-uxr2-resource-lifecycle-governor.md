@@ -51,7 +51,7 @@
 - Produces: `ResourceResidency`, `ResourceIdentity`, `WorkingSetDeclaration`, `ResourceLifecyclePolicy`, `ResourceLifecycleAdapter`, `ResourceLifecycleGovernor`, `ResourceLifecycleSnapshot`.
 - [ ] **Step 1: Write the failing state-machine tests**
 
-Add tests for stable identity separation, active protection, atomic over-capacity refusal, WARM/COLD/EVICTED progression, EVICTED record removal, and deterministic snapshots:
+Add tests for stable typed identity separation, ACTIVE protection, ACTIVE <-> WARM authority, atomic validation/refusal, and deterministic snapshots:
 
 ```ts
 const policy: ResourceLifecyclePolicy = {
@@ -177,25 +177,25 @@ export interface ResourceRegistration<R, D> {
 
 export function resourceIdentityKey(identity: ResourceIdentity): string {
   return [
-    identity.family,
-    identity.datasetFingerprint ?? '',
-    identity.datasetGeneration ?? '',
-    identity.datasetVersion ?? '',
-    identity.decisionId ?? '',
-    identity.semanticId,
-  ]
-    .map((part) => encodeURIComponent(String(part)))
-    .join('|');
+    encodeIdentityField('family', identity.family),
+    encodeIdentityField('datasetFingerprint', identity.datasetFingerprint),
+    encodeIdentityField('datasetGeneration', identity.datasetGeneration),
+    encodeIdentityField('datasetVersion', identity.datasetVersion),
+    encodeIdentityField('decisionId', identity.decisionId),
+    encodeIdentityField('semanticId', identity.semanticId),
+  ].join('|');
 }
 ```
 
-`validateWorkingSet()` performs the same complete capacity/duplicate checks without mutation. `reconcile()` must call that validation before changing any record. Duplicate keys, declaration overflow, ACTIVE overflow, or declared-WARM overflow return `{ accepted: false, reason }` and leave the current records untouched.
+Each encoded field includes its explicit field name and a `null`, `string`, or `number` value tag so nullable and primitive domains cannot alias.
+
+`validateWorkingSet()` performs the same complete capacity/duplicate checks without mutation and intentionally accepts valid not-yet-registered candidates for admission preflight. `reconcile()` must call that validation, reject unknown identities, and complete required detach hooks before changing any governor record or declared working-set state. Duplicate keys, declaration overflow, ACTIVE overflow, declared-WARM overflow, unknown identities, or thrown detach hooks return `{ accepted: false, reason }` and leave governor state untouched.
 
 - [ ] **Step 4: Run Task 1 tests and make them GREEN**
 
 Run: `npx vitest run tests/resource-lifecycle-governor.test.ts`
 
-Expected: PASS for identity, capacity, ACTIVE protection and deterministic transition tests.
+Expected: PASS for identity, capacity, ACTIVE protection, ACTIVE <-> WARM authority and deterministic snapshot tests.
 
 - [ ] **Step 5: Commit the pure authority**
 
@@ -217,7 +217,7 @@ git commit -m "feat(uxr2): add resource lifecycle authority"
 
 - Consumes: Task 1 lifecycle records and policy.
 - Produces: adapter stepping, `tick()`, `dispose()`, lifecycle transition ring and cumulative snapshot counters.
-- [ ] **Step 1: Add RED tests for bounded work and stale async completion**
+- [ ] **Step 1: Add RED tests for bounded work, stale async completion and terminal cleanup**
 
 Use a deferred adapter completion to prove old revisions cannot commit after a newer declaration:
 
@@ -243,7 +243,7 @@ it('ignores a delayed cool completion after the record revision advances', async
 });
 ```
 
-Also assert that 20 queued resources with `maxCleanupOperationsPerTick: 3` start at most three cleanup steps per call to `tick()`.
+Also assert that 20 queued resources with `maxCleanupOperationsPerTick: 3` start at most three cleanup steps per call to `tick()`. Cover explicit WARM -> COLD -> EVICTED progression and prove that an EVICTED resource is removed from the live registry after its bounded terminal transition is recorded.
 
 - [ ] **Step 2: Run the focused file and prove the new assertions RED**
 

@@ -89,6 +89,19 @@ describe('ResourceLifecycleGovernor', () => {
     expect(resourceIdentityKey(identity('a|b'))).not.toBe(resourceIdentityKey(identity('a%7Cb')));
   });
 
+  it('keeps nullable and primitive identity domains distinct', () => {
+    expect(resourceIdentityKey(identity('resource', { datasetFingerprint: null }))).not.toBe(
+      resourceIdentityKey(identity('resource', { datasetFingerprint: '' }))
+    );
+    expect(resourceIdentityKey(identity('resource', { datasetGeneration: 1 }))).not.toBe(
+      resourceIdentityKey(
+        identity('resource', {
+          datasetGeneration: '1' as unknown as ResourceIdentity['datasetGeneration'],
+        })
+      )
+    );
+  });
+
   it('refuses invalid complete declarations without mutating the prior safe state', () => {
     const governor = new ResourceLifecycleGovernor(policy);
     governor.register(fakeRegistration(identity('a')));
@@ -128,6 +141,41 @@ describe('ResourceLifecycleGovernor', () => {
     ).toEqual(expect.objectContaining({ accepted: false }));
   });
 
+  it('refuses reconcile-level ACTIVE and declared-WARM overflow without mutating state', () => {
+    const governor = new ResourceLifecycleGovernor({
+      ...policy,
+      maxDeclarations: 3,
+      maxActiveResources: 1,
+      maxWarmResources: 1,
+    });
+    governor.register(fakeRegistration(identity('a')));
+    governor.register(fakeRegistration(identity('b')));
+    expect(governor.reconcile([declaration('a')]).accepted).toBe(true);
+    const before = governor.getSnapshot();
+
+    expect(governor.reconcile([declaration('a'), declaration('b')])).toEqual(
+      expect.objectContaining({ accepted: false, reason: expect.any(String) })
+    );
+    expect(governor.getSnapshot()).toEqual(before);
+
+    expect(governor.reconcile([declaration('a', 'WARM'), declaration('b', 'WARM')])).toEqual(
+      expect.objectContaining({ accepted: false, reason: expect.any(String) })
+    );
+    expect(governor.getSnapshot()).toEqual(before);
+  });
+
+  it('accepts an unregistered preflight candidate but rejects mutating reconciliation', () => {
+    const governor = new ResourceLifecycleGovernor(policy);
+    const candidate = declaration('candidate');
+    const before = governor.getSnapshot();
+
+    expect(governor.validateWorkingSet([candidate])).toEqual({ accepted: true });
+    expect(governor.reconcile([candidate])).toEqual(
+      expect.objectContaining({ accepted: false, reason: expect.any(String) })
+    );
+    expect(governor.getSnapshot()).toEqual(before);
+  });
+
   it('protects declared ACTIVE authority and detaches only after it leaves the working set', () => {
     const registration = fakeRegistration(identity('a'));
     const governor = new ResourceLifecycleGovernor(policy);
@@ -153,6 +201,31 @@ describe('ResourceLifecycleGovernor', () => {
       COLD: 0,
       EVICTED: 0,
     });
+  });
+
+  it('preserves governor state when a required detach throws', () => {
+    const roomyPolicy = {
+      ...policy,
+      maxDeclarations: 2,
+      maxActiveResources: 2,
+      maxWarmResources: 2,
+    };
+    const first = fakeRegistration(identity('a'));
+    const second = fakeRegistration(identity('b'), {
+      detach: vi.fn(() => {
+        throw new Error('detach failed');
+      }),
+    });
+    const governor = new ResourceLifecycleGovernor(roomyPolicy);
+    governor.register(first);
+    governor.register(second);
+    expect(governor.reconcile([declaration('a'), declaration('b')]).accepted).toBe(true);
+    const before = governor.getSnapshot();
+
+    expect(governor.reconcile([])).toEqual({ accepted: false, reason: 'detach failed' });
+    expect(first.adapter.detach).toHaveBeenCalledTimes(1);
+    expect(second.adapter.detach).toHaveBeenCalledTimes(1);
+    expect(governor.getSnapshot()).toEqual(before);
   });
 
   it('keeps snapshot counts deterministic regardless of registration order', () => {
