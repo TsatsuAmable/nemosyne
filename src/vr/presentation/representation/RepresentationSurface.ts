@@ -204,12 +204,9 @@ export class RepresentationSurface {
 
   dispose(): void {
     if (this.disposed) return;
+    this.retireCurrent();
     this.disposed = true;
-    try {
-      this.retireCurrent();
-    } finally {
-      this.selectionListeners.clear();
-    }
+    this.selectionListeners.clear();
   }
 
   private publishSelection(mesh: Mesh | null): void {
@@ -355,17 +352,19 @@ export class RepresentationSurface {
 
   private retireCurrent(): void {
     if (this.currentResourceIdentity && this.dependencies.resourceLifecycle) {
-      if (this.selectedMesh) this.publishSelection(null);
-      this.currentNode = null;
-      this.diagnostic = null;
-      this.selectedMesh = null;
-      this.currentResourceIdentity = null;
+      const hadSelection = this.selectedMesh !== null;
       const reconciliation = this.dependencies.resourceLifecycle.reconcile([]);
       if (!reconciliation.accepted) {
         throw new Error(
           `Representation lifecycle retirement refused${reconciliation.reason ? `: ${reconciliation.reason}` : ''}`
         );
       }
+
+      this.currentNode = null;
+      this.diagnostic = null;
+      this.selectedMesh = null;
+      this.currentResourceIdentity = null;
+      if (hadSelection) this.publishSelection(null);
       return;
     }
 
