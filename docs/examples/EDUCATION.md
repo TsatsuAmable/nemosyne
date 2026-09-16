@@ -9,7 +9,7 @@ The same organization chart used in `ORG_CHART.md` is framed as an interactive l
 - See reporting relationships as a radial tree palace.
 - Compare size and budget across levels.
 - Use aggregation to answer “what does each level cost?”
-- Use anomaly detection to find unusually funded units.
+- Use anomaly detection to find unusually high-cost units.
 
 ## Artefacts generated
 
