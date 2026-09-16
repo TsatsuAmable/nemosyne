@@ -405,11 +405,10 @@ DatasetEvidence
 + RepresentationOntology
 ```
 
-records claim-appropriate `EvidenceDisposition` and, where that disposition permits promotion, produces:
+The surrounding governed pipeline records the claim-appropriate `EvidenceDisposition`. Where that disposition permits promotion, Moneta produces:
 
 ```text
-EvidenceDisposition
-+ RepresentationGraph / inspectable alternative set
+RepresentationGraph / inspectable alternative set
 + InteractionPlan
 + Explanation
 + FitnessEvidence
