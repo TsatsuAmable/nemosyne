@@ -1,9 +1,10 @@
 # Participant-Facing UI Treatment Declaration
 
-**Treatment identity (`uiTreatmentVersion`):** `panel-layout/5+intent-wheel/2+frames/body-stable`
-**Declared:** 14 September 2026 · **Authority:** decision records
+**Treatment identity (`uiTreatmentVersion`):** `panel-layout/5+intent-wheel/3+frames/body-stable`
+**Declared:** 16 September 2026 · **Authority:** decision records
 `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` revisions 1–4 plus
-`docs/decisions/VR_PANEL_BODY_FRAME_REVISION_5.md` · **Vision basis:**
+`docs/decisions/VR_PANEL_BODY_FRAME_REVISION_5.md` plus
+`docs/decisions/UXR1_GUIDE_PURPOSE_ORIENTATION.md` · **Vision basis:**
 `Nemosyne_Definitive_Vision_and_Roadmap.md` §14 (research safeguards) and §15
 (UI / Analyst Cockpit).
 
@@ -59,20 +60,31 @@ manipulation semantics are pinned independently in `tests/torso-anchor.test.ts`,
 F9/F10 cross-feature suites. These are repository/simulator assertions, not a
 claim of Quest ergonomics or human-subject comfort.
 
-### 2. Command surface — intent wheel v2 (`buildIntentWheelMenuCategories`)
+### 2. Command surface — intent wheel v3 (`buildIntentWheelMenuCategories`)
 
 The six canonical task intents remain ANALYSE / VIEW / DATA / STUDY /
-COLLABORATE / SYSTEM. Intent wheel v2 adds a participant-facing GUIDE annex
+COLLABORATE / SYSTEM. Intent wheel v3 retains the participant-facing GUIDE annex
 before the SUPERUSER annex. GUIDE contains `What can I do here?` plus the
 Interaction Coach; SUPERUSER remains excluded from the participant command
 surface.
 
-The GUIDE change is a controlled-treatment modification motivated by the
-2026-09-14 physical Quest owner observation that the post-migration UI did not
-materially improve capability discoverability or cognitive comfort. The guide
-derives its global map from the live wheel categories and its selected-object
-actions and disabled reasons from the canonical InvestigatorTaskIntent /
-ContextualTaskSurface authority. It does not own a second capability taxonomy.
+The GUIDE treatment is motivated by the 2026-09-14 physical Quest owner
+observation that the post-migration UI did not materially improve capability
+discoverability or cognitive comfort. Version 3 makes the unresolved product
+orientation explicit before capability listings: it states Nemosyne's purpose,
+shows the dataset -> representation -> structure -> question -> investigation ->
+evidence mental model, states that a representation is a governed view rather
+than the dataset itself, and projects one context-sensitive next action.
+
+The guide still derives its global map from the live wheel categories and its
+selected-object actions, disabled reasons and selected-object next step from the
+canonical InvestigatorTaskIntent / ContextualTaskSurface authority. Dataset presence
+comes from `AtlasCore.hasDataset`; whether there is visible structure to select comes
+from the live `RepresentationSurface`. A fresh investigation resolves the live Data
+Sources action, while a loaded dataset with no promoted representation routes to the
+canonical `More` context/constraints action. The capability inventory is progressively
+disclosed rather than appended to the orientation view. GUIDE does not own a second
+capability taxonomy or analytical authority.
 
 Novice vocabulary coverage per UX spec §6.1 remains: Move
 (teleport/flight/floor), Undo/Redo (ANALYSE), Return-to-Overview (VIEW).

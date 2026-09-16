@@ -39,7 +39,7 @@ describe('panelLayout (role-aware depth tiers, stable body frame)', () => {
     expect(angle).toBeCloseTo(45, 5);
     expect(dist(p)).toBeCloseTo(1.15, 5);
     expect(worldY).toBeCloseTo(0.77, 5);
-    expect(UI_TREATMENT_VERSION).toBe('panel-layout/5+intent-wheel/2+frames/body-stable');
+    expect(UI_TREATMENT_VERSION).toBe('panel-layout/5+intent-wheel/3+frames/body-stable');
   });
 
   it('keeps mid-tier panels inside the 0.9–1.4 m comfort band', () => {

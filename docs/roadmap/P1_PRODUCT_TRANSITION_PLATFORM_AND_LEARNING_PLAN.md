@@ -215,6 +215,9 @@ Frequent lightweight sessions should examine:
 - hidden-state/mode confusion;
 - provenance, undo and recovery comprehension;
 - representation-reasoning comprehension;
+- product-purpose comprehension: whether the user can explain what Nemosyne is
+  for, what the current spatial representation claims, and what meaningful action
+  to take next without prior knowledge of the UI taxonomy;
 - dataset-loading friction;
 - unnecessary desktop/headset switching;
 - progression through Notice -> Question -> Hypothesis -> Investigation -> Validation;

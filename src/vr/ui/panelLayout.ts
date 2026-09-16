@@ -96,9 +96,9 @@ export type PanelLayoutKey = keyof typeof PANEL_LAYOUT;
 /**
  * Participant-facing UI treatment identity for the vision §14 freeze contract:
  * panel defaults = revision 5 (stable body frame + C2 grounding), command
- * surface = intent wheel v2 (+ GUIDE + SUPERUSER annexes), reference-frame policy =
+ * surface = intent wheel v3 (+ GUIDE purpose orientation + SUPERUSER annexes), reference-frame policy =
  * BODY_LOCKED with head lock reserved for transient alerts. Bump whenever any
  * participant-facing spatial arrangement or reference-frame behavior changes
  * and record it in docs/study/UI_TREATMENT.md.
  */
-export const UI_TREATMENT_VERSION = 'panel-layout/5+intent-wheel/2+frames/body-stable' as const;
+export const UI_TREATMENT_VERSION = 'panel-layout/5+intent-wheel/3+frames/body-stable' as const;

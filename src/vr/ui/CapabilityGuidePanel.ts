@@ -14,6 +14,8 @@ export interface CapabilityGuidePanelOptions {
   parent: THREE.Object3D;
   getWheelCategories: () => readonly WheelMenuCategory[];
   contextualTaskSurface: ContextualTaskSurface;
+  hasDataset?: () => boolean;
+  hasRepresentation?: () => boolean;
 }
 
 const PANEL_WIDTH = 760;
@@ -33,9 +35,14 @@ export class CapabilityGuidePanel extends SpatialPanel {
   onHide: (() => void) | null = null;
   private readonly _getWheelCategories: () => readonly WheelMenuCategory[];
   private readonly _taskSurface: ContextualTaskSurface;
+  private readonly _hasDataset: () => boolean;
+  private readonly _hasRepresentation: () => boolean;
   private readonly _summary: Text;
   private readonly _actions: Container;
   private _buttons: Button[] = [];
+  private _detailsExpanded = false;
+  private _renderedSummary = '';
+  private _lastContextSignature = '';
 
   constructor(options: CapabilityGuidePanelOptions) {
     super(
@@ -55,6 +62,8 @@ export class CapabilityGuidePanel extends SpatialPanel {
     this.name = 'capability-guide-panel';
     this._getWheelCategories = options.getWheelCategories;
     this._taskSurface = options.contextualTaskSurface;
+    this._hasDataset = options.hasDataset ?? (() => false);
+    this._hasRepresentation = options.hasRepresentation ?? (() => false);
     this.scale.setScalar(0.82 / PANEL_WIDTH);
     this.position.copy(this.defaultPosition);
 
@@ -74,6 +83,7 @@ export class CapabilityGuidePanel extends SpatialPanel {
   }
 
   show(): void {
+    this._detailsExpanded = false;
     this.visible = true;
     this.refresh();
   }
@@ -88,58 +98,139 @@ export class CapabilityGuidePanel extends SpatialPanel {
     if (this.visible) this.hide();
     else this.show();
   }
+
+  update(delta = 0): void {
+    super.update(delta);
+    if (!this.visible) return;
+    if (this._contextSignature() !== this._lastContextSignature) this.refresh();
+  }
+
   getRenderedSummary(): string {
-    return this._formatSummary();
+    return this._renderedSummary;
+  }
+
+  private _contextSignature(): string {
+    const selected = this._taskSurface.activeData;
+    return JSON.stringify({
+      detailsExpanded: this._detailsExpanded,
+      hasDataset: this._hasDataset(),
+      hasRepresentation: this._hasRepresentation(),
+      selected: selected
+        ? [
+            selected.name ?? null,
+            selected.label ?? null,
+            selected.id ?? null,
+            selected.topology ?? null,
+          ]
+        : null,
+      availability: INVESTIGATOR_TASKS.map((task) => {
+        const state = this._taskSurface.taskAvailability(task.id, selected);
+        return [task.id, state.available, state.reason ?? null];
+      }),
+      categories: this._getWheelCategories().map((category) => [
+        category.id,
+        category.label,
+        category.items.map((item) => [item.id, item.label]),
+      ]),
+    });
   }
 
   private _formatSummary(): string {
     const selected = this._taskSurface.activeData;
-    const selectedName =
-      selected?.name ?? selected?.label ?? selected?.id ?? null;
-    const lines: string[] = [
+    const selectedName = selected?.name ?? selected?.label ?? selected?.id ?? null;
+
+    if (this._detailsExpanded) {
+      const lines: string[] = [
+        'CAPABILITY MAP',
+        selectedName ? 'Selected: ' + String(selectedName).slice(0, 60) : 'Nothing selected.',
+        '',
+        'NOW',
+      ];
+
+      for (const task of INVESTIGATOR_TASKS) {
+        const availability = this._taskSurface.taskAvailability(task.id, selected);
+        lines.push(
+          (availability.available ? '✓ ' : '– ') +
+            task.label +
+            ' — ' +
+            (availability.available ? task.description : (availability.reason ?? 'Unavailable'))
+        );
+      }
+
+      lines.push('', 'GLOBAL CAPABILITIES');
+      for (const category of this._getWheelCategories()) {
+        if (category.id === 'SUPERUSER' || category.id === 'GUIDE') continue;
+        const labels = category.items.map((item) => item.label).filter(Boolean);
+        if (!labels.length) continue;
+        const visible = labels.slice(0, 5);
+        const remainder = labels.length - visible.length;
+        lines.push(
+          category.label +
+            ': ' +
+            visible.join(' · ') +
+            (remainder > 0 ? ' · +' + remainder + ' more' : '')
+        );
+      }
+      return lines.join('\n');
+    }
+
+    const hasDataset = this._hasDataset();
+    const hasRepresentation = this._hasRepresentation();
+    const nextTask = selected
+      ? INVESTIGATOR_TASKS.find(
+          (task) =>
+            task.id !== 'more' && this._taskSurface.taskAvailability(task.id, selected).available
+        )
+      : null;
+    const contextTask = INVESTIGATOR_TASKS.find((task) => task.id === 'more');
+    const dataSources = this._getWheelCategories()
+      .find((category) => category.id === 'DATA')
+      ?.items.find((item) => item.id === 'data-sources');
+    const nextStep = nextTask
+      ? `${nextTask.label} — ${nextTask.description}`
+      : !hasDataset
+        ? dataSources
+          ? `${dataSources.label} — load a dataset to begin an investigation`
+          : 'Open DATA to load a dataset and begin an investigation'
+        : hasRepresentation
+          ? 'Select a structure — choose a visible dataset structure to inspect or challenge'
+          : contextTask
+            ? `${contextTask.label} — ${contextTask.description}`
+            : 'Review representation constraints and current investigation context';
+
+    return [
       'WHAT CAN I DO HERE?',
+      '',
+      'PURPOSE',
+      'Nemosyne turns governed analytical structure into spatial representations you can inspect, challenge, and trace to evidence.',
+      '',
+      'MENTAL MODEL',
+      'dataset → representation → structure → question → investigation → evidence',
+      'A representation is a governed view of the dataset, not the dataset itself.',
+      '',
+      'CONTEXT',
       selectedName
         ? 'Selected: ' + String(selectedName).slice(0, 60)
-        : 'Nothing selected. Select a data object for context-specific actions.',
-      '',
-      'NOW',
-    ];
+        : !hasDataset
+          ? 'No dataset loaded yet.'
+          : hasRepresentation
+            ? 'Dataset loaded. Nothing selected.'
+            : 'Dataset loaded. No representation is currently promoted.',
+      `NEXT: ${nextStep}`,
+    ].join('\n');
+  }
 
-    for (const task of INVESTIGATOR_TASKS) {
-      const availability = this._taskSurface.taskAvailability(task.id, selected);
-      lines.push(
-        (availability.available ? '✓ ' : '– ') +
-          task.label +
-          ' — ' +
-          (availability.available ? task.description : availability.reason ?? 'Unavailable')
-      );
-    }
-
-    lines.push('', 'GLOBAL CAPABILITIES');
-    for (const category of this._getWheelCategories()) {
-      if (category.id === 'SUPERUSER' || category.id === 'GUIDE') continue;
-      const labels = category.items.map((item) => item.label).filter(Boolean);
-      if (!labels.length) continue;
-      const visible = labels.slice(0, 5);
-      const remainder = labels.length - visible.length;
-      lines.push(
-        category.label +
-          ': ' +
-          visible.join(' · ') +
-          (remainder > 0 ? ' · +' + remainder + ' more' : '')
-      );
-    }
-
-    lines.push(
-      '',
-      'Tip: use GUIDE whenever you are unsure. Context actions dispatch directly; global actions remain grouped by intent.'
-    );
-    return lines.join('\n');
+  setCapabilityDetailsExpanded(expanded: boolean): void {
+    if (this._detailsExpanded === expanded) return;
+    this._detailsExpanded = expanded;
+    if (this.visible) this.refresh();
   }
 
   refresh(): void {
-    this._summary.setProperties({ text: this._formatSummary() });
+    this._renderedSummary = this._formatSummary();
+    this._summary.setProperties({ text: this._renderedSummary });
     this._rebuildButtons();
+    this._lastContextSignature = this._contextSignature();
   }
 
   dispatchSelected(intent: InvestigatorTaskIntent): boolean {
@@ -164,19 +255,79 @@ export class CapabilityGuidePanel extends SpatialPanel {
     this._buttons = [];
 
     const selected = this._taskSurface.activeData;
+    const addButton = (button: Button) => {
+      this._buttons.push(button);
+      this._actions.add(button);
+    };
+
+    addButton(
+      new Button({
+        label: this._detailsExpanded ? 'Back to orientation' : 'Show capability map',
+        variant: 'secondary',
+        onClick: () => this.setCapabilityDetailsExpanded(!this._detailsExpanded),
+      })
+    );
+
+    if (!this._detailsExpanded) {
+      if (selected) {
+        const nextTask = INVESTIGATOR_TASKS.find(
+          (task) =>
+            task.id !== 'more' && this._taskSurface.taskAvailability(task.id, selected).available
+        );
+        if (nextTask) {
+          addButton(
+            new Button({
+              label: nextTask.label,
+              variant: 'primary',
+              onClick: () => {
+                this.dispatchSelected(nextTask.id);
+              },
+            })
+          );
+        }
+      } else if (!this._hasDataset()) {
+        const dataSources = this._getWheelCategories()
+          .find((category) => category.id === 'DATA')
+          ?.items.find((item) => item.id === 'data-sources');
+        if (dataSources) {
+          addButton(
+            new Button({
+              label: dataSources.label,
+              variant: 'primary',
+              onClick: () => this.dispatchGlobal('DATA', 'data-sources'),
+            })
+          );
+        }
+      } else if (!this._hasRepresentation()) {
+        const contextTask = INVESTIGATOR_TASKS.find((task) => task.id === 'more');
+        if (contextTask) {
+          addButton(
+            new Button({
+              label: contextTask.label,
+              variant: 'primary',
+              onClick: () => {
+                this.dispatchSelected(contextTask.id);
+              },
+            })
+          );
+        }
+      }
+      return;
+    }
+
     if (selected) {
       for (const task of INVESTIGATOR_TASKS) {
         const availability = this._taskSurface.taskAvailability(task.id, selected);
         if (!availability.available) continue;
-        const button = new Button({
-          label: task.label,
-          variant: task.id === 'inspect' ? 'primary' : 'secondary',
-          onClick: () => {
-            this.dispatchSelected(task.id);
-          },
-        });
-        this._buttons.push(button);
-        this._actions.add(button);
+        addButton(
+          new Button({
+            label: task.label,
+            variant: task.id === 'inspect' ? 'primary' : 'secondary',
+            onClick: () => {
+              this.dispatchSelected(task.id);
+            },
+          })
+        );
       }
     }
 
@@ -190,15 +341,15 @@ export class CapabilityGuidePanel extends SpatialPanel {
       const category = this._getWheelCategories().find((item) => item.id === categoryId);
       const action = category?.items.find((item) => item.id === actionId);
       if (!action) continue;
-      const button = new Button({
-        label: action.label,
-        variant: !selected && actionId === 'data-sources' ? 'primary' : 'secondary',
-        onClick: () => {
-          this.dispatchGlobal(categoryId, actionId);
-        },
-      });
-      this._buttons.push(button);
-      this._actions.add(button);
+      addButton(
+        new Button({
+          label: action.label,
+          variant: !selected && actionId === 'data-sources' ? 'primary' : 'secondary',
+          onClick: () => {
+            this.dispatchGlobal(categoryId, actionId);
+          },
+        })
+      );
     }
   }
 
