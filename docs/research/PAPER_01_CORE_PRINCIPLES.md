@@ -390,7 +390,7 @@ The first working title is the broadest and safest until the novelty review tell
 1. complete provenance/related-work audit;
 2. write a 1–2 page extended argument using sections 1–4 above;
 3. freeze 2–4 representative system walkthroughs from current main after the active hardening branch lands;
-4. generate the six core figures from the canonical V3 contracts;
+4. generate the six core figures from the canonical vision contracts;
 5. perform an academic adversarial review asking whether each principle is novel, merely good engineering, or already established in prior work;
 6. revise the contribution statement around the strongest surviving novelty;
 7. only then expand into the full manuscript.

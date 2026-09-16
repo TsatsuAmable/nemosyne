@@ -1,9 +1,12 @@
 # Nemosyne — Definitive Product Vision, Principles, Architecture and Implementation Roadmap
 
-**Revision:** V3 — Discovery-Centric, Human-Refined, Compositional Representation Intelligence  
-**Date:** 21 August 2026  
-**Status:** Governing product, research and architecture specification  
-**Supersedes:** all earlier Definitive Vision and Roadmap revisions
+**Revision:** V3.1 — Evidence-Governed, Human-Refined, Compositional Representation Intelligence
+**Date:** 16 September 2026
+**Status:** Governing product, research and architecture specification
+**Supersedes:** V3 and all earlier Definitive Vision and Roadmap revisions
+**Live execution authority:** [`ROADMAP.md`](ROADMAP.md)
+
+**V3.1 consolidation:** the destination established by V3 is unchanged. This revision incorporates the epistemic-governance, evidence-admissibility, benchmark-authority and evidence-tier principles established through the Moneta evidence protocol, MonetaBench/XR experimental work and recursive adversarial research programme. It also removes stale embedded execution sequencing: this document governs what Nemosyne is becoming and the constraints on that destination; `ROADMAP.md` governs current order and completion status.
 
 ---
 
@@ -70,9 +73,13 @@ RepresentationOntology
   ↓
 candidate / composition generation
   ↓
-FitnessModel
+hard representation feasibility
   ↓
-representation hypotheses
+evidence admissibility / claim authority
+  ↓
+multi-objective fitness + inspectable alternatives
+  ↓
+representation hypotheses / RepresentationGraph
   ↓
 researcher interaction
   ↓
@@ -82,12 +89,12 @@ analytical verification
   ↓
 evidence + human judgement
   ↓
-model learning
+governed model learning
   ↓
 new prior
 ```
 
-The initial heuristics are not Nemosyne's theory of useful representation. They are the first prior.
+The initial heuristics are not Nemosyne's theory of useful representation. They are the first prior. Scientific validity is not another fitness dimension: **evidence disposition constrains what utility, preference, performance or resource objectives are permitted to authorise**. Non-promotable candidates may remain visible to bounded diagnostic, falsification, explanation or human-study selection paths, but they may not be silently promoted into a chosen representation, positive learning signal or adaptive policy. No evolutionary search, learned ranker, LLM committee, human-preference model or resource governor may bypass that boundary.
 
 ---
 
@@ -170,7 +177,31 @@ Examples: `SELECT`, `FILTER`, `ISOLATE`, `COMPARE`, `EXPAND`, `COLLAPSE`, `FOCUS
 **Question:** What did researchers collectively teach Nemosyne about useful representation?  
 **Authority:** Judgement and Fitness Model infrastructure.
 
-No module may silently become a second authority for another ontology.
+## 4.6 Cross-cutting Epistemic Governance
+
+Epistemic governance is **not a sixth ontology**. It governs what evidence permits Nemosyne to claim across all five ontologies.
+
+**Question:** What evidence is admissible for this claim, what can it establish, and where must Nemosyne abstain or defer to human/domain judgement?
+**Authority:** versioned evidence protocols, research/experimental harnesses and the canonical owner of the underlying scientific semantics; human or domain-expert judgement remains terminal where the claim is not mechanically adjudicable.
+
+It governs:
+
+- claim class and scope;
+- evidence tier and provenance;
+- measurement-scale and inference legality;
+- benchmark/oracle strength;
+- uncertainty, calibration and perturbation/stability requirements;
+- whether machine evidence can only falsify or may support promotion;
+- when attributable physical-device or human evidence is indispensable;
+- abstention, replication and change-control requirements.
+
+Its constitutional rule is:
+
+> **Scientific validity is a feasibility constraint, not a soft objective.**
+
+A candidate that violates a hard scientific or evidential constraint cannot compensate with visual appeal, preference, speed, lower resource cost or aggregate fitness.
+
+No module may silently become a second authority for another ontology, and no evidence-producing subsystem may silently upgrade the authority of its own output.
 
 ---
 
@@ -200,12 +231,34 @@ No module may silently become a second authority for another ontology.
                             ▼
                  ┌─────────────────────┐
                  │ Moneta              │
-                 │ Fitness Model       │
                  │ Search / Composer   │
-                 │ Explanation         │
+                 │ candidate generation│
                  └──────────┬──────────┘
                             ▼
-                   RepresentationGraph
+                 representation candidates
+                            │
+                            ▼
+                 ┌─────────────────────┐
+                 │ Epistemic / Evidence│
+                 │ Disposition         │
+                 └──────────┬──────────┘
+                            │
+                            ├─ INVALID -> reject
+                            ├─ ABSTAIN -> bounded ranked near-misses / explanation only
+                            ├─ MACHINE-FALSIFICATION-ONLY -> falsification only
+                            ├─ REQUIRES-HUMAN -> bounded study + S5 -> re-adjudicate
+                            └─ ELIGIBLE
+                                  │
+                                  ▼
+                        ┌─────────────────────┐
+                        │ Moneta              │
+                        │ Multi-objective     │
+                        │ Fitness / Decision  │
+                        │ Explanation         │
+                        └──────────┬──────────┘
+                                   ▼
+                         RepresentationGraph(s)
+                         + inspectable alternatives
                             │
                             ▼
                  ┌─────────────────────┐
@@ -234,11 +287,13 @@ No module may silently become a second authority for another ontology.
                             ▼
                        Evidence
                             │
+                 claim-appropriate validation
+                            │
                             ▼
                   Human Judgement Data
                             │
                             ▼
-                    Training Pipeline
+                  Governed Training Pipeline
                             │
                             ▼
                     Model Registry
@@ -246,6 +301,8 @@ No module may silently become a second authority for another ontology.
                             ▼
                    New Moneta Prior
 ```
+
+The two Moneta boxes are one representation authority shown at two stages of its pipeline: Moneta generates hypotheses under the Representation Ontology and later evaluates candidates subject to their evidence disposition. The evidence-disposition boundary is cross-cutting governance rather than an alternative analytical or representation authority. `INVALID` candidates are rejected. `ABSTAIN` and `MACHINE-FALSIFICATION-ONLY` candidates may retain bounded diagnostic scores, ranked near-miss explanations or falsification results, but cannot yield a chosen/rendered representation or positive promotion signal. `REQUIRES-HUMAN` candidates may enter a bounded, non-promoting study-selection path; attributable human evidence is then fed back through re-adjudication. `ELIGIBLE` candidates may enter ordinary multi-objective decision evaluation. Rust/WASM remains authoritative for analytical facts, and human/domain evidence remains authoritative for human-dependent claims.
 
 The architectural backbone is:
 
@@ -264,6 +321,8 @@ Investigation: What happened, what did the researcher think, and what was establ
 |---|---|
 | Raw analytical computation | Rust/WASM |
 | Analytical result provenance | Rust/WASM + Investigation |
+| Claim/evidence admissibility | Versioned evidence protocols + Research Harness; human/domain judgement where required |
+| Benchmark/oracle strength | Governed benchmark/corpus contract |
 | Investigation meaning | Investigation |
 | Analytical orchestration | Atlas |
 | Representation ontology/contracts | Representation module |
@@ -346,20 +405,40 @@ DatasetEvidence
 + RepresentationOntology
 ```
 
-and produces:
+The surrounding governed pipeline records the claim-appropriate `EvidenceDisposition`. Where that disposition permits promotion, Moneta produces:
 
 ```text
-RepresentationGraph
+RepresentationGraph / inspectable alternative set
 + InteractionPlan
 + Explanation
 + FitnessEvidence
 ```
 
+The intended Full-Moneta ordering is disposition-aware:
+
+```text
+candidate generation / RepresentationGraph search
+  -> hard representation feasibility
+  -> evidence disposition
+       INVALID -> reject
+       ABSTAIN -> preserve bounded ranked near-misses / explanation; no promotion or rendering
+       MACHINE-FALSIFICATION-ONLY -> falsification evidence only
+       REQUIRES-HUMAN -> bounded study-candidate selection -> S5 human evidence -> re-adjudicate
+       ELIGIBLE -> structure-preservation / task / resource / stability objectives
+                    -> Pareto set or otherwise inspectable alternatives
+                    -> representation decision
+  -> claim-appropriate learning evidence
+```
+
+The gate therefore separates **promotion authority** from the ability to inspect, explain, falsify or collect missing evidence. A candidate does not need to be promotable to remain scientifically useful. Conversely, a diagnostic score, near-miss rank or study selection does not upgrade evidential authority.
+
+Scalar ranking may be used where scientifically and operationally justified, including bounded diagnostic ranking of non-promotable candidates, but a universal scalar winner is **not** the constitutional architecture. Objectives that encode materially different concerns should remain inspectable rather than being silently collapsed merely for optimiser convenience.
+
 Moneta is a **hypothesis engine and decision-support system**, not an oracle.
 
 The bootstrap stage remains deterministic, but heuristic weights and metadata MUST be labelled as heuristic priors, never as empirically validated truth. `confidence` terminology MUST NOT be used for uncalibrated heuristic utility.
 
-A decision may be `DECISIVE`, `AMBIGUOUS`, `INFEASIBLE` or `UNDERDETERMINED`. Moneta must be able to abstain rather than manufacture a winner.
+A decision may be `DECISIVE`, `AMBIGUOUS`, `ABSTAIN`, `INFEASIBLE` or `UNDERDETERMINED`. `ABSTAIN` is distinct from infeasibility: structurally feasible candidates may remain inspectable as ranked near-misses when evidence or authority is insufficient for promotion, while no active representation is chosen or rendered.
 
 A representation decision exposes its winner, alternatives, utility/fitness dimensions, margin, constraints, sensitivity to weight perturbation, model version and provenance.
 
@@ -379,6 +458,8 @@ FitnessModel
 ```
 
 Candidate dimensions include structural alignment, task alignment, information preservation, perceptual recoverability, scale suitability, density handling, occlusion, interaction cost, cognitive load, discovery affordance, researcher preference and empirical prior. These dimensions are hypotheses, not permanent truths.
+
+Measurement-scale legality, compositional/simplex semantics where applicable, selection-aware calibration for post-search inferential claims, claim-appropriate high-dimensional stability evidence, benchmark-oracle authority and required human validation are **not tradeable fitness dimensions**. They sit outside the utility function as admissibility constraints.
 
 Moneta evolves through these stages:
 
@@ -401,7 +482,7 @@ Nemosyne maintains separate learning datasets for:
 2. **Fitness-adjustment data** (for example, increase density importance);
 3. **Discovery-outcome data** linking representation → observation → hypothesis → analytical test → supported/refuted conclusion.
 
-Discovery outcomes are the strongest eventual learning signal.
+Discovery outcomes are the strongest eventual learning signal, but only after their claim class and validation authority are preserved. Preference or acceptance can teach Moneta what people tend to choose; it cannot promote scientifically inadmissible candidates or convert perceptual preference into analytical truth.
 
 A `RepresentationJudgement` records researcher context, dataset fingerprint, task, discovery objective, compared representations, preference, absolute score when present, weight adjustments, reason, discovery outcome, model versions, kernel version and provenance.
 
@@ -482,6 +563,43 @@ The 2D-vs-VR study remains one controlled experiment inside the broader research
 
 Dataset, analytical methods, representation semantics, task, evidence availability and analytical verification should be held constant while embodiment varies. Later experiments can compare fixed versus Moneta-selected representation, then bootstrap versus human-refined versus validated adaptive Moneta.
 
+## 14.1 Evidence authority ladder
+
+Nemosyne distinguishes evidence by what it can establish, not merely by how much of it exists. The experimental programme currently uses this general ladder:
+
+- **S0 — pure/unit simulation:** mathematical and semantic invariants;
+- **S1 — browser/WebXR simulation:** API, lifecycle, interaction-contract and fault behaviour;
+- **S2 — device-profile simulation:** declared runtime/input/device envelopes, not physical performance;
+- **S3 — calibrated surrogate:** synthetic host constraints calibrated against physical observations;
+- **S4 — physical device:** runtime, frame pacing, thermal, tracking and device behaviour;
+- **S5 — human/device study:** usability, comfort, discoverability, perceptual meaning and other human-dependent outcomes.
+
+A lower tier may falsify a candidate when the failure is within its authority. **It may not promote a claim whose truth requires a higher tier.** Simulation is therefore an attention-saving falsification instrument, not a replacement oracle for physical or human evidence.
+
+Evidence dispositions are routing decisions, not a single pass/fail bit:
+
+| Disposition | Permitted consequence |
+|---|---|
+| `INVALID` | Reject the evidence/candidate for the governed claim. |
+| `ABSTAIN` | Preserve bounded diagnostics, ranked near-misses and remediation/explanation evidence; do not choose or render a representation as scientifically admitted. |
+| `MACHINE-FALSIFICATION-ONLY` | Use machine evidence to reject pathology within the benchmark's authority; do not crown a preferred representation. |
+| `REQUIRES-HUMAN` | Select bounded candidates for an attributable human/device study where appropriate, then re-adjudicate with the resulting evidence; do not promote beforehand. |
+| `ELIGIBLE` | Candidate may proceed to later multi-objective evaluation; eligibility alone does not mean correct, optimal, novel or production-ready. |
+
+## 14.2 Benchmark and oracle authority
+
+Known-structure and benchmark corpora MUST declare what their oracle can establish. Exact-generative structure may establish preservation or destruction of planted structure. Diagnostic families may expose pathologies. Labelled/task corpora may establish bounded task correctness. Human-preference corpora may establish prior preference evidence.
+
+No benchmark family, candidate generator or evaluator may silently promote itself into an oracle for open-ended discovery quality, perceptual legibility or the universally "best" representation. Where the claim depends on a human perceiving, understanding or discovering meaning, attributable human evidence remains required.
+
+The persistent scientific contract for Full Moneta is [`research/MONETA_EVIDENCE_PROTOCOL.md`](research/MONETA_EVIDENCE_PROTOCOL.md). The experimental evidence tiers and calibration boundary are documented under [`research/XR_EXPERIMENTAL_ENGINE.md`](research/XR_EXPERIMENTAL_ENGINE.md) and related research contracts.
+
+## 14.3 Adversarial cognitive machines
+
+Independent models and research committees may search prior art, challenge framing, generate alternatives, propose falsifiers, attack evidence and identify overlooked failure modes. They are **critics and experiment generators, not authorities by consensus**.
+
+For consequential disputes, disagreement SHOULD become a decisive test, benchmark, simulation, counterexample or bounded competing implementation where possible. Mechanically judgeable questions terminate in evidence. Questions of scientific meaning, epistemic authority or product values that cannot be mechanically resolved terminate in attributable human/project-owner or appropriate domain-expert judgement. The number or confidence of agreeing models does not create authority.
+
 ---
 
 # 15. Module architecture
@@ -500,7 +618,7 @@ The target repository is decomposed into independently owned, testable modules w
 | Investigation | DiscoveryEpisode, evidence and reasoning history | Discovery replay/audit independent of renderer |
 | Atlas | Orchestrate discovery loop | Coordinates dataset → evidence → representation → interaction → verification → finding |
 | Spatial Runtime | Embody RepresentationGraphs | Renders arbitrary valid graphs in 2D/VR/other modes |
-| Research Harness | Freeze/vary intelligence and treatment | Any subsystem independently controllable in experiments |
+| Research Harness / Evidence Protocols | Freeze/vary intelligence and treatment; enforce claim class, evidence admissibility, oracle strength and tier identity | Any subsystem independently controllable; evidence remains correctly classified and no optimiser/reviewer bypasses claim-appropriate constraints |
 | Persistence | Complete discovery and learning provenance | `.nemosyne` reconstructs analytical/discovery history |
 | UI / Analyst Cockpit | Expose reasoning and challenge controls | Researchers can understand/challenge Moneta |
 | Collaboration | Shared discovery and peer review transport | No competing state authority |
@@ -510,139 +628,67 @@ A module may depend on another module's **public contract**, never its internal 
 
 ---
 
-# 16. Implementation gates
+# 16. Dependency model and live execution authority
 
-Implementation proceeds in this order. Gate numbers in older roadmaps are historical and must not be confused with V3 gates.
+This document no longer embeds a numbered implementation schedule. The V3 gate list was useful during early authority reconciliation, but it became stale as evidence exposed prerequisites in UX, runtime efficiency, production learning, human validation and scientific admissibility.
 
-## Gate 0 — Authority reconciliation
-
-- eliminate competing Draco/Moneta authorities;
-- establish Rust analytical authority;
-- establish Moneta representation authority;
-- establish Investigation semantic authority;
-- convert `src/draco/` into compatibility adapters only or remove it;
-- add architecture tests preventing new representation scoring outside Moneta.
-
-## Gate 1 — Dataset Evidence
-
-- typed Rust evidence;
-- provenance-bearing derived facts;
-- deterministic replay.
-
-## Gate 2 — Representation Language
-
-- primitive registry;
-- RepresentationGraph;
-- composition grammar;
-- ontology versioning.
-
-## Gate 3 — Moneta correctness
-
-- complete requirement/scoring coverage;
-- explicit FitnessModel;
-- utility terminology;
-- abstention;
-- explanation;
-- sensitivity analysis;
-- metamorphic tests.
-
-## Gate 4 — NIL
-
-- semantic commands;
-- modality independence;
-- replay.
-
-## Gate 5 — Discovery
-
-- DiscoveryEpisode;
-- hypothesis lifecycle;
-- evidence linkage;
-- validation.
-
-## Gate 6 — Human refinement
-
-- realtime weight editing;
-- pairwise preference;
-- judgement provenance.
-
-## Gate 7 — Learning infrastructure
-
-- judgement store;
-- curation;
-- training/holdout separation;
-- model registry.
-
-## Gate 8 — Learned Moneta
-
-- transparent ranking/contextual model;
-- validation against bootstrap heuristics.
-
-## Gate 9 — Compositional Moneta
-
-- representation search;
-- multiscale composition;
-- hybrid representations.
-
-## Gate 10 — Adaptive Nemosyne
-
-- controlled online adaptation;
-- exploration/exploitation;
-- rollback;
-- monitoring.
-
----
-
-# 17. Parallel implementation strategy
-
-After Gate 0 establishes authority boundaries, work SHOULD run in parallel where dependencies permit.
+The durable **dependency model** is:
 
 ```text
-                 Gate 0: Authority reconciliation
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-   Dataset Evidence     Representation        Investigation /
-      (Rust)              Ontology              Discovery
-          │                   │                   │
-          └────────────┬──────┘                   │
-                       ▼                          ▼
-                    Moneta                       NIL
-                       │                          │
-          ┌────────────┼────────────┐             │
-          ▼            ▼            ▼             ▼
-      Spatial       Analyst      Research      Perception /
-      Runtime       Cockpit      Harness       Gesture
-          │            │            │             │
-          └────────────┴──────┬─────┴─────────────┘
-                              ▼
-                       Human Judgement
-                              │
-                              ▼
-                       Fitness Learning
-                              │
-                              ▼
-                     Adaptive Nemosyne
+authority + analytical/provenance foundations
+  -> usable semantic investigation workflow
+  -> bounded, meaning-preserving runtime and evidence infrastructure
+  -> claim-appropriate simulator / device / human validation
+  -> governed learning evidence
+  -> private-preview discovery/product learning
+  -> RepresentationOntology / RepresentationGraph compositional search
+  -> validated adaptive representation intelligence
 ```
 
-Persistence and CI evolve continuously across every wave. Collaboration proceeds after semantic command/event contracts are stable enough to transport without owning domain state.
+This is a dependency graph, not a rigid calendar. Work may be refined, split, deferred or reordered when new evidence changes prerequisites, provided the constitutional boundaries in this document remain intact.
+
+[`ROADMAP.md`](ROADMAP.md) is the sole authority for **what happens next, what is currently complete and which integration seam is active**. Programme plans may specify their own bounded evidence contracts but do not supersede the live roadmap.
 
 ---
 
-# 18. Immediate implementation priorities
+# 17. Recursive adversarial and experimental method
 
-The first code tranche is deliberately correctness-first rather than model-complexity-first:
+Nemosyne's development method mirrors its scientific intent: consequential claims should survive active attempts to falsify them before they become authority.
 
-1. **Gate 0 / authority:** remove or quarantine independent Draco scoring/constraint authority; preserve only compatibility adapters where required.
-2. **Moneta semantics:** replace uncalibrated `confidence` with `utilityScore`/`fitnessScore`; explicitly model decision status and abstention.
-3. **Requirement coverage:** every public representation requirement must have a defined constraint/scoring/evidence/test effect.
-4. **Fitness correctness:** active weights must normalise to 1.0 and every active component must contribute; maximum achievable utility must be testable.
-5. **Sensitivity:** record winner/runner-up/margin and deterministic weight-perturbation sensitivity.
-6. **Analytical provenance:** every derived structural fact used by Moneta carries method/version/parameters/seed/normalisation/missing-data/sampling provenance.
-7. **Representation language:** introduce `RepresentationGraph` and primitive contracts without forcing the renderer migration into the same change.
-8. **Metamorphic testing:** row shuffle must not change decisions; column renaming must not change decisions unless semantic metadata changes; duplicated observations must affect density/scale in defined ways.
-9. **Research safety:** freeze Moneta out of experiments unless the protocol explicitly varies it; 2D and VR treatments share semantic representation contracts.
+The preferred loop is:
 
-Do not jump directly to a neural Moneta. The immediate bottleneck is evidence, representation and interaction architecture.
+```text
+vision + roadmap
+  -> claim / invariant / failure modes
+  -> prior-art assimilation where relevant
+  -> independent challenge / materially different alternatives
+  -> disagreement -> decisive test, benchmark or bounded competing implementation
+  -> implementation / experiment
+  -> attributable empirical evidence
+  -> adversarial attack on the result
+  -> promote, revise, abstain or reject
+```
+
+The purpose of adversarial committees is to improve the rate at which correct decisions and defects are discovered, not to create ceremony. Reviewer routing, latency thresholds, model allocation and merge mechanics are operational concerns owned by the roadmap and engineering policy. They are deliberately not constitutional product doctrine.
+
+MonetaBench, known-structure campaigns and the XR Experimental Engine are likewise **falsification and evidence infrastructure, not substitute scientific authorities**. Failed candidates and rejected alternatives remain useful evidence and SHOULD be retained with provenance where they inform future search or guard against repeated mistakes.
+
+---
+
+# 18. Strategic frontier to Full Moneta
+
+Do not jump directly to a neural or fully adaptive Moneta. The enduring prerequisites are more important than model complexity:
+
+1. researchers can understand and operate the investigation workflow well enough that interface friction is not the dominant confounder;
+2. analytical and representation state remains authoritative, reconstructable and provenance-bearing while spatial projections and resources remain disposable and bounded;
+3. simulator, device and human evidence retains explicit tier/claim authority;
+4. Moneta candidate evidence receives a governed disposition before any optimisation is allowed to authorise promotion; non-promoting diagnostic or study-selection evaluation remains possible where the disposition permits it;
+5. known-structure, metamorphic and adversarial campaigns actively seek counterexamples rather than only confirming expected winners;
+6. human-dependent perceptual/discovery claims remain open until attributable human evidence exists;
+7. governed learning uses held-out evaluation, model/version identity and reproducible provenance;
+8. compositional search preserves alternatives and cannot learn around hard evidence constraints.
+
+The current transition from product/UX/runtime qualification into learned Moneta, private-preview learning and compositional Full Moneta is tracked only in [`ROADMAP.md`](ROADMAP.md). The definitive vision specifies what those stages must preserve, not their volatile tranche numbers.
 
 ---
 
@@ -654,10 +700,17 @@ Secondary outcomes include time to discovery, useful hypotheses, false discoveri
 
 Interaction telemetry is evidence, not ground truth. Novelty is not truth. A pattern becomes a finding only through investigation and validation.
 
+Every consequential evaluation claim SHOULD identify the population/context, claim class, evidence tier, governing metric or decision rule, provenance, uncertainty and limitations. Evidence presence is not evidence sufficiency: promotion requires the authority appropriate to the claim.
+
 ---
 
 # 20. Non-negotiable boundaries
 
+- Do not trade scientific validity against utility, preference, performance or resource cost; validity is a feasibility boundary.
+- Do not let an evolutionary optimiser, learned ranker, LLM committee, human-preference model or resource governor bypass evidence disposition when authorising promotion, rendering, learning or adaptation; bounded diagnostic/study routing does not constitute promotion.
+- Do not let lower-tier simulation promote physical-device or human claims that require higher-tier evidence.
+- Do not let a benchmark, candidate generator or evaluator self-assign stronger oracle authority than its governed contract permits.
+- Do not resolve scientific truth, epistemic authority or product values by model vote.
 - Do not train from raw production logs; create curated, versioned judgement datasets.
 - Do not treat Moneta recommendations as ground truth.
 - Do not equate interaction with usefulness.
@@ -678,8 +731,9 @@ Nemosyne reaches the intended destination when:
 
 ```text
 Rust                 establishes analytical evidence
+Epistemic Governance governs what the available evidence permits Nemosyne to claim
 Representation       defines what can be expressed
-Moneta                constructs representation hypotheses
+Moneta                constructs representation hypotheses among admissible candidates
 NIL                   defines meaningful interaction
 Spatial Runtime       embodies hypotheses
 Perception            translates human action into semantic intent
@@ -701,11 +755,11 @@ Nemosyne is not fundamentally a VR visualisation system, visualisation recommend
 
 It is:
 
-> **A research instrument that connects trustworthy analytical computation, compositional representation, embodied interaction, human judgement and scientific evidence into a progressively improving system for discovering meaningful structure in datasets.**
+> **A research instrument that connects trustworthy analytical computation, evidence-governed compositional representation, embodied interaction, human judgement and scientific evidence into a progressively improving system for discovering meaningful structure in datasets.**
 
 The governing principle is:
 
-> **Nemosyne must not encode a fixed theory of what constitutes a useful representation. It must provide an explicit, inspectable mechanism through which analytical evidence, human judgement, interaction experience and validated discovery outcomes progressively refine that theory.**
+> **Nemosyne must not encode a fixed theory of what constitutes a useful representation. It must provide an explicit, inspectable mechanism through which admissible analytical evidence, human judgement, interaction experience and validated discovery outcomes progressively refine that theory, while preserving hard scientific constraints that learning is not permitted to optimise away.**
 
 **The destination is a reproducible system that becomes progressively better at helping researchers discover things that matter.**
 
@@ -722,7 +776,7 @@ The governing UX question is:
 
 > **What is the cheapest perceptually effective representation that preserves the information the researcher needs to understand, challenge and investigate the data?**
 
-This adds the following product-level requirements to the V3 vision.
+These product-level requirements remain governing under the V3.1 vision.
 
 ## A.1 Semantic fidelity precedes scene fidelity
 

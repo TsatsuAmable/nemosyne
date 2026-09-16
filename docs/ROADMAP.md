@@ -1,6 +1,6 @@
 # Nemosyne Roadmap & Implementation Status
 
-> **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
+> **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3.1. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
 ## Status snapshot - 16 September 2026
 
@@ -36,6 +36,24 @@ The previous A/B/C convergence wave, Stream M distribution wave, Density Truth R
 - Fresh dataset loads are overview-first rather than silently biasing Moneta toward individual observation identity.
 - Aggregate, distribution, density, governed cluster and source-authoritative relationship-graph structures are first-class semantic interaction targets rather than being registered as raw observations.
 - Explicit individual-inspection intent can still select `POINT_SET`; progressive disclosure removes point universality, not legitimate observation-level representation.
+
+## UXR2 ownership/lifecycle implementation and evaluation gate
+
+The immediate UXR2 execution order is now explicit: **ownership correctness precedes adaptive lifecycle/eviction policy**. The implementation/evaluation authority is `docs/roadmap/UXR2_RESOURCE_OWNERSHIP_LIFECYCLE_IMPLEMENTATION_EVALUATION.md`.
+
+Execution tranches are sequential unless an adversarial review forces revision:
+
+1. **UXR2-O1 ownership falsifiers:** prove current shared material/texture/non-singleton-geometry teardown hazards with executable tests.
+2. **UXR2-O2 ownership/lease authority:** introduce `PRIVATE | SHARED | EXTERNAL` semantics and last-owner destruction; migrate hard-coded sharing exceptions into explicit ownership where feasible.
+3. **UXR2-L1 lifecycle governor:** implement atomic `ACTIVE -> WARM -> COLD -> EVICTED` residency with bounded cleanup, revision safety and truthful telemetry.
+4. **UXR2-L2 ownership-aware Three.js adapter:** amortise teardown and require all shared-resource destruction to pass through lease authority; keep cold descriptors bounded and non-semantic.
+5. **UXR2-L3 production composition:** wire `RepresentationSurface` and `World` while preserving old-authority-on-failure, selection identity and Worker-residency refusal.
+6. **UXR2-E1 software qualification:** exact-head unit/integration/architecture/type/lint/CI/CodeQL/promotion evidence plus deterministic repeated-transition evidence for bounded records, leases and cleanup work.
+7. **UXR2-E2 physical handoff:** only after E1, collect governed Quest 10/30/60-minute lifecycle evidence. Software boundedness must not be promoted into a physical-memory claim without device evidence.
+
+**Promotion invariants:** ACTIVE semantic focus is protected; shared resources are destroyed exactly once after the last lease; EXTERNAL resources are never destroyed by this subsystem; stale async work cannot mutate newer state; presentation eviction cannot mutate durable investigation/provenance/scientific authority; telemetry counts completed rather than requested reclamation. Material adversarial findings become falsifiers before merge.
+
+**Dependency:** `UXR2-O1 -> O2 -> L1 -> L2 -> L3 -> E1 -> E2`. UXR3 may consume the bounded presentation-residency seam after L3/E1. Adaptive eviction heuristics do not precede ownership correctness. PT9 remains downstream of the existing roadmap prerequisites.
 
 ## Sequential execution model
 

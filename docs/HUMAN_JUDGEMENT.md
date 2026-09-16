@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The V3 Human Judgement module records attributable researcher evidence about representation quality without applying that evidence as a learned model or automatic policy.
+The governing Human Judgement module records attributable researcher evidence about representation quality without applying that evidence as a learned model or automatic policy.
 
 The public contract is `RepresentationJudgement`, with five evidence kinds:
 
