@@ -233,7 +233,8 @@ it('ignores a delayed cool completion after the record revision advances', async
   governor.reconcile([]);
   governor.tick();
 
-  governor.register(fakeRegistration(identity('a'))); // fresh runtime, newer revision
+  // Advance the existing record's authority revision through a valid transition.
+  // Duplicate registration remains forbidden by the Task 1 identity contract.
   governor.reconcile([active('a')]);
   deferred.resolve({ status: 'COMPLETE', descriptor: { schemaVersion: 'test/v1', id: 'stale' } });
   await Promise.resolve();
@@ -242,6 +243,9 @@ it('ignores a delayed cool completion after the record revision advances', async
   expect(governor.getSnapshot().counts.COLD).toBe(0);
 });
 ```
+
+This is a same-record revision-safety falsifier only. It does not weaken duplicate-registration
+rejection or claim that the production representation adapter supports WARM runtime reattachment.
 
 Also assert that 20 queued resources with `maxCleanupOperationsPerTick: 3` start at most three cleanup steps per call to `tick()`. Cover explicit WARM -> COLD -> EVICTED progression and prove that an EVICTED resource is removed from the live registry after its bounded terminal transition is recorded.
 

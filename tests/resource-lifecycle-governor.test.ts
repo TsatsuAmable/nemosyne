@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ResourceLifecycleGovernor,
   resourceIdentityKey,
+  type LifecycleStepResult,
   type ResourceIdentity,
   type ResourceLifecycleAdapter,
   type ResourceLifecyclePolicy,
@@ -255,5 +256,228 @@ describe('ResourceLifecycleGovernor', () => {
 
     expect(() => governor.register(registration)).toThrow(/family/i);
     expect(governor.getSnapshot().counts.WARM).toBe(0);
+  });
+
+  it('starts no more than the cleanup budget per tick and does not restart in-flight work', () => {
+    const started: string[] = [];
+    const governor = new ResourceLifecycleGovernor({
+      ...policy,
+      maxDeclarations: 20,
+      maxActiveResources: 20,
+      maxWarmResources: 0,
+      maxCleanupOperationsPerTick: 3,
+    });
+
+    for (let index = 0; index < 20; index += 1) {
+      const resourceIdentity = identity(`resource-${index}`);
+      governor.register(
+        fakeRegistration(resourceIdentity, {
+          coolStep: vi.fn(
+            (runtime) =>
+              new Promise<LifecycleStepResult<TestDescriptor>>(() => {
+                started.push(runtime.id);
+              })
+          ),
+        })
+      );
+    }
+
+    governor.tick();
+    expect(started).toHaveLength(3);
+    expect(new Set(started).size).toBe(3);
+    expect(governor.getSnapshot().queuedCleanupCount).toBe(17);
+
+    governor.tick();
+    expect(started).toHaveLength(6);
+    expect(new Set(started).size).toBe(6);
+    expect(governor.getSnapshot().queuedCleanupCount).toBe(14);
+  });
+
+  it('ignores a delayed cool completion after the existing record revision advances', async () => {
+    let resolveDeferred!: (value: LifecycleStepResult<TestDescriptor>) => void;
+    const deferred = new Promise<LifecycleStepResult<TestDescriptor>>((resolve) => {
+      resolveDeferred = resolve;
+    });
+    const governor = new ResourceLifecycleGovernor({ ...policy, maxWarmResources: 0 });
+    governor.register(fakeRegistration(identity('a'), { coolStep: () => deferred }));
+    expect(governor.reconcile([declaration('a')]).accepted).toBe(true);
+    expect(governor.reconcile([]).accepted).toBe(true);
+    governor.tick();
+
+    // Advance the same registered record's authority revision; duplicate registration remains
+    // forbidden by the Task 1 identity contract.
+    expect(governor.reconcile([declaration('a')]).accepted).toBe(true);
+    resolveDeferred({
+      status: 'COMPLETE',
+      descriptor: { schemaVersion: 'test/v1', id: 'stale' },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const snapshot = governor.getSnapshot();
+    expect(snapshot.counts).toEqual({ ACTIVE: 1, WARM: 0, COLD: 0, EVICTED: 0 });
+    expect(snapshot.cumulative.cooled).toBe(0);
+    const successfulRevisions = snapshot.transitions
+      .filter((transition) => transition.outcome === 'SUCCEEDED')
+      .map((transition) => transition.revision);
+    expect(successfulRevisions).toEqual([...successfulRevisions].sort((a, b) => a - b));
+    expect(new Set(successfulRevisions).size).toBe(successfulRevisions.length);
+  });
+
+  it('cools validated runtimes and evicts the oldest excess cold descriptor immediately', () => {
+    const validateA = vi.fn((value: unknown) =>
+      Boolean(value && (value as TestDescriptor).id === 'a')
+    );
+    const validateB = vi.fn((value: unknown) =>
+      Boolean(value && (value as TestDescriptor).id === 'b')
+    );
+    const governor = new ResourceLifecycleGovernor({
+      ...policy,
+      maxDeclarations: 2,
+      maxActiveResources: 2,
+      maxWarmResources: 0,
+      maxColdDescriptors: 1,
+      maxCleanupOperationsPerTick: 2,
+    });
+    governor.register(
+      fakeRegistration(identity('a'), {
+        validateDescriptor: (value): value is TestDescriptor => validateA(value),
+      })
+    );
+    governor.register(
+      fakeRegistration(identity('b'), {
+        validateDescriptor: (value): value is TestDescriptor => validateB(value),
+      })
+    );
+
+    governor.tick();
+
+    const snapshot = governor.getSnapshot();
+    expect(validateA).toHaveBeenCalledTimes(1);
+    expect(validateB).toHaveBeenCalledTimes(1);
+    expect(snapshot.counts).toEqual({ ACTIVE: 0, WARM: 0, COLD: 1, EVICTED: 0 });
+    expect(snapshot.cumulative).toEqual({ cooled: 2, evicted: 1, reconstructed: 0, failed: 0 });
+    expect(snapshot.transitions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          identity: identity('a'),
+          from: 'WARM',
+          to: 'COLD',
+          outcome: 'SUCCEEDED',
+        }),
+        expect.objectContaining({
+          identity: identity('a'),
+          from: 'COLD',
+          to: 'EVICTED',
+          outcome: 'SUCCEEDED',
+        }),
+      ])
+    );
+    expect(() => governor.register(fakeRegistration(identity('a')))).not.toThrow();
+  });
+
+  it('keeps a resource warm and reports bounded failure telemetry for an invalid descriptor', () => {
+    const governor = new ResourceLifecycleGovernor({
+      ...policy,
+      maxWarmResources: 0,
+      maxTransitionEvents: 1,
+    });
+    const forceDispose = vi.fn();
+    const rejectDescriptor = vi.fn((_value: unknown) => false);
+    governor.register(
+      fakeRegistration(identity('a'), {
+        validateDescriptor: (value): value is TestDescriptor => rejectDescriptor(value),
+        forceDispose,
+      })
+    );
+
+    governor.tick();
+
+    const snapshot = governor.getSnapshot();
+    expect(snapshot.counts).toEqual({ ACTIVE: 0, WARM: 1, COLD: 0, EVICTED: 0 });
+    expect(snapshot.queuedCleanupCount).toBe(1);
+    expect(snapshot.cumulative).toEqual({ cooled: 0, evicted: 0, reconstructed: 0, failed: 1 });
+    expect(snapshot.transitions).toHaveLength(1);
+    expect(snapshot.transitions[0]).toEqual(
+      expect.objectContaining({
+        identity: identity('a'),
+        from: 'WARM',
+        to: 'WARM',
+        outcome: 'FAILED',
+        reason: expect.stringMatching(/descriptor/i),
+      })
+    );
+    expect(forceDispose).not.toHaveBeenCalled();
+  });
+
+  it('caps the transition ring and reports live counts separately from terminal telemetry', () => {
+    const governor = new ResourceLifecycleGovernor({
+      ...policy,
+      maxWarmResources: 0,
+      maxColdDescriptors: 0,
+      maxTransitionEvents: 2,
+    });
+    governor.register(fakeRegistration(identity('a')));
+    expect(governor.reconcile([declaration('a')]).accepted).toBe(true);
+    expect(governor.reconcile([]).accepted).toBe(true);
+    governor.tick();
+
+    const snapshot = governor.getSnapshot();
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        policyVersion: 'test/v1',
+        declaredWorkingSetSize: 0,
+        counts: { ACTIVE: 0, WARM: 0, COLD: 0, EVICTED: 0 },
+        queuedCleanupCount: 0,
+        cumulative: { cooled: 1, evicted: 1, reconstructed: 0, failed: 0 },
+      })
+    );
+    expect(snapshot.transitions).toHaveLength(2);
+    expect(snapshot.transitions.map(({ from, to }) => `${from}->${to}`)).toEqual([
+      'WARM->COLD',
+      'COLD->EVICTED',
+    ]);
+  });
+
+  it('force-disposes every remaining live runtime once and permanently closes registration', async () => {
+    let finishAsyncDispose!: () => void;
+    const asyncDispose = new Promise<void>((resolve) => {
+      finishAsyncDispose = resolve;
+    });
+    const forceDisposeA = vi.fn(() => asyncDispose);
+    const forceDisposeB = vi.fn();
+    const governor = new ResourceLifecycleGovernor({
+      ...policy,
+      maxDeclarations: 2,
+      maxActiveResources: 2,
+      maxWarmResources: 2,
+    });
+    governor.register(fakeRegistration(identity('a'), { forceDispose: forceDisposeA }));
+    governor.register(fakeRegistration(identity('b'), { forceDispose: forceDisposeB }));
+
+    const firstDispose = governor.dispose();
+    const secondDispose = governor.dispose();
+    expect(forceDisposeA).toHaveBeenCalledTimes(1);
+    expect(forceDisposeB).toHaveBeenCalledTimes(1);
+    expect(governor.getSnapshot().counts).toEqual({
+      ACTIVE: 0,
+      WARM: 0,
+      COLD: 0,
+      EVICTED: 0,
+    });
+    expect(governor.getSnapshot().queuedCleanupCount).toBe(0);
+    expect(() => governor.register(fakeRegistration(identity('c')))).toThrow(/disposed/i);
+
+    let settled = false;
+    firstDispose.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    finishAsyncDispose();
+    await expect(firstDispose).resolves.toBeUndefined();
+    await expect(secondDispose).resolves.toBeUndefined();
+    expect(forceDisposeA).toHaveBeenCalledTimes(1);
+    expect(forceDisposeB).toHaveBeenCalledTimes(1);
   });
 });
