@@ -94,7 +94,7 @@ governed model learning
 new prior
 ```
 
-The initial heuristics are not Nemosyne's theory of useful representation. They are the first prior. Scientific validity is not another fitness dimension: **a candidate must first be admissible for the claim being made before utility, preference, performance or resource objectives may compete**. No evolutionary search, learned ranker, LLM committee, human-preference model or resource governor may bypass that boundary.
+The initial heuristics are not Nemosyne's theory of useful representation. They are the first prior. Scientific validity is not another fitness dimension: **evidence disposition constrains what utility, preference, performance or resource objectives are permitted to authorise**. Non-promotable candidates may remain visible to bounded diagnostic, falsification, explanation or human-study selection paths, but they may not be silently promoted into a chosen representation, positive learning signal or adaptive policy. No evolutionary search, learned ranker, LLM committee, human-preference model or resource governor may bypass that boundary.
 
 ---
 
@@ -240,19 +240,30 @@ No module may silently become a second authority for another ontology, and no ev
                             ▼
                  ┌─────────────────────┐
                  │ Epistemic / Evidence│
-                 │ Admissibility Gate  │
+                 │ Disposition         │
                  └──────────┬──────────┘
-                            │ eligible candidates only
-                            ▼
-                 ┌─────────────────────┐
-                 │ Moneta              │
-                 │ Multi-objective     │
-                 │ Fitness / Decision  │
-                 │ Explanation         │
-                 └──────────┬──────────┘
-                            ▼
-                  RepresentationGraph(s)
-                  + inspectable alternatives
+                            │
+             ┌──────────────┼──────────────────┐
+             │              │                  │
+             ▼              ▼                  ▼
+      INVALID /       REQUIRES-HUMAN        ELIGIBLE
+      ABSTAIN /             │                  │
+      FALSIFY-ONLY          ▼                  │
+             │       bounded study            │
+             │       selection + S5           │
+             │              │                  │
+             │       re-adjudication           │
+             │              └──────────────┐   │
+             ▼                             ▼   ▼
+      bounded diagnostic          ┌─────────────────────┐
+      ranking / explanation       │ Moneta              │
+      / falsification only        │ Multi-objective     │
+      (no promotion/render)       │ Fitness / Decision  │
+                                  │ Explanation         │
+                                  └──────────┬──────────┘
+                                             ▼
+                                   RepresentationGraph(s)
+                                   + inspectable alternatives
                             │
                             ▼
                  ┌─────────────────────┐
@@ -296,7 +307,7 @@ No module may silently become a second authority for another ontology, and no ev
                    New Moneta Prior
 ```
 
-The two Moneta boxes are one representation authority shown at two stages of its pipeline: Moneta generates hypotheses under the Representation Ontology, but only admissible candidates may enter fitness/decision evaluation. The evidence-admissibility gate is cross-cutting governance rather than an alternative analytical or representation authority. It checks whether the evidence and method are sufficient for the claim a candidate would make; Rust/WASM remains authoritative for analytical facts, and human/domain evidence remains authoritative for human-dependent claims.
+The two Moneta boxes are one representation authority shown at two stages of its pipeline: Moneta generates hypotheses under the Representation Ontology and later evaluates candidates subject to their evidence disposition. The evidence-disposition boundary is cross-cutting governance rather than an alternative analytical or representation authority. `INVALID` candidates are rejected. `ABSTAIN` and `MACHINE-FALSIFICATION-ONLY` candidates may retain bounded diagnostic scores, ranked near-miss explanations or falsification results, but cannot yield a chosen/rendered representation or positive promotion signal. `REQUIRES-HUMAN` candidates may enter a bounded, non-promoting study-selection path; attributable human evidence is then fed back through re-adjudication. `ELIGIBLE` candidates may enter ordinary multi-objective decision evaluation. Rust/WASM remains authoritative for analytical facts, and human/domain evidence remains authoritative for human-dependent claims.
 
 The architectural backbone is:
 
@@ -409,19 +420,25 @@ EvidenceDisposition
 + FitnessEvidence
 ```
 
-The intended Full-Moneta ordering is:
+The intended Full-Moneta ordering is disposition-aware:
 
 ```text
 candidate generation / RepresentationGraph search
   -> hard representation feasibility
-  -> evidence admissibility
-  -> structure-preservation / task / resource / stability objectives
-  -> Pareto set or otherwise inspectable alternatives
-  -> human/device evidence where the claim requires it
-  -> learning evidence
+  -> evidence disposition
+       INVALID -> reject
+       ABSTAIN -> preserve bounded ranked near-misses / explanation; no promotion or rendering
+       MACHINE-FALSIFICATION-ONLY -> falsification evidence only
+       REQUIRES-HUMAN -> bounded study-candidate selection -> S5 human evidence -> re-adjudicate
+       ELIGIBLE -> structure-preservation / task / resource / stability objectives
+                    -> Pareto set or otherwise inspectable alternatives
+                    -> representation decision
+  -> claim-appropriate learning evidence
 ```
 
-Scalar ranking may be used where scientifically and operationally justified, but a universal scalar winner is **not** the constitutional architecture. Objectives that encode materially different concerns should remain inspectable rather than being silently collapsed merely for optimiser convenience.
+The gate therefore separates **promotion authority** from the ability to inspect, explain, falsify or collect missing evidence. A candidate does not need to be promotable to remain scientifically useful. Conversely, a diagnostic score, near-miss rank or study selection does not upgrade evidential authority.
+
+Scalar ranking may be used where scientifically and operationally justified, including bounded diagnostic ranking of non-promotable candidates, but a universal scalar winner is **not** the constitutional architecture. Objectives that encode materially different concerns should remain inspectable rather than being silently collapsed merely for optimiser convenience.
 
 Moneta is a **hypothesis engine and decision-support system**, not an oracle.
 
@@ -565,6 +582,16 @@ Nemosyne distinguishes evidence by what it can establish, not merely by how much
 
 A lower tier may falsify a candidate when the failure is within its authority. **It may not promote a claim whose truth requires a higher tier.** Simulation is therefore an attention-saving falsification instrument, not a replacement oracle for physical or human evidence.
 
+Evidence dispositions are routing decisions, not a single pass/fail bit:
+
+| Disposition | Permitted consequence |
+|---|---|
+| `INVALID` | Reject the evidence/candidate for the governed claim. |
+| `ABSTAIN` | Preserve bounded diagnostics, ranked near-misses and remediation/explanation evidence; do not choose or render a representation as scientifically admitted. |
+| `MACHINE-FALSIFICATION-ONLY` | Use machine evidence to reject pathology within the benchmark's authority; do not crown a preferred representation. |
+| `REQUIRES-HUMAN` | Select bounded candidates for an attributable human/device study where appropriate, then re-adjudicate with the resulting evidence; do not promote beforehand. |
+| `ELIGIBLE` | Candidate may proceed to later multi-objective evaluation; eligibility alone does not mean correct, optimal, novel or production-ready. |
+
 ## 14.2 Benchmark and oracle authority
 
 Known-structure and benchmark corpora MUST declare what their oracle can establish. Exact-generative structure may establish preservation or destruction of planted structure. Diagnostic families may expose pathologies. Labelled/task corpora may establish bounded task correctness. Human-preference corpora may establish prior preference evidence.
@@ -661,7 +688,7 @@ Do not jump directly to a neural or fully adaptive Moneta. The enduring prerequi
 1. researchers can understand and operate the investigation workflow well enough that interface friction is not the dominant confounder;
 2. analytical and representation state remains authoritative, reconstructable and provenance-bearing while spatial projections and resources remain disposable and bounded;
 3. simulator, device and human evidence retains explicit tier/claim authority;
-4. Moneta candidate evidence passes the hard scientific-admissibility boundary before optimisation;
+4. Moneta candidate evidence receives a governed disposition before any optimisation is allowed to authorise promotion; non-promoting diagnostic or study-selection evaluation remains possible where the disposition permits it;
 5. known-structure, metamorphic and adversarial campaigns actively seek counterexamples rather than only confirming expected winners;
 6. human-dependent perceptual/discovery claims remain open until attributable human evidence exists;
 7. governed learning uses held-out evaluation, model/version identity and reproducible provenance;
@@ -686,7 +713,7 @@ Every consequential evaluation claim SHOULD identify the population/context, cla
 # 20. Non-negotiable boundaries
 
 - Do not trade scientific validity against utility, preference, performance or resource cost; validity is a feasibility boundary.
-- Do not let an evolutionary optimiser, learned ranker, LLM committee, human-preference model or resource governor bypass evidence admissibility.
+- Do not let an evolutionary optimiser, learned ranker, LLM committee, human-preference model or resource governor bypass evidence disposition when authorising promotion, rendering, learning or adaptation; bounded diagnostic/study routing does not constitute promotion.
 - Do not let lower-tier simulation promote physical-device or human claims that require higher-tier evidence.
 - Do not let a benchmark, candidate generator or evaluator self-assign stronger oracle authority than its governed contract permits.
 - Do not resolve scientific truth, epistemic authority or product values by model vote.
