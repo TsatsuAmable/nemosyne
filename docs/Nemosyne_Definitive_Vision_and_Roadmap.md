@@ -243,27 +243,34 @@ No module may silently become a second authority for another ontology, and no ev
                  │ Disposition         │
                  └──────────┬──────────┘
                             │
-             ┌──────────────┼──────────────────┐
-             │              │                  │
-             ▼              ▼                  ▼
-      INVALID /       REQUIRES-HUMAN        ELIGIBLE
-      ABSTAIN /             │                  │
-      FALSIFY-ONLY          ▼                  │
-             │       bounded study            │
-             │       selection + S5           │
-             │              │                  │
-             │       re-adjudication           │
-             │              └──────────────┐   │
-             ▼                             ▼   ▼
-      bounded diagnostic          ┌─────────────────────┐
-      ranking / explanation       │ Moneta              │
-      / falsification only        │ Multi-objective     │
-      (no promotion/render)       │ Fitness / Decision  │
-                                  │ Explanation         │
-                                  └──────────┬──────────┘
-                                             ▼
-                                   RepresentationGraph(s)
-                                   + inspectable alternatives
+             ┌──────────────┼─────────────────────────┐
+             │              │                         │
+             ▼              ▼                         ▼
+          INVALID       REQUIRES-HUMAN              ELIGIBLE
+             │              │                         │
+             ▼              ▼                         │
+           reject     bounded study                  │
+                      selection + S5                 │
+                             │                       │
+                      re-adjudication                │
+                             │                       │
+                             └──────► disposition ◄──┘
+                                      │
+                    ┌─────────────────┴─────────────────┐
+                    │                                   │
+                    ▼                                   ▼
+          ABSTAIN / FALSIFY-ONLY              eligible after adjudication
+                    │                                   │
+                    ▼                                   ▼
+          bounded diagnostic               ┌─────────────────────┐
+          ranking / explanation            │ Moneta              │
+          / falsification only             │ Multi-objective     │
+          (no promotion/render)            │ Fitness / Decision  │
+                                           │ Explanation         │
+                                           └──────────┬──────────┘
+                                                      ▼
+                                            RepresentationGraph(s)
+                                            + inspectable alternatives
                             │
                             ▼
                  ┌─────────────────────┐
