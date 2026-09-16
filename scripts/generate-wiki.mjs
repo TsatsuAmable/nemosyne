@@ -111,6 +111,21 @@ function renderDocument(document) {
   return `${notice}${rewriteLinks(source, document.path)}\n`;
 }
 
+function readRoadmapFrontier() {
+  const roadmap = readFileSync(resolve(root, 'docs/ROADMAP.md'), 'utf8');
+  const snapshotMatch = roadmap.match(/^## Status snapshot - (.+)$/m);
+  const orderMatch = roadmap.match(/Current order:\s*\n\n```text\n([\s\S]*?)\n```/);
+
+  if (!snapshotMatch || !orderMatch) {
+    throw new Error('docs/ROADMAP.md must expose a status snapshot heading and Current order text block');
+  }
+
+  return {
+    snapshot: snapshotMatch[1].trim(),
+    order: orderMatch[1].trim(),
+  };
+}
+
 function walkTypescript(directory) {
   if (!existsSync(directory)) return [];
   const files = [];
@@ -175,12 +190,23 @@ write('Codebase-Index.md', renderCodebaseIndex());
 
 const canonical = activeDocuments.filter((document) => document.status === 'canonical');
 const active = activeDocuments.filter((document) => document.status === 'active');
+const roadmapFrontier = readRoadmapFrontier();
 const home = [
   '# Nemosyne wiki',
   '',
   'This wiki is a **generated navigation and reference surface** for the Nemosyne repository. It is not an independent source of truth.',
   '',
   'The source repository owns all canonical content. Wiki pages are rebuilt after relevant changes land on `main`, preventing the historical wiki from silently drifting behind the implementation.',
+  '',
+  '## Live execution frontier',
+  '',
+  `Roadmap snapshot: **${roadmapFrontier.snapshot}**. [Open the full current status](Current-Status).`,
+  '',
+  '```text',
+  roadmapFrontier.order,
+  '```',
+  '',
+  'This sequence is projected directly from `docs/ROADMAP.md`; the wiki does not maintain a second status authority.',
   '',
   '## Canonical authorities',
   '',
@@ -205,7 +231,10 @@ const sidebar = [
   '- [Home](Home)',
   '- [Current status](Current-Status)',
   '- [Vision & roadmap](Vision-and-Roadmap)',
+  '- [UX doctrine](User-Experience-Design-Doctrine)',
   '- [Architecture](Architecture)',
+  '- [Engineering agent contract](Engineering-Agent-Contract)',
+  '- [Implementation plan](Implementation-Plan)',
   '- [Production readiness](Production-Readiness)',
   '- [Codebase index](Codebase-Index)',
   '- [Documentation index](Documentation-Index)',
