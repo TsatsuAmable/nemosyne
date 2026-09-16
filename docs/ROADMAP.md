@@ -510,12 +510,6 @@ Current sequential status:
 - **PT9: NOT COMPLETE / DOWNSTREAM OF P1-UXR.** #712, #713 and #747-#749 land scientific-admissibility, falsification and abstention prerequisites only. They do not implement the Moneta learning-evidence pipeline, learned-candidate comparison or governed promotion loop.
 - **PT10: NOT STARTED / DOWNSTREAM OF PT9.** No private-preview cohort, interviews, consented product-learning evidence or human discovery-outcome programme is claimed.
 
-Supporting opportunity lanes do not reorder the one-forward product stream or create completion by account preparation. History through this integration base records #709's repository tranche in #710; it records no merged implementation for issue lanes #714 or #715:
-
-- **#709 free-compute runway:** #710 landed provider-neutral fail-closed routing and the operating ledger only. No external provider is product-composed. Do not activate a short-lived trial without a concrete workload, daily consumption, duration, retained-artifact, exit and maximum post-credit-spend plan.
-- **#714 organisation/profile preparation:** limit repository work to non-sensitive public repository/profile material preparation only. No incorporated legal entity is evidenced at this integration base. Stripe, bank, tax, identity and legal attestations are human actions and may not be fabricated or inferred by an agent.
-- **#715 Swiss research-support lane:** eligibility requires a truthful qualifying Swiss research-institution collaborator and supporting PI. Do not misstate eligibility or affiliation, and do not contact a prospective collaborator or submit outreach/application material without explicit user approval.
-
 P1-PT may select bounded UX, security, reliability, maintainability, CI, documentation and operations ratchets between larger product slices. It must preserve the five product/research authority boundaries and the Notice -> Question -> Hypothesis -> Investigation -> Understanding -> Validation -> Discovery lifecycle.
 
 ---
