@@ -10,6 +10,7 @@ import {
 } from '../src/app/dataset/SemanticDetailTransition.ts';
 import { SEMANTIC_DETAIL_OVERLAY_NAME } from '../src/vr/presentation/representation/SemanticDetailObservationOverlay.ts';
 import { RepresentationSurface } from '../src/vr/presentation/representation/RepresentationSurface.ts';
+import { SemanticMaterialisationGovernor } from '../src/vr/scalability/SemanticMaterialisationGovernor.ts';
 import type { MonetaDiagnosticHUD } from '../src/vr/ui/MonetaDiagnosticHUD.ts';
 
 const FP = 'a'.repeat(64);
@@ -205,6 +206,28 @@ describe('Stream A A3 bounded observation transition', () => {
     expect(batch.count).toBe(2);
     expect(batch.userData.observationIds).toEqual(['obs-1', 'obs-2']);
     expect(overlay!.userData.candidateLocalDrawCalls).toBe(1);
+
+    transition.dispose();
+    surface.dispose();
+  });
+
+  it('fails closed under semantic materialisation backpressure without replacing the selected parent', async () => {
+    const node = fakeNode();
+    const surface = surfaceFor(node);
+    const { port } = portWith(detailEnvelope());
+    const governor = new SemanticMaterialisationGovernor<{ observationIds: readonly string[]; returnedCount: number; totalMemberCount: number }>({
+      policyVersion: 'test/no-queue', maxResident: 1, maxQueued: 0, maxMaterialisationsPerTick: 1,
+    });
+    const transition = new SemanticDetailTransition(surface, authority(port), governor);
+    const parent = node.artifact!.nodeMeshes[0];
+
+    surface.setSelectedMesh(parent);
+    await vi.waitFor(() => expect(transition.snapshot.status).toBe('REFUSED'));
+
+    expect(transition.snapshot.refusalReason).toContain('SEMANTIC_BACKPRESSURE_QUEUE_FULL');
+    expect(surface.getSelectedSemanticIdentity()?.semanticId).toBe('density-cell:0-0');
+    expect(node.group!.children).toContain(parent);
+    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(false);
 
     transition.dispose();
     surface.dispose();
