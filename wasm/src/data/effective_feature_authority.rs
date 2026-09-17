@@ -2,7 +2,7 @@ use crate::data::fingerprint::sha256_hex;
 use serde::{Deserialize, Serialize};
 
 pub const EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION: &str = "1";
-pub const EFFECTIVE_FEATURE_AUTHORITY_VERSION: &str = "exact-rank-v1";
+pub const EFFECTIVE_FEATURE_AUTHORITY_VERSION: &str = "numerical-rank-v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -111,7 +111,7 @@ pub fn exact_numeric_rank_artifact(
         dataset_fingerprint,
         ordered_feature_ids,
         target_claim,
-        "EXACT_NUMERIC_MATRIX_RANK",
+        "NUMERICAL_MATRIX_RANK",
         "1",
         effective,
         refusal
@@ -122,7 +122,7 @@ pub fn exact_numeric_rank_artifact(
         dataset_fingerprint: dataset_fingerprint.into(),
         ordered_feature_ids,
         target_claim: target_claim.into(),
-        estimator_id: "EXACT_NUMERIC_MATRIX_RANK".into(),
+        estimator_id: "NUMERICAL_MATRIX_RANK".into(),
         estimator_version: "1".into(),
         ambient_feature_count: ambient,
         effective_feature_count: effective,
