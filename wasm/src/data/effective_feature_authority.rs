@@ -194,9 +194,30 @@ mod tests {
         );
         assert_eq!(a.status, EffectiveFeatureAuthorityStatus::Abstain);
         assert_eq!(a.effective_feature_count, None);
-        assert!(a
-            .refusal_reasons
-            .contains(&"UNSUPPORTED_TARGET_CLAIM".into()));
+        assert!(a.refusal_reasons.contains(&"UNSUPPORTED_TARGET_CLAIM".into()));
+    }
+
+    #[test]
+    fn malformed_numeric_evidence_abstains() {
+        let non_rectangular = numeric_linear_rank_artifact(
+            "fp",
+            vec!["a".into(), "b".into()],
+            &[vec![1.0, 2.0], vec![3.0]],
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+        );
+        assert_eq!(non_rectangular.status, EffectiveFeatureAuthorityStatus::Abstain);
+        assert_eq!(non_rectangular.effective_feature_count, None);
+        assert!(non_rectangular.refusal_reasons.contains(&"NON_RECTANGULAR_INPUT".into()));
+
+        let non_finite = numeric_linear_rank_artifact(
+            "fp",
+            vec!["a".into()],
+            &[vec![f64::NAN]],
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+        );
+        assert_eq!(non_finite.status, EffectiveFeatureAuthorityStatus::Abstain);
+        assert_eq!(non_finite.effective_feature_count, None);
+        assert!(non_finite.refusal_reasons.contains(&"NON_FINITE_INPUT".into()));
     }
 
     #[test]
