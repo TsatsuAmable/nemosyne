@@ -25,6 +25,11 @@ import type {
   SemanticSelectionIdentity,
 } from '../../vr/presentation/representation/RepresentationSurface.ts';
 import { SemanticDetailObservationOverlay } from '../../vr/presentation/representation/SemanticDetailObservationOverlay.ts';
+import {
+  SEMANTIC_MATERIALISATION_POLICY_V1,
+  SemanticMaterialisationGovernor,
+  type SemanticMaterialisationIdentity,
+} from '../../vr/scalability/SemanticMaterialisationGovernor.ts';
 
 export const SEMANTIC_DETAIL_PRODUCT_PAGE_LIMIT_V1 = 256 as const;
 
@@ -114,6 +119,12 @@ interface ActiveDetailContext {
   readonly generation: number;
   readonly version: number;
   readonly fingerprint: string;
+}
+
+interface SemanticDetailMaterialisation {
+  readonly observationIds: readonly string[];
+  readonly returnedCount: number;
+  readonly totalMemberCount: number;
 }
 
 let detailRequestSequence = 0;
@@ -291,6 +302,7 @@ export class SemanticDetailTransition {
   private requestToken = 0;
   private activeParent: SemanticSelectionIdentity | null = null;
   private activeContext: ActiveDetailContext | null = null;
+  private activeMaterialisation: SemanticMaterialisationIdentity | null = null;
   private snapshotValue: SemanticDetailTransitionSnapshot = {
     status: 'IDLE',
     parent: null,
@@ -302,7 +314,9 @@ export class SemanticDetailTransition {
 
   constructor(
     private readonly surface: RepresentationSurface,
-    private readonly authority: SemanticDetailAuthority
+    private readonly authority: SemanticDetailAuthority,
+    private readonly materialisationGovernor: SemanticMaterialisationGovernor<SemanticDetailMaterialisation> =
+      new SemanticMaterialisationGovernor(SEMANTIC_MATERIALISATION_POLICY_V1)
   ) {
     this.unsubscribe = surface.subscribeSelection((mesh) => this.handleSelection(mesh));
   }
@@ -319,6 +333,7 @@ export class SemanticDetailTransition {
 
   clear(): void {
     this.requestToken += 1;
+    this.releaseActiveMaterialisation();
     this.overlay.clear();
     this.activeParent = null;
     this.activeContext = null;
@@ -457,12 +472,19 @@ export class SemanticDetailTransition {
     }
   }
 
+  private releaseActiveMaterialisation(): void {
+    if (!this.activeMaterialisation) return;
+    this.materialisationGovernor.release(this.activeMaterialisation, 'REFINED');
+    this.activeMaterialisation = null;
+  }
+
   private updateSnapshot(snapshot: SemanticDetailTransitionSnapshot): void {
     this.snapshotValue = snapshot;
     for (const listener of this.snapshotListeners) listener(snapshot);
   }
 
   private refuse(parent: SemanticSelectionIdentity | null, reason: string): void {
+    this.releaseActiveMaterialisation();
     this.overlay.clear();
     this.activeParent = null;
     this.activeContext = null;
@@ -537,6 +559,7 @@ export class SemanticDetailTransition {
       investigationContext: `${this.authority.sessionId}: reveal bounded observations for ${identity.semanticId}`,
     };
     const token = ++this.requestToken;
+    this.releaseActiveMaterialisation();
     this.overlay.clear();
     this.activeParent = identity;
     this.activeContext = {
@@ -607,6 +630,31 @@ export class SemanticDetailTransition {
           return;
         }
 
+        const materialisationIdentity: SemanticMaterialisationIdentity = {
+          datasetFingerprint: fingerprint,
+          datasetGeneration: generation,
+          decisionId: currentDecisionId,
+          semanticId: identity.semanticId,
+        };
+        const admission = this.materialisationGovernor.request(
+          { identity: materialisationIdentity, level: 'REFINED' },
+          () => ({
+            observationIds: result.value!.result.status === 'READY' ? [...result.value!.result.observationIds] : [],
+            returnedCount: result.value!.result.status === 'READY' ? result.value!.result.returnedCount : 0,
+            totalMemberCount: result.value!.result.status === 'READY' ? result.value!.result.totalMemberCount : 0,
+          })
+        );
+        if (!admission.accepted) {
+          this.refuse(identity, admission.reason ?? 'semantic materialisation refused');
+          return;
+        }
+        this.materialisationGovernor.tick();
+        if (!this.materialisationGovernor.get(materialisationIdentity, 'REFINED')) {
+          this.materialisationGovernor.release(materialisationIdentity, 'REFINED');
+          this.refuse(identity, 'SEMANTIC_MATERIALISATION_DEFERRED');
+          return;
+        }
+        this.activeMaterialisation = materialisationIdentity;
         this.overlay.show(nodeNow.group, mesh, result.value);
         this.updateSnapshot({
           status: 'READY',
