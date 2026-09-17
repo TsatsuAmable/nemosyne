@@ -9,6 +9,7 @@ Nemosyne is an experimental scientific/WebXR research instrument. Contributions 
 3. Read the governing vision when the change affects product direction, scientific semantics, architecture, or UX.
 4. Inspect the real production call path before adding a new abstraction or helper.
 5. Classify the change under the risk-tiered adversarial implementation protocol in `AGENTS.md`: high-risk, standard-risk, or low-risk exemption. High-risk work requires the pre-implementation adversarial contract before implementation; standard-risk work requires focused verification plus one bounded post-implementation falsification pass; low-risk exemptions must be demonstrably non-semantic.
+6. Identify prior art materially informing the change and follow `docs/research/PRIOR_ART_INDEX.md`; do not wait until paper-writing to reconstruct intellectual provenance.
 
 Executable configuration is authoritative for commands, versions, CI topology, and coverage policy. Use `package.json`, `.github/workflows/`, the Vitest configs, and `rust-toolchain.toml` rather than copying values from prose.
 
@@ -46,6 +47,7 @@ Use an independent agent/reviewer when the risk or evidence would materially ben
 - Do not push directly to `main`.
 - Keep a PR focused on one coherent semantic change.
 - Describe the risk surface and the invariant or expected behavior the change is intended to preserve or establish.
+- Complete the PR template's **Prior art / attribution** section. If a technique or rule is materially adopted/adapted/informed by external work, record the relationship precisely; if none is, say so.
 - For high-risk work, include the pre-implementation adversarial contract and post-implementation adversarial disposition in the PR.
 - For standard-risk work, include focused verification and one bounded adversarial disposition in the PR; do not create review-plan/review files solely as process receipts.
 - Prefer fix-forward work on the current architecture over parallel shadow implementations.
@@ -69,6 +71,20 @@ Useful entry points are listed in `package.json`, including `typecheck`, `lint`,
 - Missing or invalid observations must not silently become legitimate numeric values.
 - Scientific names and confidence-like claims must match the mathematics and evidence actually computed.
 - Approximation, refusal, model identity, and investigator-visible transformations must be explicit and provenance-bearing where relevant.
+
+## Prior art and attribution
+
+Intellectual provenance is part of reproducibility. When Nemosyne adopts or materially uses an external technique, algorithm, empirical result, interaction rule, benchmark, formalism, standard, or architectural idea:
+
+- prefer the primary source and stable DOI/arXiv/RFC/standard/project citation;
+- add or reuse the scholarly record in `docs/research/references.bib`;
+- cite near the implementation when the relationship would otherwise be invisible;
+- update `docs/research/PRIOR_ART_INDEX.md` for significant scientific, architectural, interaction, or product-research mappings;
+- distinguish **adopted/adapted**, **informed by / related prior art**, and **context only** rather than implying copied lineage;
+- treat missing attribution and invented attribution as provenance defects during review;
+- separately satisfy licence/copyright/NOTICE obligations for incorporated code, assets, data, models or text. Academic citation is not a software/content licence.
+
+Do not clutter code with citations for every ordinary language/library idiom. Cite where a knowledgeable reader would reasonably want to know the intellectual or empirical source of a consequential technique or rule.
 
 ## When an RFC is required
 
