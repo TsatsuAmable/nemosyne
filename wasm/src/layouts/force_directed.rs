@@ -1,5 +1,9 @@
 use std::f32::consts::PI;
 
+// Related prior art: Fruchterman & Reingold, "Graph Drawing by
+// Force-Directed Placement" (1991), DOI 10.1002/spe.4380211102.
+// This is a custom deterministic 3D force-directed variant, not a verbatim
+// implementation of the paper; the citation identifies the algorithm family.
 pub fn compute_force_directed_3d(
     count: usize,
     edges: &[(usize, usize, f32)],
