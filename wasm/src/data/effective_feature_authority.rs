@@ -75,7 +75,7 @@ fn rank(mut matrix: Vec<Vec<f64>>) -> usize {
     pivot_row
 }
 
-pub fn exact_numeric_rank_artifact(
+pub fn numeric_linear_rank_artifact(
     dataset_fingerprint: &str,
     ordered_feature_ids: Vec<String>,
     rows: &[Vec<f64>],
@@ -145,7 +145,7 @@ mod tests {
     fn duplicate_columns_have_rank_one() {
         let rows = (0..20).map(|i| vec![i as f64; 8]).collect::<Vec<_>>();
         let ids = (0..8).map(|i| format!("x{i}")).collect();
-        let a = exact_numeric_rank_artifact("fp", ids, &rows, "NUMERIC_LINEAR_RANK_DIAGNOSTIC");
+        let a = numeric_linear_rank_artifact("fp", ids, &rows, "NUMERIC_LINEAR_RANK_DIAGNOSTIC");
         assert_eq!(a.effective_feature_count, Some(1));
         assert_eq!(a.status, EffectiveFeatureAuthorityStatus::Eligible);
     }
@@ -159,7 +159,7 @@ mod tests {
                 vec![x, y, x + y]
             })
             .collect::<Vec<_>>();
-        let a = exact_numeric_rank_artifact(
+        let a = numeric_linear_rank_artifact(
             "fp",
             vec!["x".into(), "y".into(), "sum".into()],
             &rows,
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn unsupported_claim_abstains() {
-        let a = exact_numeric_rank_artifact(
+        let a = numeric_linear_rank_artifact(
             "fp",
             vec!["a".into(), "b".into()],
             &[vec![0.2, 0.8], vec![0.4, 0.6]],
@@ -202,13 +202,13 @@ mod tests {
     #[test]
     fn digest_binds_ordered_features() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
-        let a = exact_numeric_rank_artifact(
+        let a = numeric_linear_rank_artifact(
             "fp",
             vec!["a".into(), "b".into()],
             &rows,
             "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
         );
-        let b = exact_numeric_rank_artifact(
+        let b = numeric_linear_rank_artifact(
             "fp",
             vec!["b".into(), "a".into()],
             &rows,
@@ -220,13 +220,13 @@ mod tests {
     #[test]
     fn digest_binds_claim() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
-        let a = exact_numeric_rank_artifact(
+        let a = numeric_linear_rank_artifact(
             "fp",
             vec!["a".into(), "b".into()],
             &rows,
             "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
         );
-        let b = exact_numeric_rank_artifact("fp", vec!["a".into(), "b".into()], &rows, "OTHER");
+        let b = numeric_linear_rank_artifact("fp", vec!["a".into(), "b".into()], &rows, "OTHER");
         assert_ne!(a.artifact_digest, b.artifact_digest);
     }
 }
