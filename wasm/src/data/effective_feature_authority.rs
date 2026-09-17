@@ -3,6 +3,11 @@ use serde::{Deserialize, Serialize};
 
 pub const EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION: &str = "1";
 pub const EFFECTIVE_FEATURE_AUTHORITY_VERSION: &str = "numerical-rank-v1";
+const ASSUMPTIONS: [&str; 3] = [
+    "numeric features share lawful linear geometry",
+    "numerical rank uses a scale-relative floating-point tolerance",
+    "diagnostic only; not high-dimensional admission policy",
+];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -104,8 +109,9 @@ pub fn numeric_linear_rank_artifact(
     } else {
         EffectiveFeatureAuthorityStatus::Abstain
     };
+    let assumptions = ASSUMPTIONS.iter().map(|value| (*value).into()).collect::<Vec<String>>();
     let digest_preimage = format!(
-        "{}|{}|{}|{:?}|{}|{}|{}|{:?}|{:?}",
+        "{}|{}|{}|{:?}|{}|{}|{}|{:?}|{:?}|{:?}",
         EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION,
         EFFECTIVE_FEATURE_AUTHORITY_VERSION,
         dataset_fingerprint,
@@ -114,7 +120,8 @@ pub fn numeric_linear_rank_artifact(
         "NUMERICAL_MATRIX_RANK",
         "1",
         effective,
-        refusal
+        refusal,
+        assumptions
     );
     EffectiveFeatureAuthorityArtifactV1 {
         schema_version: EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION.into(),
@@ -128,11 +135,7 @@ pub fn numeric_linear_rank_artifact(
         effective_feature_count: effective,
         status,
         refusal_reasons: refusal,
-        assumptions: vec![
-            "numeric features share lawful linear geometry".into(),
-            "numerical rank uses a scale-relative floating-point tolerance".into(),
-            "diagnostic only; not high-dimensional admission policy".into(),
-        ],
+        assumptions,
         artifact_digest: sha256_hex(&digest_preimage),
     }
 }
