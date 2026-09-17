@@ -3,6 +3,9 @@ import type { MonetaBenchmarkFamily, OracleStrength } from './MonetaBenchmarkCor
 export type MeasurementScale =
   'nominal' | 'ordinal' | 'interval' | 'ratio' | 'compositional' | 'unknown';
 
+// Informed by compositional-data analysis on the simplex: Aitchison (1982),
+// DOI 10.1111/j.2517-6161.1982.tb01195.x. These labels are evidence-policy
+// declarations, not a claim that every log-ratio treatment is automatically valid.
 export type CompositionHandling =
   'not-applicable' | 'log-ratio' | 'simplex-native' | 'raw-euclidean';
 

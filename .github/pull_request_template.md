@@ -6,6 +6,16 @@ Describe what changed and why. Keep this focused on user, investigator, scientif
 
 Name the roadmap workstream, RF finding, or bounded maintenance goal advanced by this PR. If none applies, state the concrete engineering reason for the change.
 
+## Prior art / attribution
+
+State whether this change adopts, adapts, or is materially informed by an external technique, algorithm, empirical rule, design pattern, benchmark, scientific method, formalism, standard, or architecture.
+
+- Prefer primary papers/specifications/standards and stable DOI/arXiv/RFC/project citations.
+- If prior work materially informs implementation, add/reuse its entry in `docs/research/references.bib`, cite it near the implementation when the relationship would otherwise be invisible, and update `docs/research/PRIOR_ART_INDEX.md` for significant mappings.
+- Distinguish **adopted/adapted**, **informed by / related prior art**, and **context only**. Do not infer derivation merely from similarity.
+- If code, assets, data, models, text, or other copyrightable material is incorporated, separately satisfy licence/NOTICE obligations; scholarly citation is not a licence.
+- If no material external technique was adopted or used, state that explicitly.
+
 ## Risk surface
 
 Check every area materially affected by this change:
