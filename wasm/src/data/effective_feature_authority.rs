@@ -34,6 +34,11 @@ pub struct EffectiveFeatureAuthorityArtifactV1 {
     pub artifact_digest: String,
 }
 
+/// Floating-point numerical rank for a finite rectangular matrix.
+///
+/// The pivot threshold is relative to the matrix scale, so changing only the
+/// common unit scale does not change the diagnostic rank. This is not an exact
+/// symbolic rank and must not be interpreted as intrinsic dimensionality.
 fn rank(mut matrix: Vec<Vec<f64>>) -> usize {
     if matrix.is_empty() || matrix[0].is_empty() {
         return 0;
