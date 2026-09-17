@@ -80,6 +80,29 @@ fn rank(mut matrix: Vec<Vec<f64>>) -> usize {
     pivot_row
 }
 
+fn digest_preimage(
+    dataset_fingerprint: &str,
+    ordered_feature_ids: &[String],
+    target_claim: &str,
+    effective: Option<usize>,
+    refusal: &[String],
+    assumptions: &[String],
+) -> String {
+    format!(
+        "{}|{}|{}|{:?}|{}|{}|{}|{:?}|{:?}|{:?}",
+        EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION,
+        EFFECTIVE_FEATURE_AUTHORITY_VERSION,
+        dataset_fingerprint,
+        ordered_feature_ids,
+        target_claim,
+        "NUMERICAL_MATRIX_RANK",
+        "1",
+        effective,
+        refusal,
+        assumptions
+    )
+}
+
 pub fn numeric_linear_rank_artifact(
     dataset_fingerprint: &str,
     ordered_feature_ids: Vec<String>,
@@ -110,19 +133,14 @@ pub fn numeric_linear_rank_artifact(
         EffectiveFeatureAuthorityStatus::Abstain
     };
     let assumptions = ASSUMPTIONS.iter().map(|value| (*value).into()).collect::<Vec<String>>();
-    let digest_preimage = format!(
-        "{}|{}|{}|{:?}|{}|{}|{}|{:?}|{:?}|{:?}",
-        EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION,
-        EFFECTIVE_FEATURE_AUTHORITY_VERSION,
+    let artifact_digest = sha256_hex(&digest_preimage(
         dataset_fingerprint,
-        ordered_feature_ids,
+        &ordered_feature_ids,
         target_claim,
-        "NUMERICAL_MATRIX_RANK",
-        "1",
         effective,
-        refusal,
-        assumptions
-    );
+        &refusal,
+        &assumptions,
+    ));
     EffectiveFeatureAuthorityArtifactV1 {
         schema_version: EFFECTIVE_FEATURE_AUTHORITY_SCHEMA_VERSION.into(),
         authority_version: EFFECTIVE_FEATURE_AUTHORITY_VERSION.into(),
@@ -136,7 +154,7 @@ pub fn numeric_linear_rank_artifact(
         status,
         refusal_reasons: refusal,
         assumptions,
-        artifact_digest: sha256_hex(&digest_preimage),
+        artifact_digest,
     }
 }
 
@@ -252,5 +270,31 @@ mod tests {
         );
         let b = numeric_linear_rank_artifact("fp", vec!["a".into(), "b".into()], &rows, "OTHER");
         assert_ne!(a.artifact_digest, b.artifact_digest);
+    }
+
+    #[test]
+    fn digest_binds_assumptions() {
+        let feature_ids = vec!["a".into(), "b".into()];
+        let refusal = Vec::<String>::new();
+        let assumptions = ASSUMPTIONS.iter().map(|value| (*value).into()).collect::<Vec<String>>();
+        let mut changed_assumptions = assumptions.clone();
+        changed_assumptions[1] = "different numerical tolerance contract".into();
+        let a = sha256_hex(&digest_preimage(
+            "fp",
+            &feature_ids,
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+            Some(1),
+            &refusal,
+            &assumptions,
+        ));
+        let b = sha256_hex(&digest_preimage(
+            "fp",
+            &feature_ids,
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+            Some(1),
+            &refusal,
+            &changed_assumptions,
+        ));
+        assert_ne!(a, b);
     }
 }
