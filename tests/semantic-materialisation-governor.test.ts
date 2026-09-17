@@ -61,6 +61,18 @@ describe('SemanticMaterialisationGovernor', () => {
     expect(governor.snapshot()).toMatchObject({ resident: 1, queued: 0, promoted: 1 });
   });
 
+  it('does not starve an admissible refinement behind a capacity-blocked queue head', () => {
+    const governor = new SemanticMaterialisationGovernor<string>({ ...policy, maxResident: 1, maxQueued: 3 });
+    const semantic = identity('cluster-7');
+    governor.request({ identity: semantic, level: 'COARSE' }, () => 'coarse');
+    governor.request({ identity: identity('other'), level: 'COARSE' }, () => 'other');
+    governor.tick();
+    governor.request({ identity: semantic, level: 'REFINED' }, () => 'refined');
+    governor.tick();
+    expect(governor.get(semantic, 'REFINED')).toBe('refined');
+    expect(governor.snapshot()).toMatchObject({ resident: 1, queued: 1, promoted: 1 });
+  });
+
   it('release cancels queued refinement and frees resident capacity', () => {
     const governor = new SemanticMaterialisationGovernor<string>(policy);
     const semantic = identity('cluster-7');

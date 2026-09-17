@@ -82,11 +82,17 @@ export class SemanticMaterialisationGovernor<T> {
     const results: SemanticMaterialisationResult<T>[] = [];
     let budget = this.policy.maxMaterialisationsPerTick;
     while (budget > 0 && this.queue.length > 0) {
-      const pending = this.queue[0]!;
+      let pendingIndex = 0;
+      if (this.resident.size >= this.policy.maxResident) {
+        pendingIndex = this.queue.findIndex((candidate) =>
+          candidate.request.level === 'REFINED' &&
+          this.resident.has(semanticMaterialisationKey(candidate.request.identity, 'COARSE'))
+        );
+        if (pendingIndex < 0) break;
+      }
+      const [pending] = this.queue.splice(pendingIndex, 1);
       const coarseKey = semanticMaterialisationKey(pending.request.identity, 'COARSE');
       const isPromotion = pending.request.level === 'REFINED' && this.resident.has(coarseKey);
-      if (this.resident.size >= this.policy.maxResident && !isPromotion) break;
-      this.queue.shift();
       try {
         const value = pending.materialise();
         if (isPromotion) {
