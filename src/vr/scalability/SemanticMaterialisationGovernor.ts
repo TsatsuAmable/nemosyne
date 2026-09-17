@@ -25,6 +25,7 @@ export interface SemanticMaterialisationSnapshot {
   queued: number;
   refused: number;
   materialised: number;
+  promoted: number;
 }
 
 export type SemanticMaterialisationResult<T> =
@@ -49,6 +50,7 @@ export class SemanticMaterialisationGovernor<T> {
   private readonly queue: Pending<T>[] = [];
   private refused = 0;
   private materialised = 0;
+  private promoted = 0;
 
   public constructor(private readonly policy: Readonly<SemanticMaterialisationPolicy>) {
     if (!policy.policyVersion) throw new Error('Semantic materialisation policyVersion is required');
@@ -67,7 +69,9 @@ export class SemanticMaterialisationGovernor<T> {
       return { accepted: true };
     }
     if (this.queue.length >= this.policy.maxQueued) return this.refuse('SEMANTIC_BACKPRESSURE_QUEUE_FULL');
-    if (this.resident.size >= this.policy.maxResident && this.queue.length === 0) {
+    const coarseKey = semanticMaterialisationKey(request.identity, 'COARSE');
+    const isPromotion = request.level === 'REFINED' && this.resident.has(coarseKey);
+    if (this.resident.size >= this.policy.maxResident && this.queue.length === 0 && !isPromotion) {
       return this.refuse('SEMANTIC_RESIDENCY_BOUND_REACHED');
     }
     this.queue.push({ request: cloneRequest(request), materialise });
@@ -78,10 +82,23 @@ export class SemanticMaterialisationGovernor<T> {
     const results: SemanticMaterialisationResult<T>[] = [];
     let budget = this.policy.maxMaterialisationsPerTick;
     while (budget > 0 && this.queue.length > 0) {
-      if (this.resident.size >= this.policy.maxResident) break;
-      const pending = this.queue.shift()!;
+      let pendingIndex = 0;
+      if (this.resident.size >= this.policy.maxResident) {
+        pendingIndex = this.queue.findIndex((candidate) =>
+          candidate.request.level === 'REFINED' &&
+          this.resident.has(semanticMaterialisationKey(candidate.request.identity, 'COARSE'))
+        );
+        if (pendingIndex < 0) break;
+      }
+      const [pending] = this.queue.splice(pendingIndex, 1);
+      const coarseKey = semanticMaterialisationKey(pending.request.identity, 'COARSE');
+      const isPromotion = pending.request.level === 'REFINED' && this.resident.has(coarseKey);
       try {
         const value = pending.materialise();
+        if (isPromotion) {
+          this.resident.delete(coarseKey);
+          this.promoted += 1;
+        }
         this.resident.set(semanticMaterialisationKey(pending.request.identity, pending.request.level), value);
         this.materialised += 1;
         results.push({ status: 'MATERIALISED', value });
@@ -116,6 +133,7 @@ export class SemanticMaterialisationGovernor<T> {
       queued: this.queue.length,
       refused: this.refused,
       materialised: this.materialised,
+      promoted: this.promoted,
     };
   }
 
