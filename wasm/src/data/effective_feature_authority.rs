@@ -28,12 +28,24 @@ pub struct EffectiveFeatureAuthorityArtifactV1 {
     pub assumptions: Vec<String>,
     pub artifact_digest: String,
 }
-fn rank(mut matrix: Vec<Vec<f64>>, tolerance: f64) -> usize {
-    if matrix.is_empty() {
+
+fn rank(mut matrix: Vec<Vec<f64>>) -> usize {
+    if matrix.is_empty() || matrix[0].is_empty() {
         return 0;
     }
     let rows = matrix.len();
     let cols = matrix[0].len();
+    let scale = matrix
+        .iter()
+        .flatten()
+        .map(|value| value.abs())
+        .fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return 0;
+    }
+    // Numerical rank is necessarily tolerance-dependent. Make the threshold
+    // relative to the input scale instead of imposing an absolute unit system.
+    let tolerance = f64::EPSILON * (rows.max(cols) as f64) * scale;
     let mut pivot_row = 0;
     for col in 0..cols {
         let Some(best) = (pivot_row..rows)
@@ -86,7 +98,7 @@ pub fn exact_numeric_rank_artifact(
         refusal.push("INSUFFICIENT_EVIDENCE".into());
     }
     let eligible = refusal.is_empty();
-    let effective = eligible.then(|| rank(rows.to_vec(), 1e-10));
+    let effective = eligible.then(|| rank(rows.to_vec()));
     let status = if eligible {
         EffectiveFeatureAuthorityStatus::Eligible
     } else {
@@ -118,6 +130,7 @@ pub fn exact_numeric_rank_artifact(
         refusal_reasons: refusal,
         assumptions: vec![
             "numeric features share lawful linear geometry".into(),
+            "numerical rank uses a scale-relative floating-point tolerance".into(),
             "diagnostic only; not high-dimensional admission policy".into(),
         ],
         artifact_digest: sha256_hex(&digest_preimage),
@@ -127,6 +140,7 @@ pub fn exact_numeric_rank_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn duplicate_columns_have_rank_one() {
         let rows = (0..20).map(|i| vec![i as f64; 8]).collect::<Vec<_>>();
@@ -135,6 +149,7 @@ mod tests {
         assert_eq!(a.effective_feature_count, Some(1));
         assert_eq!(a.status, EffectiveFeatureAuthorityStatus::Eligible);
     }
+
     #[test]
     fn linear_dependence_has_rank_two() {
         let rows = (0..20)
@@ -152,6 +167,23 @@ mod tests {
         );
         assert_eq!(a.effective_feature_count, Some(2));
     }
+
+    #[test]
+    fn rank_is_invariant_to_uniform_rescaling() {
+        let base = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
+        let tiny = base
+            .iter()
+            .map(|row| row.iter().map(|value| value * 1e-20).collect())
+            .collect::<Vec<Vec<f64>>>();
+        let huge = base
+            .iter()
+            .map(|row| row.iter().map(|value| value * 1e20).collect())
+            .collect::<Vec<Vec<f64>>>();
+        assert_eq!(rank(base), 2);
+        assert_eq!(rank(tiny), 2);
+        assert_eq!(rank(huge), 2);
+    }
+
     #[test]
     fn unsupported_claim_abstains() {
         let a = exact_numeric_rank_artifact(
@@ -166,6 +198,7 @@ mod tests {
             .refusal_reasons
             .contains(&"UNSUPPORTED_TARGET_CLAIM".into()));
     }
+
     #[test]
     fn digest_binds_ordered_features() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
@@ -183,6 +216,7 @@ mod tests {
         );
         assert_ne!(a.artifact_digest, b.artifact_digest);
     }
+
     #[test]
     fn digest_binds_claim() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
