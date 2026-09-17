@@ -260,16 +260,23 @@ mod tests {
     }
 
     #[test]
-    fn digest_binds_claim() {
+    fn digest_binds_claim_and_dataset_identity() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
         let a = numeric_linear_rank_artifact(
-            "fp",
+            "fp-a",
             vec!["a".into(), "b".into()],
             &rows,
             "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
         );
-        let b = numeric_linear_rank_artifact("fp", vec!["a".into(), "b".into()], &rows, "OTHER");
+        let b = numeric_linear_rank_artifact("fp-a", vec!["a".into(), "b".into()], &rows, "OTHER");
+        let c = numeric_linear_rank_artifact(
+            "fp-b",
+            vec!["a".into(), "b".into()],
+            &rows,
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+        );
         assert_ne!(a.artifact_digest, b.artifact_digest);
+        assert_ne!(a.artifact_digest, c.artifact_digest);
     }
 
     #[test]
