@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn malformed_numeric_evidence_abstains() {
+    fn malformed_or_empty_numeric_evidence_abstains() {
         let non_rectangular = numeric_linear_rank_artifact(
             "fp",
             vec!["a".into(), "b".into()],
@@ -261,6 +261,18 @@ mod tests {
         assert!(non_finite
             .refusal_reasons
             .contains(&"NON_FINITE_INPUT".into()));
+
+        let empty = numeric_linear_rank_artifact(
+            "fp",
+            vec!["a".into()],
+            &[],
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+        );
+        assert_eq!(empty.status, EffectiveFeatureAuthorityStatus::Abstain);
+        assert_eq!(empty.effective_feature_count, None);
+        assert!(empty
+            .refusal_reasons
+            .contains(&"INSUFFICIENT_EVIDENCE".into()));
     }
 
     #[test]
