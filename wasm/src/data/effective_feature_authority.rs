@@ -35,10 +35,8 @@ pub struct EffectiveFeatureAuthorityArtifactV1 {
 }
 
 /// Floating-point numerical rank for a finite rectangular matrix.
-///
-/// The pivot threshold is relative to the matrix scale, so changing only the
-/// common unit scale does not change the diagnostic rank. This is not an exact
-/// symbolic rank and must not be interpreted as intrinsic dimensionality.
+/// The pivot threshold is relative to matrix scale. This is not exact symbolic
+/// rank and must not be interpreted as intrinsic dimensionality.
 fn rank(mut matrix: Vec<Vec<f64>>) -> usize {
     if matrix.is_empty() || matrix[0].is_empty() {
         return 0;
@@ -193,6 +191,18 @@ mod tests {
             "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
         );
         assert_eq!(a.effective_feature_count, Some(2));
+    }
+
+    #[test]
+    fn zero_matrix_has_rank_zero() {
+        let a = numeric_linear_rank_artifact(
+            "fp",
+            vec!["a".into(), "b".into()],
+            &[vec![0.0, 0.0], vec![0.0, 0.0]],
+            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
+        );
+        assert_eq!(a.status, EffectiveFeatureAuthorityStatus::Eligible);
+        assert_eq!(a.effective_feature_count, Some(0));
     }
 
     #[test]
