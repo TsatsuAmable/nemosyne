@@ -618,3 +618,5 @@ mod columnar_registry_tests {
         destroy_dataset(handle);
     }
 }
+
+pub mod effective_feature_authority;
