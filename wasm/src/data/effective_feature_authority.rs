@@ -40,16 +40,10 @@ fn rank(mut matrix: Vec<Vec<f64>>) -> usize {
     }
     let rows = matrix.len();
     let cols = matrix[0].len();
-    let scale = matrix
-        .iter()
-        .flatten()
-        .map(|value| value.abs())
-        .fold(0.0_f64, f64::max);
+    let scale = matrix.iter().flatten().map(|value| value.abs()).fold(0.0_f64, f64::max);
     if scale == 0.0 {
         return 0;
     }
-    // Numerical rank is necessarily tolerance-dependent. Make the threshold
-    // relative to the input scale instead of imposing an absolute unit system.
     let tolerance = f64::EPSILON * (rows.max(cols) as f64) * scale;
     let mut pivot_row = 0;
     for col in 0..cols {
@@ -127,11 +121,7 @@ pub fn numeric_linear_rank_artifact(
     }
     let eligible = refusal.is_empty();
     let effective = eligible.then(|| rank(rows.to_vec()));
-    let status = if eligible {
-        EffectiveFeatureAuthorityStatus::Eligible
-    } else {
-        EffectiveFeatureAuthorityStatus::Abstain
-    };
+    let status = if eligible { EffectiveFeatureAuthorityStatus::Eligible } else { EffectiveFeatureAuthorityStatus::Abstain };
     let assumptions = ASSUMPTIONS.iter().map(|value| (*value).into()).collect::<Vec<String>>();
     let artifact_digest = sha256_hex(&digest_preimage(
         dataset_fingerprint,
@@ -192,14 +182,8 @@ mod tests {
     #[test]
     fn rank_is_invariant_to_uniform_rescaling() {
         let base = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
-        let tiny = base
-            .iter()
-            .map(|row| row.iter().map(|value| value * 1e-20).collect())
-            .collect::<Vec<Vec<f64>>>();
-        let huge = base
-            .iter()
-            .map(|row| row.iter().map(|value| value * 1e20).collect())
-            .collect::<Vec<Vec<f64>>>();
+        let tiny = base.iter().map(|row| row.iter().map(|value| value * 1e-20).collect()).collect::<Vec<Vec<f64>>>();
+        let huge = base.iter().map(|row| row.iter().map(|value| value * 1e20).collect()).collect::<Vec<Vec<f64>>>();
         assert_eq!(rank(base), 2);
         assert_eq!(rank(tiny), 2);
         assert_eq!(rank(huge), 2);
@@ -244,39 +228,20 @@ mod tests {
     #[test]
     fn digest_binds_ordered_features() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
-        let a = numeric_linear_rank_artifact(
-            "fp",
-            vec!["a".into(), "b".into()],
-            &rows,
-            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
-        );
-        let b = numeric_linear_rank_artifact(
-            "fp",
-            vec!["b".into(), "a".into()],
-            &rows,
-            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
-        );
+        let a = numeric_linear_rank_artifact("fp", vec!["a".into(), "b".into()], &rows, "NUMERIC_LINEAR_RANK_DIAGNOSTIC");
+        let b = numeric_linear_rank_artifact("fp", vec!["b".into(), "a".into()], &rows, "NUMERIC_LINEAR_RANK_DIAGNOSTIC");
         assert_ne!(a.artifact_digest, b.artifact_digest);
     }
 
     #[test]
-    fn digest_binds_claim_and_dataset_identity() {
+    fn digest_binds_claim_dataset_and_refusal_state() {
         let rows = [vec![1.0, 2.0], vec![2.0, 4.0]];
-        let a = numeric_linear_rank_artifact(
-            "fp-a",
-            vec!["a".into(), "b".into()],
-            &rows,
-            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
-        );
+        let a = numeric_linear_rank_artifact("fp-a", vec!["a".into(), "b".into()], &rows, "NUMERIC_LINEAR_RANK_DIAGNOSTIC");
         let b = numeric_linear_rank_artifact("fp-a", vec!["a".into(), "b".into()], &rows, "OTHER");
-        let c = numeric_linear_rank_artifact(
-            "fp-b",
-            vec!["a".into(), "b".into()],
-            &rows,
-            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
-        );
+        let c = numeric_linear_rank_artifact("fp-b", vec!["a".into(), "b".into()], &rows, "NUMERIC_LINEAR_RANK_DIAGNOSTIC");
         assert_ne!(a.artifact_digest, b.artifact_digest);
         assert_ne!(a.artifact_digest, c.artifact_digest);
+        assert_ne!(a.refusal_reasons, b.refusal_reasons);
     }
 
     #[test]
@@ -286,22 +251,8 @@ mod tests {
         let assumptions = ASSUMPTIONS.iter().map(|value| (*value).into()).collect::<Vec<String>>();
         let mut changed_assumptions = assumptions.clone();
         changed_assumptions[1] = "different numerical tolerance contract".into();
-        let a = sha256_hex(&digest_preimage(
-            "fp",
-            &feature_ids,
-            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
-            Some(1),
-            &refusal,
-            &assumptions,
-        ));
-        let b = sha256_hex(&digest_preimage(
-            "fp",
-            &feature_ids,
-            "NUMERIC_LINEAR_RANK_DIAGNOSTIC",
-            Some(1),
-            &refusal,
-            &changed_assumptions,
-        ));
+        let a = sha256_hex(&digest_preimage("fp", &feature_ids, "NUMERIC_LINEAR_RANK_DIAGNOSTIC", Some(1), &refusal, &assumptions));
+        let b = sha256_hex(&digest_preimage("fp", &feature_ids, "NUMERIC_LINEAR_RANK_DIAGNOSTIC", Some(1), &refusal, &changed_assumptions));
         assert_ne!(a, b);
     }
 }
