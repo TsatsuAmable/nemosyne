@@ -11,6 +11,7 @@ import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.
 import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
 import type { GraphEmbodimentEnvelopeV1 } from './representation/GraphEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
+import { decideRawRowAuthority } from './representation/RawRowAuthority.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -108,8 +109,38 @@ export class VRTopologyTranslator {
       );
       edges = [];
     } else {
-      rows = dataset?.rows ?? dataInput.rows ?? [];
-      edges = dataInput.edges ?? dataset?.edges ?? [];
+      const candidateId = dataInput.semanticRepresentationId;
+      const intentAbstractionLevel = dataInput.semanticIntentAbstractionLevel;
+      const governedCandidate =
+        candidateId === 'AGGREGATE_VOLUME' ||
+        candidateId === 'DISTRIBUTION_FIELD' ||
+        candidateId === 'DENSITY_FIELD' ||
+        candidateId === 'CLUSTER_REGIONS' ||
+        candidateId === 'RELATIONSHIP_GRAPH';
+      const rawRowsAuthorized =
+        !!candidateId &&
+        !!intentAbstractionLevel &&
+          decideRawRowAuthority({
+            candidateId,
+            intentAbstractionLevel,
+            governedEmbodiment: governedCandidate
+              ? semanticInput.semanticEmbodiment
+                ? 'READY'
+                : 'MISSING'
+              : 'NOT_REQUIRED',
+            detailAuthorization:
+              dataInput.observationPresentationAuthority === 'SEMANTIC_DETAIL'
+                ? { kind: 'BOUNDED_OBSERVATION_DETAIL', semanticTargetRef: 'authorized-detail' }
+                : undefined,
+          }).authorized;
+      if (rawRowsAuthorized) {
+        rows = dataset?.rows ?? dataInput.rows ?? [];
+        edges = dataInput.edges ?? dataset?.edges ?? [];
+      } else {
+        // Dataset/region/substructure semantics fail closed instead of degrading to rows.
+        rows = [];
+        edges = [];
+      }
       if (spec.geometry === 'INSTANCED_POINT_CLOUD' || (spec.geometry === 'CUBE_MATRIX' && spec.layout === 'GRID_3D' && rows.length > 500)) {
         scalable.buildInstancedPointCloud(
           group,
