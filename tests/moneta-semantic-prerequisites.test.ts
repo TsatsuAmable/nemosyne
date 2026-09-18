@@ -9,7 +9,7 @@ import {
 } from '../src/moneta/representation/SemanticEmbodimentGraphV1.ts';
 import { NEMOSYNE_EXPERIMENT_SPECIMEN_CAPABILITIES } from '../src/moneta/representation/ExperimentSpecimenCapabilities.ts';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
-import type { MonetaFacts } from '../src/moneta/types.ts';
+import type { MonetaDataInput, MonetaFacts } from '../src/moneta/types.ts';
 
 describe('dataset-first Moneta prerequisite contracts', () => {
   it('requires explicit observation authority for raw rows', () => {
@@ -41,10 +41,23 @@ describe('dataset-first Moneta prerequisite contracts', () => {
 
   it('gates the generic translator row path behind semantic authority', () => {
     const source = readFileSync('src/moneta/VRTopologyTranslator.ts', 'utf8');
-    const gate = source.indexOf('decideRawRowAuthority({');
-    const rows = source.indexOf('rows = dataset?.rows ?? dataInput.rows ?? []');
-    expect(gate).toBeGreaterThan(-1);
-    expect(rows).toBeGreaterThan(gate);
+    expect(source).toContain('resolveAuthorizedRawTopologyInput(');
+    expect(source).not.toContain('dataInput.rows');
+
+    let rawRowsRead = false;
+    let rawEdgesRead = false;
+    const dataInput: MonetaDataInput = {
+      get rows() {
+        rawRowsRead = true;
+        return [{ lat: 51.5, lon: -0.1, value: 1 }];
+      },
+      get edges() {
+        rawEdgesRead = true;
+        return [];
+      },
+      semanticRepresentationId: 'POINT_SET',
+      semanticIntentAbstractionLevel: 'DATASET',
+    };
 
     const artifact = VRTopologyTranslator.synthesizeArtifact(
       {
@@ -57,12 +70,10 @@ describe('dataset-first Moneta prerequisite contracts', () => {
         facts: { numericColumns: 1, hasTimeSeries: false } as MonetaFacts,
         cost: 0,
       },
-      {
-        rows: [{ lat: 51.5, lon: -0.1, value: 1 }],
-        semanticRepresentationId: 'POINT_SET',
-        semanticIntentAbstractionLevel: 'DATASET',
-      }
+      dataInput
     );
+    expect(rawRowsRead).toBe(false);
+    expect(rawEdgesRead).toBe(false);
     expect(artifact.nodeMeshes).toHaveLength(0);
   });
 

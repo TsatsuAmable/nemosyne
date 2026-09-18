@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -393,8 +393,15 @@ describe('QV1 npm script surface', () => {
 
   it('rejects an unknown mode without spawning Vite or writing evidence', () => {
     const root = tempRoot();
-    const result = main(['node', 'quest-validation.mjs', 'bogus'], {}, root);
-    expect(result).toBe(2);
-    expect(readdirSync(root)).toHaveLength(0);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const result = main(['node', 'quest-validation.mjs', 'bogus'], {}, root);
+      expect(result).toBe(2);
+      expect(stderr).toHaveBeenCalledOnce();
+      expect(String(stderr.mock.calls[0]?.[0])).toContain("Unknown validation mode 'bogus'");
+      expect(readdirSync(root)).toHaveLength(0);
+    } finally {
+      stderr.mockRestore();
+    }
   });
 });

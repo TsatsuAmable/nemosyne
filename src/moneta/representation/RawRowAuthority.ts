@@ -1,14 +1,11 @@
+import type { MonetaDataInput } from '../types.ts';
 import type { SemanticRepresentationId } from './RepresentationCandidate.ts';
 import {
   isObservationAbstractionLevel,
   type SemanticAbstractionLevel,
 } from './SemanticAbstraction.ts';
 
-export type GovernedEmbodimentAvailability =
-  | 'NOT_REQUIRED'
-  | 'READY'
-  | 'MISSING'
-  | 'REFUSED';
+export type GovernedEmbodimentAvailability = 'NOT_REQUIRED' | 'READY' | 'MISSING' | 'REFUSED';
 
 export interface BoundedObservationDetailAuthorization {
   readonly kind: 'BOUNDED_OBSERVATION_DETAIL';
@@ -50,13 +47,8 @@ const GOVERNED_REPRESENTATIONS = new Set<SemanticRepresentationId>([
  * Governed representation failure is terminal: even an otherwise valid detail
  * authorization cannot turn a missing/refused aggregate into source points.
  */
-export function decideRawRowAuthority(
-  request: RawRowAuthorityRequest
-): RawRowAuthorityDecision {
-  if (
-    GOVERNED_REPRESENTATIONS.has(request.candidateId) &&
-    request.governedEmbodiment !== 'READY'
-  ) {
+export function decideRawRowAuthority(request: RawRowAuthorityRequest): RawRowAuthorityDecision {
+  if (GOVERNED_REPRESENTATIONS.has(request.candidateId) && request.governedEmbodiment !== 'READY') {
     return { authorized: false, reason: 'GOVERNED_EMBODIMENT_UNAVAILABLE' };
   }
 
@@ -84,3 +76,44 @@ export function decideRawRowAuthority(
 }
 
 export const evaluateRawRowAuthority = decideRawRowAuthority;
+
+export interface AuthorizedRawTopologyInput {
+  readonly rows: Record<string, unknown>[];
+  readonly edges: NonNullable<MonetaDataInput['edges']>;
+}
+
+function compatibilityRawTopologyInput(input: MonetaDataInput): AuthorizedRawTopologyInput {
+  return {
+    rows: input.dataset?.rows ?? input.rows ?? [],
+    edges: input.edges ?? input.dataset?.edges ?? [],
+  };
+}
+
+/**
+ * Resolve the legacy row/edge compatibility input only after the semantic
+ * authority decision. Callers without semantic metadata retain their existing
+ * lower-level translator contract; production dataset loads bind both fields.
+ */
+export function resolveAuthorizedRawTopologyInput(
+  input: MonetaDataInput,
+  semanticEmbodiment: unknown
+): AuthorizedRawTopologyInput {
+  const candidateId = input.semanticRepresentationId;
+  const intentAbstractionLevel = input.semanticIntentAbstractionLevel;
+  if (!candidateId || !intentAbstractionLevel) return compatibilityRawTopologyInput(input);
+
+  const decision = decideRawRowAuthority({
+    candidateId,
+    intentAbstractionLevel,
+    governedEmbodiment: GOVERNED_REPRESENTATIONS.has(candidateId)
+      ? semanticEmbodiment
+        ? 'READY'
+        : 'MISSING'
+      : 'NOT_REQUIRED',
+    detailAuthorization:
+      input.observationPresentationAuthority === 'SEMANTIC_DETAIL'
+        ? { kind: 'BOUNDED_OBSERVATION_DETAIL', semanticTargetRef: 'authorized-detail' }
+        : undefined,
+  });
+  return decision.authorized ? compatibilityRawTopologyInput(input) : { rows: [], edges: [] };
+}

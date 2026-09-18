@@ -70,8 +70,22 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
     hook.requestObservationView();
   });
   await expect
-    .poll(async () => (await runtimeSnapshot(page)).palaceNodeCount, { timeout: 20_000 })
-    .toBeGreaterThan(0);
+    .poll(
+      async () => {
+        const state = await runtimeSnapshot(page);
+        return {
+          intent: state.semanticIntentAbstractionLevel,
+          authority: state.observationPresentationAuthority,
+          hasNodes: state.palaceNodeCount > 0,
+        };
+      },
+      { timeout: 20_000 }
+    )
+    .toEqual({
+      intent: 'OBSERVATION',
+      authority: 'EXPLICIT_OBSERVATION_INTENT',
+      hasNodes: true,
+    });
   const initial = await runtimeSnapshot(page);
   expect(initial.palaceNodeCount).toBeGreaterThan(0);
   expect(initial.kernelAvailable).toBe(true);

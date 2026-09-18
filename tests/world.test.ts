@@ -177,19 +177,23 @@ describe('World integration', () => {
 
   function expectedInteractableCount(world) {
     const topology = world.dracoNode.dataInput?.topology;
+    const hasObservationNodes = world.dracoNode.artifact.nodeMeshes.length > 0;
     const supportsHandles =
       topology === 'TIME_SERIES' || topology === 'TABULAR' || topology === 'HIERARCHY';
-    const handleCount = supportsHandles ? (topology === 'TIME_SERIES' ? 1 : 2) : 0;
+    const handleCount =
+      hasObservationNodes && supportsHandles ? (topology === 'TIME_SERIES' ? 1 : 2) : 0;
     // +1 core, +1 iceVault (P1-U6 vault landmark interactable)
     return world.dracoNode.artifact.nodeMeshes.length + 2 + handleCount;
   }
 
-  it('creates the default Draco node and registers diagnostic + telemetry panels', () => {
+  it('creates the default dataset-first node without materialising raw observations', () => {
     world = new World(); wireKernel(world);
 
     expect(world.dracoNode).toBeInstanceOf(DracoTopologyNode);
     expect(world.dracoNode.artifact).toBeTruthy();
-    expect(world.dracoNode.artifact.nodeMeshes.length).toBeGreaterThan(0);
+    expect(world.dracoNode.dataInput.semanticIntentAbstractionLevel).toBe('DATASET');
+    expect(world.dracoNode.dataInput.observationPresentationAuthority).toBeUndefined();
+    expect(world.dracoNode.artifact.nodeMeshes).toHaveLength(0);
 
     expect(world.diagnostic).toBeInstanceOf(DracoDiagnosticHUD);
 
@@ -237,9 +241,11 @@ describe('World integration', () => {
     world = new World(); wireKernel(world);
 
     const oldMeshes = [...world.dracoNode.artifact.nodeMeshes];
+    expect(oldMeshes).toHaveLength(0);
     world.dracoNode.reSolveAndSynthesize();
 
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
+    expect(world.dracoNode.artifact.nodeMeshes).toHaveLength(0);
     expect(interactableMeshes.length).toBe(expectedInteractableCount(world));
     expect(interactableMeshes).toContain(world.core.group);
     for (const mesh of oldMeshes) {
