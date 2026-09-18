@@ -29,6 +29,11 @@ interface Uv0RuntimePort {
   };
   representationSurface?: {
     currentNode?: {
+      dataInput?: {
+        semanticRepresentationId?: string;
+        semanticIntentAbstractionLevel?: string;
+        observationPresentationAuthority?: string;
+      };
       artifact?: {
         nodeMeshes?: object[];
       };
@@ -67,6 +72,9 @@ export interface Uv0RuntimeSnapshot {
   datasetName: string | null;
   telemetry: string;
   palaceNodeCount: number;
+  semanticRepresentationId: string | null;
+  semanticIntentAbstractionLevel: string | null;
+  observationPresentationAuthority: string | null;
   inspectorVisible: boolean;
   taskSurfaceVisible: boolean;
   /** World-space distance between the active context rail and selected node. */
@@ -131,11 +139,17 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
   return {
     snapshot(): Uv0RuntimeSnapshot {
       const taskSurface = runtime.uiManager?.contextualTaskSurface;
-      const palace = runtime.representationSurface?.currentNode?.artifact;
+      const currentNode = runtime.representationSurface?.currentNode;
+      const palace = currentNode?.artifact;
       return {
         datasetName: runtime.currentEntry?.name ?? runtime.currentEntry?.label ?? null,
         telemetry: document.getElementById('telemetry')?.textContent ?? '',
         palaceNodeCount: palace?.nodeMeshes?.length ?? 0,
+        semanticRepresentationId: currentNode?.dataInput?.semanticRepresentationId ?? null,
+        semanticIntentAbstractionLevel:
+          currentNode?.dataInput?.semanticIntentAbstractionLevel ?? null,
+        observationPresentationAuthority:
+          currentNode?.dataInput?.observationPresentationAuthority ?? null,
         inspectorVisible: !!runtime.inspector?.visible,
         taskSurfaceVisible: !!taskSurface?.visible,
         taskSurfaceDistanceToSelection: taskSurface?.getActiveNodeDistance?.() ?? null,
