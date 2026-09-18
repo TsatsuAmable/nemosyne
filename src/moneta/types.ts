@@ -138,6 +138,13 @@ export interface MonetaDataInput {
   rows?: Record<string, unknown>[];
   edges?: import('../data/Dataset.ts').DatasetEdge[];
   encodings?: import('../data/SampleDatasets.ts').EncodingMapping;
+  /** Explicit investigator/pipeline scope; never inferred from geometry. */
+  semanticAbstractionIntent?: import('./representation/SemanticAbstraction.ts').SemanticAbstractionLevel;
+  /** Pure authority decision input checked before compatibility rows are read. */
+  rawRowAuthority?: import('./representation/RawRowAuthority.ts').RawRowAuthorityRequest;
+  semanticRepresentationId?: import('./representation/RepresentationCandidate.ts').SemanticRepresentationId;
+  observationPresentationAuthority?: import('./representation/SemanticAbstraction.ts').ObservationPresentationAuthority;
+  semanticIntentAbstractionLevel?: import('./representation/SemanticAbstraction.ts').SemanticAbstractionLevel;
   [key: string]: unknown;
 }
 

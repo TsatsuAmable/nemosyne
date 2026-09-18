@@ -29,6 +29,11 @@ interface Uv0RuntimePort {
   };
   representationSurface?: {
     currentNode?: {
+      dataInput?: {
+        semanticRepresentationId?: string;
+        semanticIntentAbstractionLevel?: string;
+        observationPresentationAuthority?: string;
+      };
       artifact?: {
         nodeMeshes?: object[];
       };
@@ -60,12 +65,16 @@ interface Uv0RuntimePort {
     };
   };
   _showDataCard(mesh: object): void;
+  reconstructRequirementsAndReArbitrate(): void;
 }
 
 export interface Uv0RuntimeSnapshot {
   datasetName: string | null;
   telemetry: string;
   palaceNodeCount: number;
+  semanticRepresentationId: string | null;
+  semanticIntentAbstractionLevel: string | null;
+  observationPresentationAuthority: string | null;
   inspectorVisible: boolean;
   taskSurfaceVisible: boolean;
   /** World-space distance between the active context rail and selected node. */
@@ -98,13 +107,15 @@ export interface NemosyneUv0TestHandle {
   selectNode(index?: number): boolean;
   /** Dispatch the same `onInspect` callback the ContextualTaskSurface Inspect verb fires. */
   inspectSelected(): void;
+  /** Exercise the production ledger→individual-inspection re-arbitration path. */
+  requestObservationView(): void;
 }
 
 export const UV0_TEST_HANDLE_KEY = '__NEMOSYNE_UV0__';
 
 declare global {
   interface Window {
-    '__NEMOSYNE_UV0__'?: NemosyneUv0TestHandle;
+    __NEMOSYNE_UV0__?: NemosyneUv0TestHandle;
   }
 }
 
@@ -113,7 +124,7 @@ function visibleAssessmentKind(): 'decision' | 'nil' | 'pending' {
   // persistent light DOM projected through the shared Modal slot, so textContent
   // is a stable evidence seam even when Modal recreates its shadow tree.
   const assessment = document.querySelector<HTMLElement>(
-    'nms-modal[title="Representation Assessment"]',
+    'nms-modal[title="Representation Assessment"]'
   );
   if (!assessment || !assessment.hasAttribute('open')) return 'pending';
   const text = assessment.textContent ?? '';
@@ -128,11 +139,17 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
   return {
     snapshot(): Uv0RuntimeSnapshot {
       const taskSurface = runtime.uiManager?.contextualTaskSurface;
-      const palace = runtime.representationSurface?.currentNode?.artifact;
+      const currentNode = runtime.representationSurface?.currentNode;
+      const palace = currentNode?.artifact;
       return {
         datasetName: runtime.currentEntry?.name ?? runtime.currentEntry?.label ?? null,
         telemetry: document.getElementById('telemetry')?.textContent ?? '',
         palaceNodeCount: palace?.nodeMeshes?.length ?? 0,
+        semanticRepresentationId: currentNode?.dataInput?.semanticRepresentationId ?? null,
+        semanticIntentAbstractionLevel:
+          currentNode?.dataInput?.semanticIntentAbstractionLevel ?? null,
+        observationPresentationAuthority:
+          currentNode?.dataInput?.observationPresentationAuthority ?? null,
         inspectorVisible: !!runtime.inspector?.visible,
         taskSurfaceVisible: !!taskSurface?.visible,
         taskSurfaceDistanceToSelection: taskSurface?.getActiveNodeDistance?.() ?? null,
@@ -168,6 +185,9 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
     },
     inspectSelected(): void {
       runtime.uiManager?.contextualTaskSurface?.callbacks.onInspect?.(null);
+    },
+    requestObservationView(): void {
+      runtime.reconstructRequirementsAndReArbitrate();
     },
   };
 }

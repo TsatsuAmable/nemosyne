@@ -690,3 +690,5 @@ preserved source data
 ```
 
 A/B/C and the legacy D labels remain useful programme/evidence boundaries, but P1-PT is now the active sequential execution frame. Quest supplies valuable reference evidence for standalone XR; it is not permission to weaken the product thesis, and it is not a blocker for unrelated product-transition work. No programme label permits weakening scientific, UX, security or evidence gates.
+
+- **2026-09-18 Moneta dataset-first prerequisites:** explicit semantic abstraction levels, fail-closed raw-row presentation authority, SemanticEmbodimentGraph V1 and SpatialEmbodimentPlan V1 contracts, plus laboratory specimen capability discovery. Composition/compiler/evolution remain future governed tranches.

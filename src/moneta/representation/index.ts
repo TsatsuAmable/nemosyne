@@ -20,4 +20,12 @@ export * from './LearnedMonetaRuntime.ts';
 export * from './ActionableNil.ts';
 export * from './HardConstraintCode.ts';
 export * from './StabilityCertificate.ts';
+export * from './SemanticAbstraction.ts';
+export * from './RawRowAuthority.ts';
 export { MonetaHypothesisEngine as RepresentationHypothesisEngine } from './MonetaHypothesisEngine.ts';
+
+export * from './SemanticAbstraction.ts';
+export * from './SemanticEmbodimentGraphV1.ts';
+export * from './SpatialEmbodimentPlanV1.ts';
+export * from './ExperimentSpecimenCapabilities.ts';
+export * from './RawRowAuthority.ts';

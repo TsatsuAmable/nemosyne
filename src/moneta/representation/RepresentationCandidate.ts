@@ -5,6 +5,8 @@
  * they support, what information they preserve, and what information they compress/lose.
  */
 
+import type { SemanticAbstractionLevel } from './SemanticAbstraction.ts';
+
 export type SemanticRepresentationId =
   | 'POINT_SET'
   | 'DENSITY_FIELD'
@@ -74,6 +76,8 @@ export interface CandidateConstraint {
 
 export interface RepresentationCandidate {
   id: SemanticRepresentationId;
+  /** Coarsest semantic object this representation presents as its primary marks. */
+  abstractionLevel: SemanticAbstractionLevel;
   name: string;
   description: string;
   supports: StructureCapability[];
@@ -87,6 +91,7 @@ export interface RepresentationCandidate {
 export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, RepresentationCandidate> = {
   POINT_SET: {
     id: 'POINT_SET',
+    abstractionLevel: 'OBSERVATION',
     name: 'Discrete Point Set',
     description: 'Direct 3D spatial mapping of discrete observation records',
     supports: ['discrete-observations', 'multivariate-correlation'],
@@ -112,6 +117,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   DENSITY_FIELD: {
     id: 'DENSITY_FIELD',
+    abstractionLevel: 'SUBSTRUCTURE',
     name: 'Binned Density Field',
     description: 'Bounded bivariate equal-width count grid preserving empirical mass per bin for two explicit numeric measures',
     supports: ['binned-empirical-mass', 'discrete-observations'],
@@ -139,6 +145,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   DISTRIBUTION_FIELD: {
     id: 'DISTRIBUTION_FIELD',
+    abstractionLevel: 'SUBSTRUCTURE',
     name: 'Empirical Univariate Distribution',
     description: 'Bounded empirical histogram, ECDF, and quantile summary for one explicit numeric measure',
     supports: ['univariate-distribution', 'anomaly-isolation'],
@@ -165,6 +172,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   CLUSTER_REGIONS: {
     id: 'CLUSTER_REGIONS',
+    abstractionLevel: 'REGION',
     name: 'Source Partition Regions',
     description: 'Bounded summaries of an explicitly declared source-authoritative partition using member counts, centroids, and descriptive axis-aligned coordinate envelopes',
     supports: ['cluster-partition', 'aggregate-metrics'],
@@ -196,6 +204,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   AGGREGATE_VOLUME: {
     id: 'AGGREGATE_VOLUME',
+    abstractionLevel: 'REGION',
     name: 'Aggregated Metric Volume',
     description: 'Binned volumetric blocks representing aggregated summary measures',
     supports: ['aggregate-metrics', 'discrete-observations'],
@@ -226,6 +235,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   TEMPORAL_TRAJECTORY: {
     id: 'TEMPORAL_TRAJECTORY',
+    abstractionLevel: 'OBSERVATION_SET',
     name: 'Chronological Temporal Trajectory',
     description: 'Ordered path trajectory along chronological time axis preserving time dynamics',
     supports: ['temporal-sequence', 'periodic-spectrum', 'discrete-observations'],
@@ -251,6 +261,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   HIERARCHICAL_SPACE: {
     id: 'HIERARCHICAL_SPACE',
+    abstractionLevel: 'SUBSTRUCTURE',
     name: 'Nested Hierarchical Space',
     description: 'Concentric radial orbital levels encoding tree/hierarchy depth',
     supports: ['tree-hierarchy', 'discrete-observations', 'aggregate-metrics'],
@@ -276,6 +287,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   RELATIONSHIP_GRAPH: {
     id: 'RELATIONSHIP_GRAPH',
+    abstractionLevel: 'SUBSTRUCTURE',
     name: 'Source Relationship Graph',
     description: 'Source-authoritative node and edge topology whose presentation layout is explicitly non-authoritative',
     supports: ['relational-topology', 'discrete-observations'],
@@ -300,6 +312,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   MATRIX_FIELD: {
     id: 'MATRIX_FIELD',
+    abstractionLevel: 'OBSERVATION',
     name: 'Regular 3D Matrix Grid',
     description: 'Uniform Cartesian grid for structured multi-dimensional indexing',
     supports: ['discrete-observations', 'multivariate-correlation'],
@@ -324,6 +337,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   MANIFOLD_EMBEDDING: {
     id: 'MANIFOLD_EMBEDDING',
+    abstractionLevel: 'SUBSTRUCTURE',
     name: 'Topological Manifold Embedding',
     description: 'Dimensionality-reduced manifold coordinates preserving neighbourhood topology',
     supports: ['multivariate-correlation', 'continuous-density', 'discrete-observations'],
@@ -348,6 +362,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   SPATIAL_REGION: {
     id: 'SPATIAL_REGION',
+    abstractionLevel: 'REGION',
     name: 'Geospatial Coordinate Surface',
     description: 'Geographic projection mapping latitude, longitude, and elevation terrain',
     supports: ['spatial-coordinates', 'discrete-observations'],
@@ -373,6 +388,7 @@ export const MONETA_REPRESENTATION_CANDIDATES: Record<SemanticRepresentationId, 
 
   MULTISCALE_FIELD: {
     id: 'MULTISCALE_FIELD',
+    abstractionLevel: 'SUBSTRUCTURE',
     name: 'Multiscale Frequency & Wavelet Field',
     description: 'Decomposed multiscale representation exposing localized frequency and harmonic structures',
     supports: ['periodic-spectrum', 'temporal-sequence', 'continuous-density'],

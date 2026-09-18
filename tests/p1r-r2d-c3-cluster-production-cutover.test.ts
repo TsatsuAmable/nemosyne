@@ -448,7 +448,7 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
     );
   });
 
-  it('mechanically fences the semantic branch before rows while retaining legacy geometry after rows', () => {
+  it('fences the semantic branch before authorized raw topology resolution', () => {
     const worker = readFileSync('src/atlas/ports/analytical.worker.ts', 'utf8');
     const loader = readFileSync('src/app/dataset/LoadDatasetUseCase.ts', 'utf8');
     const translator = readFileSync('src/moneta/VRTopologyTranslator.ts', 'utf8');
@@ -461,12 +461,14 @@ describe('P1-R2D C3 source-partition cluster production cutover', () => {
     expect(translator).toContain("semanticEmbodimentCandidateId === 'CLUSTER_REGIONS'");
     expect(translator).toContain("spec.geometry === 'CLUSTER_VOLUME' && usesClusterSemanticEmbodiment");
     expect(translator).toContain('buildClusterSemanticRegions(');
+    expect(translator).toContain('resolveAuthorizedRawTopologyInput(');
     expect(translator).toContain('scalable.buildClusterVolume(');
+    const rawTopologyResolution = translator.indexOf('resolveAuthorizedRawTopologyInput(');
     expect(translator.indexOf('buildClusterSemanticRegions(')).toBeLessThan(
-      translator.indexOf('rows = dataset?.rows')
+      rawTopologyResolution
     );
     expect(translator.indexOf('scalable.buildClusterVolume(')).toBeGreaterThan(
-      translator.indexOf('rows = dataset?.rows')
+      rawTopologyResolution
     );
     expect(adapter).not.toContain('.rows');
     expect(adapter).not.toContain('dataset.rows');

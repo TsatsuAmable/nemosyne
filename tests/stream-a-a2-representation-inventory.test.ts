@@ -358,12 +358,14 @@ describe('Stream A representation inventory', () => {
     expect(translator).toContain('buildDensitySemanticField(group, nodeMeshes, semanticInput.semanticEmbodiment)');
     expect(translator).toContain("semanticEmbodimentCandidateId === 'CLUSTER_REGIONS'");
     expect(translator).toContain('buildClusterSemanticRegions(');
+    expect(translator).toContain('resolveAuthorizedRawTopologyInput(');
     expect(translator).toContain('scalable.buildClusterVolume(');
+    const rawTopologyResolution = translator.indexOf('resolveAuthorizedRawTopologyInput(');
     expect(translator.indexOf('buildClusterSemanticRegions(')).toBeLessThan(
-      translator.indexOf('rows = dataset?.rows')
+      rawTopologyResolution
     );
     expect(translator.indexOf('scalable.buildClusterVolume(')).toBeGreaterThan(
-      translator.indexOf('rows = dataset?.rows')
+      rawTopologyResolution
     );
     expect(translator).not.toContain('scalable.buildDensityField(');
     expect(densityAdapter).not.toContain('dataset.rows');

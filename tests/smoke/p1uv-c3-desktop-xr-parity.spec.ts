@@ -22,7 +22,9 @@ async function runtimeSnapshot(page: import('@playwright/test').Page): Promise<U
   });
 }
 
-async function selectNodeAndWaitForProjection(page: import('@playwright/test').Page): Promise<void> {
+async function selectNodeAndWaitForProjection(
+  page: import('@playwright/test').Page
+): Promise<void> {
   const selected = await page.evaluate(() => {
     const hook = (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle })
       .__NEMOSYNE_UV0__;
@@ -35,11 +37,13 @@ async function selectNodeAndWaitForProjection(page: import('@playwright/test').P
   await expect(page.locator('#desktop-selection-context')).toContainText('Selected ·');
 }
 
-test('P1-UV C3 proves desktop selected-object tasks share the production investigation path', async ({ page }) => {
+test('P1-UV C3 proves desktop selected-object tasks share the production investigation path', async ({
+  page,
+}) => {
   test.setTimeout(180_000);
   test.skip(
     process.env.NEMOSYNE_C3_BROWSER_PROBE !== '1',
-    'C3 product evidence runs only in its isolated exact-head workflow.',
+    'C3 product evidence runs only in its isolated exact-head workflow.'
   );
 
   await mkdir('p1uv-c3-results', { recursive: true });
@@ -49,13 +53,39 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
       async () =>
         page.evaluate(
           () =>
-            (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle })
-              .__NEMOSYNE_UV0__ != null,
+            (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle }).__NEMOSYNE_UV0__ !=
+            null
         ),
-      { timeout: 15_000, message: 'UV0 exact product-path evidence handle is installed' },
+      { timeout: 15_000, message: 'UV0 exact product-path evidence handle is installed' }
     )
     .toBe(true);
 
+  // Fresh loads are dataset-first and may intentionally contain no raw-row nodes.
+  // C3 is specifically an observation-selection parity probe, so enter the
+  // production ledger→individual-inspection re-arbitration path explicitly.
+  await page.evaluate(() => {
+    const hook = (window as unknown as { __NEMOSYNE_UV0__?: NemosyneUv0TestHandle })
+      .__NEMOSYNE_UV0__;
+    if (!hook) throw new Error('UV0 product evidence handle unavailable.');
+    hook.requestObservationView();
+  });
+  await expect
+    .poll(
+      async () => {
+        const state = await runtimeSnapshot(page);
+        return {
+          intent: state.semanticIntentAbstractionLevel,
+          authority: state.observationPresentationAuthority,
+          hasNodes: state.palaceNodeCount > 0,
+        };
+      },
+      { timeout: 20_000 }
+    )
+    .toEqual({
+      intent: 'OBSERVATION',
+      authority: 'EXPLICIT_OBSERVATION_INTENT',
+      hasNodes: true,
+    });
   const initial = await runtimeSnapshot(page);
   expect(initial.palaceNodeCount).toBeGreaterThan(0);
   expect(initial.kernelAvailable).toBe(true);
@@ -131,6 +161,6 @@ test('P1-UV C3 proves desktop selected-object tasks share the production investi
   await writeFile(
     'p1uv-c3-results/c3-desktop-xr-parity.json',
     `${JSON.stringify(report, null, 2)}\n`,
-    'utf8',
+    'utf8'
   );
 });

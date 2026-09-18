@@ -11,6 +11,7 @@ import { TopologyLayoutEmbodiment } from './embodiment/TopologyLayoutEmbodiment.
 import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodimentPayload.ts';
 import type { GraphEmbodimentEnvelopeV1 } from './representation/GraphEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
+import { resolveAuthorizedRawTopologyInput } from './representation/RawRowAuthority.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -36,7 +37,6 @@ export class VRTopologyTranslator {
   private static _chartPlaneFactory: ChartPlaneFactory | null = null;
   private static _metaphorActions: MetaphorActionHandlers = {};
   private static readonly _timeRibbonUpdater = new TimeRibbonArtifactUpdater();
-
   static registerPointCloudFactory(factory: InstancedPointCloudFactory): void {
     this._pointCloudFactory = factory;
   }
@@ -57,11 +57,8 @@ export class VRTopologyTranslator {
     const governedSemanticInput = dataInput as GovernedSemanticMonetaDataInput;
     const usesClusterSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
-    // Retained graph authority must not fall through if its marker was cleared.
     const retained = governedSemanticInput.semanticEmbodiment as
-      | { candidateId?: string }
-      | null
-      | undefined;
+      { candidateId?: string } | null | undefined;
     const usesGraphSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH' ||
       retained?.candidateId === 'RELATIONSHIP_GRAPH';
@@ -77,9 +74,8 @@ export class VRTopologyTranslator {
       this._colorblindMode,
       this._pointCloudFactory
     );
-    // Governed semantic candidates consume bounded Rust-owned payloads only.
     let rows: Record<string, unknown>[] = [];
-    let edges = dataInput.edges ?? [];
+    let edges: NonNullable<MonetaDataInput['edges']> = [];
     if (spec.geometry === 'AGGREGATE_BARS') {
       scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
@@ -97,7 +93,6 @@ export class VRTopologyTranslator {
       );
       edges = [];
     } else if (usesGraphSemanticEmbodiment) {
-      // The governed marker intercepts raw rows/edges and reuses Atlas/Rust identity.
       buildGraphSemanticTopology(
         group,
         nodeMeshes,
@@ -108,9 +103,14 @@ export class VRTopologyTranslator {
       );
       edges = [];
     } else {
-      rows = dataset?.rows ?? dataInput.rows ?? [];
-      edges = dataInput.edges ?? dataset?.edges ?? [];
-      if (spec.geometry === 'INSTANCED_POINT_CLOUD' || (spec.geometry === 'CUBE_MATRIX' && spec.layout === 'GRID_3D' && rows.length > 500)) {
+      ({ rows, edges } = resolveAuthorizedRawTopologyInput(
+        dataInput,
+        semanticInput.semanticEmbodiment
+      ));
+      if (
+        spec.geometry === 'INSTANCED_POINT_CLOUD' ||
+        (spec.geometry === 'CUBE_MATRIX' && spec.layout === 'GRID_3D' && rows.length > 500)
+      ) {
         scalable.buildInstancedPointCloud(
           group,
           nodeMeshes,
