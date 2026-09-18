@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "protocolId": "uxr3-architecture-comparison",
+  "protocolVersion": "1",
+  "architectures": [
+    "SWSE_BASELINE",
+    "COUPLED_STAIRCASE",
+    "ORTHOGONAL_MATRIX"
+  ],
+  "dataset": {
+    "id": "synthetic-structure-lab",
+    "fingerprint": "REQUIRED_AT_RUN_TIME",
+    "oracleId": "synthetic-structure-lab:v1"
+  },
+  "replayTraceId": "teleport-flood:v1",
+  "seeds": [
+    101,
+    202,
+    303,
+    404,
+    505,
+    606
+  ],
+  "resourceBudgetId": "quest3-class-default-v1",
+  "evidence": {
+    "rawDirectory": "artifacts/raw",
+    "derivedDirectory": "artifacts/derived",
+    "allowHumanClaimsFromSimulator": false,
+    "allowDeviceQualificationFromSimulator": false
+  }
+}

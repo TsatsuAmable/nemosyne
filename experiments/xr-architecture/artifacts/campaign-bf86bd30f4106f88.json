@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "config": {
+    "schemaVersion": 1,
+    "protocolId": "uxr3-architecture-comparison",
+    "protocolVersion": "1",
+    "architectures": [
+      "SWSE_BASELINE",
+      "COUPLED_STAIRCASE",
+      "ORTHOGONAL_MATRIX"
+    ],
+    "dataset": {
+      "id": "synthetic-structure-lab",
+      "fingerprint": "REQUIRED_AT_RUN_TIME",
+      "oracleId": "synthetic-structure-lab:v1"
+    },
+    "replayTraceId": "teleport-flood:v1",
+    "seeds": [
+      101,
+      202,
+      303,
+      404,
+      505,
+      606
+    ],
+    "resourceBudgetId": "quest3-class-default-v1",
+    "evidence": {
+      "rawDirectory": "artifacts/raw",
+      "derivedDirectory": "artifacts/derived",
+      "allowHumanClaimsFromSimulator": false,
+      "allowDeviceQualificationFromSimulator": false
+    }
+  },
+  "buildHash": "b22559c22d9cc0d41cb99468c512d4d3baecbf5d",
+  "runs": [
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-101",
+      "order": 0,
+      "evidence": {
+        "architecture": "ORTHOGONAL_MATRIX",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 101,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-101",
+      "order": 1,
+      "evidence": {
+        "architecture": "SWSE_BASELINE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 101,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-101",
+      "order": 2,
+      "evidence": {
+        "architecture": "COUPLED_STAIRCASE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 101,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-202",
+      "order": 0,
+      "evidence": {
+        "architecture": "COUPLED_STAIRCASE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 202,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-202",
+      "order": 1,
+      "evidence": {
+        "architecture": "ORTHOGONAL_MATRIX",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 202,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-202",
+      "order": 2,
+      "evidence": {
+        "architecture": "SWSE_BASELINE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 202,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-303",
+      "order": 0,
+      "evidence": {
+        "architecture": "SWSE_BASELINE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 303,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-303",
+      "order": 1,
+      "evidence": {
+        "architecture": "COUPLED_STAIRCASE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 303,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-303",
+      "order": 2,
+      "evidence": {
+        "architecture": "ORTHOGONAL_MATRIX",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 303,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-404",
+      "order": 0,
+      "evidence": {
+        "architecture": "ORTHOGONAL_MATRIX",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 404,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-404",
+      "order": 1,
+      "evidence": {
+        "architecture": "SWSE_BASELINE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 404,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-404",
+      "order": 2,
+      "evidence": {
+        "architecture": "COUPLED_STAIRCASE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 404,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-505",
+      "order": 0,
+      "evidence": {
+        "architecture": "COUPLED_STAIRCASE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 505,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-505",
+      "order": 1,
+      "evidence": {
+        "architecture": "ORTHOGONAL_MATRIX",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 505,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-505",
+      "order": 2,
+      "evidence": {
+        "architecture": "SWSE_BASELINE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 505,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-606",
+      "order": 0,
+      "evidence": {
+        "architecture": "SWSE_BASELINE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 606,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-606",
+      "order": 1,
+      "evidence": {
+        "architecture": "COUPLED_STAIRCASE",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 606,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    },
+    {
+      "blockId": "uxr3-architecture-comparison:REQUIRED_AT_RUN_TIME:teleport-flood:v1:quest3-class-default-v1:seed-606",
+      "order": 2,
+      "evidence": {
+        "architecture": "ORTHOGONAL_MATRIX",
+        "protocolId": "uxr3-architecture-comparison",
+        "protocolVersion": "1",
+        "datasetId": "synthetic-structure-lab",
+        "datasetFingerprint": "REQUIRED_AT_RUN_TIME",
+        "oracleId": "synthetic-structure-lab:v1",
+        "seed": 606,
+        "replayTraceId": "teleport-flood:v1",
+        "resourceBudgetId": "quest3-class-default-v1"
+      }
+    }
+  ],
+  "bundleHash": "sha256:bf86bd30f4106f881eb4df923e7482060a57e36d3ab8f333a956af09cd0e5599"
+}
