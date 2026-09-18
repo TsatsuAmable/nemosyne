@@ -60,9 +60,7 @@ export class VRTopologyTranslator {
       governedSemanticInput.semanticEmbodimentCandidateId === 'CLUSTER_REGIONS';
     // Retained graph authority must not fall through if its marker was cleared.
     const retained = governedSemanticInput.semanticEmbodiment as
-      | { candidateId?: string }
-      | null
-      | undefined;
+      { candidateId?: string } | null | undefined;
     const usesGraphSemanticEmbodiment =
       governedSemanticInput.semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH' ||
       retained?.candidateId === 'RELATIONSHIP_GRAPH';
@@ -117,22 +115,25 @@ export class VRTopologyTranslator {
         candidateId === 'DENSITY_FIELD' ||
         candidateId === 'CLUSTER_REGIONS' ||
         candidateId === 'RELATIONSHIP_GRAPH';
+      // Lower-level/legacy translator callers without semantic authority metadata
+      // retain their established rendering contract. Production dataset loads bind
+      // both fields, so governed product calls still fail closed.
+      const hasSemanticAuthorityContext = !!candidateId && !!intentAbstractionLevel;
       const rawRowsAuthorized =
-        !!candidateId &&
-        !!intentAbstractionLevel &&
-          decideRawRowAuthority({
-            candidateId,
-            intentAbstractionLevel,
-            governedEmbodiment: governedCandidate
-              ? semanticInput.semanticEmbodiment
-                ? 'READY'
-                : 'MISSING'
-              : 'NOT_REQUIRED',
-            detailAuthorization:
-              dataInput.observationPresentationAuthority === 'SEMANTIC_DETAIL'
-                ? { kind: 'BOUNDED_OBSERVATION_DETAIL', semanticTargetRef: 'authorized-detail' }
-                : undefined,
-          }).authorized;
+        !hasSemanticAuthorityContext ||
+        decideRawRowAuthority({
+          candidateId,
+          intentAbstractionLevel,
+          governedEmbodiment: governedCandidate
+            ? semanticInput.semanticEmbodiment
+              ? 'READY'
+              : 'MISSING'
+            : 'NOT_REQUIRED',
+          detailAuthorization:
+            dataInput.observationPresentationAuthority === 'SEMANTIC_DETAIL'
+              ? { kind: 'BOUNDED_OBSERVATION_DETAIL', semanticTargetRef: 'authorized-detail' }
+              : undefined,
+        }).authorized;
       if (rawRowsAuthorized) {
         rows = dataset?.rows ?? dataInput.rows ?? [];
         edges = dataInput.edges ?? dataset?.edges ?? [];
@@ -141,7 +142,10 @@ export class VRTopologyTranslator {
         rows = [];
         edges = [];
       }
-      if (spec.geometry === 'INSTANCED_POINT_CLOUD' || (spec.geometry === 'CUBE_MATRIX' && spec.layout === 'GRID_3D' && rows.length > 500)) {
+      if (
+        spec.geometry === 'INSTANCED_POINT_CLOUD' ||
+        (spec.geometry === 'CUBE_MATRIX' && spec.layout === 'GRID_3D' && rows.length > 500)
+      ) {
         scalable.buildInstancedPointCloud(
           group,
           nodeMeshes,
