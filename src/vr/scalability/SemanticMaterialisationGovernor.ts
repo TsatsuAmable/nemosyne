@@ -269,7 +269,7 @@ export class SemanticMaterialisationGovernor<T> {
   private totalCost(excluding?: SemanticMaterialisationCostV1): Omit<SemanticMaterialisationCostV1, 'schemaVersion'> {
     const total = { retainedBytes: 0, semanticElements: 0, renderBatches: 0, materialisationWorkUnits: 0 };
     for (const cost of this.residentCost.values()) {
-      if (cost === excluding) continue;
+      if (excluding && cost === excluding) continue;
       for (const key of Object.keys(total) as (keyof typeof total)[]) total[key] += cost[key];
     }
     return total;
