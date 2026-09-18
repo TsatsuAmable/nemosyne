@@ -2,7 +2,7 @@
 
 > **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3.1. This file is the current operational map: what is active, which programme owns it, which integration seams are exclusive, what evidence closes a checkpoint, and what must wait. Detailed programme documents remain the scientific, UX, security, or evidence specification for their own scope; their older status headers do not override this live roadmap.
 
-## Status reconciliation - 18 September 2026
+## Status snapshot - 18 September 2026
 
 **Current integration base:** `main@b22559c22d9cc0d41cb99468c512d4d3baecbf5d` (#765). #761 landed bounded UXR2 presentation-resource lifecycle software. #763/#764 landed UXR3 cardinality/backpressure plus coarse-to-refined replacement. The current UXR3 tranche adds exact-identity collapse/evict/reconstruct continuity for the production bounded-detail path without retaining analytical payloads. Broader streaming, generic family payload/cost policy, Worker/WASM release and physical-device evidence remain open.
 
