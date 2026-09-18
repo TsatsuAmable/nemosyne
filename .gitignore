@@ -30,3 +30,6 @@ docs/website_copy.md
 Thumbs.db
 # Root-level scratch / temp notes (never commit)
 /temp_*
+# Portable experiment outputs
+experiments/xr-architecture/artifacts/
+experiments/xr-architecture/experiment.json

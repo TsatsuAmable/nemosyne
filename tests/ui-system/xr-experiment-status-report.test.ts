@@ -1,0 +1,3 @@
+import { describe,expect,it } from 'vitest';
+import { createHarnessStatusReport } from '../../dev/xr-lab/XRExperimentStatusReport.ts';
+describe('experiment harness status report',()=>{it('reports MonetaBench, simulation and evidence status without upgrading evidence',()=>{const r=createHarnessStatusReport({bundleHash:'sha256:x',runs:[{status:'PASSED'},{status:'INCOMPLETE'},{status:'ABSTAIN'}],monetaFamilies:7,simulator:true});expect(r.summary).toEqual({total:3,passed:1,incomplete:1,abstain:1,failed:0});expect(r.monetaBench.familyCount).toBe(7);expect(r.evidence.deviceQualified).toBe(false);expect(r.evidence.humanQualified).toBe(false);});});
