@@ -11,6 +11,8 @@
  * scenario cannot grow unbounded in-memory evidence.
  */
 
+import type { XRExperimentEvidenceBinding } from '../xr-lab/XRExperimentEvidenceContract.ts';
+
 export type XREvaluationMode = 'browser-ci' | 'desktop-simulator' | 'quest-browser';
 
 export type XREvaluationOutcome = 'PASSED' | 'FAILED' | 'INCOMPLETE' | 'UNSUPPORTED';
@@ -89,6 +91,8 @@ export interface XREvaluationEpisode {
   screenshots: XRScreenshotReference[];
   uxTraceReference: string | null;
   investigationReference: string | null;
+  /** Comparison provenance. Null for ordinary XR evaluations. */
+  experimentEvidence: XRExperimentEvidenceBinding | null;
   outcome: XREvaluationOutcome;
 }
 
@@ -107,6 +111,7 @@ export interface XREvaluationEpisodeInput {
   environment?: Partial<XREvaluationEpisode['environment']>;
   agent?: AgentIdentity;
   capabilityGrant?: string[];
+  experimentEvidence?: XRExperimentEvidenceBinding;
 }
 
 /**
@@ -220,6 +225,7 @@ export class XREvaluationRecorder {
       screenshots: [...this._screenshots],
       uxTraceReference: null,
       investigationReference: null,
+      experimentEvidence: this._input.experimentEvidence ? { ...this._input.experimentEvidence } : null,
       outcome: this._outcome,
     };
   }
