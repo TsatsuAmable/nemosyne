@@ -5,3 +5,5 @@ coverage
 .research-council
 artifacts
 *.log
+experiment.json
+artifacts/
