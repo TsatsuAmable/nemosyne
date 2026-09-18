@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+import { parsePortableExperimentConfig, buildPortableExperimentBundle, verifyPortableExperimentBundle } from '../../dev/xr-lab/PortableXRExperiment.ts';
+const config={schemaVersion:1,protocolId:'p',protocolVersion:'1',architectures:['SWSE_BASELINE','COUPLED_STAIRCASE','ORTHOGONAL_MATRIX'],dataset:{id:'d',fingerprint:'sha256:d',oracleId:'o'},replayTraceId:'t',seeds:[1,2],resourceBudgetId:'budget-v1',evidence:{rawDirectory:'artifacts/raw',derivedDirectory:'artifacts/derived',allowHumanClaimsFromSimulator:false,allowDeviceQualificationFromSimulator:false}};
+describe('portable XR experiment bundle',()=>{
+ it('parses config and generates a complete three-arm campaign',()=>{const c=parsePortableExperimentConfig(config); const b=buildPortableExperimentBundle(c,'build-abc'); expect(b.runs).toHaveLength(6); expect(verifyPortableExperimentBundle(b)).toBe(true);});
+ it('is content addressed deterministically',()=>{const c=parsePortableExperimentConfig(config); expect(buildPortableExperimentBundle(c,'build-abc').bundleHash).toBe(buildPortableExperimentBundle(c,'build-abc').bundleHash);});
+ it('detects evidence manifest tampering',()=>{const b=buildPortableExperimentBundle(parsePortableExperimentConfig(config),'build-abc'); const tampered={...b,buildHash:'other'}; expect(()=>verifyPortableExperimentBundle(tampered)).toThrow(/hash/i);});
+ it('fails closed if simulator evidence is configured to qualify human or device claims',()=>{expect(()=>parsePortableExperimentConfig({...config,evidence:{...config.evidence,allowHumanClaimsFromSimulator:true}})).toThrow(/simulator/i);});
+});

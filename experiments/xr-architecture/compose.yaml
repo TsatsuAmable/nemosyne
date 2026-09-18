@@ -1,0 +1,9 @@
+services:
+  xr-architecture-experiment:
+    build:
+      context: ../..
+      dockerfile: experiments/xr-architecture/Dockerfile
+    volumes:
+      - ./artifacts:/workspace/experiments/xr-architecture/artifacts
+      - ./experiment.json:/workspace/experiments/xr-architecture/experiment.json:ro
+    command: ["npm", "run", "experiment:xr-architecture", "--", "--config", "experiments/xr-architecture/experiment.json"]
