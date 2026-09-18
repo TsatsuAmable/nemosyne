@@ -10,6 +10,7 @@ import {
 } from '../../moneta/representation/ActionableNil.ts';
 import { NoFeasibleRepresentationError } from '../../moneta/representation/NoFeasibleRepresentationError.ts';
 import type { RepresentationDecision } from '../../moneta/representation/RepresentationDecision.ts';
+import { abstractionLevelForRequirements } from '../../moneta/representation/SemanticAbstraction.ts';
 import {
   createDefaultRequirements,
   type RepresentationRequirements,
@@ -149,6 +150,14 @@ export class LoadDatasetUseCase {
         if (!(error instanceof NoFeasibleRepresentationError)) throw error;
         const signature = this.atlas.computeDatasetSignature(dataInput);
         outcome = diagnoseInvestigatorOutcome(signature, activeRequirements, error);
+      }
+    }
+
+    if (representationDecision?.chosenCandidateId) {
+      dataInput.semanticRepresentationId = representationDecision.chosenCandidateId;
+      dataInput.semanticIntentAbstractionLevel = abstractionLevelForRequirements(activeRequirements);
+      if (activeRequirements.task === 'individual-inspection') {
+        dataInput.observationPresentationAuthority = 'EXPLICIT_OBSERVATION_INTENT';
       }
     }
 

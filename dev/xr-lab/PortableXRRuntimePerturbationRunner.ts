@@ -1,0 +1,6 @@
+import type{RuntimePerturbationRun}from'./PortablePerturbationPlan.ts';
+export type RuntimePerturbationStatus='PASSED'|'FAILED'|'UNSUPPORTED';
+export interface RuntimeExecutorResult{episode:{outcome:string};errors:string[]}
+export interface RuntimeExecutors{lifecycle:()=>Promise<RuntimeExecutorResult>;stale:()=>Promise<RuntimeExecutorResult>}
+export interface RuntimePerturbationResult extends RuntimePerturbationRun{status:RuntimePerturbationStatus;reason?:string;episode?:RuntimeExecutorResult['episode']}
+export async function runPortableXRRuntimePerturbations(runs:readonly RuntimePerturbationRun[],x:RuntimeExecutors):Promise<RuntimePerturbationResult[]>{const out:RuntimePerturbationResult[]=[];for(const run of runs){let fn:(()=>Promise<RuntimeExecutorResult>)|undefined;if(run.scenario==='refine-collapse-race')fn=x.lifecycle;else if(run.scenario==='stale-async-completion')fn=x.stale;if(!fn){out.push({...run,status:'UNSUPPORTED',reason:'no registered executor for declared runtime perturbation'});continue;}const r=await fn();out.push({...run,status:r.episode.outcome==='PASSED'&&r.errors.length===0?'PASSED':'FAILED',episode:r.episode});}return out;}

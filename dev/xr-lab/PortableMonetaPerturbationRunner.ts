@@ -1,0 +1,3 @@
+import{runKnownStructureCampaign,type StructureProfiler,type KnownStructureCampaignResult}from'./MonetaKnownStructureCampaign.ts';import type{PortablePerturbationConfig}from'./PortablePerturbationPlan.ts';
+export interface PortableMonetaResult extends KnownStructureCampaignResult{baseSeed:number}
+export function runPortableMonetaPerturbations(profile:StructureProfiler,c:PortablePerturbationConfig):PortableMonetaResult[]{if(!c.data.enabled)return[];return c.seeds.flatMap(baseSeed=>runKnownStructureCampaign(profile,{seed:baseSeed,perturbationRuns:c.data.runs,perturbationMagnitude:c.data.magnitude}).map(result=>({...result,baseSeed})));}

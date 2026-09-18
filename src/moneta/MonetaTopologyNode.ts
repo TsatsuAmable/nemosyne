@@ -100,6 +100,11 @@ export class MonetaTopologyNode {
 
   private _syncSemanticEmbodimentCandidate(): void {
     const input = this.dataInput as SemanticMonetaDataInput;
+    if (this.representationDecision?.chosenCandidateId) {
+      input.semanticRepresentationId = this.representationDecision.chosenCandidateId;
+    } else {
+      delete input.semanticRepresentationId;
+    }
     if (this.representationDecision?.chosenCandidateId === 'CLUSTER_REGIONS') {
       input.semanticEmbodimentCandidateId = 'CLUSTER_REGIONS';
     } else if (this.representationDecision?.chosenCandidateId === 'RELATIONSHIP_GRAPH') {

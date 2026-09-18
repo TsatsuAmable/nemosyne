@@ -774,7 +774,7 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     });
   });
 
-  it('mechanically fences the semantic intercept before any row or edge read', () => {
+  it('fences the semantic intercept before authorized raw topology resolution', () => {
     const worker = readFileSync('src/atlas/ports/analytical.worker.ts', 'utf8');
     const loader = readFileSync('src/app/dataset/LoadDatasetUseCase.ts', 'utf8');
     const semanticLoader = readFileSync('src/app/dataset/SemanticEmbodimentLoader.ts', 'utf8');
@@ -790,19 +790,22 @@ describe('P1-R2E B3 relationship-graph production cutover', () => {
     expect(semanticLoader).toContain('dataset.evictedEdgeCount');
     expect(translator).toContain("semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH'");
     expect(translator).toContain('buildGraphSemanticTopology(');
+    expect(translator).toContain('resolveAuthorizedRawTopologyInput(');
     expect(translator).toContain('layouts.buildForceDirected(');
+    const rawTopologyResolution = translator.indexOf('resolveAuthorizedRawTopologyInput(');
     expect(translator.indexOf('buildGraphSemanticTopology(')).toBeLessThan(
-      translator.indexOf('rows = dataset?.rows')
+      rawTopologyResolution
     );
     expect(translator.indexOf('buildGraphSemanticTopology(')).toBeLessThan(
       translator.indexOf('layouts.buildForceDirected(')
     );
+    expect(translator.indexOf('layouts.buildForceDirected(')).toBeGreaterThan(
+      rawTopologyResolution
+    );
     expect(translator).toContain('!usesGraphSemanticEmbodiment &&');
-    // The marker is set for every governed RELATIONSHIP_GRAPH decision, so no
-    // raw row/edge read can serve the governed branch. (The pre-branch
-    // `let edges = dataInput.edges ?? []` initializer still executes first;
-    // the governed branch overwrites it with `edges = []` and must never
-    // consume it — the adapter-level `dataset.edges` ban below is the fence.)
+    // The marker is set for every governed RELATIONSHIP_GRAPH decision, so the
+    // governed branch bypasses compatibility row/edge resolution entirely. The
+    // adapter-level `dataset.edges` ban below preserves that authority fence.
     expect(node).toContain("semanticEmbodimentCandidateId === 'RELATIONSHIP_GRAPH'");
     // The adapter never reads rows for topology and claims no support boundary.
     expect(adapter).not.toContain('dataset.rows');
