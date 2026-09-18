@@ -71,7 +71,10 @@ function detailEnvelope(generation = 7): SemanticDetailEnvelopeV1 {
       totalMemberCount: 2,
       returnedCount: 2,
       observationIds: ['obs-1', 'obs-2'],
-      compactViews: [{ id: 'obs-1', x: 0.1, y: 0.1 }, { id: 'obs-2', x: 0.2, y: 0.2 }],
+      compactViews: [
+        { id: 'obs-1', x: 0.1, y: 0.1 },
+        { id: 'obs-2', x: 0.2, y: 0.2 },
+      ],
     },
   };
 }
@@ -199,7 +202,9 @@ describe('Stream A A3 bounded observation transition', () => {
     });
 
     expect(node.group!.children).toContain(parent);
-    const overlay = node.group!.children.find((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME);
+    const overlay = node.group!.children.find(
+      (child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME
+    );
     expect(overlay).toBeTruthy();
     const batch = overlay!.children[0] as THREE.InstancedMesh;
     expect(batch.isInstancedMesh).toBe(true);
@@ -215,8 +220,15 @@ describe('Stream A A3 bounded observation transition', () => {
     const node = fakeNode();
     const surface = surfaceFor(node);
     const { port } = portWith(detailEnvelope());
-    const governor = new SemanticMaterialisationGovernor<{ observationIds: readonly string[]; returnedCount: number; totalMemberCount: number }>({
-      policyVersion: 'test/no-queue', maxResident: 1, maxQueued: 0, maxMaterialisationsPerTick: 1,
+    const governor = new SemanticMaterialisationGovernor<{
+      observationIds: readonly string[];
+      returnedCount: number;
+      totalMemberCount: number;
+    }>({
+      policyVersion: 'test/no-queue',
+      maxResident: 1,
+      maxQueued: 0,
+      maxMaterialisationsPerTick: 1,
     });
     const transition = new SemanticDetailTransition(surface, authority(port), governor);
     const parent = node.artifact!.nodeMeshes[0];
@@ -227,7 +239,9 @@ describe('Stream A A3 bounded observation transition', () => {
     expect(transition.snapshot.refusalReason).toContain('SEMANTIC_BACKPRESSURE_QUEUE_FULL');
     expect(surface.getSelectedSemanticIdentity()?.semanticId).toBe('density-cell:0-0');
     expect(node.group!.children).toContain(parent);
-    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(false);
+    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(
+      false
+    );
 
     transition.dispose();
     surface.dispose();
@@ -247,7 +261,46 @@ describe('Stream A A3 bounded observation transition', () => {
     expect(transition.snapshot.status).toBe('IDLE');
     expect(execute).toHaveBeenCalledTimes(1);
     expect(node.group!.children).toContain(parent);
-    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(false);
+    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(
+      false
+    );
+
+    transition.dispose();
+    surface.dispose();
+  });
+
+  it('reconstructs evicted detail for the exact semantic identity after collapse', async () => {
+    const node = fakeNode();
+    const surface = surfaceFor(node);
+    const { port, execute } = portWith(detailEnvelope());
+    const governor = new SemanticMaterialisationGovernor<{
+      observationIds: readonly string[];
+      returnedCount: number;
+      totalMemberCount: number;
+    }>({
+      policyVersion: 'test/continuity',
+      maxResident: 1,
+      maxQueued: 1,
+      maxMaterialisationsPerTick: 1,
+    });
+    const transition = new SemanticDetailTransition(surface, authority(port), governor);
+    const parent = node.artifact!.nodeMeshes[0];
+
+    surface.setSelectedMesh(parent);
+    await vi.waitFor(() => expect(transition.snapshot.status).toBe('READY'));
+    const firstObservationIds = [...transition.snapshot.observationIds];
+
+    surface.setSelectedMesh(parent);
+    expect(transition.snapshot.status).toBe('IDLE');
+    expect(governor.snapshot()).toMatchObject({ resident: 0, evicted: 1, reconstructed: 0 });
+
+    surface.setSelectedMesh(parent);
+    await vi.waitFor(() => expect(transition.snapshot.status).toBe('READY'));
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(transition.snapshot.observationIds).toEqual(firstObservationIds);
+    expect(surface.getSelectedSemanticIdentity()?.semanticId).toBe('density-cell:0-0');
+    expect(governor.snapshot()).toMatchObject({ resident: 1, evicted: 1, reconstructed: 1 });
 
     transition.dispose();
     surface.dispose();
@@ -266,7 +319,9 @@ describe('Stream A A3 bounded observation transition', () => {
     expect(transition.snapshot.refusalReason).toContain('not resident');
     expect(execute).not.toHaveBeenCalled();
     expect(registerDataset).not.toHaveBeenCalled();
-    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(false);
+    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(
+      false
+    );
 
     transition.dispose();
     surface.dispose();
@@ -283,7 +338,9 @@ describe('Stream A A3 bounded observation transition', () => {
     await vi.waitFor(() => expect(transition.snapshot.status).toBe('REFUSED'));
 
     expect(transition.snapshot.refusalReason).toContain('generation');
-    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(false);
+    expect(node.group!.children.some((child) => child.name === SEMANTIC_DETAIL_OVERLAY_NAME)).toBe(
+      false
+    );
 
     transition.dispose();
     surface.dispose();
@@ -307,14 +364,31 @@ describe('Stream A A3 bounded observation transition', () => {
             measureField: 'x',
             domain: { min: 0, max: 1 },
             counts: { sourceCount: 2, validCount: 2, excludedCount: 0 },
-            histogram: [{ semanticId: 'distribution-bin:000', lowerBound: 0, upperBound: 1, count: 2, upperInclusive: true }],
-            ecdf: [{ semanticId: 'distribution-ecdf:000', value: 0, cumulativeCount: 1, cumulativeProbability: 0.5 }],
+            histogram: [
+              {
+                semanticId: 'distribution-bin:000',
+                lowerBound: 0,
+                upperBound: 1,
+                count: 2,
+                upperInclusive: true,
+              },
+            ],
+            ecdf: [
+              {
+                semanticId: 'distribution-ecdf:000',
+                value: 0,
+                cumulativeCount: 1,
+                cumulativeProbability: 0.5,
+              },
+            ],
             quantiles: [{ semanticId: mesh.name, probability: 0.5, value: 0.5 }],
           },
         },
       },
     };
-    (node as unknown as { representationDecision: Record<string, unknown> }).representationDecision = {
+    (
+      node as unknown as { representationDecision: Record<string, unknown> }
+    ).representationDecision = {
       id: DECISION,
       chosenCandidateId: 'DISTRIBUTION_FIELD',
     };
