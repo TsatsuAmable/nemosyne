@@ -1,0 +1,3 @@
+export type HarnessRunStatus='PASSED'|'FAILED'|'INCOMPLETE'|'ABSTAIN';
+export interface HarnessStatusInput{bundleHash:string;runs:{status:HarnessRunStatus}[];monetaFamilies:number;simulator:boolean;}
+export function createHarnessStatusReport(input:HarnessStatusInput){const count=(s:HarnessRunStatus)=>input.runs.filter(r=>r.status===s).length;return{bundleHash:input.bundleHash,summary:{total:input.runs.length,passed:count('PASSED'),incomplete:count('INCOMPLETE'),abstain:count('ABSTAIN'),failed:count('FAILED')},monetaBench:{familyCount:input.monetaFamilies},simulation:{available:input.simulator},evidence:{deviceQualified:false,humanQualified:false}};}
