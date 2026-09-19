@@ -1,0 +1,39 @@
+name: Research Obligations Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/Nemosyne_Definitive_Vision_and_Roadmap.md'
+      - 'docs/NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md'
+      - 'docs/Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md'
+      - 'docs/Nemosyne_VR_UI_Design_System_and_Agent_Spec.md'
+      - 'docs/ARCHITECTURE.md'
+      - 'docs/architecture/**'
+      - 'docs/ROADMAP.md'
+      - 'docs/roadmap/**'
+      - 'docs/research/RESEARCH_OBLIGATIONS_MANIFEST.md'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-contract:
+    name: Research obligation contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify governing-document and research contracts
+        run: |
+          npm run docs:check
+          test -s docs/research/RESEARCH_OBLIGATIONS_MANIFEST.md
+          grep -q 'Definitive vision' docs/research/RESEARCH_OBLIGATIONS_MANIFEST.md
+          grep -q 'FALSIFIED' docs/research/RESEARCH_OBLIGATIONS_MANIFEST.md
