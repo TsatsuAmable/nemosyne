@@ -84,6 +84,16 @@ export interface AnalyticalWorkerDiagnostic {
   };
 }
 
+export interface AnalyticalWorkerOutcome {
+  readonly schemaVersion: 1;
+  readonly id: string;
+  readonly phase: 'registration' | 'execution';
+  readonly outcome: 'completed' | 'cancelled-by-worker-recycle' | 'discarded-stale-result';
+  readonly generation: number;
+  readonly datasetVersion: number;
+  readonly datasetFingerprint: string;
+}
+
 export interface AnalyticalDatasetRegistration {
   readonly registrationId: string;
   readonly dataset: {
@@ -157,6 +167,8 @@ export interface AnalyticalExecutionPort {
    * Ordinary builds return an empty array because the Worker emits no samples.
    */
   drainDiagnostics?(): readonly AnalyticalWorkerDiagnostic[];
+  /** Drain bounded software lifecycle outcomes; not physical memory/latency evidence. */
+  drainOutcomes?(): readonly AnalyticalWorkerOutcome[];
   /** Release worker/listener resources owned by this port. */
   dispose?(): void;
   readonly isAsync: boolean;

@@ -5,6 +5,7 @@ import type {
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
   AnalyticalWorkerDiagnostic,
+  AnalyticalWorkerOutcome,
 } from './AnalyticalExecutionPort.ts';
 import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
 
@@ -89,12 +90,14 @@ function estimateWorkerPayload(value: unknown): WorkerPayloadEstimate {
 }
 
 export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
-  private readonly _worker: WorkerTransport;
+  private _worker: WorkerTransport;
+  private readonly _createReplacementWorker?: (() => WorkerTransport | null) | null;
   private readonly _pending = new Map<string, PendingExecution>();
   private readonly _pendingRegistrations = new Map<string, PendingRegistration>();
   private readonly _registrationPromises = new Map<string, Promise<void>>();
   private readonly _registered = new Set<string>();
   private readonly _diagnostics: AnalyticalWorkerDiagnostic[] = [];
+  private readonly _outcomes: AnalyticalWorkerOutcome[] = [];
   private _fence: AnalyticalExecutionFence = {};
   private _onKernelFailure?: ((err: Error) => void) | null;
   /**
@@ -113,9 +116,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     worker: WorkerTransport,
     onKernelFailure?: ((err: Error) => void) | null,
     onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null,
-    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number } = {}
+    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number } = {},
+    createReplacementWorker?: (() => WorkerTransport | null) | null
   ) {
     this._worker = worker;
+    this._createReplacementWorker = createReplacementWorker ?? null;
     this._onKernelFailure = onKernelFailure;
     this._onKernelRefusal = onKernelRefusal ?? null;
     this._maxPendingExecutions = Math.max(1, Math.floor(limits.maxPendingExecutions ?? DEFAULT_MAX_PENDING_WORKER_EXECUTIONS));
@@ -134,6 +139,18 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   drainDiagnostics(): readonly AnalyticalWorkerDiagnostic[] {
     if (this._diagnostics.length === 0) return [];
     return this._diagnostics.splice(0, this._diagnostics.length);
+  }
+
+  drainOutcomes(): readonly AnalyticalWorkerOutcome[] {
+    if (this._outcomes.length === 0) return [];
+    return this._outcomes.splice(0, this._outcomes.length);
+  }
+
+  private _recordOutcome(outcome: AnalyticalWorkerOutcome): void {
+    this._outcomes.push(outcome);
+    if (this._outcomes.length > MAX_DIAGNOSTIC_SAMPLES) {
+      this._outcomes.splice(0, this._outcomes.length - MAX_DIAGNOSTIC_SAMPLES);
+    }
   }
 
   private _recordDiagnostic(
@@ -229,6 +246,51 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       // remains authoritative even if the worker cannot receive the message.
     }
 
+    // A Worker cannot process SUPERSEDE while synchronous WASM is running. If
+    // every outstanding item is stale, recycle it to provide actual cancellation
+    // rather than merely releasing main-thread bookkeeping.
+    const staleExecutionCount = [...this._pending.values()].filter((pending) =>
+      this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)
+    ).length;
+    const staleRegistrationCount = [...this._pendingRegistrations.values()].filter((pending) =>
+      this._isStale(pending.registration.generation, pending.registration.dataset.version, pending.registration.dataset.fingerprint)
+    ).length;
+    const outstandingCount = this._pending.size + this._pendingRegistrations.size;
+    const allOutstandingStale =
+      outstandingCount > 0 && staleExecutionCount + staleRegistrationCount === outstandingCount;
+    if (allOutstandingStale && this._createReplacementWorker) {
+      let replacement: WorkerTransport | null = null;
+      try {
+        replacement = this._createReplacementWorker();
+      } catch {
+        // Keep local fencing authoritative if replacement construction fails.
+      }
+      if (replacement) {
+        const oldWorker = this._worker;
+        for (const pending of this._pending.values()) {
+          if (this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)) {
+            this._recordOutcome({ schemaVersion: 1, id: pending.req.requestId, phase: 'execution', outcome: 'cancelled-by-worker-recycle', generation: pending.req.generation, datasetVersion: pending.req.dataset.version, datasetFingerprint: pending.req.dataset.fingerprint });
+          }
+        }
+        for (const pending of this._pendingRegistrations.values()) {
+          if (this._isStale(pending.registration.generation, pending.registration.dataset.version, pending.registration.dataset.fingerprint)) {
+            this._recordOutcome({ schemaVersion: 1, id: pending.registration.registrationId, phase: 'registration', outcome: 'cancelled-by-worker-recycle', generation: pending.registration.generation, datasetVersion: pending.registration.dataset.version, datasetFingerprint: pending.registration.dataset.fingerprint });
+          }
+        }
+        oldWorker.onmessage = null;
+        oldWorker.onerror = null;
+        if ('onmessageerror' in oldWorker) oldWorker.onmessageerror = null;
+        try { oldWorker.terminate?.(); } catch { /* best-effort cancellation */ }
+        this._worker = replacement;
+        this._worker.onmessage = this._handleMessage.bind(this);
+        this._worker.onerror = this._handleError.bind(this);
+        if ('onmessageerror' in this._worker) {
+          this._worker.onmessageerror = this._handleMessageError.bind(this);
+        }
+        this._registered.clear();
+      }
+    }
+
     for (const [id, pending] of this._pending.entries()) {
       if (
         this._isStale(
@@ -315,11 +377,9 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         reject(error);
       }
     });
-    // Observe both outcomes without creating an unhandled rejected promise from finally().
-    void promise.then(
-      () => this._registrationPromises.delete(key),
-      () => this._registrationPromises.delete(key)
-    );
+    promise.finally(() => {
+      this._registrationPromises.delete(key);
+    });
 
     this._registrationPromises.set(key, promise);
     return promise;
@@ -379,6 +439,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     this._registrationPromises.clear();
     this._registered.clear();
     this._diagnostics.length = 0;
+    this._outcomes.length = 0;
 
     this._worker.onmessage = null;
     this._worker.onerror = null;
@@ -448,6 +509,13 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     if (!pending) return;
 
     this._pending.delete(result.requestId);
+    const resultMatchesRequest =
+      result.generation === pending.req.generation &&
+      result.datasetVersion === pending.req.dataset.version &&
+      result.datasetFingerprint === pending.req.dataset.fingerprint;
+    const resultStale = !resultMatchesRequest ||
+      this._isStale(result.generation, result.datasetVersion, result.datasetFingerprint);
+    this._recordOutcome({ schemaVersion: 1, id: result.requestId, phase: 'execution', outcome: resultStale ? 'discarded-stale-result' : 'completed', generation: result.generation, datasetVersion: result.datasetVersion, datasetFingerprint: result.datasetFingerprint });
 
     if (result.refusal) {
       const refusalError = new UnsupportedAtScaleError(

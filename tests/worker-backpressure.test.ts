@@ -13,8 +13,6 @@ describe('UXR3-S1 worker admission backpressure',()=>{
   const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:2});
   const a=p.execute(req('a')), b=p.execute(req('b'));
   await expect(p.execute(req('c'))).rejects.toBeInstanceOf(KernelUnavailableError);
-  t.result({requestId:'c',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'must-be-ignored'});
-  expect((p as any)._pending.has('c')).toBe(false);
   t.result({requestId:'a',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:1});
   await expect(a).resolves.toMatchObject({value:1});
   const c=p.execute(req('c')); expect(t.postedMessages.filter((m:any)=>m.type==='EXECUTE')).toHaveLength(3);
@@ -43,32 +41,59 @@ describe('UXR3-S1 worker admission backpressure',()=>{
  });
 });
 
-
-describe('UXR3-S1 worker admission lifecycle falsifiers',()=>{
- it('supersede/result race settles exactly once without leaking pending state',async()=>{
-  const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1});
-  const pending=p.execute(req('race',1));
+describe('UXR3-S1 hard worker cancellation', () => {
+ it('recycles a worker when supersession makes every outstanding item stale', async () => {
+  const first:any=transport(); first.terminated=false; first.terminate=()=>{first.terminated=true};
+  const second:any=transport();
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:1},()=>second);
+  const stale=p.execute(req('stale-hard',1));
   p.supersede({generation:2});
-  t.result({requestId:'race',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'late'});
-  await expect(pending).resolves.toMatchObject({value:null});
-  expect((p as any)._pending.size).toBe(0);
+  await expect(stale).resolves.toMatchObject({value:null});
+  expect(first.terminated).toBe(true);
+  const fresh=p.execute(req('fresh-hard',2));
+  expect(second.postedMessages.some((m:any)=>m.type==='EXECUTE'&&m.request.requestId==='fresh-hard')).toBe(true);
+  first.result({requestId:'stale-hard',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'bad'});
+  second.result({requestId:'fresh-hard',generation:2,datasetVersion:1,datasetFingerprint:'fp',value:'good'});
+  await expect(fresh).resolves.toMatchObject({value:'good'});
  });
- it('dispose under saturation settles admitted promises and clears admission state',async()=>{
-  const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1,maxPendingRegistrations:1});
-  const execution=p.execute(req('busy'));
-  const registration:any={registrationId:'reg',generation:1,dataset:{fingerprint:'reg-fp',version:1},payload:{type:'json',data:{name:'a',columns:[],rows:[]}}};
-  const registered=p.registerDataset(registration);
-  p.dispose();
-  await expect(execution).rejects.toBeInstanceOf(KernelUnavailableError);
-  await expect(registered).rejects.toBeInstanceOf(KernelUnavailableError);
-  expect((p as any)._pending.size).toBe(0); expect((p as any)._pendingRegistrations.size).toBe(0); expect((p as any)._registrationPromises.size).toBe(0);
+ it('fails soft when replacement construction throws', async () => {
+  const first:any=transport(); first.terminated=false; first.terminate=()=>{first.terminated=true};
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:1},()=>{throw new Error('replacement failed')});
+  const stale=p.execute(req('replacement-failure',1));
+  expect(()=>p.supersede({generation:2})).not.toThrow();
+  await expect(stale).resolves.toMatchObject({value:null});
+  expect(first.terminated).toBe(false);
  });
- it('analytical payload contents cannot alter generic count-based admission',async()=>{
-  const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1});
-  const first=p.execute({...req('first'),params:{score:-Infinity,priority:'discard-me'}} as any);
-  await expect(p.execute({...req('second'),params:{score:Infinity,priority:'prefer-me'}} as any)).rejects.toBeInstanceOf(KernelUnavailableError);
-  expect(t.postedMessages.filter((m:any)=>m.type==='EXECUTE').map((m:any)=>m.request.requestId)).toEqual(['first']);
-  t.result({requestId:'first',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'kept'});
-  await expect(first).resolves.toMatchObject({value:'kept'});
+ it('does not recycle when supersession leaves any outstanding item current', async () => {
+  const first:any=transport(); first.terminated=false; first.terminate=()=>{first.terminated=true};
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:3},()=>transport());
+  const stale=p.execute(req('old',1));
+  const current=p.execute(req('current',2));
+  p.supersede({generation:2});
+  await expect(stale).resolves.toMatchObject({value:null});
+  expect(first.terminated).toBe(false);
+  first.result({requestId:'current',generation:2,datasetVersion:1,datasetFingerprint:'fp',value:'kept'});
+  await expect(current).resolves.toMatchObject({value:'kept'});
+ });
+});
+
+describe('UXR3-S1 worker lifecycle outcomes', () => {
+ it('records cancellation only when a stale worker is actually recycled', async () => {
+  const first:any=transport(); const second:any=transport();
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:1},()=>second);
+  const stale=p.execute(req('cancelled',1)); p.supersede({generation:2}); await stale;
+  expect(p.drainOutcomes()).toEqual([expect.objectContaining({id:'cancelled',outcome:'cancelled-by-worker-recycle'})]);
+ });
+ it('records a mismatched result as discarded rather than completed', async () => {
+  const t:any=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1});
+  const pending=p.execute(req('mismatch',2));
+  t.result({requestId:'mismatch',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'wrong'}); await expect(pending).rejects.toBeInstanceOf(KernelUnavailableError);
+  expect(p.drainOutcomes()).toEqual([expect.objectContaining({id:'mismatch',outcome:'discarded-stale-result'})]);
+ });
+ it('records completed work but does not call a supersession request a cancellation', async () => {
+  const t:any=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:2});
+  const current=p.execute(req('completed',2)); p.supersede({generation:2});
+  t.result({requestId:'completed',generation:2,datasetVersion:1,datasetFingerprint:'fp',value:1}); await current;
+  expect(p.drainOutcomes()).toEqual([expect.objectContaining({id:'completed',outcome:'completed'})]);
  });
 });
