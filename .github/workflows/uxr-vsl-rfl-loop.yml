@@ -1,0 +1,63 @@
+name: UXR VSL-RFL Loop
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uxr-loop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    name: VSL WebXR simulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact specimen
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run simulator and bounded-working-set verification
+        run: >-
+          npm run test:integration --
+          tests/ui-system/webxr-simulator.test.ts
+          tests/ui-system/resource-pressure-perturbation.test.ts
+          tests/semantic-materialisation-governor.test.ts
+
+  falsification:
+    name: RFL XR architecture campaign
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact specimen
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Bind campaign to exact specimen
+        run: |
+          node -e "const fs=require('fs'); const p='experiments/xr-architecture/experiment.example.json'; const o='.tmp-uxr-loop.json'; const d=JSON.parse(fs.readFileSync(p,'utf8').replace(/^\\uFEFF/,'')); d.dataset.fingerprint='git:'+process.env.GITHUB_SHA; d.evidence.rawDirectory='artifacts/raw'; d.evidence.derivedDirectory='artifacts/derived'; fs.writeFileSync(o,JSON.stringify(d,null,2));"
+      - name: Generate governed RFL campaign
+        run: npm run experiment:xr-architecture -- --config .tmp-uxr-loop.json
+      - name: Upload campaign evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: uxr-rfl-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
