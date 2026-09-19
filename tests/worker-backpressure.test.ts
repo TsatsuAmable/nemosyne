@@ -13,6 +13,8 @@ describe('UXR3-S1 worker admission backpressure',()=>{
   const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:2});
   const a=p.execute(req('a')), b=p.execute(req('b'));
   await expect(p.execute(req('c'))).rejects.toBeInstanceOf(KernelUnavailableError);
+  t.result({requestId:'c',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'must-be-ignored'});
+  expect((p as any)._pending.has('c')).toBe(false);
   t.result({requestId:'a',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:1});
   await expect(a).resolves.toMatchObject({value:1});
   const c=p.execute(req('c')); expect(t.postedMessages.filter((m:any)=>m.type==='EXECUTE')).toHaveLength(3);
@@ -38,5 +40,35 @@ describe('UXR3-S1 worker admission backpressure',()=>{
   t.onmessage?.(new MessageEvent('message',{data:{type:'REGISTERED',registrationId:'r1',generation:r.generation,datasetVersion:1,datasetFingerprint:'fp1'}}));
   await expect(first).resolves.toBeUndefined();
   expect(t.postedMessages.filter((m:any)=>m.type==='REGISTER')).toHaveLength(1);
+ });
+});
+
+
+describe('UXR3-S1 worker admission lifecycle falsifiers',()=>{
+ it('supersede/result race settles exactly once without leaking pending state',async()=>{
+  const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1});
+  const pending=p.execute(req('race',1));
+  p.supersede({generation:2});
+  t.result({requestId:'race',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'late'});
+  await expect(pending).resolves.toMatchObject({value:null});
+  expect((p as any)._pending.size).toBe(0);
+ });
+ it('dispose under saturation settles admitted promises and clears admission state',async()=>{
+  const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1,maxPendingRegistrations:1});
+  const execution=p.execute(req('busy'));
+  const registration:any={registrationId:'reg',generation:1,dataset:{fingerprint:'reg-fp',version:1},payload:{type:'json',data:{name:'a',columns:[],rows:[]}}};
+  const registered=p.registerDataset(registration);
+  p.dispose();
+  await expect(execution).rejects.toBeInstanceOf(KernelUnavailableError);
+  await expect(registered).rejects.toBeInstanceOf(KernelUnavailableError);
+  expect((p as any)._pending.size).toBe(0); expect((p as any)._pendingRegistrations.size).toBe(0); expect((p as any)._registrationPromises.size).toBe(0);
+ });
+ it('analytical payload contents cannot alter generic count-based admission',async()=>{
+  const t=transport(); const p=new WorkerAnalyticalPort(t,null,null,{maxPendingExecutions:1});
+  const first=p.execute({...req('first'),params:{score:-Infinity,priority:'discard-me'}} as any);
+  await expect(p.execute({...req('second'),params:{score:Infinity,priority:'prefer-me'}} as any)).rejects.toBeInstanceOf(KernelUnavailableError);
+  expect(t.postedMessages.filter((m:any)=>m.type==='EXECUTE').map((m:any)=>m.request.requestId)).toEqual(['first']);
+  t.result({requestId:'first',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'kept'});
+  await expect(first).resolves.toMatchObject({value:'kept'});
  });
 });

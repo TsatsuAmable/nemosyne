@@ -315,9 +315,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         reject(error);
       }
     });
-    promise.finally(() => {
-      this._registrationPromises.delete(key);
-    });
+    // Observe both outcomes without creating an unhandled rejected promise from finally().
+    void promise.then(
+      () => this._registrationPromises.delete(key),
+      () => this._registrationPromises.delete(key)
+    );
 
     this._registrationPromises.set(key, promise);
     return promise;
