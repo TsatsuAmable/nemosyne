@@ -8,9 +8,21 @@ export interface SemanticMaterialisationIdentity {
   semanticId: string;
 }
 
+export const SEMANTIC_MATERIALISATION_COST_SCHEMA_V1 = 'semantic-materialisation-cost/v1' as const;
+
+/** Presentation-only resource accounting. These values carry no analytical meaning. */
+export interface SemanticMaterialisationCostV1 {
+  schemaVersion: typeof SEMANTIC_MATERIALISATION_COST_SCHEMA_V1;
+  retainedBytes: number;
+  semanticElements: number;
+  renderBatches: number;
+  materialisationWorkUnits: number;
+}
+
 export interface SemanticMaterialisationRequest {
   identity: SemanticMaterialisationIdentity;
   level: SemanticMaterialisationLevel;
+  cost?: SemanticMaterialisationCostV1;
 }
 
 export const SEMANTIC_MATERIALISATION_DESCRIPTOR_SCHEMA_V1 =
@@ -27,6 +39,10 @@ export interface SemanticMaterialisationPolicy {
   maxResident: number;
   maxQueued: number;
   maxMaterialisationsPerTick: number;
+  maxRetainedBytes?: number;
+  maxSemanticElements?: number;
+  maxRenderBatches?: number;
+  maxMaterialisationWorkUnits?: number;
 }
 
 export interface SemanticMaterialisationSnapshot {
@@ -39,6 +55,7 @@ export interface SemanticMaterialisationSnapshot {
   collapsed: number;
   evicted: number;
   reconstructed: number;
+  admittedCost: Omit<SemanticMaterialisationCostV1, 'schemaVersion'>;
 }
 
 export type SemanticMaterialisationResult<T> =
@@ -60,6 +77,7 @@ interface Pending<T> {
  */
 export class SemanticMaterialisationGovernor<T> {
   private readonly resident = new Map<string, T>();
+  private readonly residentCost = new Map<string, SemanticMaterialisationCostV1>();
   private readonly queue: Pending<T>[] = [];
   private refused = 0;
   private materialised = 0;
@@ -71,7 +89,7 @@ export class SemanticMaterialisationGovernor<T> {
   public constructor(private readonly policy: Readonly<SemanticMaterialisationPolicy>) {
     if (!policy.policyVersion)
       throw new Error('Semantic materialisation policyVersion is required');
-    for (const value of [policy.maxResident, policy.maxQueued, policy.maxMaterialisationsPerTick]) {
+    for (const value of [policy.maxResident, policy.maxQueued, policy.maxMaterialisationsPerTick, policy.maxRetainedBytes, policy.maxSemanticElements, policy.maxRenderBatches, policy.maxMaterialisationWorkUnits].filter((value): value is number => value !== undefined)) {
       if (!Number.isSafeInteger(value) || value < 0) {
         throw new Error('Semantic materialisation limits must be non-negative integers');
       }
@@ -105,6 +123,8 @@ export class SemanticMaterialisationGovernor<T> {
   ): { accepted: boolean; reason?: string } {
     const identityError = this.validateIdentity(request.identity);
     if (identityError) return this.refuse(identityError);
+    const costError = this.validateCost(request.cost);
+    if (costError) return this.refuse(costError);
     const key = semanticMaterialisationKey(request.identity, request.level);
     if (
       this.resident.has(key) ||
@@ -117,6 +137,9 @@ export class SemanticMaterialisationGovernor<T> {
     if (this.queue.length >= this.policy.maxQueued)
       return this.refuse('SEMANTIC_BACKPRESSURE_QUEUE_FULL');
     const isReplacement = this.hasOppositeLevel(request);
+    const oppositeKey = semanticMaterialisationKey(request.identity, oppositeMaterialisationLevel(request.level));
+    const replacedCost = isReplacement ? this.residentCost.get(oppositeKey) : undefined;
+    if (!this.costFits(request.cost, replacedCost)) return this.refuse('SEMANTIC_PRESENTATION_COST_BOUND_REACHED');
     if (
       this.resident.size >= this.policy.maxResident &&
       this.queue.length === 0 &&
@@ -147,13 +170,13 @@ export class SemanticMaterialisationGovernor<T> {
         const value = pending.materialise();
         if (isReplacement) {
           this.resident.delete(oppositeKey);
+          this.residentCost.delete(oppositeKey);
           if (pending.request.level === 'REFINED') this.promoted += 1;
           else this.collapsed += 1;
         }
-        this.resident.set(
-          semanticMaterialisationKey(pending.request.identity, pending.request.level),
-          value
-        );
+        const residentKey = semanticMaterialisationKey(pending.request.identity, pending.request.level);
+        this.resident.set(residentKey, value);
+        if (pending.request.cost) this.residentCost.set(residentKey, pending.request.cost);
         this.materialised += 1;
         if (pending.reconstruction) this.reconstructed += 1;
         results.push({ status: 'MATERIALISED', value });
@@ -180,6 +203,7 @@ export class SemanticMaterialisationGovernor<T> {
         (level === undefined || key.endsWith(`level:${level}`))
       )
         this.resident.delete(key);
+        this.residentCost.delete(key);
     }
     for (let i = this.queue.length - 1; i >= 0; i -= 1) {
       const queued = this.queue[i];
@@ -200,6 +224,7 @@ export class SemanticMaterialisationGovernor<T> {
       this.release(identity, level);
       return null;
     }
+    this.residentCost.delete(key);
     this.release(identity, level);
     this.evicted += 1;
     return {
@@ -227,7 +252,45 @@ export class SemanticMaterialisationGovernor<T> {
       collapsed: this.collapsed,
       evicted: this.evicted,
       reconstructed: this.reconstructed,
+      admittedCost: this.totalCost(),
     };
+  }
+
+  private validateCost(cost: SemanticMaterialisationCostV1 | undefined): string | null {
+    const budgeted = this.policy.maxRetainedBytes !== undefined || this.policy.maxSemanticElements !== undefined || this.policy.maxRenderBatches !== undefined || this.policy.maxMaterialisationWorkUnits !== undefined;
+    if (!cost) return budgeted ? 'SEMANTIC_PRESENTATION_COST_REQUIRED' : null;
+    if (cost.schemaVersion !== SEMANTIC_MATERIALISATION_COST_SCHEMA_V1) return 'SEMANTIC_PRESENTATION_COST_INVALID';
+    for (const value of [cost.retainedBytes, cost.semanticElements, cost.renderBatches, cost.materialisationWorkUnits]) {
+      if (!Number.isSafeInteger(value) || value < 0) return 'SEMANTIC_PRESENTATION_COST_INVALID';
+    }
+    return null;
+  }
+
+  private totalCost(excluding?: SemanticMaterialisationCostV1): Omit<SemanticMaterialisationCostV1, 'schemaVersion'> {
+    let retainedBytes = 0;
+    let semanticElements = 0;
+    let renderBatches = 0;
+    let materialisationWorkUnits = 0;
+    for (const cost of this.residentCost.values()) {
+      if (excluding && cost === excluding) continue;
+      retainedBytes += cost.retainedBytes;
+      semanticElements += cost.semanticElements;
+      renderBatches += cost.renderBatches;
+      materialisationWorkUnits += cost.materialisationWorkUnits;
+    }
+    return { retainedBytes, semanticElements, renderBatches, materialisationWorkUnits };
+  }
+
+  private costFits(cost?: SemanticMaterialisationCostV1, replaced?: SemanticMaterialisationCostV1): boolean {
+    if (!cost) return true;
+    const total = this.totalCost(replaced);
+    const checks: Array<[number, number | undefined]> = [
+      [total.retainedBytes + cost.retainedBytes, this.policy.maxRetainedBytes],
+      [total.semanticElements + cost.semanticElements, this.policy.maxSemanticElements],
+      [total.renderBatches + cost.renderBatches, this.policy.maxRenderBatches],
+      [total.materialisationWorkUnits + cost.materialisationWorkUnits, this.policy.maxMaterialisationWorkUnits],
+    ];
+    return checks.every(([value, limit]) => limit === undefined || (Number.isSafeInteger(value) && value <= limit));
   }
 
   private hasOppositeLevel(request: SemanticMaterialisationRequest): boolean {
@@ -325,7 +388,7 @@ export function semanticMaterialisationDescriptorMatches(
 }
 
 function cloneRequest(request: SemanticMaterialisationRequest): SemanticMaterialisationRequest {
-  return { identity: { ...request.identity }, level: request.level };
+  return { identity: { ...request.identity }, level: request.level, cost: request.cost ? { ...request.cost } : undefined };
 }
 
 export const SEMANTIC_MATERIALISATION_POLICY_V1: SemanticMaterialisationPolicy = {

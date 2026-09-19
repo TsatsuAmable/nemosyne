@@ -3,6 +3,7 @@ import {
   SemanticMaterialisationGovernor,
   semanticIdentityKey,
   type SemanticMaterialisationIdentity,
+  SEMANTIC_MATERIALISATION_COST_SCHEMA_V1,
 } from '../src/vr/scalability/SemanticMaterialisationGovernor.ts';
 
 const identity = (semanticId: string): SemanticMaterialisationIdentity => ({
@@ -11,6 +12,7 @@ const identity = (semanticId: string): SemanticMaterialisationIdentity => ({
   datasetVersion: 1,
   decisionId: 'decision-1',
   semanticId,
+
 });
 
 const policy = {
@@ -235,5 +237,43 @@ describe('SemanticMaterialisationGovernor', () => {
       governor.release(semantic);
     }
     expect(governor.snapshot()).toMatchObject({ resident: 0, queued: 0, materialised: 50 });
+  });
+  it('admits heterogeneous presentation cost only within independent budgets', () => {
+    const governor = new SemanticMaterialisationGovernor<string>({ ...policy, maxResident: 4, maxRetainedBytes: 100, maxSemanticElements: 10, maxRenderBatches: 4, maxMaterialisationWorkUnits: 20 });
+    const cost = (retainedBytes: number, semanticElements = 1) => ({ schemaVersion: SEMANTIC_MATERIALISATION_COST_SCHEMA_V1, retainedBytes, semanticElements, renderBatches: 1, materialisationWorkUnits: 2 });
+    expect(governor.request({ identity: identity('a'), level: 'COARSE', cost: cost(60, 4) }, () => 'a').accepted).toBe(true);
+    governor.tick();
+    expect(governor.request({ identity: identity('b'), level: 'COARSE', cost: cost(50, 2) }, () => 'b')).toEqual({ accepted: false, reason: 'SEMANTIC_PRESENTATION_COST_BOUND_REACHED' });
+    expect(governor.snapshot().admittedCost).toEqual({ retainedBytes: 60, semanticElements: 4, renderBatches: 1, materialisationWorkUnits: 2 });
+  });
+
+  it('fails closed when a budgeted request omits or corrupts cost', () => {
+    const governor = new SemanticMaterialisationGovernor<string>({ ...policy, maxRetainedBytes: 100 });
+    expect(governor.request({ identity: identity('a'), level: 'COARSE' }, () => 'a')).toEqual({ accepted: false, reason: 'SEMANTIC_PRESENTATION_COST_REQUIRED' });
+    expect(governor.request({ identity: identity('b'), level: 'COARSE', cost: { schemaVersion: SEMANTIC_MATERIALISATION_COST_SCHEMA_V1, retainedBytes: -1, semanticElements: 1, renderBatches: 1, materialisationWorkUnits: 1 } }, () => 'b')).toEqual({ accepted: false, reason: 'SEMANTIC_PRESENTATION_COST_INVALID' });
+  });
+
+  it('atomically swaps replacement cost and preserves old accounting on failure', () => {
+    const governor = new SemanticMaterialisationGovernor<string>({ ...policy, maxResident: 1, maxRetainedBytes: 100 });
+    const cost = (retainedBytes: number) => ({ schemaVersion: SEMANTIC_MATERIALISATION_COST_SCHEMA_V1, retainedBytes, semanticElements: 1, renderBatches: 1, materialisationWorkUnits: 1 });
+    const semantic = identity('a');
+    governor.request({ identity: semantic, level: 'COARSE', cost: cost(80) }, () => 'coarse');
+    governor.tick();
+    expect(governor.request({ identity: semantic, level: 'REFINED', cost: cost(90) }, () => { throw new Error('failed'); }).accepted).toBe(true);
+    governor.tick();
+    expect(governor.get(semantic, 'COARSE')).toBe('coarse');
+    expect(governor.snapshot().admittedCost.retainedBytes).toBe(80);
+  });
+
+  it('releases and evicts admitted cost without duplicate charging', () => {
+    const governor = new SemanticMaterialisationGovernor<string>({ ...policy, maxRetainedBytes: 100 });
+    const cost = { schemaVersion: SEMANTIC_MATERIALISATION_COST_SCHEMA_V1, retainedBytes: 70, semanticElements: 1, renderBatches: 1, materialisationWorkUnits: 1 } as const;
+    const semantic = identity('a');
+    governor.request({ identity: semantic, level: 'COARSE', cost }, () => 'a');
+    governor.request({ identity: semantic, level: 'COARSE', cost }, () => 'duplicate');
+    governor.tick();
+    expect(governor.snapshot().admittedCost.retainedBytes).toBe(70);
+    governor.evict(semantic, 'COARSE');
+    expect(governor.snapshot().admittedCost.retainedBytes).toBe(0);
   });
 });
