@@ -1,0 +1,14 @@
+import fs from "node:fs";
+import crypto from "node:crypto";
+import {execFileSync} from "node:child_process";
+const manifest="docs/research/RESEARCH_OBLIGATIONS_MANIFEST.md";
+const sources=["docs/Nemosyne_Definitive_Vision_and_Roadmap.md","docs/NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md","docs/Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md","docs/Nemosyne_VR_UI_Design_System_and_Agent_Spec.md","docs/ARCHITECTURE.md","docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md","docs/ROADMAP.md"];
+const sha=process.env.GITHUB_SHA||execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim();
+const hash=p=>crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+const text=fs.readFileSync(manifest,"utf8");
+const obligations=[...text.matchAll(/^\| (RO-\d+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm)].map(m=>({id:m[1],source:m[2].trim(),question:m[3].trim(),evidence:m[4].trim(),state:m[5].trim()}));
+if(obligations.length===0)throw new Error("no research obligations parsed");
+const packet={schemaVersion:1,kind:"research-obligation-review-packet",specimenSha:sha,generatedAt:new Date().toISOString(),sources:sources.map(path=>({path,sha256:hash(path)})),obligations,reviewInstructions:{required:["challenge source-to-obligation coverage","identify missing falsifiable assumptions","attack evidence admissibility and circularity","record dependencies and blockers","propose additions/changes/closures without mutating governing documents"],allowedOutcomes:["NO_CHANGE","PROPOSE_DELTA","FALSIFIED","ABSTAIN"]}};
+fs.mkdirSync("artifacts/research-obligations",{recursive:true});
+fs.writeFileSync("artifacts/research-obligations/review-packet.json",JSON.stringify(packet,null,2));
+console.log(JSON.stringify({status:"READY",specimenSha:sha,obligations:obligations.length,sources:sources.length,output:"artifacts/research-obligations/review-packet.json"},null,2));
