@@ -30,6 +30,8 @@ interface PendingRegistration {
 }
 
 const MAX_DIAGNOSTIC_SAMPLES = 32;
+export const DEFAULT_MAX_PENDING_WORKER_EXECUTIONS = 32;
+export const DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS = 4;
 const WORKER_PAYLOAD_MEASUREMENT_BASIS =
   'utf8-json-estimate+exact-binary-byte-length' as const;
 const UTF8_ENCODER = new TextEncoder();
@@ -104,15 +106,20 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
    */
   private _onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null;
   private _disposed = false;
+  private readonly _maxPendingExecutions: number;
+  private readonly _maxPendingRegistrations: number;
 
   constructor(
     worker: WorkerTransport,
     onKernelFailure?: ((err: Error) => void) | null,
-    onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null
+    onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null,
+    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number } = {}
   ) {
     this._worker = worker;
     this._onKernelFailure = onKernelFailure;
     this._onKernelRefusal = onKernelRefusal ?? null;
+    this._maxPendingExecutions = Math.max(1, Math.floor(limits.maxPendingExecutions ?? DEFAULT_MAX_PENDING_WORKER_EXECUTIONS));
+    this._maxPendingRegistrations = Math.max(1, Math.floor(limits.maxPendingRegistrations ?? DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS));
     this._worker.onmessage = this._handleMessage.bind(this);
     this._worker.onerror = this._handleError.bind(this);
     if ('onmessageerror' in this._worker) {
@@ -286,6 +293,10 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     const existing = this._registrationPromises.get(key);
     if (existing) return existing;
 
+    if (this._pendingRegistrations.size >= this._maxPendingRegistrations) {
+      return Promise.reject(new KernelUnavailableError("Analytical worker registration admission saturated: " + this._pendingRegistrations.size + "/" + this._maxPendingRegistrations));
+    }
+
     const promise = new Promise<void>((resolve, reject) => {
       this._pendingRegistrations.set(registration.registrationId, {
         resolve,
@@ -324,6 +335,10 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         datasetFingerprint: req.dataset.fingerprint,
         value: null,
       });
+    }
+
+    if (this._pending.size >= this._maxPendingExecutions) {
+      return Promise.reject(new KernelUnavailableError("Analytical worker execution admission saturated: " + this._pending.size + "/" + this._maxPendingExecutions));
     }
 
     return new Promise<AnalyticalExecutionResult<T>>((resolve, reject) => {
