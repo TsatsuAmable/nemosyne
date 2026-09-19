@@ -162,7 +162,9 @@ export class AnalyticalRuntimeOwner {
         },
         (error) => {
           if (this.isCurrent(generation)) this.authority.recordRefusalFromError(error);
-        }
+        },
+        {},
+        this.createWorker
       );
       this.workerPort = port;
       this.authority.setExecutionPort(port);

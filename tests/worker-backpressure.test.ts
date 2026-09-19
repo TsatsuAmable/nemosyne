@@ -40,3 +40,39 @@ describe('UXR3-S1 worker admission backpressure',()=>{
   expect(t.postedMessages.filter((m:any)=>m.type==='REGISTER')).toHaveLength(1);
  });
 });
+
+describe('UXR3-S1 hard worker cancellation', () => {
+ it('recycles a worker when supersession makes every outstanding item stale', async () => {
+  const first:any=transport(); first.terminated=false; first.terminate=()=>{first.terminated=true};
+  const second:any=transport();
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:1},()=>second);
+  const stale=p.execute(req('stale-hard',1));
+  p.supersede({generation:2});
+  await expect(stale).resolves.toMatchObject({value:null});
+  expect(first.terminated).toBe(true);
+  const fresh=p.execute(req('fresh-hard',2));
+  expect(second.postedMessages.some((m:any)=>m.type==='EXECUTE'&&m.request.requestId==='fresh-hard')).toBe(true);
+  first.result({requestId:'stale-hard',generation:1,datasetVersion:1,datasetFingerprint:'fp',value:'bad'});
+  second.result({requestId:'fresh-hard',generation:2,datasetVersion:1,datasetFingerprint:'fp',value:'good'});
+  await expect(fresh).resolves.toMatchObject({value:'good'});
+ });
+ it('fails soft when replacement construction throws', async () => {
+  const first:any=transport(); first.terminated=false; first.terminate=()=>{first.terminated=true};
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:1},()=>{throw new Error('replacement failed')});
+  const stale=p.execute(req('replacement-failure',1));
+  expect(()=>p.supersede({generation:2})).not.toThrow();
+  await expect(stale).resolves.toMatchObject({value:null});
+  expect(first.terminated).toBe(false);
+ });
+ it('does not recycle when supersession leaves any outstanding item current', async () => {
+  const first:any=transport(); first.terminated=false; first.terminate=()=>{first.terminated=true};
+  const p=new WorkerAnalyticalPort(first,null,null,{maxPendingExecutions:3},()=>transport());
+  const stale=p.execute(req('old',1));
+  const current=p.execute(req('current',2));
+  p.supersede({generation:2});
+  await expect(stale).resolves.toMatchObject({value:null});
+  expect(first.terminated).toBe(false);
+  first.result({requestId:'current',generation:2,datasetVersion:1,datasetFingerprint:'fp',value:'kept'});
+  await expect(current).resolves.toMatchObject({value:'kept'});
+ });
+});

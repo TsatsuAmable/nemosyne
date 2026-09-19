@@ -89,7 +89,8 @@ function estimateWorkerPayload(value: unknown): WorkerPayloadEstimate {
 }
 
 export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
-  private readonly _worker: WorkerTransport;
+  private _worker: WorkerTransport;
+  private readonly _createReplacementWorker?: (() => WorkerTransport | null) | null;
   private readonly _pending = new Map<string, PendingExecution>();
   private readonly _pendingRegistrations = new Map<string, PendingRegistration>();
   private readonly _registrationPromises = new Map<string, Promise<void>>();
@@ -113,9 +114,11 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     worker: WorkerTransport,
     onKernelFailure?: ((err: Error) => void) | null,
     onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null,
-    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number } = {}
+    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number } = {},
+    createReplacementWorker?: (() => WorkerTransport | null) | null
   ) {
     this._worker = worker;
+    this._createReplacementWorker = createReplacementWorker ?? null;
     this._onKernelFailure = onKernelFailure;
     this._onKernelRefusal = onKernelRefusal ?? null;
     this._maxPendingExecutions = Math.max(1, Math.floor(limits.maxPendingExecutions ?? DEFAULT_MAX_PENDING_WORKER_EXECUTIONS));
@@ -227,6 +230,41 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     } catch {
       // Supersession is best-effort transport signalling. The local fence below
       // remains authoritative even if the worker cannot receive the message.
+    }
+
+    // A Worker cannot process SUPERSEDE while synchronous WASM is running. If
+    // every outstanding item is stale, recycle it to provide actual cancellation
+    // rather than merely releasing main-thread bookkeeping.
+    const staleExecutionCount = [...this._pending.values()].filter((pending) =>
+      this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)
+    ).length;
+    const staleRegistrationCount = [...this._pendingRegistrations.values()].filter((pending) =>
+      this._isStale(pending.registration.generation, pending.registration.dataset.version, pending.registration.dataset.fingerprint)
+    ).length;
+    const outstandingCount = this._pending.size + this._pendingRegistrations.size;
+    const allOutstandingStale =
+      outstandingCount > 0 && staleExecutionCount + staleRegistrationCount === outstandingCount;
+    if (allOutstandingStale && this._createReplacementWorker) {
+      let replacement: WorkerTransport | null = null;
+      try {
+        replacement = this._createReplacementWorker();
+      } catch {
+        // Keep local fencing authoritative if replacement construction fails.
+      }
+      if (replacement) {
+        const oldWorker = this._worker;
+        oldWorker.onmessage = null;
+        oldWorker.onerror = null;
+        if ('onmessageerror' in oldWorker) oldWorker.onmessageerror = null;
+        try { oldWorker.terminate?.(); } catch { /* best-effort cancellation */ }
+        this._worker = replacement;
+        this._worker.onmessage = this._handleMessage.bind(this);
+        this._worker.onerror = this._handleError.bind(this);
+        if ('onmessageerror' in this._worker) {
+          this._worker.onmessageerror = this._handleMessageError.bind(this);
+        }
+        this._registered.clear();
+      }
     }
 
     for (const [id, pending] of this._pending.entries()) {
