@@ -71,7 +71,8 @@
     "benchmark:semantic-target-resolver": "NEMOSYNE_BENCHMARK_SEMANTIC=1 node --expose-gc ./node_modules/vitest/vitest.mjs run tests/benchmark-semantic-target-resolver.test.ts --config vitest.config.ts --reporter=verbose",
     "experiment:moneta-known-structure": "vitest run --config vitest.wasm.config.ts tests/moneta-known-structure-campaign-wasm.test.ts --reporter=verbose",
     "experiment:xr-architecture": "node scripts/run-xr-architecture-experiment.ts",
-    "governance:promotion:preflight": "node scripts/preflight-promotion-evidence.mjs"
+    "governance:promotion:preflight": "node scripts/preflight-promotion-evidence.mjs",
+    "governance:pr:create": "node scripts/create-promotable-pr.mjs"
   },
   "devDependencies": {
     "@ast-grep/cli": "0.45.3",
