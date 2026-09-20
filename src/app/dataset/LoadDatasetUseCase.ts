@@ -101,13 +101,10 @@ export class LoadDatasetUseCase {
       : createDefaultRequirements('overview');
 
     if (!preserveAnalyticalState) {
-      // Preserve the existing production semantics exactly: Atlas first loads
-      // a cloned baseline, then receives a second clone as the mutable current
-      // dataset. `setOriginalDataset` is the authoritative load/ledger/version
-      // transition; `setCurrentDataset` only establishes the working copy.
-      const originalDataset = entry.dataset.clone();
-      this.atlas.setOriginalDataset(originalDataset);
-      this.atlas.setCurrentDataset(originalDataset.clone());
+      // Atlas owns the defensive baseline/current split. Hand the source to the
+      // authoritative load transition once instead of cloning around an API
+      // that already establishes independent original and working datasets.
+      this.atlas.setOriginalDataset(entry.dataset);
     }
 
     const embodiedDataset = this.atlas.dataset;

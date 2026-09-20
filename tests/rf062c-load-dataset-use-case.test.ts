@@ -30,10 +30,11 @@ function dataset(name = 'fixture'): Dataset {
 function fakeAuthority(initial: Dataset) {
   let current = initial;
   const setOriginalDataset = vi.fn((next: Dataset) => {
-    current = next;
+    const original = next.clone();
+    current = original.clone();
   });
   const setCurrentDataset = vi.fn((next: Dataset) => {
-    current = next;
+    current = next.clone();
   });
   const authority = {
     setOriginalDataset,
@@ -126,6 +127,7 @@ describe('RF-062C LoadDatasetUseCase', () => {
 
   it('routes a fresh load through Atlas ownership with dataset-level overview intent', () => {
     const source = dataset('source');
+    const clone = vi.spyOn(Dataset.prototype, 'clone');
     const { authority, setOriginalDataset, setCurrentDataset } = fakeAuthority(source);
     const useCase = new LoadDatasetUseCase(authority);
 
@@ -139,14 +141,11 @@ describe('RF-062C LoadDatasetUseCase', () => {
     });
 
     expect(setOriginalDataset).toHaveBeenCalledOnce();
-    expect(setCurrentDataset).toHaveBeenCalledOnce();
-    const baseline = setOriginalDataset.mock.calls[0][0];
-    const working = setCurrentDataset.mock.calls[0][0];
-    expect(baseline).not.toBe(source);
-    expect(working).not.toBe(source);
-    expect(working).not.toBe(baseline);
-    expect(result.embodiedDataset).toBe(working);
-    expect(result.dataInput.dataset).toBe(working);
+    expect(setOriginalDataset).toHaveBeenCalledWith(source);
+    expect(setCurrentDataset).not.toHaveBeenCalled();
+    expect(clone).toHaveBeenCalledTimes(2);
+    expect(result.embodiedDataset).not.toBe(source);
+    expect(result.dataInput.dataset).toBe(result.embodiedDataset);
     expect(result.dataInput.encodings).toEqual({ color: 'value' });
     expect(result.requirements.task).toBe('overview');
     expect(result.requirements.requiredStructures.map(({ type }) => type)).toEqual([
