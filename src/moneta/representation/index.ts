@@ -29,3 +29,5 @@ export * from './SemanticEmbodimentGraphV1.ts';
 export * from './SpatialEmbodimentPlanV1.ts';
 export * from './ExperimentSpecimenCapabilities.ts';
 export * from './RawRowAuthority.ts';
+
+export * from './ComposedRepresentationValidation.ts';
