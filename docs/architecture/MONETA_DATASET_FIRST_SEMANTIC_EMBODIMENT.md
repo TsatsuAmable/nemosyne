@@ -188,3 +188,27 @@ Promotion requires reproducible evidence and adversarial adjudication. Physical 
 ## 11. Immediate next step
 
 Audit the current implementation against this document, classify each invariant and mechanism as **implemented**, **partial**, **declared-only**, **missing**, or **contradicted**, then convert the resulting delta into roadmap work and experimental falsifiers before expanding representation evolution.
+
+
+## 12. Workstream ownership refinement — 20 September 2026
+
+The implementation audit has now produced concrete `SemanticEmbodimentGraphV1` and
+`SpatialEmbodimentPlanV1` contracts alongside the older `RepresentationGraph` contract. Their roles
+are fixed as follows:
+
+- `SemanticEmbodimentGraph` carries evidence-bound semantic truth, abstraction/refinement identity and
+  information-preservation/loss contracts.
+- `RepresentationGraph` is Moneta's compositional hypothesis over those semantic objects: which
+  phenomena should coexist, how they coordinate, and which interaction/detail policies are admissible.
+- `SpatialEmbodimentPlan` is the disposable spatial phenotype compiled from the semantic +
+  representation contracts. Geometry, layout, glyphs, fields and other presentation choices live here.
+- `RepresentationGenome` belongs to the separate evolutionary synthesis/laboratory programme. It may
+  eventually encode candidate choices across the representation/spatial layers, but it is not a
+  production truth source and does not replace any of the three contracts above.
+
+The dedicated production workstream is
+[`P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`](../roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md).
+It deliberately proves hand-authored/deterministic multi-phenomenon composition before allowing an
+evolutionary search algorithm to exploit the space. This resolves the earlier tendency in Sections 5
+and 10 to discuss composition and evolution as one implementation tranche: the scientific objective
+remains compatible, but their engineering ownership and promotion gates are now separate.
