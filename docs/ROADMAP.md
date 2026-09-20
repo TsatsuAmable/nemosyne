@@ -4,9 +4,9 @@
 
 ## Status snapshot - 20 September 2026
 
-**Current integration base:** `main@6e9264dbcacb0dac5ce4ef29e8ca7f1e88f1dd54` (#784). UXR2 bounded presentation-resource lifecycle is landed. UXR3 now has bounded semantic-materialisation cardinality/backpressure (#763), stable coarse-to-refined replacement (#764), exact-identity collapse/evict/reconstruct continuity (#769), bounded Worker execution/registration admission (#779), safe all-stale Worker recycling (#781), bounded lifecycle outcomes/stale-result disposition (#783), and S1 bounded transfer-lifecycle closure (#784). A 20 September runtime review statically established duplicate authoritative Rust/WASM computation in the generic two-call output-sizing ABI; that defect is now a bounded UXR3 runtime prerequisite before E1 qualification. UXR4 verification and UXR5 physical Quest qualification close the current UXR programme. After UXR5, P1-WP productionizes and deploys the ordinary web application for broad investigator access; P1-WQ then qualifies the deployed browser investigation experience before PT9 Learned Moneta begins.
+**Current integration base:** `main@1173ac882206e798c1666802e5cb6ed9a7fa698d` (#791). UXR2 bounded presentation-resource lifecycle is landed. UXR3 has reached its finite bounded-software STOP: #763/#764/#769 establish semantic materialisation, replacement and identity-preserving collapse/evict/reconstruct; #779/#781/#783 close Worker admission, safe stale recycling and lifecycle outcomes; #790 closes the single-computation Rust/WASM prepared-result transfer finding; and #791 removes redundant fresh-load dataset copies without changing analytical authority. UXR4 verification and UXR5 physical Quest qualification are now the forward P1-UXR frontier. After UXR5, P1-WP productionizes and deploys the ordinary web application for broad investigator access; P1-WQ then qualifies the deployed browser investigation experience before PT9 Learned Moneta and PT10 private-preview learning. P1-MCR now names the downstream compositional-representation expansion explicitly; evolutionary synthesis remains a separate laboratory/search workstream.
 
-**R1 transfer progress:** Mapper, persistence intervals, Betti-0, statistics, dataset JSON, the five semantic embodiment builders, semantic detail and direct spectral facts now use Rust-owned prepare/read/destroy result transfer through the production bridge. Deterministic tests cover one substantive computation/materialisation, legacy output parity, statistics/spectral provenance, JSON provenance neutrality, graph/row identity, semantic decision provenance and detail membership, admission, malformed input, host allocation/read/parse failures, dataset destruction and generation reset. Invalid and columnar-only statistics/JSON/spectral requests preserve their null outcome even under saturation; valid but unavailable spectral facts retain null-output provenance, and stale semantic-detail requests retain their structured refusal. This is partial R1 progress: the remaining production-export inventory precedes R1 closure and E1 requalification. No whole-load copy elimination, total semantic-memory bound, measured latency or physical-memory improvement is claimed.
+**R1 transfer closure:** Mapper, persistence intervals, Betti-0, statistics, dataset JSON, the five semantic embodiment builders, semantic detail and direct spectral facts use Rust-owned prepare/read/destroy result transfer through the production bridge. #790 closes the duplicate-authoritative-computation finding with production-path evidence for one substantive computation/materialisation and explicit result lifetime handling. #791 separately removes redundant fresh-load copies at the Atlas handoff. These changes do not by themselves establish measured latency, physical-memory improvement or total semantic-memory bounds; those remain evidence claims for the relevant UXR4/UXR5 envelopes.
 
 ## Historical status snapshot - 16 September 2026
 
@@ -93,14 +93,15 @@ Stream A STOP
   -> Stream B Relationship Graph V1 STOP
     -> Stream C bounded C1-C4 implementation/evidence LANDED
       -> P1-PT PT0-PT8 LANDED / bounded STOP where declared
-        -> P1-UXR ACTIVE (UXR0-UXR2 bounded software landed; UXR3 active; physical evidence open)
+        -> P1-UXR ACTIVE (UXR0-UXR3 bounded software landed/STOP; UXR4-UXR5 evidence open)
           -> UXR4 verification refocus
             -> UXR5 physical Quest qualification + P1-UXR STOP
               -> P1-WP web productionization + internet deployment
                 -> P1-WQ web investigator qualification
                   -> PT9 Moneta learning-evidence pipeline
                     -> PT10 private-preview product/discovery learning loop
-              -> post-PT9 RepresentationOntology / RepresentationGraph / compositional full-Moneta work
+                      -> P1-MCR compositional RepresentationGraph / SemanticEmbodiment / SpatialEmbodiment expansion
+                         (evolutionary synthesis/search remains a separate laboratory workstream)
 
 Physical Quest/human evidence gates run when their claims require them; they do not block unrelated software work.
 ```
@@ -726,4 +727,4 @@ preserved source data
 
 A/B/C and the legacy D labels remain useful programme/evidence boundaries, but P1-PT is now the active sequential execution frame. Quest supplies valuable reference evidence for standalone XR; it is not permission to weaken the product thesis, and it is not a blocker for unrelated product-transition work. No programme label permits weakening scientific, UX, security or evidence gates.
 
-- **2026-09-18 Moneta dataset-first prerequisites:** explicit semantic abstraction levels, fail-closed raw-row presentation authority, SemanticEmbodimentGraph V1 and SpatialEmbodimentPlan V1 contracts, plus laboratory specimen capability discovery. Composition/compiler/evolution remain future governed tranches.
+- **2026-09-18 Moneta dataset-first prerequisites:** explicit semantic abstraction levels, fail-closed raw-row presentation authority, SemanticEmbodimentGraph V1 and SpatialEmbodimentPlan V1 contracts, plus laboratory specimen capability discovery are landed prerequisites. **2026-09-20 ownership refinement:** `roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md` now owns the future compositional RepresentationGraph -> SpatialEmbodimentPlan production path. Evolutionary synthesis/search and RepresentationGenome operators remain a separate laboratory workstream and may consume P1-MCR contracts only after their authority/version boundaries are stable.
