@@ -1,8 +1,8 @@
 # P1-MCR — Moneta Compositional Representation Expansion
 
-**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1-MCR7 DOWNSTREAM OF P1-TEC -> PT9/PT10 IN THE LIVE EXECUTION ORDER  
+**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1-MCR7 DOWNSTREAM OF P1-TEC -> PT9/PT10 IN THE LIVE EXECUTION ORDER<br>
 **Established:** 20 September 2026  
-**Audit baseline:** `main@7fbd99e628f7eeafc29703ef32a19940a55f0c84` (#800)  
+**Audit baseline:** `main@7fbd99e628f7eeafc29703ef32a19940a55f0c84` (#800)<br>
 **Live status authority:** `docs/ROADMAP.md`  
 **Governing vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`  
 **Dataset-first design:** `docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`  
