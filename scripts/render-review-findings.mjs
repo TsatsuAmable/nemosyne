@@ -26,6 +26,7 @@ function validateLedger(ledger) {
   const allowedStatuses = new Set(ledger.statuses ?? []);
   if (allowedStatuses.size === 0) throw new Error('review-findings statuses must not be empty');
 
+  const requiredIds = new Set(['RF-037', 'RF-038', 'RF-039', 'RF-040', 'RF-041', 'RF-042', 'RF-043']);
   const ids = new Set();
   for (const finding of ledger.findings ?? []) {
     if (!/^RF-\d{3}$/.test(finding.id ?? '')) throw new Error(`invalid review finding id: ${finding.id}`);
@@ -40,6 +41,10 @@ function validateLedger(ledger) {
     if (!Array.isArray(finding.evidence) || finding.evidence.length === 0) {
       throw new Error(`review finding ${finding.id} must name evidence`);
     }
+  }
+
+  for (const id of requiredIds) {
+    if (!ids.has(id)) throw new Error(`required migrated review finding is missing: ${id}`);
   }
 
   return ledger;
