@@ -214,6 +214,21 @@ Initial adversarial fixtures should cover:
 
 For null datasets the invariant is not that no algorithm may ever return structure. The invariant is that accidental algorithmic structure must not be mislabeled as strong, stable, or independently validated scientific evidence.
 
+
+## Roadmap closure gate: P1-TEC
+
+The foundational architecture above is already established and partially implemented. The remaining roadmap work is therefore a **closure programme**, not a restart of the statistical-foundations effort.
+
+`docs/ROADMAP.md` owns live sequencing and status. P1-TEC closes four residual failure classes before PT9 learning and downstream Full-Moneta representation expansion:
+
+1. **Propagation loss:** determine whether measurement semantics, geometry, assumptions, sample support, uncertainty, stability, sensitivity, limitations and provenance survive from Rust `EvidenceClaim<T>` through the production transport/adapters into Moneta and semantic embodiment.
+2. **Transport/identity gaps:** close blocker-grade losses while keeping Rust/WASM as analytical authority. Prefer stable evidence references/receipts over duplicating scientific truth into TypeScript structures when that preserves the authority boundary more cleanly.
+3. **Migration debt:** remove or quarantine legacy terminology that overstates heuristic computations. Compatibility must never turn a magnitude threshold into significance, a silhouette-derived score into stability confidence, or sample count into statistical confidence.
+4. **Falsification coverage:** qualify exposed analytical families against positive structure, null structure, invalid-domain combinations and correct abstention, including the adversarial fixtures already specified in this document.
+5. **Downstream handoff:** prove that evidence/admissibility gates execute before representation utility, learned ranking or synthesis and that persistence/replay preserves the governing evidence identity.
+
+P1-TEC does not require implementing every advanced method named in this document. A method family enters production when a concrete analytical question/representation requirement justifies its estimand and the seven advanced-method admission conditions above are met. The gate closes when the evidence that Nemosyne actually exposes is trustworthy end to end.
+
 ## Implementation sequence
 
 1. Measurement and observation semantics.
