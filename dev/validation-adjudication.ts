@@ -12,6 +12,7 @@ import type {
   GateDispositionStatus,
   ValidationManifest,
 } from '../src/validation/validation-manifest.ts';
+import type { Uxr4EvidenceObservation } from '../src/validation/uxr4-verification-envelope.ts';
 
 export const VALIDATION_ADJUDICATION_SCHEMA_VERSION = '1';
 export const VALIDATION_ADJUDICATOR_VERSION = 'qv4-v1';
@@ -57,6 +58,8 @@ export interface ValidationAdjudicationResult {
   gateResults: GateAdjudication[];
   aggregateStatus: GateDispositionStatus;
   aggregateReasons: string[];
+  /** UXR4 evidence contributed by this lane only. Cross-lane completeness is adjudicated separately. */
+  uxr4Observations: Uxr4EvidenceObservation[];
 }
 
 export interface QuestPerfReportValidation {
@@ -377,6 +380,35 @@ function aggregate(results: GateAdjudication[]): { status: GateDispositionStatus
   return { status, reasons: reasons.slice(0, 32) };
 }
 
+export function deriveUxr4LaneObservations(
+  manifest: ValidationManifest,
+  gateResults: GateAdjudication[]
+): Uxr4EvidenceObservation[] {
+  const byGate = new Map(gateResults.map((result) => [result.gate, result]));
+  const observation = (evidenceClass: Uxr4EvidenceObservation['evidenceClass'], gates: string[], fallback: string): Uxr4EvidenceObservation => {
+    const present = gates.flatMap((gateId) => byGate.has(gateId) ? [byGate.get(gateId)!] : []);
+    if (present.length === 0) return { evidenceClass, status: 'PARTIAL', reasons: [fallback] };
+    const result = aggregate(present);
+    return { evidenceClass, status: result.status, reasons: result.reasons };
+  };
+  if (manifest.validationMode === 'quest-ux') {
+    return [
+      observation('interaction', ['UX-03', 'RF-049', 'RF-050', 'P1-U9'], 'guided interaction evidence is not adjudicable'),
+      observation('responsiveness', ['UX-03'], 'guided responsiveness evidence is not adjudicable'),
+    ];
+  }
+  if (manifest.validationMode === 'quest-perf') {
+    return [
+      observation('frame-render', ['PERF-04'], 'frame/render evidence is not adjudicable'),
+      observation('memory-resource', ['PERF-05'], 'memory/resource evidence is not adjudicable'),
+    ];
+  }
+  if (manifest.validationMode === 'quest-10m') {
+    return [observation('semantic-scale', ['RF-029', 'RF-051'], 'semantic-scale evidence is not adjudicable')];
+  }
+  return [];
+}
+
 export function adjudicateValidationEvidence(
   input: ValidationAdjudicationInput
 ): ValidationAdjudicationResult {
@@ -507,6 +539,7 @@ export function adjudicateValidationEvidence(
 
   gateResults = gateResults.map((result) => applyPrerequisites(result, input.prerequisites));
   const aggregateResult = aggregate(gateResults);
+  const uxr4Observations = deriveUxr4LaneObservations(manifest, gateResults);
   return {
     schemaVersion: VALIDATION_ADJUDICATION_SCHEMA_VERSION,
     adjudicatorVersion: VALIDATION_ADJUDICATOR_VERSION,
@@ -521,5 +554,6 @@ export function adjudicateValidationEvidence(
     gateResults,
     aggregateStatus: aggregateResult.status,
     aggregateReasons: aggregateResult.reasons,
+    uxr4Observations,
   };
 }
