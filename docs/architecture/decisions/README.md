@@ -28,3 +28,4 @@ Each ADR contains:
 - [ADR-0004: Executable configuration is authoritative for machine facts](0004-executable-configuration-authority.md)
 - [ADR-0005: Production persistence authorities](0005-production-persistence-authorities.md)
 - [ADR-0006: Moneta stability-certificate authority and scientific abstention](0006-moneta-stability-certificate-authority-and-abstention.md)
+- [ADR-0007: Rust-issued trustworthy evidence receipts and live resolution authority](0007-trustworthy-evidence-receipt-authority.md)

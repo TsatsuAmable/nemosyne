@@ -56,6 +56,7 @@ export {
   inferEncodings,
   inferSchema,
   statistics,
+  statisticsEvidenceReceiptBundle,
   computeSpectralFacts,
   parseArrow,
   computeMapperGraph,

@@ -1,8 +1,15 @@
 import {
+  parseEvidenceReceiptBundleV1,
   structureProfileToDatasetEvidence,
   type DatasetEvidence,
+  type EvidenceReceiptV1,
   type RustDatasetStructureProfile,
 } from '../data/evidence/index.ts';
+import {
+  datasetFingerprint as liveDatasetFingerprint,
+  kernelVersion as liveKernelVersion,
+  statisticsEvidenceReceiptBundle,
+} from '../wasm/RuntimeBridge.ts';
 
 /** Narrow kernel contract for the Moneta evidence composition boundary. */
 export interface DatasetStructureProfileKernel {
@@ -99,4 +106,69 @@ export function datasetEvidenceFromKernelProfile(
   }
 
   return evidence;
+}
+
+export interface LiveEvidenceReceiptAuthorityV1 {
+  readonly datasetFingerprint: string;
+  readonly kernelVersion: string;
+  readonly receiptIds: readonly string[];
+  resolve(receiptId: string): EvidenceReceiptV1 | null;
+}
+
+/**
+ * Mint a live statistics receipt resolver from the current Rust dataset capability.
+ * Serialized receipt data alone cannot construct this authority.
+ */
+export function statisticsEvidenceReceiptAuthority(
+  handle: number,
+): LiveEvidenceReceiptAuthorityV1 {
+  if (!Number.isInteger(handle) || handle <= 0) {
+    throw new Error('[AtlasCore] EvidenceReceipt authority requires a valid Rust dataset handle');
+  }
+
+  const datasetFingerprint = liveDatasetFingerprint(handle);
+  const kernelVersion = liveKernelVersion();
+  if (!datasetFingerprint || !kernelVersion) {
+    throw new Error('[AtlasCore] EvidenceReceipt authority cannot establish live kernel identity');
+  }
+
+  const rawBundle = statisticsEvidenceReceiptBundle(handle);
+  if (!rawBundle) {
+    throw new Error('[AtlasCore] Rust statistics evidence receipts unavailable for current dataset');
+  }
+  const bundle = parseEvidenceReceiptBundleV1(rawBundle);
+  if (
+    bundle.datasetFingerprint !== datasetFingerprint ||
+    bundle.kernelVersion !== kernelVersion
+  ) {
+    throw new Error(
+      '[AtlasCore] EvidenceReceipt bundle identity drift: ' +
+        `bundle=${bundle.datasetFingerprint}@${bundle.kernelVersion}, ` +
+        `kernel=${datasetFingerprint}@${kernelVersion}`,
+    );
+  }
+
+  const assertLiveIdentity = (): void => {
+    const currentFingerprint = liveDatasetFingerprint(handle);
+    const currentKernelVersion = liveKernelVersion();
+    if (
+      currentFingerprint !== datasetFingerprint ||
+      currentKernelVersion !== kernelVersion
+    ) {
+      throw new Error('[AtlasCore] EvidenceReceipt authority is stale for the current Rust dataset');
+    }
+  };
+
+  const byId = new Map(bundle.receipts.map((receipt) => [receipt.receiptId, receipt] as const));
+  const receiptIds = Object.freeze([...byId.keys()]);
+  return Object.freeze({
+    datasetFingerprint,
+    kernelVersion,
+    receiptIds,
+    resolve(receiptId: string): EvidenceReceiptV1 | null {
+      assertLiveIdentity();
+      if (typeof receiptId !== 'string' || receiptId.length === 0) return null;
+      return byId.get(receiptId) ?? null;
+    },
+  });
 }
