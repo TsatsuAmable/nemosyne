@@ -72,7 +72,8 @@
     "experiment:moneta-known-structure": "vitest run --config vitest.wasm.config.ts tests/moneta-known-structure-campaign-wasm.test.ts --reporter=verbose",
     "experiment:xr-architecture": "node scripts/run-xr-architecture-experiment.ts",
     "governance:promotion:preflight": "node scripts/preflight-promotion-evidence.mjs",
-    "governance:pr:create": "node scripts/create-promotable-pr.mjs"
+    "governance:pr:create": "node scripts/create-promotable-pr.mjs",
+    "governance:findings:write": "node scripts/render-review-findings.mjs --write"
   },
   "devDependencies": {
     "@ast-grep/cli": "0.45.3",
