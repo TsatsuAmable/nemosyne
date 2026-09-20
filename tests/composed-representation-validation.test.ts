@@ -39,7 +39,7 @@ const semantic = (): SemanticEmbodimentGraphV1 => ({
       parentId: 'clusters',
       childIds: [],
       refinementTargetIds: [],
-      preserves: ['density'],
+      preserves: ['empirical-bivariate-bin-mass'],
       loses: [],
       evidenceRefs: ['ev:density'],
     },
