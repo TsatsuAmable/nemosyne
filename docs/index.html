@@ -102,60 +102,26 @@
             </div>
 
             <div class="datasphere-preview" role="figure" aria-labelledby="datasphere-preview-title" aria-describedby="datasphere-preview-description">
-                <div class="datasphere-preview__status">FULL MONETA DIRECTION • ILLUSTRATIVE</div>
-                <svg class="datasphere-preview__scene" viewBox="0 0 760 500" role="img" aria-labelledby="datasphere-svg-title datasphere-svg-desc">
-                    <title id="datasphere-svg-title">Dataset-level Datasphere concept</title>
-                    <desc id="datasphere-svg-desc">An investigation core connected to datasets, evidence, derived views, model outputs, and anomaly structures.</desc>
-                    <g class="datasphere-links" aria-hidden="true">
-                        <line class="datasphere-link datasphere-link--flow" x1="380" y1="250" x2="170" y2="135"/>
-                        <line class="datasphere-link" x1="380" y1="250" x2="590" y2="125"/>
-                        <line class="datasphere-link datasphere-link--flow" x1="380" y1="250" x2="625" y2="325"/>
-                        <line class="datasphere-link" x1="380" y1="250" x2="390" y2="420"/>
-                        <line class="datasphere-link" x1="380" y1="250" x2="145" y2="345"/>
-                        <path class="datasphere-link datasphere-link--secondary" d="M170 135 Q380 65 590 125"/>
-                        <path class="datasphere-link datasphere-link--secondary" d="M145 345 Q380 470 625 325"/>
-                    </g>
-                    <g class="datasphere-core" transform="translate(380 250)">
-                        <circle r="72" class="datasphere-core__halo"/>
-                        <circle r="48" class="datasphere-core__ring"/>
-                        <path d="M0 -30 L28 -14 L28 18 L0 34 L-28 18 L-28 -14 Z" class="datasphere-core__glyph"/>
-                        <text y="88" text-anchor="middle" class="datasphere-label datasphere-label--core">INVESTIGATION CONTEXT</text>
-                    </g>
-                    <g class="datasphere-node datasphere-node--cyan" transform="translate(170 135)">
-                        <circle r="44"/><circle r="16" class="datasphere-node__inner"/>
-                        <text y="67" text-anchor="middle" class="datasphere-label">RAW DATASET</text>
-                    </g>
-                    <g class="datasphere-node datasphere-node--violet" transform="translate(590 125)">
-                        <circle r="36"/><circle r="13" class="datasphere-node__inner"/>
-                        <text y="59" text-anchor="middle" class="datasphere-label">DERIVED VIEW</text>
-                    </g>
-                    <g class="datasphere-node datasphere-node--rose" transform="translate(625 325)">
-                        <circle r="40"/><circle r="14" class="datasphere-node__inner"/>
-                        <text y="63" text-anchor="middle" class="datasphere-label">ANOMALY STRUCTURE</text>
-                    </g>
-                    <g class="datasphere-node datasphere-node--gold" transform="translate(390 420)">
-                        <circle r="34"/><circle r="12" class="datasphere-node__inner"/>
-                        <text y="57" text-anchor="middle" class="datasphere-label">MODEL OUTPUT</text>
-                    </g>
-                    <g class="datasphere-node datasphere-node--cyan" transform="translate(145 345)">
-                        <circle r="38"/><circle r="14" class="datasphere-node__inner"/>
-                        <text y="61" text-anchor="middle" class="datasphere-label">EVIDENCE STORE</text>
-                    </g>
-                </svg>
+                <div class="datasphere-preview__status">FULL MONETA DIRECTION • NEMOSYNE VISUAL SEMANTICS</div>
+                <div class="datasphere-preview__viewport">
+                    <canvas id="datasphere-preview-canvas" aria-label="Interactive three-dimensional Datasphere visual direction"></canvas>
+                    <div class="datasphere-preview__hud" aria-hidden="true">
+                        <span>NEMOSYNE // DATASPHERE</span>
+                        <span>DRAG TO ORBIT</span>
+                    </div>
+                    <noscript>
+                        <div class="datasphere-preview__fallback">Enable JavaScript to view the interactive Datasphere preview.</div>
+                    </noscript>
+                </div>
                 <div class="datasphere-preview__copy">
-                    <span class="datasphere-preview__eyebrow">Early Datasphere Preview</span>
-                    <h3 id="datasphere-preview-title">A dataset-level investigation world</h3>
+                    <span class="datasphere-preview__eyebrow">Early Full Moneta Visual Direction</span>
+                    <h3 id="datasphere-preview-title">The Datasphere, rendered in Nemosyne's visual language</h3>
                     <p id="datasphere-preview-description">
-                        A curated foretaste of Full Moneta: large artefacts stand for datasets and derived evidence, while relationships, provenance and investigation context become navigable structure.
+                        A visual foretaste of dataset-level spatial investigation: luminous artefacts, structural links, flow and a navigable investigation core rendered with Nemosyne's own Three.js geometry, atmosphere and interaction conventions.
                     </p>
                     <p class="datasphere-preview__disclaimer">
-                        Concept preview only. This layout is hand-authored, not generated by Full Moneta, and carries no analytical claim from spatial proximity or appearance.
+                        Illustrative composition only, not Full Moneta output. Geometry and colour use current Nemosyne visual conventions as staged examples; the arrangement and connections make no claim about a real dataset.
                     </p>
-                    <div class="datasphere-legend" aria-label="Datasphere preview legend">
-                        <span><i class="legend-swatch legend-swatch--core"></i> Investigation context</span>
-                        <span><i class="legend-swatch legend-swatch--dataset"></i> Dataset / artefact</span>
-                        <span><i class="legend-swatch legend-swatch--relation"></i> Semantic / provenance relation</span>
-                    </div>
                     <a href="roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md" class="datasphere-preview__link">See the compositional representation roadmap →</a>
                 </div>
             </div>
@@ -225,5 +191,6 @@
             © 2026 Tsatsu Amable. Released under MIT License.
         </p>
     </footer>
+    <script type="module" src="./js/datasphere-preview.js"></script>
 </body>
 </html>
