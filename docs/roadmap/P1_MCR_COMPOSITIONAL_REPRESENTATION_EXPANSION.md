@@ -154,6 +154,21 @@ P1-MCR does **not** own:
 - a second semantic-detail API;
 - a replacement for UXR lifecycle/resource governors.
 
+### Public Datasphere direction preview (non-production)
+
+The nemosyne.world homepage may carry a lightweight curated Datasphere preview to communicate the intended dataset-level direction of Full Moneta before P1-MCR is production-ready. This preview is a communication artefact, not an implementation shortcut or completion claim.
+
+Guardrails:
+
+- use dependency-free web presentation (currently semantic SVG/CSS) rather than reintroducing A-Frame or a parallel 3D renderer;
+- represent datasets, derived artefacts, evidence and investigation context at the concept level rather than implying that displayed objects are raw datapoints;
+- label hand-authored layouts explicitly as illustrative and not Moneta-generated;
+- do not infer or imply analytical meaning from visual proximity, size, colour, motion or connectivity unless that meaning is supplied by governed evidence;
+- do not count the homepage preview as production-path, scientific, runtime, WebXR or P1-MCR qualification evidence;
+- as P1-MCR matures, the preview may consume exported or snapshotted RepresentationGraph / SpatialEmbodimentPlan examples, but it must remain downstream of those authorities rather than becoming one.
+
+The historical A-Frame Datasphere prototype is visual-reference material only and is out of scope as a Nemosyne runtime dependency.
+
 ## 5. Sequencing
 
 Planning and contract work may proceed while the current product stream continues. Production implementation remains downstream of the live roadmap unless that authority is explicitly changed.
