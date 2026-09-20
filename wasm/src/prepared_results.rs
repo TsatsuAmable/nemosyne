@@ -5,7 +5,9 @@ use wasm_bindgen::prelude::*;
 
 const MAX_RESULTS: usize = 4;
 const MAX_RESULT_BYTES: usize = crate::MAX_MEMORY_PAGES as usize * 65536;
-static COMPUTATIONS: [AtomicU32; 3] = [const { AtomicU32::new(0) }; 3];
+static COMPUTATIONS: [AtomicU32; 5] = [const { AtomicU32::new(0) }; 5];
+pub const STATISTICS: usize = 3;
+pub const DATASET_JSON: usize = 4;
 
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);
@@ -13,6 +15,14 @@ pub fn record_computation(operation: usize) {
 
 #[wasm_bindgen]
 pub fn tda_computation_count(operation: u32) -> u32 {
+    if operation >= 3 {
+        return 0;
+    }
+    prepared_computation_count(operation)
+}
+
+#[wasm_bindgen]
+pub fn prepared_computation_count(operation: u32) -> u32 {
     COMPUTATIONS
         .get(operation as usize)
         .map(|count| count.load(Ordering::Relaxed))

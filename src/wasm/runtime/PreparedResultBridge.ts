@@ -1,7 +1,8 @@
 import { getRawRuntimeExports } from './RuntimeState.ts';
 
 export function readPreparedResult(
-  prepare: (runtime: ReturnType<typeof getRawRuntimeExports>) => number
+  prepare: (runtime: ReturnType<typeof getRawRuntimeExports>) => number,
+  options: { nullOnReadMismatch?: boolean } = {}
 ): string | null {
   const runtime = getRawRuntimeExports();
   const rawToken = prepare(runtime);
@@ -20,6 +21,7 @@ export function readPreparedResult(
     if (!pointer) throw new Error('Prepared-result output allocation failed');
     try {
       if (runtime.prepared_result_read(token, pointer, length) !== length) {
+        if (options.nullOnReadMismatch) return null;
         throw new Error('Prepared-result read failed');
       }
       return new TextDecoder('utf-8', { fatal: true }).decode(

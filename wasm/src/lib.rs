@@ -465,11 +465,22 @@ fn write_bytes_out(bytes: &[u8], out_ptr: u32, out_len: u32) -> u32 {
 
 #[wasm_bindgen]
 pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    compute_dataset_json_result(handle)
+        .map(|json| write_bytes_out(json.as_bytes(), out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn dataset_prepare_json(handle: u32) -> u32 {
+    if data::with_dataset(handle, |_| ()).is_none() { return 0; }
+    prepared_results::prepare(handle, || compute_dataset_json_result(handle))
+}
+
+fn compute_dataset_json_result(handle: u32) -> Option<String> {
     data::with_dataset(handle, |ds| {
-        let json = ds.to_js_json();
-        write_bytes_out(json.as_bytes(), out_ptr, out_len)
+        prepared_results::record_computation(prepared_results::DATASET_JSON);
+        ds.to_js_json()
     })
-    .unwrap_or(0)
 }
 
 #[wasm_bindgen]
@@ -672,16 +683,29 @@ pub fn data_infer_schema(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
 
 #[wasm_bindgen]
 pub fn data_statistics(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    compute_statistics_result(handle)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_statistics(handle: u32) -> u32 {
+    if data::with_dataset(handle, |_| ()).is_none() { return 0; }
+    prepared_results::prepare(handle, || compute_statistics_result(handle))
+}
+
+fn compute_statistics_result(handle: u32) -> Option<String> {
     let (facts, input_fp) = match data::with_dataset(handle, |ds| {
+        prepared_results::record_computation(prepared_results::STATISTICS);
         (data::statistics::compute_statistics(ds), ds.fingerprint())
     }) {
         Some(v) => v,
-        None => return 0,
+        None => return None,
     };
     let json = serde_json::to_string(&facts).unwrap_or_else(|_| "{}".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record("statistics", serde_json::Value::Null, &input_fp, &output_fp);
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]
