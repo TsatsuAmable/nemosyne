@@ -64,7 +64,9 @@ describe('S3: WASM TDA columnar authority contract', () => {
     expect(tdaCallSlice).not.toContain('readTdaPreflight');
     expect(tdaCallSlice).toContain('parseTdaRefusalEnvelope');
     expect(tdaCallSlice).toContain('UnsupportedAtScaleError');
-    expect(tdaCallSlice.indexOf('wasm[exportName]')).toBeLessThan(
+    expect(tdaCallSlice).toContain('readPreparedResult');
+    expect(tdaCallSlice).toContain('data_prepare_mapper_graph');
+    expect(tdaCallSlice.indexOf('readPreparedResult')).toBeLessThan(
       tdaCallSlice.indexOf('parseTdaRefusalEnvelope')
     );
     // Durable refusal provenance: after detecting the in-band refusal, tdaCall

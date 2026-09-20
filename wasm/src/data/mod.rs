@@ -380,6 +380,7 @@ pub fn with_dataset_mut<T>(handle: u32, f: impl FnOnce(&mut Dataset) -> T) -> Op
 }
 
 pub fn destroy_dataset(handle: u32) {
+    crate::prepared_results::release_dataset(handle);
     column_view::release_dataset(handle);
     DATASET_REGISTRY.lock().expect("dataset registry poisoned").remove(handle);
 }
@@ -394,6 +395,7 @@ pub fn data_reset_runtime_generation(generation: u32) -> u32 {
         registry.reset_generation(generation)
     };
     provenance::clear();
+    crate::prepared_results::clear();
     ROW_MATERIALISATIONS.store(0, Ordering::Relaxed);
     u32::from(reset)
 }
