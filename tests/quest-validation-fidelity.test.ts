@@ -23,10 +23,7 @@ import {
 } from '../src/validation/guided-ux-validation.ts';
 import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.ts';
 import { QUEST_PERF_STEP_POLICY } from '../dev/validation-adjudication.ts';
-import {
-  finalizeValidationSession,
-  verifyFinalizedCustody,
-} from '../dev/validation-finalizer.ts';
+import { finalizeValidationSession, verifyFinalizedCustody } from '../dev/validation-finalizer.ts';
 import { computeQualificationProgress } from '../dev/loadtest-server.ts';
 import { recordValidationPrerequisite } from '../scripts/quest-validation-prerequisite.mjs';
 
@@ -102,12 +99,20 @@ function greenReport(value: ValidationManifest) {
       datasetRowsIncluded: false,
       cameraPosesIncluded: false,
     },
-    steps: QUEST_PERF_STEP_POLICY.map((policy) => ({
-      spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
-      frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
-      criticalViolations: 0,
-      grade: 'green',
-    })),
+    steps: [
+      {
+        spec: { topology: 'TABULAR', rowCount: 1_000, durationSec: 15, warmup: true },
+        frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+        criticalViolations: 0,
+        grade: 'green',
+      },
+      ...QUEST_PERF_STEP_POLICY.map((policy) => ({
+        spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
+        frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+        criticalViolations: 0,
+        grade: 'green',
+      })),
+    ],
   };
 }
 
@@ -152,28 +157,36 @@ function writeUxEvidence(root: string, value: ValidationManifest): string {
   const submission = uxSubmission(value);
   writeFileSync(
     join(dir, 'ux-results.json'),
-    `${JSON.stringify({
-      schemaVersion: submission.schemaVersion,
-      sessionId: submission.sessionId,
-      sessionLabel: submission.sessionLabel,
-      buildId: submission.buildId,
-      deviceBuildFingerprint: submission.deviceBuildFingerprint,
-      evidenceKind: submission.evidenceKind,
-      results: submission.results,
-      completedAt: submission.completedAt,
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        schemaVersion: submission.schemaVersion,
+        sessionId: submission.sessionId,
+        sessionLabel: submission.sessionLabel,
+        buildId: submission.buildId,
+        deviceBuildFingerprint: submission.deviceBuildFingerprint,
+        evidenceKind: submission.evidenceKind,
+        results: submission.results,
+        completedAt: submission.completedAt,
+      },
+      null,
+      2
+    )}\n`,
     'utf8'
   );
   writeFileSync(
     join(dir, 'comfort-observation.json'),
-    `${JSON.stringify({
-      schemaVersion: submission.schemaVersion,
-      sessionId: submission.sessionId,
-      sessionLabel: submission.sessionLabel,
-      buildId: submission.buildId,
-      deviceBuildFingerprint: submission.deviceBuildFingerprint,
-      ...submission.comfortObservation,
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        schemaVersion: submission.schemaVersion,
+        sessionId: submission.sessionId,
+        sessionLabel: submission.sessionLabel,
+        buildId: submission.buildId,
+        deviceBuildFingerprint: submission.deviceBuildFingerprint,
+        ...submission.comfortObservation,
+      },
+      null,
+      2
+    )}\n`,
     'utf8'
   );
   return dir;
@@ -285,7 +298,10 @@ describe('QV cohort and ledger fidelity', () => {
     ).toBe('finalized');
     expect(computeQualificationProgress(validationRoot, active)?.renderCompleted).toBe(2);
 
-    appendFileSync(join(priorDir, 'loadtest-results.jsonl'), `${JSON.stringify({ injected: true })}\n`);
+    appendFileSync(
+      join(priorDir, 'loadtest-results.jsonl'),
+      `${JSON.stringify({ injected: true })}\n`
+    );
     expect(verifyFinalizedCustody(priorDir).ok).toBe(false);
     expect(computeQualificationProgress(validationRoot, active)?.renderCompleted).toBe(1);
 
@@ -311,7 +327,10 @@ describe('QV cohort and ledger fidelity', () => {
         sessionLabel: first.sessionLabel,
       }).status
     ).toBe('finalized');
-    appendFileSync(join(firstDir, 'loadtest-results.jsonl'), `${JSON.stringify({ injected: true })}\n`);
+    appendFileSync(
+      join(firstDir, 'loadtest-results.jsonl'),
+      `${JSON.stringify({ injected: true })}\n`
+    );
 
     const second = manifest(
       'quest-perf',
@@ -363,7 +382,10 @@ describe('QV publication fidelity', () => {
       }).status
     ).toBe('finalized');
 
-    appendFileSync(join(firstDir, 'loadtest-results.jsonl'), `${JSON.stringify({ injected: true })}\n`);
+    appendFileSync(
+      join(firstDir, 'loadtest-results.jsonl'),
+      `${JSON.stringify({ injected: true })}\n`
+    );
     const published = spawnSync(process.execPath, [PUBLISH_VALIDATION_SCRIPT], {
       cwd: root,
       encoding: 'utf8',

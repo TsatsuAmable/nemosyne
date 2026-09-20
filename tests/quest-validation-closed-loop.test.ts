@@ -1,19 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import {
-  existsSync,
-  mkdtempSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   deriveValidationManifest,
   type QuestDeviceIdentity,
+  type QuestPerformanceProfile,
   type ValidationManifest,
   type ValidationMode,
 } from '../src/validation/validation-manifest.ts';
@@ -36,7 +30,10 @@ import {
   type ValidationSessionIdentity,
 } from '../src/validation/validation-session.ts';
 import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.ts';
-import { QUEST_PERF_STEP_POLICY } from '../dev/validation-adjudication.ts';
+import {
+  QUEST_PERFORMANCE_PROFILE_POLICIES,
+  QUEST_PERF_STEP_POLICY,
+} from '../dev/validation-adjudication.ts';
 import {
   computeQualificationProgress,
   createLoadTestResultsHandler,
@@ -52,6 +49,10 @@ const OTHER_SESSION: ValidationSessionIdentity = {
   label: 'RF029-277c2e7-20260905T021000',
   id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
 };
+const LONG_SESSION: ValidationSessionIdentity = {
+  label: 'PERF05-277c2e7-20260905T022000',
+  id: '9b2d5e4c-5a7f-4c35-8a76-2e02f3e9a111',
+};
 
 const roots: string[] = [];
 afterEach(() => {
@@ -64,7 +65,9 @@ function tempRoot(): string {
   return root;
 }
 
-function identity(fingerprint = 'oculus/panther/panther:12/SQ3A/5123456789:user/release-keys'): QuestDeviceIdentity {
+function identity(
+  fingerprint = 'oculus/panther/panther:12/SQ3A/5123456789:user/release-keys'
+): QuestDeviceIdentity {
   return {
     captureBasis: 'adb-system-property',
     model: 'Meta Quest 3S',
@@ -79,7 +82,8 @@ function identity(fingerprint = 'oculus/panther/panther:12/SQ3A/5123456789:user/
 function manifest(
   session: ValidationSessionIdentity = SESSION,
   mode: ValidationMode = 'quest-perf',
-  device: QuestDeviceIdentity = identity()
+  device: QuestDeviceIdentity = identity(),
+  profileOverride?: QuestPerformanceProfile
 ): ValidationManifest {
   return deriveValidationManifest({
     sessionId: session.id,
@@ -87,6 +91,7 @@ function manifest(
     buildId: BUILD,
     worktree: 'clean',
     mode,
+    profileOverride,
     createdAt: '2026-09-05T02:00:00.000Z',
     deviceIdentity: device,
     declaredQuestModel: device.model,
@@ -103,7 +108,10 @@ function writeSession(logDir: string, value: ValidationManifest, lines: unknown[
     `${JSON.stringify({ gateDisposition: { status: null, reasons: [] } }, null, 2)}\n`
   );
   if (lines.length > 0) {
-    writeFileSync(join(dir, 'loadtest-results.jsonl'), lines.map((line) => JSON.stringify(line)).join('\n') + '\n');
+    writeFileSync(
+      join(dir, 'loadtest-results.jsonl'),
+      lines.map((line) => JSON.stringify(line)).join('\n') + '\n'
+    );
   }
 }
 
@@ -126,8 +134,51 @@ function validPerfReport(value: ValidationManifest) {
       datasetRowsIncluded: false,
       cameraPosesIncluded: false,
     },
-    steps: QUEST_PERF_STEP_POLICY.map((policy) => ({
-      spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
+    steps: [
+      {
+        spec: { topology: 'TABULAR', rowCount: 1_000, durationSec: 15, warmup: true },
+        frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+        criticalViolations: 0,
+        grade: 'green',
+      },
+      ...QUEST_PERF_STEP_POLICY.map((policy) => ({
+        spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
+        frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+        criticalViolations: 0,
+        grade: 'green',
+      })),
+    ],
+  };
+}
+
+function validLongPerfReport(value: ValidationManifest) {
+  const profile = value.profile as QuestPerformanceProfile;
+  const policy = QUEST_PERFORMANCE_PROFILE_POLICIES[profile];
+  return {
+    version: '2',
+    profileName: profile,
+    xrActive: true,
+    aborted: false,
+    thresholds: { ...LOAD_TEST_THRESHOLDS },
+    device: {
+      buildId: value.buildId,
+      declaredDeviceTarget: 'META_QUEST_3S',
+      identityBasis: 'adb-system-property',
+      declaredFirmwareVersion: value.deviceIdentity?.buildIncremental,
+      xr: { active: true },
+    },
+    collection: {
+      rawFrameTraceIncluded: false,
+      datasetRowsIncluded: false,
+      cameraPosesIncluded: false,
+    },
+    steps: policy.steps.map((step) => ({
+      spec: {
+        topology: 'TABULAR',
+        rowCount: step.rowCount,
+        durationSec: step.durationSec,
+        warmup: step.warmup,
+      },
       frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
       criticalViolations: 0,
       grade: 'green',
@@ -199,7 +250,10 @@ function request(
   return res;
 }
 
-function headers(session: ValidationSessionIdentity = SESSION, receipt = false): Record<string, string> {
+function headers(
+  session: ValidationSessionIdentity = SESSION,
+  receipt = false
+): Record<string, string> {
   return {
     [VALIDATION_SESSION_LABEL_HEADER]: session.label,
     [VALIDATION_SESSION_ID_HEADER]: session.id,
@@ -252,6 +306,31 @@ describe('browser validation projection', () => {
     expect(ctx?.attributionIssue).toMatch(/pending/i);
   });
 
+  it('projects the manifest-bound long-session profile and rejects unknown profile env', () => {
+    const baseEnv = {
+      VITE_NEMOSYNE_VALIDATION_SESSION_LABEL: SESSION.label,
+      VITE_NEMOSYNE_VALIDATION_SESSION_ID: SESSION.id,
+      VITE_NEMOSYNE_BUILD_ID: BUILD,
+      VITE_NEMOSYNE_VALIDATION_MODE: 'quest-perf',
+      VITE_NEMOSYNE_WORKTREE: 'clean',
+      VITE_NEMOSYNE_QUEST_IDENTITY_BASIS: 'adb-system-property',
+      VITE_NEMOSYNE_QUEST_MODEL: 'Meta Quest 3S',
+      VITE_NEMOSYNE_QUEST_BUILD_INCREMENTAL: '5123456789012345678',
+      VITE_NEMOSYNE_QUEST_BUILD_FINGERPRINT: identity().buildFingerprint,
+    };
+    const ctx = readBrowserValidationContext({
+      ...baseEnv,
+      VITE_NEMOSYNE_VALIDATION_PROFILE: 'uxr0-resource-trend-30m',
+    });
+    expect(ctx?.manifest.profile).toBe('uxr0-resource-trend-30m');
+    expect(
+      readBrowserValidationContext({
+        ...baseEnv,
+        VITE_NEMOSYNE_VALIDATION_PROFILE: 'uxr0-invented',
+      })
+    ).toBeNull();
+  });
+
   it('fails closed when the session identity is incomplete', () => {
     expect(
       readBrowserValidationContext({
@@ -297,6 +376,25 @@ describe('sink-owned qualification progress', () => {
       deviceBuildFingerprint: identity().buildFingerprint,
     });
   });
+
+  it('does not count a finalized long-session profile toward the staircase repeat target', () => {
+    const logDir = tempRoot();
+    const active = manifest();
+    writeSession(logDir, active, [validPerfReport(active)]);
+
+    const longRun = manifest(LONG_SESSION, 'quest-perf', identity(), 'uxr0-resource-trend-30m');
+    writeSession(logDir, longRun, [validLongPerfReport(longRun)]);
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: join(logDir, 'validation'),
+        sessionLabel: longRun.sessionLabel,
+      }).status
+    ).toBe('finalized');
+
+    expect(computeQualificationProgress(join(logDir, 'validation'), active)?.renderCompleted).toBe(
+      1
+    );
+  });
 });
 
 describe('governed delivery receipt and status', () => {
@@ -341,7 +439,13 @@ describe('governed delivery receipt and status', () => {
     const logDir = tempRoot();
     writeSession(logDir, manifest());
     const handler = createLoadTestResultsHandler({ logDir, activeSession: SESSION });
-    const res = request(handler, 'GET', VALIDATION_STATUS_ENDPOINT, headers(OTHER_SESSION), undefined);
+    const res = request(
+      handler,
+      'GET',
+      VALIDATION_STATUS_ENDPOINT,
+      headers(OTHER_SESSION),
+      undefined
+    );
     expect(res.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
   });
 });
@@ -362,7 +466,13 @@ describe('QV5 guided physical UX evidence', () => {
     writeSession(logDir, uxManifest);
     const handler = createLoadTestResultsHandler({ logDir, activeSession: SESSION });
     const submission = validUxSubmission(uxManifest);
-    const res = request(handler, 'POST', VALIDATION_UX_ENDPOINT, headers(SESSION, true), submission);
+    const res = request(
+      handler,
+      'POST',
+      VALIDATION_UX_ENDPOINT,
+      headers(SESSION, true),
+      submission
+    );
     const payload = JSON.parse(res.end.mock.calls.at(-1)?.[0] as string);
     expect(payload.receipt.status).toBe('captured');
     const dir = join(logDir, 'validation', SESSION.label);
@@ -370,7 +480,9 @@ describe('QV5 guided physical UX evidence', () => {
     expect(existsSync(join(dir, 'comfort-observation.json'))).toBe(true);
     const ux = JSON.parse(readFileSync(join(dir, 'ux-results.json'), 'utf8'));
     expect(ux.results).toHaveLength(GUIDED_UX_TASKS.length);
-    expect(ux.results.some((result: { inputModality: string }) => result.inputModality === 'hand')).toBe(true);
+    expect(
+      ux.results.some((result: { inputModality: string }) => result.inputModality === 'hand')
+    ).toBe(true);
   });
 
   it('rejects guided UX evidence that disagrees with the launcher manifest', () => {
@@ -379,7 +491,13 @@ describe('QV5 guided physical UX evidence', () => {
     writeSession(logDir, uxManifest);
     const handler = createLoadTestResultsHandler({ logDir, activeSession: SESSION });
     const submission = { ...validUxSubmission(uxManifest), buildId: 'a'.repeat(40) };
-    const res = request(handler, 'POST', VALIDATION_UX_ENDPOINT, headers(SESSION, true), submission);
+    const res = request(
+      handler,
+      'POST',
+      VALIDATION_UX_ENDPOINT,
+      headers(SESSION, true),
+      submission
+    );
     expect(res.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
     expect(existsSync(join(logDir, 'validation', SESSION.label, 'ux-results.json'))).toBe(false);
   });

@@ -34,10 +34,7 @@ import {
   deriveValidationManifest,
   validateValidationManifest,
 } from '../src/validation/validation-manifest.ts';
-import {
-  captureAdbQuestDevice,
-  QUEST_ADB_SERIAL_ENV,
-} from './quest-adb-device.mjs';
+import { captureAdbQuestDevice, QUEST_ADB_SERIAL_ENV } from './quest-adb-device.mjs';
 
 export const VALIDATION_LOG_ROOT = 'logs/validation';
 export const FALLBACK_BUILD_ID = 'unversioned-local-build';
@@ -129,7 +126,11 @@ export function collectWasmBuildDiagnostics({
         timeout: boundedProbeTimeoutMs,
       });
       if (result?.error || result?.status !== 0) return null;
-      return String(result?.stdout ?? '').trim().slice(0, 512) || null;
+      return (
+        String(result?.stdout ?? '')
+          .trim()
+          .slice(0, 512) || null
+      );
     } catch {
       return null;
     }
@@ -330,6 +331,7 @@ export const applyDeviceDeclarationGate = applyDeviceIdentityGate;
  */
 export function buildValidationContext({
   mode,
+  profileOverride = undefined,
   git = runGit,
   sessionId = generateSessionId(),
   now = () => new Date(),
@@ -353,6 +355,7 @@ export function buildValidationContext({
       buildId,
       worktree,
       mode,
+      profileOverride,
       createdAt: now().toISOString(),
       deviceIdentity: identity,
       deviceIdentityError: identityError,
@@ -506,6 +509,7 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
     return 2;
   }
   const spec = VALIDATION_MODE_TABLE[mode];
+  const profileOverride = argv[3] ?? undefined;
 
   const deviceCapture = captureAdbQuestDevice({
     selectedSerial: env[QUEST_ADB_SERIAL_ENV] ?? null,
@@ -515,6 +519,7 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
   try {
     manifest = buildValidationContext({
       mode,
+      profileOverride,
       git: runGit,
       now: () => new Date(),
       device: readDeviceDeclaration(root),
@@ -585,6 +590,8 @@ export function main(argv = process.argv, env = process.env, root = process.cwd(
       ...env,
       VITE_NEMOSYNE_BUILD_ID: validated.manifest.buildId,
       VITE_NEMOSYNE_VALIDATION_MODE: validated.manifest.validationMode,
+      VITE_NEMOSYNE_VALIDATION_PROFILE: validated.manifest.profile ?? '',
+      VITE_NEMOSYNE_VALIDATION_MANIFEST_JSON: JSON.stringify(validated.manifest),
       VITE_NEMOSYNE_VALIDATION_SESSION_ID: validated.manifest.sessionId,
       VITE_NEMOSYNE_VALIDATION_SESSION_LABEL: validated.manifest.sessionLabel,
       VITE_NEMOSYNE_VALIDATION_EVIDENCE_DIR: validated.manifest.evidenceDir,

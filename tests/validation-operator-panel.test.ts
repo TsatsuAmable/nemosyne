@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { resolveGovernedQuestPerformanceProfile } from '../src/app/devEvidence.ts';
 import { ValidationOperatorPanel } from '../src/vr/ui/ValidationOperatorPanel.ts';
 import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import {
@@ -94,6 +95,20 @@ function panelFor(mode: ValidationMode = 'quest-perf') {
   return { panel, callbacks, handlers, unsubs };
 }
 
+describe('governed Quest performance profile dispatch', () => {
+  it('maps each manifest profile to the same production profile and rejects unknown values', () => {
+    for (const name of [
+      'quest-3s-qualification',
+      'uxr0-functional-5m',
+      'uxr0-resource-trend-30m',
+      'uxr0-sustained-60m',
+    ]) {
+      expect(resolveGovernedQuestPerformanceProfile(name).name).toBe(name);
+    }
+    expect(() => resolveGovernedQuestPerformanceProfile('uxr0-invented')).toThrow(/unsupported/i);
+  });
+});
+
 describe('ValidationOperatorPanel governed semantic dispatch', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -151,9 +166,7 @@ describe('ValidationOperatorPanel governed semantic dispatch', () => {
     const { panel, callbacks } = panelFor('quest-ux');
     panel.setServerStatus(status('quest-ux'));
 
-    const taskCount = panel
-      .getRenderedSummary()
-      .match(/Task 1\/(\d+)/)?.[1];
+    const taskCount = panel.getRenderedSummary().match(/Task 1\/(\d+)/)?.[1];
     expect(taskCount).toBeTruthy();
     const total = Number(taskCount);
 
@@ -167,7 +180,9 @@ describe('ValidationOperatorPanel governed semantic dispatch', () => {
     expect(panel.dispatchAction('ux-submit')).toBe(true);
 
     await vi.waitFor(() => expect(callbacks.onSubmitUx).toHaveBeenCalledTimes(1));
-    const submission = (callbacks.onSubmitUx.mock.calls as unknown as Array<[GuidedUxSubmission]>)[0]?.[0];
+    const submission = (
+      callbacks.onSubmitUx.mock.calls as unknown as Array<[GuidedUxSubmission]>
+    )[0]?.[0];
     expect(submission).toBeDefined();
     expect(submission?.results).toHaveLength(total);
     expect(submission?.results.every((result) => result.outcome === 'pass')).toBe(true);

@@ -94,12 +94,20 @@ function greenReport(value: ValidationManifest) {
       datasetRowsIncluded: false,
       cameraPosesIncluded: false,
     },
-    steps: QUEST_PERF_STEP_POLICY.map((policy) => ({
-      spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
-      frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
-      criticalViolations: 0,
-      grade: 'green',
-    })),
+    steps: [
+      {
+        spec: { topology: 'TABULAR', rowCount: 1_000, durationSec: 15, warmup: true },
+        frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+        criticalViolations: 0,
+        grade: 'green',
+      },
+      ...QUEST_PERF_STEP_POLICY.map((policy) => ({
+        spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
+        frames: { p95Ms: 10, p99Ms: 12, droppedPct: 1 },
+        criticalViolations: 0,
+        grade: 'green',
+      })),
+    ],
   };
 }
 
@@ -288,20 +296,14 @@ describe('QV8 dev-server custody guard', () => {
     });
     const firstRes = fakeResponse();
     expect(
-      handler(
-        fakeRequest('POST', '/__loadtest-results'),
-        firstRes as unknown as ServerResponse
-      )
+      handler(fakeRequest('POST', '/__loadtest-results'), firstRes as unknown as ServerResponse)
     ).toBe(false);
     firstRes.emit('finish');
     expect(getValidationFinalizationStatus(evidenceDir).state).toBe('finalized');
 
     const secondRes = fakeResponse();
     expect(
-      handler(
-        fakeRequest('POST', '/__loadtest-results'),
-        secondRes as unknown as ServerResponse
-      )
+      handler(fakeRequest('POST', '/__loadtest-results'), secondRes as unknown as ServerResponse)
     ).toBe(true);
     expect(secondRes.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
   });
