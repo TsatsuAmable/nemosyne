@@ -102,14 +102,14 @@ describe('P1-R2E B2 resident Rust/WASM source-relationship-graph payload', () =>
 
   it('pins the resident-authority source structure and strict TS transport wiring', () => {
     const rust = readFileSync('wasm/src/moneta/graph_embodiment.rs', 'utf8');
-    const bridgeSource = readFileSync('src/wasm/runtime/SemanticEmbodimentBridge.ts', 'utf8');
     const worker = readFileSync('src/atlas/ports/analytical.worker.ts', 'utf8');
     expect(rust).toContain('data::with_dataset');
     expect(rust).toContain('deny_unknown_fields');
     expect(rust).toContain('semantic_node_id');
     expect(rust).toContain('semantic_edge_id');
     expect(rust).toContain('MAX_RELATIONSHIP_GRAPH_PAYLOAD_BYTES_V1');
-    expect(bridgeSource).toContain('moneta_build_graph_embodiment_v1');
+    // Production transfer/authority is exercised by R1's real-WASM
+    // compute-once tests, not a source-string assertion on an ABI name.
     expect(worker).toContain("req.params.candidateId === 'RELATIONSHIP_GRAPH'");
     expect(worker).toContain('buildGraphSemanticEmbodimentV1(');
   });

@@ -5,9 +5,15 @@ use wasm_bindgen::prelude::*;
 
 const MAX_RESULTS: usize = 4;
 const MAX_RESULT_BYTES: usize = crate::MAX_MEMORY_PAGES as usize * 65536;
-static COMPUTATIONS: [AtomicU32; 5] = [const { AtomicU32::new(0) }; 5];
+static COMPUTATIONS: [AtomicU32; 11] = [const { AtomicU32::new(0) }; 11];
 pub const STATISTICS: usize = 3;
 pub const DATASET_JSON: usize = 4;
+pub const AGGREGATE: usize = 5;
+pub const DISTRIBUTION: usize = 6;
+pub const DENSITY: usize = 7;
+pub const CLUSTER: usize = 8;
+pub const GRAPH: usize = 9;
+pub const SEMANTIC_DETAIL: usize = 10;
 
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);
@@ -85,6 +91,13 @@ pub fn prepare(dataset: u32, compute: impl FnOnce() -> Option<String>) -> u32 {
     if crate::data::with_columnar_dataset(dataset, |_| ()).is_none() {
         return 0;
     }
+    prepare_response(dataset, compute)
+}
+
+// Detail queries own a response even when the dataset is stale: Rust must
+// serialize its structured refusal, rather than turning it into ABI null.
+// The owner id is only a cleanup key, never authority to access a dataset.
+pub(crate) fn prepare_response(dataset: u32, compute: impl FnOnce() -> Option<String>) -> u32 {
     let token = match REGISTRY.lock().expect("prepared results").reserve(dataset) {
         Some(token) => token,
         None => return u32::MAX,

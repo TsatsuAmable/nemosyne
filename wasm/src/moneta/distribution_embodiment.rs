@@ -403,8 +403,25 @@ pub fn moneta_build_distribution_embodiment_v1(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    serialize_distribution_embodiment(handle, input_ptr, input_len)
+        .map(|output| crate::write_bytes_out(output.as_bytes(), out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn moneta_prepare_distribution_embodiment_v1(handle: u32, input_ptr: u32, input_len: u32) -> u32 {
+    crate::prepared_results::prepare(handle, || {
+        serialize_distribution_embodiment(handle, input_ptr, input_len)
+    })
+}
+
+fn serialize_distribution_embodiment(
+    handle: u32,
+    input_ptr: u32,
+    input_len: u32,
+) -> Option<String> {
     let Some(input) = copy_host_input(input_ptr, input_len) else {
-        return 0;
+        return None;
     };
     let request: DistributionEmbodimentRequestV1 = match serde_json::from_slice(&input) {
         Ok(request) => request,
@@ -412,22 +429,23 @@ pub fn moneta_build_distribution_embodiment_v1(
             crate::log_error(&format!(
                 "distribution semantic embodiment request parse failed: {error}"
             ));
-            return 0;
+            return None;
         }
     };
+    crate::prepared_results::record_computation(crate::prepared_results::DISTRIBUTION);
     let Some(envelope) = build_distribution_embodiment_v1(handle, &request) else {
-        return 0;
+        return None;
     };
-    let output = match serde_json::to_vec(&envelope) {
+    let output = match serde_json::to_string(&envelope) {
         Ok(output) => output,
         Err(error) => {
             crate::log_error(&format!(
                 "distribution semantic embodiment serialization failed: {error}"
             ));
-            return 0;
+            return None;
         }
     };
-    crate::write_bytes_out(&output, out_ptr, out_len)
+    Some(output)
 }
 
 #[cfg(test)]
