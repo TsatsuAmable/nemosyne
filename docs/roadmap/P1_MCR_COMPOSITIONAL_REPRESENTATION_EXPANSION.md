@@ -1,6 +1,6 @@
 # P1-MCR — Moneta Compositional Representation Expansion
 
-**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1 CONTRACT VALIDATION IN REVIEW (#801); MCR2-MCR7 PRODUCTION PROMOTION REMAINS DOWNSTREAM OF P1-TEC -> PT9/PT10<br>
+**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1 CONTRACT VALIDATION LANDED (#801); MCR2-MCR7 PRODUCTION PROMOTION REMAINS DOWNSTREAM OF P1-TEC -> PT9/PT10<br>
 **Established:** 20 September 2026  
 **Audit baseline:** `main@7fbd99e628f7eeafc29703ef32a19940a55f0c84` (#800)<br>
 **Live status authority:** `docs/ROADMAP.md`  
@@ -298,7 +298,7 @@ P1-MCR is complete only when all of the following are true:
 
 ## 7. First implementation slice after promotion
 
-MCR0 authority/schema bounds are landed by #800 and MCR1 cross-contract validation is currently in review as #801. If MCR1 lands before the live roadmap promotes the production expansion, the next promoted slice is **MCR2 general semantic-to-spatial compilation**, gated by the relevant P1-TEC closure and the intervening PT9/PT10 prerequisites.
+MCR0 authority/schema bounds are landed by #800 and MCR1 cross-contract validation is landed by #801. When the live roadmap promotes the production expansion, the next promoted slice is **MCR2 general semantic-to-spatial compilation**, gated by the relevant P1-TEC closure and the intervening PT9/PT10 prerequisites.
 
 Do not begin by teaching Moneta to search a larger space. First prove that a hand-authored/deterministic two-phenomenon `RepresentationGraph` can bind only admissible evidence, compile into a bounded `SpatialEmbodimentPlan`, and survive the production lifecycle without weakening P1-TEC evidence identity or abstention semantics.
 
