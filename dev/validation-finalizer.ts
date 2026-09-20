@@ -585,6 +585,7 @@ export function finalizeValidationSession(options: {
         reasons: adjudication.aggregateReasons,
       },
       gates: adjudication.gateResults,
+      uxr4Observations: adjudication.uxr4Observations,
     };
 
     atomicWrite(
