@@ -110,6 +110,7 @@ const publicFacadeExports = [
   'solveDraco',
   'solveMoneta',
   'statistics',
+  'statisticsEvidenceReceiptBundle',
   'tdaResourcePreflight',
   'update',
 ] as const;
