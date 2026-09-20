@@ -25,6 +25,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 ## Implementation and engineering reference
 
 - [`IMPLEMENTATION_PLAN_V3.md`](IMPLEMENTATION_PLAN_V3.md) - V3 sequencing and dependency structure; `ROADMAP.md` governs live status.
+- [`roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`](roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md) - dedicated downstream Moneta compositional-representation workstream; reuses RepresentationGraph, semantic/spatial embodiment contracts and keeps evolutionary synthesis/search separate.
 - [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) - developer onboarding and codebase mental model.
 - [`MIGRATION.md`](MIGRATION.md) - migration reference where still applicable.
 - [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) - CI evidence/latency strategy and measured sharding work.
