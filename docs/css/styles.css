@@ -1113,121 +1113,94 @@
             content: '←';
         }
 
-        /* Full Moneta direction preview: dependency-free SVG/CSS, not a production renderer. */
+        /* Full Moneta visual direction preview, rendered in Nemosyne's Three.js visual language. */
         .datasphere-preview {
             position: relative;
-            min-height: 520px;
+            min-height: 600px;
             display: grid;
-            grid-template-rows: minmax(330px, 1fr) auto;
+            grid-template-rows: minmax(430px, 1fr) auto;
             overflow: hidden;
-            border: 1px solid rgba(0, 212, 170, 0.24);
+            border: 1px solid rgba(89, 214, 255, 0.24);
             border-radius: 12px;
-            background:
-                radial-gradient(circle at 50% 38%, rgba(212, 175, 55, 0.08), transparent 24%),
-                radial-gradient(circle at 22% 30%, rgba(0, 212, 170, 0.08), transparent 32%),
-                linear-gradient(145deg, #050508 0%, #090914 55%, #050508 100%);
-            box-shadow: 0 0 60px rgba(0, 212, 170, 0.08);
+            background: #05070b;
+            box-shadow: 0 0 60px rgba(89, 214, 255, 0.08);
         }
 
         .datasphere-preview__status {
             position: absolute;
             top: 1rem;
             left: 1.25rem;
-            z-index: 2;
-            color: var(--datasphere-cyan);
-            font-size: 0.7rem;
+            z-index: 4;
+            color: #59d6ff;
+            font-size: 0.68rem;
             font-weight: 700;
             letter-spacing: 0.14em;
+            text-shadow: 0 0 12px rgba(89, 214, 255, 0.45);
+            pointer-events: none;
         }
 
-        .datasphere-preview__scene {
+        .datasphere-preview__viewport {
+            position: relative;
+            min-height: 430px;
+            background: #05070b;
+            overflow: hidden;
+        }
+
+        #datasphere-preview-canvas {
+            display: block;
             width: 100%;
             height: 100%;
-            min-height: 340px;
-            padding: 2.75rem 1rem 0;
-            overflow: visible;
+            min-height: 430px;
+            cursor: grab;
+            touch-action: none;
         }
 
-        .datasphere-link {
-            stroke: rgba(0, 212, 170, 0.38);
-            stroke-width: 2;
-            vector-effect: non-scaling-stroke;
+        #datasphere-preview-canvas:active {
+            cursor: grabbing;
         }
 
-        .datasphere-link--secondary {
-            stroke: rgba(192, 197, 206, 0.18);
-            stroke-dasharray: 4 9;
+        #datasphere-preview-canvas.is-hovering {
+            cursor: pointer;
         }
 
-        .datasphere-link--flow {
-            stroke-dasharray: 10 12;
-            animation: datasphere-flow 4s linear infinite;
+        .datasphere-preview__hud {
+            position: absolute;
+            right: 1.1rem;
+            bottom: 0.9rem;
+            left: 1.1rem;
+            z-index: 3;
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            color: rgba(169, 184, 198, 0.72);
+            font: 600 0.64rem/1.2 'Inter', sans-serif;
+            letter-spacing: 0.12em;
+            pointer-events: none;
         }
 
-        .datasphere-core__halo {
-            fill: rgba(212, 175, 55, 0.04);
-            stroke: rgba(212, 175, 55, 0.2);
-            stroke-width: 1;
-        }
-
-        .datasphere-core__ring {
-            fill: rgba(212, 175, 55, 0.08);
-            stroke: var(--memory-gold);
-            stroke-width: 2;
-        }
-
-        .datasphere-core__glyph {
-            fill: rgba(212, 175, 55, 0.18);
-            stroke: var(--memory-gold);
-            stroke-width: 2;
-            animation: datasphere-breathe 4s ease-in-out infinite;
-            transform-origin: center;
-        }
-
-        .datasphere-node > circle:first-child {
-            fill: rgba(5, 5, 8, 0.82);
-            stroke-width: 2;
-        }
-
-        .datasphere-node__inner {
-            opacity: 0.72;
-            stroke-width: 0;
-        }
-
-        .datasphere-node--cyan > circle:first-child { stroke: var(--datasphere-cyan); }
-        .datasphere-node--cyan .datasphere-node__inner { fill: var(--datasphere-cyan); }
-        .datasphere-node--violet > circle:first-child { stroke: var(--temporal-purple); }
-        .datasphere-node--violet .datasphere-node__inner { fill: var(--temporal-purple); }
-        .datasphere-node--rose > circle:first-child { stroke: var(--shrike-red); }
-        .datasphere-node--rose .datasphere-node__inner { fill: var(--shrike-red); }
-        .datasphere-node--gold > circle:first-child { stroke: var(--memory-gold); }
-        .datasphere-node--gold .datasphere-node__inner { fill: var(--memory-gold); }
-
-        .datasphere-label {
-            fill: var(--lunar-silver);
-            font-family: 'Inter', sans-serif;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.09em;
-        }
-
-        .datasphere-label--core {
-            fill: var(--memory-gold);
-            font-size: 12px;
+        .datasphere-preview__fallback {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: #a9b8c6;
+            background: #05070b;
+            font-size: 0.85rem;
         }
 
         .datasphere-preview__copy {
             position: relative;
-            z-index: 2;
-            padding: 1.25rem 1.5rem 1.5rem;
-            border-top: 1px solid rgba(0, 212, 170, 0.14);
-            background: linear-gradient(180deg, rgba(5, 5, 8, 0.72), rgba(5, 5, 8, 0.96));
+            z-index: 3;
+            padding: 1.2rem 1.5rem 1.45rem;
+            border-top: 1px solid rgba(89, 214, 255, 0.14);
+            background:
+                linear-gradient(180deg, rgba(5, 7, 11, 0.82), rgba(5, 7, 11, 0.98));
         }
 
         .datasphere-preview__eyebrow {
             display: inline-block;
             margin-bottom: 0.45rem;
-            color: var(--datasphere-cyan);
+            color: #59d6ff;
             font-size: 0.72rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -1236,7 +1209,7 @@
 
         .datasphere-preview__copy h3 {
             margin: 0 0 0.55rem;
-            color: var(--lunar-silver);
+            color: #f2f6fa;
             font-family: 'Cinzel', serif;
             font-size: 1.35rem;
             letter-spacing: 0.03em;
@@ -1244,58 +1217,18 @@
 
         .datasphere-preview__copy p {
             margin: 0 0 0.75rem;
-            color: var(--gray);
+            color: #a9b8c6;
             font-size: 0.9rem;
             line-height: 1.6;
         }
 
         .datasphere-preview__copy .datasphere-preview__disclaimer {
-            color: var(--lunar-silver);
+            color: #718394;
             font-size: 0.78rem;
-            opacity: 0.74;
-        }
-
-        .datasphere-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem 1.1rem;
-            margin: 0.9rem 0 1rem;
-            color: var(--gray);
-            font-size: 0.76rem;
-        }
-
-        .datasphere-legend span {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .legend-swatch {
-            width: 9px;
-            height: 9px;
-            display: inline-block;
-            border-radius: 50%;
-        }
-
-        .legend-swatch--core {
-            background: var(--memory-gold);
-            box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
-        }
-
-        .legend-swatch--dataset {
-            border: 1px solid var(--datasphere-cyan);
-            background: rgba(0, 212, 170, 0.18);
-        }
-
-        .legend-swatch--relation {
-            width: 18px;
-            height: 2px;
-            border-radius: 0;
-            background: rgba(0, 212, 170, 0.55);
         }
 
         .datasphere-preview__link {
-            color: var(--datasphere-cyan);
+            color: #59d6ff;
             font-size: 0.82rem;
             font-weight: 600;
             text-decoration: none;
@@ -1303,32 +1236,28 @@
 
         .datasphere-preview__link:hover,
         .datasphere-preview__link:focus-visible {
-            color: var(--memory-gold);
+            color: #8ce6c1;
             text-decoration: underline;
-        }
-
-        @keyframes datasphere-flow {
-            to { stroke-dashoffset: -44; }
-        }
-
-        @keyframes datasphere-breathe {
-            0%, 100% { transform: scale(0.96); opacity: 0.76; }
-            50% { transform: scale(1.04); opacity: 1; }
         }
 
         @media (max-width: 768px) {
             .datasphere-preview {
                 min-height: 0;
-                grid-template-rows: 300px auto;
+                grid-template-rows: 340px auto;
             }
 
-            .datasphere-preview__scene {
-                min-height: 300px;
-                padding-top: 3rem;
+            .datasphere-preview__viewport,
+            #datasphere-preview-canvas {
+                min-height: 340px;
             }
 
-            .datasphere-label {
-                font-size: 10px;
+            .datasphere-preview__status {
+                right: 1rem;
+                font-size: 0.6rem;
+            }
+
+            .datasphere-preview__hud {
+                font-size: 0.56rem;
             }
 
             .datasphere-preview__copy {
@@ -1337,8 +1266,7 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .datasphere-link--flow,
-            .datasphere-core__glyph {
-                animation: none;
+            .datasphere-preview__hud span:last-child {
+                display: none;
             }
         }
