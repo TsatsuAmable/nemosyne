@@ -137,3 +137,28 @@ describe('dataset-first Moneta prerequisite contracts', () => {
     ]);
   });
 });
+
+describe('MCR0 semantic structural admission bounds', () => {
+  it('fails closed above the semantic graph node ceiling', () => {
+    const nodes = Array.from({ length: 257 }, (_, i) => ({
+      id: `n-${i}`,
+      kind: 'DATASET' as const,
+      abstractionLevel: 'DATASET' as const,
+      childIds: [],
+      refinementTargetIds: [],
+      preserves: [],
+      loses: [],
+      evidenceRefs: [],
+    }));
+    const result = validateSemanticEmbodimentGraphV1({
+      schemaVersion: 1,
+      graphId: 'g',
+      datasetFingerprint: 'd',
+      decisionId: 'x',
+      provenanceRef: 'p',
+      rootNodeIds: ['n-0'],
+      nodes,
+    });
+    expect(result.errors).toContain('NODE_BOUND_EXCEEDED');
+  });
+});

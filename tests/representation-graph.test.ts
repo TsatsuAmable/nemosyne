@@ -60,7 +60,10 @@ describe('RepresentationGraph V3 contract', () => {
     graph.primitives = [graph.primitives[0], { ...graph.primitives[1], id: 'clusters' }];
     expect(validateRepresentationGraph(graph)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ path: 'primitives[1].id', message: expect.stringContaining('duplicate') }),
+        expect.objectContaining({
+          path: 'primitives[1].id',
+          message: expect.stringContaining('duplicate'),
+        }),
       ])
     );
   });
@@ -90,5 +93,20 @@ describe('RepresentationGraph V3 contract', () => {
     expect(validateRepresentationGraph(graph)).toEqual(
       expect.arrayContaining([expect.objectContaining({ path: 'layoutPolicy' })])
     );
+  });
+});
+
+describe('MCR0 structural admission bounds', () => {
+  it('fails closed when representation primitive bound is exceeded', () => {
+    const base = graphFixture();
+    const primitive = base.primitives[0];
+    const oversized = {
+      ...base,
+      primitives: Array.from({ length: 257 }, (_, i) => ({ ...primitive, id: `p-${i}` })),
+    };
+    expect(validateRepresentationGraph(oversized)).toContainEqual({
+      path: 'primitives',
+      message: 'structural bound exceeded',
+    });
   });
 });
