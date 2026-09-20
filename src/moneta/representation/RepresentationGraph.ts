@@ -7,6 +7,10 @@
  */
 
 export const REPRESENTATION_GRAPH_SCHEMA_VERSION = '1.0.0' as const;
+export const REPRESENTATION_GRAPH_MAX_PRIMITIVES = 256 as const;
+export const REPRESENTATION_GRAPH_MAX_EDGES = 512 as const;
+export const REPRESENTATION_GRAPH_MAX_SEMANTIC_MAPPINGS = 256 as const;
+export const REPRESENTATION_PRIMITIVE_MAX_SEMANTIC_INPUTS = 64 as const;
 
 export type RepresentationPrimitiveKind =
   | 'POINT_IDENTITY'
@@ -29,12 +33,7 @@ export type RepresentationPrimitiveKind =
   | 'DETAIL_EXPANSION';
 
 export type RepresentationCompositionRelation =
-  | 'OVERLAY'
-  | 'CONTAINS'
-  | 'DERIVES_FROM'
-  | 'COORDINATES_WITH'
-  | 'DETAIL_OF'
-  | 'COMPARES_WITH';
+  'OVERLAY' | 'CONTAINS' | 'DERIVES_FROM' | 'COORDINATES_WITH' | 'DETAIL_OF' | 'COMPARES_WITH';
 
 export type RepresentationParameterValue = string | number | boolean | null;
 
@@ -92,11 +91,23 @@ export function validateRepresentationGraph(
   const issues: RepresentationGraphValidationIssue[] = [];
 
   if (graph.schemaVersion !== REPRESENTATION_GRAPH_SCHEMA_VERSION) {
-    issues.push({ path: 'schemaVersion', message: `unsupported schema version: ${graph.schemaVersion}` });
+    issues.push({
+      path: 'schemaVersion',
+      message: `unsupported schema version: ${graph.schemaVersion}`,
+    });
   }
   if (!nonEmpty(graph.graphId)) issues.push({ path: 'graphId', message: 'must be non-empty' });
+  if (graph.primitives.length > REPRESENTATION_GRAPH_MAX_PRIMITIVES)
+    issues.push({ path: 'primitives', message: 'structural bound exceeded' });
+  if (graph.edges.length > REPRESENTATION_GRAPH_MAX_EDGES)
+    issues.push({ path: 'edges', message: 'structural bound exceeded' });
+  if (Object.keys(graph.semanticMappings).length > REPRESENTATION_GRAPH_MAX_SEMANTIC_MAPPINGS)
+    issues.push({ path: 'semanticMappings', message: 'structural bound exceeded' });
   if (graph.primitives.length === 0) {
-    issues.push({ path: 'primitives', message: 'must contain at least one representation primitive' });
+    issues.push({
+      path: 'primitives',
+      message: 'must contain at least one representation primitive',
+    });
   }
 
   const primitiveIds = new Set<string>();
@@ -110,6 +121,8 @@ export function validateRepresentationGraph(
       primitiveIds.add(primitive.id);
     }
 
+    if (primitive.semanticInputs.length > REPRESENTATION_PRIMITIVE_MAX_SEMANTIC_INPUTS)
+      issues.push({ path: path + '.semanticInputs', message: 'structural bound exceeded' });
     if (primitive.semanticInputs.some((input) => !nonEmpty(input))) {
       issues.push({ path: `${path}.semanticInputs`, message: 'semantic inputs must be non-empty' });
     }
