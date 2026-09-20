@@ -48,6 +48,7 @@ export const UI_ONLY_TESTS = [
 
 export const WASM_TESTS = [
   'tests/uxr3-statistics-json-wasm.test.ts',
+  'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-prepared-results-wasm.test.ts',
   'tests/accessibility.test.ts',
   'tests/analysis-templates.test.ts',

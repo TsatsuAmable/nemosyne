@@ -55,11 +55,11 @@ describe('P1-R density M2 Rust binned-density builder', () => {
 
   it('keeps computation on the resident columnar Rust path', () => {
     const rust = readFileSync('wasm/src/moneta/density_embodiment.rs', 'utf8');
-    const bridgeSource = readFileSync('src/wasm/runtime/SemanticEmbodimentBridge.ts', 'utf8');
     expect(rust).toContain('data::with_columnar_metadata');
     expect(rust).not.toContain('with_dataset(');
     expect(rust).not.toContain('.rows');
-    expect(bridgeSource).toContain('moneta_build_density_embodiment_v1');
+    // Production transfer/authority is exercised by R1's real-WASM
+    // compute-once tests, not a source-string assertion on an ABI name.
   });
 
   it('computes the hand-calculable binned density from a resident handle', () => {
