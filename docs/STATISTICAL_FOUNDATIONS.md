@@ -219,7 +219,7 @@ For null datasets the invariant is not that no algorithm may ever return structu
 
 The foundational architecture above is already established and partially implemented. The remaining roadmap work is therefore a **closure programme**, not a restart of the statistical-foundations effort.
 
-`docs/ROADMAP.md` owns live sequencing and status. P1-TEC closes four residual failure classes before PT9 learning and downstream Full-Moneta representation expansion:
+`docs/ROADMAP.md` owns live sequencing and status. P1-TEC closes five residual failure classes before PT9 learning and downstream Full-Moneta representation expansion:
 
 1. **Propagation loss:** determine whether measurement semantics, geometry, assumptions, sample support, uncertainty, stability, sensitivity, limitations and provenance survive from Rust `EvidenceClaim<T>` through the production transport/adapters into Moneta and semantic embodiment.
 2. **Transport/identity gaps:** close blocker-grade losses while keeping Rust/WASM as analytical authority. Prefer stable evidence references/receipts over duplicating scientific truth into TypeScript structures when that preserves the authority boundary more cleanly.
