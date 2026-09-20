@@ -2,7 +2,8 @@ use serde::Serialize;
 
 use crate::data::dataset::Dataset;
 use crate::data::evidence::{
-    AssumptionCheck, AssumptionStatus, EvidenceClaim, MethodProvenance, SupportPolicy,
+    AssumptionCheck, AssumptionStatus, EvidenceClaim, EvidenceMeasurementContextV1,
+    EvidenceReceiptBundleV1, EvidenceReceiptV1, MethodProvenance, SupportPolicy,
 };
 use crate::data::statistics::{
     compute_statistics, CategoricalStats, ColumnStats, CorrelationPair, TemporalStats,
@@ -18,6 +19,27 @@ pub struct StatisticsEvidence {
     pub correlation: Vec<EvidenceClaim<CorrelationPair>>,
     pub categorical: Vec<EvidenceClaim<CategoricalStats>>,
     pub temporal: Vec<EvidenceClaim<TemporalStats>>,
+}
+
+impl StatisticsEvidence {
+    fn receipts(&self) -> Vec<EvidenceReceiptV1> {
+        self.numeric
+            .iter()
+            .map(|claim| EvidenceReceiptV1::from_claim(claim, EvidenceMeasurementContextV1::NotEstablished))
+            .chain(self.correlation.iter().map(|claim| EvidenceReceiptV1::from_claim(claim, EvidenceMeasurementContextV1::NotEstablished)))
+            .chain(self.categorical.iter().map(|claim| EvidenceReceiptV1::from_claim(claim, EvidenceMeasurementContextV1::NotEstablished)))
+            .chain(self.temporal.iter().map(|claim| EvidenceReceiptV1::from_claim(claim, EvidenceMeasurementContextV1::NotEstablished)))
+            .collect()
+    }
+}
+
+pub fn compute_statistics_evidence_receipt_bundle(
+    dataset: &Dataset,
+    dataset_fingerprint: &str,
+    kernel_version: &str,
+) -> Result<EvidenceReceiptBundleV1, String> {
+    let evidence = compute_statistics_evidence(dataset, dataset_fingerprint, kernel_version);
+    EvidenceReceiptBundleV1::new(dataset_fingerprint, kernel_version, evidence.receipts())
 }
 
 fn provenance(method: &str, kernel_version: &str, dataset_fingerprint: &str) -> MethodProvenance {
@@ -183,4 +205,31 @@ mod tests {
         assert!(evidence.temporal[0].limitations.iter().any(|x| x.contains("not a calibrated periodicity test")));
         assert!(evidence.categorical[0].limitations.iter().any(|x| x.contains("missingness-mechanism")));
     }
+
+    #[test]
+    fn receipt_bundle_is_rust_issued_and_preserves_unknown_axes() {
+        let dataset = Dataset::new(
+            "receipt-evidence",
+            vec![Column::new("x", ColumnType::Numeric)],
+            vec![row(&[("x", Value::Number(1.0))]), row(&[("x", Value::Null)])],
+        );
+
+        let bundle = compute_statistics_evidence_receipt_bundle(&dataset, "fp", "kernel").unwrap();
+        assert_eq!(bundle.schema_version, "1");
+        assert_eq!(bundle.dataset_fingerprint, "fp");
+        assert_eq!(bundle.kernel_version, "kernel");
+        assert!(!bundle.receipts.is_empty());
+
+        let receipt = bundle.receipts.iter()
+            .find(|receipt| receipt.claim_id == "descriptive:x")
+            .expect("numeric receipt");
+        assert_eq!(receipt.receipt_id, receipt.claim_id);
+        assert_eq!(receipt.sample_support.rows_used, 1);
+        assert!(receipt.geometry.is_none());
+        assert!(receipt.uncertainty.is_none());
+        assert!(receipt.stability.is_none());
+        assert!(receipt.sensitivity.is_empty());
+        assert!(matches!(receipt.measurement_context, EvidenceMeasurementContextV1::NotEstablished));
+    }
+
 }

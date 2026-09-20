@@ -437,6 +437,19 @@ export function statistics(handle: number): Facts | null {
   return JSON.parse(json) as Facts;
 }
 
+export function statisticsEvidenceReceiptBundle(handle: number): unknown | null {
+  const json = readPreparedResult(
+    (runtime) => runtime.data_prepare_statistics_evidence_receipts(handle),
+    { nullOnReadMismatch: true }
+  );
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 export function computeSpectralFacts(
   handle: number,
   timeColumn?: string,

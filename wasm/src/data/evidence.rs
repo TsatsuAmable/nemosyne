@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::data::measurement::AnalyticalGeometry;
+use crate::data::measurement::{AnalyticalAdmission, AnalyticalGeometry};
+use crate::data::measurement_inference::{MeasurementModelRecord, SemanticAdmissionPolicy};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,7 +61,10 @@ impl SampleSupport {
             return Err("rows_used cannot exceed total_rows".to_string());
         }
         let rows_excluded = total_rows - rows_used;
-        let explained: usize = exclusion_reasons.iter().map(|reason| reason.row_count).sum();
+        let explained: usize = exclusion_reasons
+            .iter()
+            .map(|reason| reason.row_count)
+            .sum();
         if explained > rows_excluded {
             return Err("exclusion reason counts cannot exceed rows_excluded".to_string());
         }
@@ -143,6 +147,104 @@ pub struct EvidenceClaim<T> {
     pub stability: Option<Stability>,
     pub sensitivity: Vec<SensitivityResult>,
     pub limitations: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EvidenceMeasurementContextV1 {
+    NotEstablished,
+    Established {
+        records: Vec<MeasurementModelRecord>,
+        #[serde(rename = "semanticAdmissionPolicy")]
+        semantic_admission_policy: Option<SemanticAdmissionPolicy>,
+        #[serde(rename = "analyticalAdmission")]
+        analytical_admission: Option<AnalyticalAdmission>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvidenceReceiptV1 {
+    pub receipt_id: String,
+    pub claim_id: String,
+    pub estimand: String,
+    pub measurement_context: EvidenceMeasurementContextV1,
+    pub geometry: Option<AnalyticalGeometry>,
+    pub assumptions: Vec<AssumptionCheck>,
+    pub sample_support: SampleSupport,
+    pub uncertainty: Option<Uncertainty>,
+    pub stability: Option<Stability>,
+    pub sensitivity: Vec<SensitivityResult>,
+    pub limitations: Vec<String>,
+    pub method_provenance: MethodProvenance,
+}
+
+impl EvidenceReceiptV1 {
+    pub fn from_claim<T>(
+        claim: &EvidenceClaim<T>,
+        measurement_context: EvidenceMeasurementContextV1,
+    ) -> Self {
+        Self {
+            receipt_id: claim.claim_id.clone(),
+            claim_id: claim.claim_id.clone(),
+            estimand: claim.estimand.clone(),
+            measurement_context,
+            geometry: claim.geometry.clone(),
+            assumptions: claim.assumptions.clone(),
+            sample_support: claim.sample_support.clone(),
+            uncertainty: claim.uncertainty.clone(),
+            stability: claim.stability.clone(),
+            sensitivity: claim.sensitivity.clone(),
+            limitations: claim.limitations.clone(),
+            method_provenance: claim.method_provenance.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvidenceReceiptBundleV1 {
+    pub schema_version: String,
+    pub dataset_fingerprint: String,
+    pub kernel_version: String,
+    pub receipts: Vec<EvidenceReceiptV1>,
+}
+
+impl EvidenceReceiptBundleV1 {
+    pub fn new(
+        dataset_fingerprint: impl Into<String>,
+        kernel_version: impl Into<String>,
+        receipts: Vec<EvidenceReceiptV1>,
+    ) -> Result<Self, String> {
+        let dataset_fingerprint = dataset_fingerprint.into();
+        let kernel_version = kernel_version.into();
+        if dataset_fingerprint.is_empty() || kernel_version.is_empty() {
+            return Err("receipt bundle identity fields must be non-empty".to_string());
+        }
+
+        let mut ids = std::collections::HashSet::new();
+        for receipt in &receipts {
+            if receipt.receipt_id.is_empty() || receipt.claim_id.is_empty() {
+                return Err("receipt identities must be non-empty".to_string());
+            }
+            if receipt.method_provenance.dataset_fingerprint != dataset_fingerprint {
+                return Err("receipt dataset fingerprint does not match bundle".to_string());
+            }
+            if receipt.method_provenance.kernel_version != kernel_version {
+                return Err("receipt kernel version does not match bundle".to_string());
+            }
+            if !ids.insert(receipt.receipt_id.clone()) {
+                return Err("duplicate receipt id".to_string());
+            }
+        }
+
+        Ok(Self {
+            schema_version: "1".to_string(),
+            dataset_fingerprint,
+            kernel_version,
+            receipts,
+        })
+    }
 }
 
 impl<T> EvidenceClaim<T> {
@@ -237,5 +339,58 @@ mod tests {
         assert_eq!(support.rows_excluded, 3);
         assert_eq!(support.support_fraction(), 0.7);
         assert_eq!(support.columns.len(), 2);
+    }
+
+    #[test]
+    fn receipt_preserves_absent_axes_as_absent() {
+        let evidence = claim(Vec::new());
+        let receipt =
+            EvidenceReceiptV1::from_claim(&evidence, EvidenceMeasurementContextV1::NotEstablished);
+        assert_eq!(receipt.receipt_id, evidence.claim_id);
+        assert!(receipt.geometry.is_none());
+        assert!(receipt.uncertainty.is_none());
+        assert!(receipt.stability.is_none());
+        assert!(receipt.sensitivity.is_empty());
+        assert!(matches!(
+            receipt.measurement_context,
+            EvidenceMeasurementContextV1::NotEstablished
+        ));
+    }
+
+    #[test]
+    fn receipt_bundle_rejects_duplicate_or_mismatched_identity() {
+        let evidence = claim(Vec::new());
+        let receipt =
+            EvidenceReceiptV1::from_claim(&evidence, EvidenceMeasurementContextV1::NotEstablished);
+        assert!(EvidenceReceiptBundleV1::new(
+            "fingerprint",
+            "test",
+            vec![receipt.clone(), receipt.clone()]
+        )
+        .is_err());
+
+        let mut mismatched = receipt;
+        mismatched.method_provenance.dataset_fingerprint = "other".to_string();
+        assert!(EvidenceReceiptBundleV1::new("fingerprint", "test", vec![mismatched]).is_err());
+    }
+
+    #[test]
+    fn established_measurement_context_uses_the_v1_camel_case_wire_shape() {
+        let context = EvidenceMeasurementContextV1::Established {
+            records: vec![MeasurementModelRecord::from_storage(
+                &crate::data::column::Column::new("t", crate::data::column::ColumnType::Temporal),
+            )],
+            semantic_admission_policy: Some(SemanticAdmissionPolicy::AllowInferred),
+            analytical_admission: Some(AnalyticalAdmission {
+                status: crate::data::measurement::AdmissionStatus::Admitted,
+                issues: Vec::new(),
+            }),
+        };
+        let value = serde_json::to_value(context).expect("serialize measurement context");
+        assert_eq!(value["status"], "ESTABLISHED");
+        assert!(value.get("semanticAdmissionPolicy").is_some());
+        assert!(value.get("analyticalAdmission").is_some());
+        assert!(value.get("semantic_admission_policy").is_none());
+        assert!(value.get("analytical_admission").is_none());
     }
 }

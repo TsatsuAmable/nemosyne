@@ -709,6 +709,40 @@ fn compute_statistics_result(handle: u32) -> Option<String> {
 }
 
 #[wasm_bindgen]
+pub fn data_prepare_statistics_evidence_receipts(handle: u32) -> u32 {
+    if data::with_dataset(handle, |_| ()).is_none() {
+        return 0;
+    }
+    prepared_results::prepare(handle, || {
+        compute_statistics_evidence_receipts_result(handle)
+    })
+}
+
+fn compute_statistics_evidence_receipts_result(handle: u32) -> Option<String> {
+    let (bundle, input_fp) = data::with_dataset(handle, |ds| {
+        prepared_results::record_computation(prepared_results::STATISTICS_EVIDENCE_RECEIPTS);
+        let dataset_fingerprint = ds.fingerprint();
+        data::statistics_evidence::compute_statistics_evidence_receipt_bundle(
+            ds,
+            &dataset_fingerprint,
+            data::provenance::KERNEL_VERSION,
+        )
+        .ok()
+        .map(|bundle| (bundle, dataset_fingerprint))
+    })??;
+
+    let json = serde_json::to_string(&bundle).ok()?;
+    let output_fp = data::fingerprint::sha256_hex(&json);
+    data::provenance::record(
+        "statistics_evidence_receipts",
+        serde_json::json!({ "schemaVersion": "1" }),
+        &input_fp,
+        &output_fp,
+    );
+    Some(json)
+}
+
+#[wasm_bindgen]
 pub fn data_compute_spectral_facts(
     handle: u32,
     time_ptr: u32,

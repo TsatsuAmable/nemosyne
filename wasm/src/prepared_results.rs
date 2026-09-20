@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 const MAX_RESULTS: usize = 4;
 const MAX_RESULT_BYTES: usize = crate::MAX_MEMORY_PAGES as usize * 65536;
-static COMPUTATIONS: [AtomicU32; 12] = [const { AtomicU32::new(0) }; 12];
+static COMPUTATIONS: [AtomicU32; 13] = [const { AtomicU32::new(0) }; 13];
 pub const STATISTICS: usize = 3;
 pub const DATASET_JSON: usize = 4;
 pub const AGGREGATE: usize = 5;
@@ -15,6 +15,7 @@ pub const CLUSTER: usize = 8;
 pub const GRAPH: usize = 9;
 pub const SEMANTIC_DETAIL: usize = 10;
 pub const SPECTRAL_FACTS: usize = 11;
+pub const STATISTICS_EVIDENCE_RECEIPTS: usize = 12;
 
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);
