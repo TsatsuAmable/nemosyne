@@ -84,3 +84,20 @@ describe('UXR4 cross-session composition', () => {
     expect(result.aggregateStatus).toBe('INVALID_RUN');
   });
 });
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { finalizeUxr4Cohort } from '../dev/uxr4-cohort-finalizer';
+
+describe('UXR4 cohort finalizer', () => {
+  it('fails closed when supplied sessions are not finalized custody bundles', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uxr4-cohort-'));
+    fs.mkdirSync(path.join(root, 'not-finalized'));
+    const artifact = finalizeUxr4Cohort({
+      validationLogRoot: root, profile: 'functional-5m', sessionLabels: ['not-finalized'],
+    });
+    expect(artifact.adjudication.aggregateStatus).toBe('INVALID_RUN');
+    expect(artifact.adjudication.results.interaction.reasons.join(' ')).toContain('custody');
+  });
+});
