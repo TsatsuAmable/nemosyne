@@ -718,42 +718,77 @@ pub fn data_compute_spectral_facts(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    let Some((time_col, val_col)) = parse_spectral_columns(time_ptr, time_len, val_ptr, val_len) else {
+        return 0;
+    };
+    spectral_facts_json(handle, &time_col, &val_col)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_spectral_facts(
+    handle: u32,
+    time_ptr: u32,
+    time_len: u32,
+    val_ptr: u32,
+    val_len: u32,
+) -> u32 {
+    let Some((time_col, val_col)) = parse_spectral_columns(time_ptr, time_len, val_ptr, val_len) else {
+        return 0;
+    };
+    // The direct export is row-backed only. Preserve its null outcome before
+    // admission, including when prepared capacity is exhausted.
+    if data::with_dataset(handle, |_| ()).is_none() {
+        return 0;
+    }
+    prepared_results::prepare(handle, || spectral_facts_json(handle, &time_col, &val_col))
+}
+
+fn parse_spectral_columns(
+    time_ptr: u32,
+    time_len: u32,
+    val_ptr: u32,
+    val_len: u32,
+) -> Option<(String, String)> {
     let time_col = if time_len > 0 {
         let Some(bytes) = (unsafe { allocator::try_view(time_ptr, time_len) }) else {
-            return 0;
+            return None;
         };
         match std::str::from_utf8(bytes) {
             Ok(value) => value.to_string(),
-            Err(_) => return 0,
+            Err(_) => return None,
         }
     } else {
         String::new()
     };
     let val_col = if val_len > 0 {
         let Some(bytes) = (unsafe { allocator::try_view(val_ptr, val_len) }) else {
-            return 0;
+            return None;
         };
         match std::str::from_utf8(bytes) {
             Ok(value) => value.to_string(),
-            Err(_) => return 0,
+            Err(_) => return None,
         }
     } else {
         String::new()
     };
-    let (facts_json, input_fp) = match data::with_dataset(handle, |ds| {
+    Some((time_col, val_col))
+}
+
+fn spectral_facts_json(handle: u32, time_col: &str, val_col: &str) -> Option<String> {
+    let (facts_json, input_fp) = data::with_dataset(handle, |ds| {
+        prepared_results::record_computation(prepared_results::SPECTRAL_FACTS);
         let facts = data::spectral::compute_spectral_facts(ds, &time_col, &val_col);
         (facts, ds.fingerprint())
-    }) {
-        Some(v) => v,
-        None => return 0,
-    };
+    })?;
     let json = match facts_json {
         Some(f) => serde_json::to_string(&f).unwrap_or_else(|_| "null".to_string()),
         None => "null".to_string(),
     };
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record("spectral_facts", serde_json::Value::Null, &input_fp, &output_fp);
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]

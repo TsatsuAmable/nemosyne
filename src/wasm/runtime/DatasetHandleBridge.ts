@@ -18,7 +18,10 @@ import {
   readBytes,
   readString,
 } from './MemoryAbi.ts';
-import { getDatasetHandleExports as getRuntimeExports } from './RuntimeState.ts';
+import {
+  getDatasetHandleExports as getRuntimeExports,
+  getRawRuntimeExports,
+} from './RuntimeState.ts';
 import { kernelProvenance } from './KernelContractBridge.ts';
 import { readPreparedResult } from './PreparedResultBridge.ts';
 import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts';
@@ -439,30 +442,32 @@ export function computeSpectralFacts(
   timeColumn?: string,
   valueColumn?: string
 ): SpectralFacts | null {
-  const wasm = getRuntimeExports();
+  const owner = getRawRuntimeExports();
   let timePtr = 0;
   let timeLen = 0;
-  if (timeColumn) {
-    const allocation = allocBytes(new TextEncoder().encode(timeColumn));
-    timePtr = allocation.ptr;
-    timeLen = allocation.len;
-  }
   let valuePtr = 0;
   let valueLen = 0;
-  if (valueColumn) {
-    const allocation = allocBytes(new TextEncoder().encode(valueColumn));
-    valuePtr = allocation.ptr;
-    valueLen = allocation.len;
-  }
   try {
-    const json = readStringExport((ptr, len) =>
-      wasm.data_compute_spectral_facts(handle, timePtr, timeLen, valuePtr, valueLen, ptr, len)
+    if (timeColumn) {
+      const allocation = allocBytes(new TextEncoder().encode(timeColumn));
+      timePtr = allocation.ptr;
+      timeLen = allocation.len;
+    }
+    if (valueColumn) {
+      const allocation = allocBytes(new TextEncoder().encode(valueColumn));
+      valuePtr = allocation.ptr;
+      valueLen = allocation.len;
+    }
+    const json = readPreparedResult(
+      (runtime) =>
+        runtime.data_prepare_spectral_facts(handle, timePtr, timeLen, valuePtr, valueLen),
+      { nullOnReadMismatch: true }
     );
     if (!json || json === 'null') return null;
     return JSON.parse(json) as SpectralFacts;
   } finally {
-    if (timeLen > 0) deallocBytes(timePtr, timeLen);
-    if (valueLen > 0) deallocBytes(valuePtr, valueLen);
+    if (valueLen > 0) owner.host_buffer_dealloc(valuePtr, valueLen);
+    if (timeLen > 0) owner.host_buffer_dealloc(timePtr, timeLen);
   }
 }
 
