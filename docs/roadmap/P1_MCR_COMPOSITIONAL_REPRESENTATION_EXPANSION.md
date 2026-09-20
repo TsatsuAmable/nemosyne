@@ -1,8 +1,8 @@
 # P1-MCR — Moneta Compositional Representation Expansion
 
-**Status:** PLANNED / DOWNSTREAM OF THE CURRENT P1-UXR -> P1-WP -> P1-WQ -> PT9/PT10 EXECUTION ORDER  
+**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1 CONTRACT VALIDATION LANDED (#801); MCR2-MCR7 PRODUCTION PROMOTION REMAINS DOWNSTREAM OF P1-TEC -> PT9/PT10<br>
 **Established:** 20 September 2026  
-**Audit baseline:** `main@1173ac882206e798c1666802e5cb6ed9a7fa698d` (#791)  
+**Audit baseline:** `main@7fbd99e628f7eeafc29703ef32a19940a55f0c84` (#800)<br>
 **Live status authority:** `docs/ROADMAP.md`  
 **Governing vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`  
 **Dataset-first design:** `docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`  
@@ -175,6 +175,21 @@ The historical A-Frame Datasphere prototype remains visual-reference material on
 
 Planning and contract work may proceed while the current product stream continues. Production implementation remains downstream of the live roadmap unless that authority is explicitly changed.
 
+
+### Trustworthy-evidence dependency
+
+P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` now defines P1-TEC as the finite gate between P1-WQ and PT9. Before MCR2 creates the production semantic-to-spatial compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
+
+- semantic/measurement admissibility and analytical geometry are not discarded before representation binding;
+- assumptions, sample support, uncertainty, stability, sensitivity and limitations remain distinguishable where the representation claim depends on them;
+- legacy heuristic terminology cannot masquerade as significance, calibrated confidence or measured stability;
+- evidence identity survives semantic embodiment and persistence/replay, or the path fails closed;
+- representation fitness/search remains downstream of hard evidence feasibility and cannot optimize around an `ABSTAIN` or unsupported claim.
+
+MCR may reference compact evidence IDs/receipts rather than copy every `EvidenceClaim<T>` field into every graph node. The invariant is provenance-complete, inspectable linkage to the governing evidence, not duplication of analytical authority.
+
+MCR1 may proceed earlier as bounded cross-contract validation: it can prove that native composition rejects invalid semantic/evidence bindings without yet claiming a production compiler or a closed end-to-end evidence handoff. This keeps contract work moving while P1-TEC remains the promotion gate for the production path.
+
 ### MCR0 — authority reconciliation and schema decision
 
 Freeze the roles of `SemanticEmbodimentGraph`, `RepresentationGraph`, `SpatialEmbodimentPlan` and the external `RepresentationGenome` concept.
@@ -283,8 +298,8 @@ P1-MCR is complete only when all of the following are true:
 
 ## 7. First implementation slice after promotion
 
-When the live roadmap promotes P1-MCR, start with **MCR0 only**.
+MCR0 authority/schema bounds are landed by #800 and MCR1 cross-contract validation is landed by #801. When the live roadmap promotes the production expansion, the next promoted slice is **MCR2 general semantic-to-spatial compilation**, gated by the relevant P1-TEC closure and the intervening PT9/PT10 prerequisites.
 
-Do not begin by teaching Moneta to search a larger space. First resolve the authority/schema relationship and add falsifiers for the current single-renderable-primitive boundary. The first useful architecture proof is a hand-authored/deterministic two-phenomenon `RepresentationGraph` that compiles into a bounded `SpatialEmbodimentPlan` and survives the production lifecycle.
+Do not begin by teaching Moneta to search a larger space. First prove that a hand-authored/deterministic two-phenomenon `RepresentationGraph` can bind only admissible evidence, compile into a bounded `SpatialEmbodimentPlan`, and survive the production lifecycle without weakening P1-TEC evidence identity or abstention semantics.
 
 Search can arrive after the road exists.
