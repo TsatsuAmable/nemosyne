@@ -22,6 +22,8 @@ export interface MemoryAbiExports {
 }
 
 export interface DatasetHandleExports {
+  data_prepare_statistics(handle: number): number;
+  dataset_prepare_json(handle: number): number;
   data_prepare_betti0_curve(handle: number, paramsPtr: number, paramsLen: number): number;
   data_prepare_mapper_graph(handle: number, paramsPtr: number, paramsLen: number): number;
   data_prepare_persistence_intervals(handle: number, paramsPtr: number, paramsLen: number): number;

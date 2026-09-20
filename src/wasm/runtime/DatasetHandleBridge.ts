@@ -34,14 +34,10 @@ export interface DatasetRowView {
 }
 
 export type TdaExportName =
-  | 'data_compute_mapper_graph'
-  | 'data_compute_persistence_intervals'
-  | 'data_compute_betti0_curve';
+  'data_compute_mapper_graph' | 'data_compute_persistence_intervals' | 'data_compute_betti0_curve';
 
 export type AnalyticalResourceDecision =
-  | 'exact_allowed'
-  | 'approximation_required'
-  | 'unsupported_at_scale';
+  'exact_allowed' | 'approximation_required' | 'unsupported_at_scale';
 
 export interface AnalyticalResourceEstimate {
   operation: string;
@@ -150,14 +146,7 @@ function readTdaPreflight(
   }
 
   const json = readStringExport((outPtr, outLen) =>
-    wasm.data_tda_resource_preflight(
-      handle,
-      paramPtr,
-      paramLen,
-      operationCode,
-      outPtr,
-      outLen
-    )
+    wasm.data_tda_resource_preflight(handle, paramPtr, paramLen, operationCode, outPtr, outLen)
   );
   return json ? parseTdaPreflight(json) : null;
 }
@@ -358,18 +347,10 @@ export function parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): Datas
 }
 
 export function getDatasetJson(handle: number): DatasetJSON | null {
-  const wasm = getRuntimeExports();
-  const required = wasm.dataset_to_json(handle, 0, 0);
-  if (!Number.isSafeInteger(required) || required <= 0) return null;
-  const allocation = allocBuffer(required);
-  try {
-    const written = wasm.dataset_to_json(handle, allocation.ptr, allocation.len);
-    if (written !== required) return null;
-    const json = readString(allocation.ptr, written);
-    return JSON.parse(json) as DatasetJSON;
-  } finally {
-    deallocBuffer(allocation.ptr, allocation.len);
-  }
+  const json = readPreparedResult((runtime) => runtime.dataset_prepare_json(handle), {
+    nullOnReadMismatch: true,
+  });
+  return json === null ? null : (JSON.parse(json) as DatasetJSON);
 }
 
 export function loadDatasetJson(obj: DatasetJSON): number {
@@ -446,8 +427,9 @@ export function inferSchema(handle: number): ColumnSchema[] | null {
 }
 
 export function statistics(handle: number): Facts | null {
-  const wasm = getRuntimeExports();
-  const json = readStringExport((ptr, len) => wasm.data_statistics(handle, ptr, len));
+  const json = readPreparedResult((runtime) => runtime.data_prepare_statistics(handle), {
+    nullOnReadMismatch: true,
+  });
   if (!json) return null;
   return JSON.parse(json) as Facts;
 }
