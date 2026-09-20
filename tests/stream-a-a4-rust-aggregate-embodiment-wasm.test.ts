@@ -121,7 +121,7 @@ describe('Stream A A4 Rust aggregate embodiment', () => {
       expect(envelope?.result.status).toBe('REFUSED');
       if (envelope?.result.status !== 'REFUSED') throw new Error('expected hostile-cardinality refusal');
       expect(envelope.result.refusal.code).toBe('RESOURCE_LIMIT');
-      expect(JSON.stringify(envelope)).not.toContain('\"rows\"');
+      expect(JSON.stringify(envelope)).not.toContain('"rows"');
     } finally {
       bridge.destroyDataset(handle);
     }
