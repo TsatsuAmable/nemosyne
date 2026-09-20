@@ -10,8 +10,9 @@ Read these in order when they are relevant:
 2. `docs/ROADMAP.md` - live implementation status, current Streams A-D, collision rules, review findings, and programme order.
 3. `docs/ARCHITECTURE.md` - current technical reference, subordinate to the governing vision while migration is active.
 4. Executable configuration - `package.json`, `.github/workflows/*.yml`, `vitest*.config.ts`, `rust-toolchain.toml`, and source code are authoritative for commands, versions, thresholds, and runtime behavior.
-5. `governance/production-capabilities.json` and `governance/production-readiness.json` - machine-readable production capability classification plus desired service/deployment/test-readiness obligations; these are subordinate to `docs/ROADMAP.md` for sequencing and completion claims.
-6. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` - documentation authority and lifecycle.
+5. `governance/review-findings.json` - mutable disposition authority for migrated live `RF-*` findings. `docs/ROADMAP.md` remains the execution/sequencing authority; any repeated finding status must be a mechanically checked projection of this ledger.
+6. `governance/production-capabilities.json` and `governance/production-readiness.json` - machine-readable production capability classification plus desired service/deployment/test-readiness obligations; these are subordinate to `docs/ROADMAP.md` for sequencing and completion claims.
+7. `docs/PROJECT_DOCS_INDEX.md` and `docs/DOCS_MANIFEST.json` - documentation authority and lifecycle.
 
 **Executable configuration wins over duplicated prose facts.** Do not copy dependency versions, coverage thresholds, CI job topology, test counts, or other machine-readable values into agent instructions. If prose conflicts with executable configuration, fix or archive the prose.
 
@@ -137,6 +138,7 @@ Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requ
 - `docs/PROJECT_DOCS_INDEX.md` defines human-facing authority; `docs/DOCS_MANIFEST.json` is the machine-readable lifecycle map.
 - Historical reports and superseded plans belong under `docs/archive/`; historical stream names in retained review/evidence documents are provenance, not live ownership.
 - Do not create a new status document when the information belongs in `ROADMAP.md`, the findings ledger, an ADR, or an existing technical reference.
+- For findings present in `governance/review-findings.json`, change mutable disposition only in that ledger and regenerate the checked roadmap projection with `npm run governance:findings:write`. Subordinate security/review documents may preserve threat models, evidence, and closure requirements but must not restate a mutable `**Status:**` field for those findings.
 - Do not duplicate executable facts in prose. Link to the source instead.
 - Update `docs/ROADMAP.md` only when execution status, programme sequencing, a durable finding, or a claimed completion state actually changes. Routine implementation activity, verification detail, and review narration belong in the PR rather than creating roadmap churn.
 - Create standalone review/review-plan documents only when they are durable evidence needed by a programme, research treatment, milestone/finding closure, or future audit. Ordinary standard-risk review belongs in the PR body.
