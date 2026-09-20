@@ -47,6 +47,7 @@ export const UI_ONLY_TESTS = [
 ];
 
 export const WASM_TESTS = [
+  'tests/uxr3-prepared-results-wasm.test.ts',
   'tests/accessibility.test.ts',
   'tests/analysis-templates.test.ts',
   'tests/chart-plane-integration.test.ts',

@@ -20,6 +20,7 @@ import {
 } from './MemoryAbi.ts';
 import { getDatasetHandleExports as getRuntimeExports } from './RuntimeState.ts';
 import { kernelProvenance } from './KernelContractBridge.ts';
+import { readPreparedResult } from './PreparedResultBridge.ts';
 import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts';
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
@@ -179,11 +180,11 @@ function parseTdaRefusalEnvelope(json: string): TdaResourcePreflight | null {
 }
 
 function tdaCall(
-  wasm: DatasetHandleRuntime,
   handle: number,
   params: Record<string, unknown>,
   exportName: TdaExportName
 ): string | null {
+  const owner = getRuntimeExports();
   const paramBytes = new TextEncoder().encode(JSON.stringify(params));
   const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
   try {
@@ -191,15 +192,15 @@ function tdaCall(
     // in-band before any expensive TDA computation, so direct/raw callers cannot
     // bypass the analytical resource envelope. The standalone preflight remains
     // available as a dry-run query via tdaResourcePreflight.
-    const json = readStringExport((outPtr, outLen) => {
-      const fn = wasm[exportName] as (
-        h: number,
-        pp: number,
-        pl: number,
-        p: number,
-        l: number
-      ) => number;
-      return fn(handle, paramPtr, paramLen, outPtr, outLen);
+    const json = readPreparedResult((runtime) => {
+      switch (exportName) {
+        case 'data_compute_mapper_graph':
+          return runtime.data_prepare_mapper_graph(handle, paramPtr, paramLen);
+        case 'data_compute_persistence_intervals':
+          return runtime.data_prepare_persistence_intervals(handle, paramPtr, paramLen);
+        case 'data_compute_betti0_curve':
+          return runtime.data_prepare_betti0_curve(handle, paramPtr, paramLen);
+      }
     });
     if (!json) return null;
     const refusal = parseTdaRefusalEnvelope(json);
@@ -215,7 +216,7 @@ function tdaCall(
     }
     return json;
   } finally {
-    deallocBytes(paramPtr, paramLen);
+    owner.host_buffer_dealloc(paramPtr, paramLen);
   }
 }
 
@@ -497,8 +498,7 @@ export function computeMapperGraph(
   handle: number,
   params: Record<string, unknown>
 ): TdaMapperGraph | null {
-  const wasm = getRuntimeExports();
-  const json = tdaCall(wasm, handle, params, 'data_compute_mapper_graph');
+  const json = tdaCall(handle, params, 'data_compute_mapper_graph');
   if (!json) return null;
   return JSON.parse(json) as TdaMapperGraph;
 }
@@ -507,8 +507,7 @@ export function computePersistenceIntervals(
   handle: number,
   params: Record<string, unknown>
 ): PersistenceInterval[] | null {
-  const wasm = getRuntimeExports();
-  const json = tdaCall(wasm, handle, params, 'data_compute_persistence_intervals');
+  const json = tdaCall(handle, params, 'data_compute_persistence_intervals');
   if (!json) return null;
   return JSON.parse(json) as PersistenceInterval[];
 }
@@ -517,8 +516,7 @@ export function computeBetti0Curve(
   handle: number,
   params: Record<string, unknown>
 ): BettiPoint[] | null {
-  const wasm = getRuntimeExports();
-  const json = tdaCall(wasm, handle, params, 'data_compute_betti0_curve');
+  const json = tdaCall(handle, params, 'data_compute_betti0_curve');
   if (!json) return null;
   return JSON.parse(json) as BettiPoint[];
 }
