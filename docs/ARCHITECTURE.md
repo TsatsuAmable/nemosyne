@@ -1,7 +1,7 @@
 # Nemosyne architecture
 
 **Status:** current technical reference
-**Updated:** 24 August 2026
+**Updated:** 20 September 2026
 **Governing specification:** [Nemosyne Definitive Vision and Roadmap V3.1](Nemosyne_Definitive_Vision_and_Roadmap.md)
 
 ## Authority model
@@ -69,6 +69,31 @@ Moneta consumes `DatasetEvidence`, investigator semantics and explicit model art
 hard constraints execute before optional learned re-ranking. Every decision records its fitness model
 version and artifact hash where applicable. When no candidate is feasible, Moneta emits a typed NIL
 outcome rather than fabricating a recommendation.
+
+The dataset-first representation boundary is layered rather than collapsed into one renderer-facing
+specification:
+
+```text
+Rust/WASM DatasetEvidence + governed semantic payloads
+  -> SemanticEmbodimentGraphV1
+       evidence-bound semantic objects, abstraction/refinement and information contracts
+  -> RepresentationGraph
+       Moneta-owned compositional representation hypothesis and coordination policy
+  -> SpatialEmbodimentPlanV1
+       disposable spatial phenotype / presentation plan
+  -> desktop / WebXR runtime
+```
+
+`RepresentationGraphAdapter` currently preserves compatibility with the fixed-candidate architecture,
+and `RepresentationGraphRuntimeAdapter` intentionally fails closed unless exactly one primitive is
+renderable. Those are migration constraints, not the final compositional design. The planned expansion
+is governed by `roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`: it must reuse the existing
+graph/semantic/spatial contracts, preserve UXR lifecycle/detail authorities, and qualify multi-element
+composition without allowing geometry to invent analytical meaning.
+
+A future `RepresentationGenome` may encode candidate representation/spatial choices for the separate
+laboratory synthesis/search programme. It is not a runtime or analytical authority. Nemosyne must not
+introduce a duplicate genome contract before the laboratory interface is versioned and promoted.
 
 `src/draco/` is a deliberate compatibility facade. Production imports must resolve directly through
 `src/moneta/`. The Rust ABI retains some `draco_*` export names for compatibility; names do not confer
