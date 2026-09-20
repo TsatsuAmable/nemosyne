@@ -99,6 +99,34 @@ describe('Stream A A4 Rust aggregate embodiment', () => {
     }
   });
 
+  it('refuses hostile unique-group cardinality beyond the aggregate contract instead of scaling presentation with source N', () => {
+    const handle = bridge.loadDatasetJson({
+      name: 'a4-hostile-unique-groups',
+      columns: [
+        { name: 'group', type: 'CATEGORICAL' },
+        { name: 'value', type: 'NUMERIC' },
+      ],
+      rows: Array.from({ length: 4_097 }, (_, index) => ({
+        group: `g${index}`,
+        value: index,
+      })),
+    });
+    expect(handle).toBeGreaterThan(0);
+    try {
+      const envelope = buildAggregateSemanticEmbodimentV1(handle, request);
+      expect(envelope?.resource).toMatchObject({
+        sourceRowCount: 4_097,
+        maxElementCount: 4_096,
+      });
+      expect(envelope?.result.status).toBe('REFUSED');
+      if (envelope?.result.status !== 'REFUSED') throw new Error('expected hostile-cardinality refusal');
+      expect(envelope.result.refusal.code).toBe('RESOURCE_LIMIT');
+      expect(JSON.stringify(envelope)).not.toContain('\"rows\"');
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  });
+
   it('keeps semantic output bounded by group cardinality rather than source row count', () => {
     const source = {
       name: 'a4-bounded-output',
