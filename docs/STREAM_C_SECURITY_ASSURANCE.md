@@ -10,7 +10,7 @@ Stream C complements Stream A and Stream B:
 - **Stream B** independently reviews the merged implementation and fixes defects forward.
 - **Stream C** continuously audits security-sensitive and privacy-sensitive production boundaries, consolidates duplicate authorities, and requires adversarial evidence through the live call graph.
 
-Stream C findings use the same repository-wide `RF-*` ledger and the same completion vocabulary as the master roadmap.
+Stream C findings use the repository-wide `RF-*` sequence and completion vocabulary. Mutable disposition for RF-037 through RF-043 is owned by `governance/review-findings.json` and projected into the master roadmap; this document preserves the threat model, evidence, and required disposition without maintaining a second status field.
 
 ## General production-path evidence rule
 
@@ -62,12 +62,11 @@ Use an independent reviewer/agent when available. An unresolved blocker discover
 
 ## Active Stream C findings
 
-These findings were promoted into the repository-wide RF sequence after RF-036. Where a finding is now closed, the historical problem statement is retained below but the current disposition is stated first so this document cannot contradict the live implementation.
+These findings were promoted into the repository-wide RF sequence after RF-036. Historical problem statements, evidence, and closure requirements are retained below, but mutable status is deliberately not repeated here. Read `governance/review-findings.json` (or its checked projection in `docs/ROADMAP.md`) for the live disposition.
 
 ### RF-037 - Duplicate signalling ticket authorities and replay protection off the live path
 
 **Severity:** Critical  
-**Status:** `VERIFIED COMPLETE` for the single-replica live admission boundary; multi-replica replay safety is an explicit deferred deployment obligation
 
 **Current disposition (5 Sep 2026):** the original finding is no longer true on the live path. `src/network/SignedTicket.ts` is the single server-only signing/verifying authority, nonce is mandatory, and `SignallingServerCore` consumes the nonce atomically through `SignedTicketReplayGuard` during successful admission. The browser cannot sign or cryptographically validate room tickets. Production signalling service work subsequently added operator-issued one-use invites and real service admission/replay tests. Multi-replica replay protection is intentionally **not** claimed: `governance/production-readiness.json` records the required shared atomic nonce-store proof before more than one signalling replica may be enabled.
 
@@ -90,7 +89,6 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-038 - Scoped role token parser fails open to participant
 
 **Severity:** High  
-**Status:** `VERIFIED COMPLETE`
 
 `authorizePeer()` historically mapped every scoped-token suffix other than the exact string `observer` to the more privileged `participant` role. Typographical errors and unknown role names therefore failed open.
 
@@ -101,7 +99,6 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-039 - Upload hardening policy is duplicated and production evidence targets the wrong module
 
 **Severity:** High  
-**Status:** `IMPLEMENTATION PARTIAL`
 
 `UploadSanitizer.ts` is well-tested but is not the live `FileLoader` upload path. The production path is not naked: it performs a pre-read size cap, routes parsing through Atlas/Rust, validates row/column limits, and the `Dataset` boundary recursively removes dangerous prototype keys. The defect is therefore duplicated/orphaned policy and misleading evidence rather than proof of an unguarded prototype-pollution vulnerability.
 
@@ -117,9 +114,8 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-040 - Telemetry consent/GDPR helper is off-path and cannot substantiate its current claims
 
 **Severity:** High  
-**Status:** `IMPLEMENTATION PARTIAL`
 
-`TelemetryConsentManager.ts` is not the live telemetry authority. The live `TelemetryCollector` uses a simpler opt-in localStorage flag and defaults safely to disabled. The isolated manager now derives a SHA-256 pseudonym using a required deployment salt and does not retain the raw subject identifier, but it still must not simply be wired in as the product authority: it has no durable consent receipt/revision or shared store registry, and `executeRightToErasure()` deletes only its own in-memory consent record rather than linked telemetry, traces, exports or persisted artifacts. PT3 owns the required production identity/consent/lifecycle contract; RF-040 remains open until the real paths conform and end-to-end evidence exists.
+`TelemetryConsentManager.ts` is not the live telemetry authority. The live `TelemetryCollector` uses a simpler opt-in localStorage flag and defaults safely to disabled. The isolated manager now derives a SHA-256 pseudonym using a required deployment salt and does not retain the raw subject identifier, but it still must not simply be wired in as the product authority: it has no durable consent receipt/revision or shared store registry, and `executeRightToErasure()` deletes only its own in-memory consent record rather than linked telemetry, traces, exports or persisted artifacts. PT3 owns the required production identity/consent/lifecycle contract; closure requires the real paths to conform and end-to-end evidence to exist.
 
 **Required disposition:**
 
@@ -135,11 +131,10 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-041 - Unnecessary unpkg trust widening in shipped HTML/CSP
 
 **Severity:** Medium  
-**Status:** `IMPLEMENTATION PARTIAL`
 
-`index.html` contains a Three.js import map pointing at `unpkg.com`, and the production CSP allowlists that origin. Vite simultaneously chunks `three` from `node_modules`, so the remote script origin appears unnecessary for the normal production bundle.
+The original defect was a shipped Three.js import map pointing at `unpkg.com` plus a production CSP allow-list for that origin even though Vite bundled `three` from `node_modules`. PR #619 removed the remote import map/trust widening and added a production-hygiene regression so this historical defect cannot silently return.
 
-**Required disposition:**
+**Required disposition (satisfied by #619):**
 
 - prove dev, production, and smoke paths work without the remote import map;
 - remove the import map if unnecessary;
@@ -149,14 +144,12 @@ Evidence: adversarial contract and verification record in `docs/review-plans/RF0
 ### RF-042 - Dev UX trace terminal output accepts control sequences
 
 **Severity:** Low  
-**Status:** `VERIFIED COMPLETE`
 
 The original dev UX trace server interpolated client-controlled values directly into ANSI-coloured terminal output. The 3 Sep adversarial fix-forward neutralized C0/C1/ESC terminal control sequences before terminal presentation and added deterministic regression evidence while preserving machine-readable trace records.
 
 ### RF-043 - Rust parser/WASM ABI hostile-input fuzz evidence gap
 
 **Severity:** High assurance gap  
-**Status:** `IMPLEMENTATION PARTIAL`
 
 The presence of `unsafe`, `unwrap`, and `expect` is not by itself a demonstrated vulnerability. The reviewed core memory views are guarded by tracked-allocation/range checks and commonly fail closed. The remaining gap is systematic evidence across attacker-reachable parser and ABI boundaries.
 

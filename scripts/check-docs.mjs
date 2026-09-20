@@ -3,6 +3,12 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { renderProductionReadiness } from './render-production-readiness.mjs';
+import {
+  REVIEW_FINDINGS_BEGIN,
+  REVIEW_FINDINGS_END,
+  loadReviewFindings,
+  renderReviewFindingsProjection,
+} from './render-review-findings.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -61,6 +67,7 @@ const requiredGovernance = [
   'docs/architecture/decisions/README.md',
   'governance/production-capabilities.json',
   'governance/production-readiness.json',
+  'governance/review-findings.json',
   'docs/PRODUCTION_READINESS.md',
 ];
 for (const file of requiredGovernance) {
@@ -76,6 +83,50 @@ if (existsSync(resolve(root, 'docs/PRODUCTION_READINESS.md'))) {
   } catch (error) {
     fail(`production readiness projection failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+try {
+  const ledger = loadReviewFindings(root);
+  const roadmap = read('docs/ROADMAP.md');
+  const expected = renderReviewFindingsProjection(root);
+  const start = roadmap.indexOf(REVIEW_FINDINGS_BEGIN);
+  const end = roadmap.indexOf(REVIEW_FINDINGS_END);
+
+  if (start < 0 || end < 0 || end < start) {
+    fail('docs/ROADMAP.md is missing the generated review-finding projection markers');
+  } else {
+    const actual = roadmap.slice(start, end + REVIEW_FINDINGS_END.length);
+    if (actual !== expected) {
+      fail('docs/ROADMAP.md review-finding projection is stale; run npm run governance:findings:write');
+    }
+  }
+
+  for (const finding of ledger.findings) {
+    for (const evidence of finding.evidence) {
+      if (/^[a-z]+:/i.test(evidence)) continue;
+      const path = evidence.split('#')[0];
+      if (path && !existsSync(resolve(root, path))) {
+        fail(`${finding.id} evidence path does not exist: ${path}`);
+      }
+    }
+  }
+
+  const assurance = read('docs/STREAM_C_SECURITY_ASSURANCE.md');
+  for (const finding of ledger.findings) {
+    const heading = `### ${finding.id} -`;
+    const sectionStart = assurance.indexOf(heading);
+    if (sectionStart < 0) {
+      fail(`docs/STREAM_C_SECURITY_ASSURANCE.md is missing ${finding.id}`);
+      continue;
+    }
+    const nextHeading = assurance.indexOf('\n### RF-', sectionStart + heading.length);
+    const section = assurance.slice(sectionStart, nextHeading < 0 ? assurance.length : nextHeading);
+    if (/^\*\*Status:\*\*/m.test(section)) {
+      fail(`docs/STREAM_C_SECURITY_ASSURANCE.md must not restate mutable status for ${finding.id}`);
+    }
+  }
+} catch (error) {
+  fail(`review-finding authority validation failed: ${error instanceof Error ? error.message : String(error)}`);
 }
 
 const instructionFiles = [
@@ -166,4 +217,4 @@ if (failures.length > 0) {
 }
 
 console.log('DOCUMENTATION INTEGRITY PASSED');
-console.log('Manifest, governance files, readiness projection, ADR index, stale-instruction guards, and checked links are valid.');
+console.log('Manifest, governance files, readiness/review-finding projections, ADR index, stale-instruction guards, and checked links are valid.');
