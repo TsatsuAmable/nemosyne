@@ -493,13 +493,23 @@ Quest is a concrete reference platform for standalone-XR performance, interactio
 
 ## D3 - live-path security quick wins
 
-Current status:
+Mutable disposition for the live Stream D security-assurance findings is machine-owned by `governance/review-findings.json`. The table below is a checked projection; update the ledger and regenerate it with `npm run governance:findings:write`.
 
-- RF-041 unused `unpkg` trust/import-map/CSP widening: **FIXED by #619**, with a production hygiene ratchet;
-- RF-039 upload policy consolidation at the real `FileLoader -> Atlas -> Rust -> Dataset` path: **OPEN**;
-- RF-042 terminal control-sequence sanitization in the dev UX trace path: **OPEN**.
+<!-- REVIEW_FINDINGS_STATUS:BEGIN -->
+> **Generated review-finding disposition.** Mutable RF status is owned by `governance/review-findings.json`; edit the ledger, not this table.
 
-Each remaining item stays high-risk or production-path evidence-bearing according to `AGENTS.md`; helper-only tests are insufficient.
+| Finding | Severity | Status | Current disposition |
+| --- | --- | --- | --- |
+| RF-037 | Critical | `VERIFIED COMPLETE` | Single-replica live admission is verified; multi-replica replay safety remains the explicit RDO-007 deployment obligation. |
+| RF-038 | High | `VERIFIED COMPLETE` | Exact role allow-list and production-path rejection evidence are verified. |
+| RF-039 | High | `IMPLEMENTATION PARTIAL` | Production FileLoader -> Atlas -> Rust -> Dataset policy consolidation and hostile live-path evidence remain incomplete. |
+| RF-040 | High | `IMPLEMENTATION PARTIAL` | The authoritative telemetry lifecycle and end-to-end revoke/export/erasure evidence remain incomplete. |
+| RF-041 | Medium | `VERIFIED COMPLETE` | PR #619 removed the remote Three.js import-map/CSP trust and retained a production hygiene regression. |
+| RF-042 | Low | `VERIFIED COMPLETE` | PR #647 neutralized C0/C1/ESC terminal control sequences and verified the regression on the promoted exact head. |
+| RF-043 | High assurance gap | `IMPLEMENTATION PARTIAL` | Systematic hostile-input fuzz/property evidence across parser and exported WASM ABI boundaries remains incomplete. |
+<!-- REVIEW_FINDINGS_STATUS:END -->
+
+D3/D4 implementation remains high-risk or production-path evidence-bearing according to `AGENTS.md`; helper-only tests are insufficient.
 
 ## D4 - deeper privacy/WASM assurance
 

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "authority": "review-finding-disposition",
+  "scope": "Live Stream D security-assurance findings RF-037 through RF-043",
+  "lastReviewed": "2026-09-20",
+  "statuses": [
+    "IMPLEMENTATION PARTIAL",
+    "VERIFIED COMPLETE"
+  ],
+  "findings": [
+    {
+      "id": "RF-037",
+      "title": "Duplicate signalling ticket authorities and replay protection off the live path",
+      "severity": "Critical",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "Single-replica live admission is verified; multi-replica replay safety remains the explicit RDO-007 deployment obligation.",
+      "evidence": [
+        "docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md",
+        "docs/review-plans/P1_W1A_PRODUCTION_SIGNALLING_POST_REVIEW_2026-09-04.md",
+        "governance/production-readiness.json#RDO-007"
+      ]
+    },
+    {
+      "id": "RF-038",
+      "title": "Scoped role token parser fails open to participant",
+      "severity": "High",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "Exact role allow-list and production-path rejection evidence are verified.",
+      "evidence": [
+        "docs/review-plans/RF037_RF038_SIGNALLING_ADMISSION_2026-08-29.md"
+      ]
+    },
+    {
+      "id": "RF-039",
+      "title": "Upload hardening policy is duplicated and production evidence targets the wrong module",
+      "severity": "High",
+      "status": "IMPLEMENTATION PARTIAL",
+      "statusNote": "Production FileLoader -> Atlas -> Rust -> Dataset policy consolidation and hostile live-path evidence remain incomplete.",
+      "evidence": [
+        "docs/STREAM_C_SECURITY_ASSURANCE.md#rf-039"
+      ]
+    },
+    {
+      "id": "RF-040",
+      "title": "Telemetry consent/GDPR helper is off-path and cannot substantiate its current claims",
+      "severity": "High",
+      "status": "IMPLEMENTATION PARTIAL",
+      "statusNote": "The authoritative telemetry lifecycle and end-to-end revoke/export/erasure evidence remain incomplete.",
+      "evidence": [
+        "docs/STREAM_C_SECURITY_ASSURANCE.md#rf-040"
+      ]
+    },
+    {
+      "id": "RF-041",
+      "title": "Unnecessary unpkg trust widening in shipped HTML/CSP",
+      "severity": "Medium",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "PR #619 removed the remote Three.js import-map/CSP trust and retained a production hygiene regression.",
+      "evidence": [
+        "https://github.com/TsatsuAmable/nemosyne/pull/619"
+      ]
+    },
+    {
+      "id": "RF-042",
+      "title": "Dev UX trace terminal output accepts control sequences",
+      "severity": "Low",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "PR #647 neutralized C0/C1/ESC terminal control sequences and verified the regression on the promoted exact head.",
+      "evidence": [
+        "https://github.com/TsatsuAmable/nemosyne/pull/647"
+      ]
+    },
+    {
+      "id": "RF-043",
+      "title": "Rust parser/WASM ABI hostile-input fuzz evidence gap",
+      "severity": "High assurance gap",
+      "status": "IMPLEMENTATION PARTIAL",
+      "statusNote": "Systematic hostile-input fuzz/property evidence across parser and exported WASM ABI boundaries remains incomplete.",
+      "evidence": [
+        "docs/STREAM_C_SECURITY_ASSURANCE.md#rf-043"
+      ]
+    }
+  ]
+}
