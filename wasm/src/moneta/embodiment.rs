@@ -1407,8 +1407,25 @@ pub fn moneta_query_semantic_detail_v1(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    serialize_semantic_detail(dataset_handle, in_ptr, in_len)
+        .map(|output| crate::write_bytes_out(output.as_bytes(), out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn moneta_prepare_semantic_detail_v1(dataset_handle: u32, in_ptr: u32, in_len: u32) -> u32 {
+    crate::prepared_results::prepare_response(dataset_handle, || {
+        serialize_semantic_detail(dataset_handle, in_ptr, in_len)
+    })
+}
+
+fn serialize_semantic_detail(
+    dataset_handle: u32,
+    in_ptr: u32,
+    in_len: u32,
+) -> Option<String> {
     let Some(bytes) = copy_host_input(in_ptr, in_len) else {
-        return 0;
+        return None;
     };
     let query: super::drill_down::SemanticDetailQueryV1 = match serde_json::from_slice(&bytes) {
         Ok(value) => value,
@@ -1416,25 +1433,26 @@ pub fn moneta_query_semantic_detail_v1(
             crate::log_error(&format!(
                 "moneta_query_semantic_detail_v1 query parse failed: {error}"
             ));
-            return 0;
+            return None;
         }
     };
 
+    crate::prepared_results::record_computation(crate::prepared_results::SEMANTIC_DETAIL);
     let result_envelope = super::drill_down::query_semantic_detail_v1(
         dataset_handle,
         query,
     );
 
-    let json = match serde_json::to_vec(&result_envelope) {
+    let json = match serde_json::to_string(&result_envelope) {
         Ok(value) => value,
         Err(error) => {
             crate::log_error(&format!(
                 "moneta_query_semantic_detail_v1 serialization failed: {error}"
             ));
-            return 0;
+            return None;
         }
     };
-    crate::write_bytes_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[cfg(test)]

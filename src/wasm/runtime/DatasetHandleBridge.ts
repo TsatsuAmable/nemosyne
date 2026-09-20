@@ -18,8 +18,12 @@ import {
   readBytes,
   readString,
 } from './MemoryAbi.ts';
-import { getDatasetHandleExports as getRuntimeExports } from './RuntimeState.ts';
+import {
+  getDatasetHandleExports as getRuntimeExports,
+  getRawRuntimeExports,
+} from './RuntimeState.ts';
 import { kernelProvenance } from './KernelContractBridge.ts';
+import { readPreparedResult } from './PreparedResultBridge.ts';
 import type { DatasetHandleExports, MemoryAbiExports } from './RuntimeExports.ts';
 
 type DatasetHandleRuntime = DatasetHandleExports & MemoryAbiExports;
@@ -33,14 +37,10 @@ export interface DatasetRowView {
 }
 
 export type TdaExportName =
-  | 'data_compute_mapper_graph'
-  | 'data_compute_persistence_intervals'
-  | 'data_compute_betti0_curve';
+  'data_compute_mapper_graph' | 'data_compute_persistence_intervals' | 'data_compute_betti0_curve';
 
 export type AnalyticalResourceDecision =
-  | 'exact_allowed'
-  | 'approximation_required'
-  | 'unsupported_at_scale';
+  'exact_allowed' | 'approximation_required' | 'unsupported_at_scale';
 
 export interface AnalyticalResourceEstimate {
   operation: string;
@@ -149,14 +149,7 @@ function readTdaPreflight(
   }
 
   const json = readStringExport((outPtr, outLen) =>
-    wasm.data_tda_resource_preflight(
-      handle,
-      paramPtr,
-      paramLen,
-      operationCode,
-      outPtr,
-      outLen
-    )
+    wasm.data_tda_resource_preflight(handle, paramPtr, paramLen, operationCode, outPtr, outLen)
   );
   return json ? parseTdaPreflight(json) : null;
 }
@@ -179,11 +172,11 @@ function parseTdaRefusalEnvelope(json: string): TdaResourcePreflight | null {
 }
 
 function tdaCall(
-  wasm: DatasetHandleRuntime,
   handle: number,
   params: Record<string, unknown>,
   exportName: TdaExportName
 ): string | null {
+  const owner = getRuntimeExports();
   const paramBytes = new TextEncoder().encode(JSON.stringify(params));
   const { ptr: paramPtr, len: paramLen } = allocBytes(paramBytes);
   try {
@@ -191,15 +184,15 @@ function tdaCall(
     // in-band before any expensive TDA computation, so direct/raw callers cannot
     // bypass the analytical resource envelope. The standalone preflight remains
     // available as a dry-run query via tdaResourcePreflight.
-    const json = readStringExport((outPtr, outLen) => {
-      const fn = wasm[exportName] as (
-        h: number,
-        pp: number,
-        pl: number,
-        p: number,
-        l: number
-      ) => number;
-      return fn(handle, paramPtr, paramLen, outPtr, outLen);
+    const json = readPreparedResult((runtime) => {
+      switch (exportName) {
+        case 'data_compute_mapper_graph':
+          return runtime.data_prepare_mapper_graph(handle, paramPtr, paramLen);
+        case 'data_compute_persistence_intervals':
+          return runtime.data_prepare_persistence_intervals(handle, paramPtr, paramLen);
+        case 'data_compute_betti0_curve':
+          return runtime.data_prepare_betti0_curve(handle, paramPtr, paramLen);
+      }
     });
     if (!json) return null;
     const refusal = parseTdaRefusalEnvelope(json);
@@ -215,7 +208,7 @@ function tdaCall(
     }
     return json;
   } finally {
-    deallocBytes(paramPtr, paramLen);
+    owner.host_buffer_dealloc(paramPtr, paramLen);
   }
 }
 
@@ -357,18 +350,10 @@ export function parseDatasetBytes(bytes: Uint8Array, ext: 'csv' | 'json'): Datas
 }
 
 export function getDatasetJson(handle: number): DatasetJSON | null {
-  const wasm = getRuntimeExports();
-  const required = wasm.dataset_to_json(handle, 0, 0);
-  if (!Number.isSafeInteger(required) || required <= 0) return null;
-  const allocation = allocBuffer(required);
-  try {
-    const written = wasm.dataset_to_json(handle, allocation.ptr, allocation.len);
-    if (written !== required) return null;
-    const json = readString(allocation.ptr, written);
-    return JSON.parse(json) as DatasetJSON;
-  } finally {
-    deallocBuffer(allocation.ptr, allocation.len);
-  }
+  const json = readPreparedResult((runtime) => runtime.dataset_prepare_json(handle), {
+    nullOnReadMismatch: true,
+  });
+  return json === null ? null : (JSON.parse(json) as DatasetJSON);
 }
 
 export function loadDatasetJson(obj: DatasetJSON): number {
@@ -445,8 +430,9 @@ export function inferSchema(handle: number): ColumnSchema[] | null {
 }
 
 export function statistics(handle: number): Facts | null {
-  const wasm = getRuntimeExports();
-  const json = readStringExport((ptr, len) => wasm.data_statistics(handle, ptr, len));
+  const json = readPreparedResult((runtime) => runtime.data_prepare_statistics(handle), {
+    nullOnReadMismatch: true,
+  });
   if (!json) return null;
   return JSON.parse(json) as Facts;
 }
@@ -456,30 +442,32 @@ export function computeSpectralFacts(
   timeColumn?: string,
   valueColumn?: string
 ): SpectralFacts | null {
-  const wasm = getRuntimeExports();
+  const owner = getRawRuntimeExports();
   let timePtr = 0;
   let timeLen = 0;
-  if (timeColumn) {
-    const allocation = allocBytes(new TextEncoder().encode(timeColumn));
-    timePtr = allocation.ptr;
-    timeLen = allocation.len;
-  }
   let valuePtr = 0;
   let valueLen = 0;
-  if (valueColumn) {
-    const allocation = allocBytes(new TextEncoder().encode(valueColumn));
-    valuePtr = allocation.ptr;
-    valueLen = allocation.len;
-  }
   try {
-    const json = readStringExport((ptr, len) =>
-      wasm.data_compute_spectral_facts(handle, timePtr, timeLen, valuePtr, valueLen, ptr, len)
+    if (timeColumn) {
+      const allocation = allocBytes(new TextEncoder().encode(timeColumn));
+      timePtr = allocation.ptr;
+      timeLen = allocation.len;
+    }
+    if (valueColumn) {
+      const allocation = allocBytes(new TextEncoder().encode(valueColumn));
+      valuePtr = allocation.ptr;
+      valueLen = allocation.len;
+    }
+    const json = readPreparedResult(
+      (runtime) =>
+        runtime.data_prepare_spectral_facts(handle, timePtr, timeLen, valuePtr, valueLen),
+      { nullOnReadMismatch: true }
     );
     if (!json || json === 'null') return null;
     return JSON.parse(json) as SpectralFacts;
   } finally {
-    if (timeLen > 0) deallocBytes(timePtr, timeLen);
-    if (valueLen > 0) deallocBytes(valuePtr, valueLen);
+    if (valueLen > 0) owner.host_buffer_dealloc(valuePtr, valueLen);
+    if (timeLen > 0) owner.host_buffer_dealloc(timePtr, timeLen);
   }
 }
 
@@ -497,8 +485,7 @@ export function computeMapperGraph(
   handle: number,
   params: Record<string, unknown>
 ): TdaMapperGraph | null {
-  const wasm = getRuntimeExports();
-  const json = tdaCall(wasm, handle, params, 'data_compute_mapper_graph');
+  const json = tdaCall(handle, params, 'data_compute_mapper_graph');
   if (!json) return null;
   return JSON.parse(json) as TdaMapperGraph;
 }
@@ -507,8 +494,7 @@ export function computePersistenceIntervals(
   handle: number,
   params: Record<string, unknown>
 ): PersistenceInterval[] | null {
-  const wasm = getRuntimeExports();
-  const json = tdaCall(wasm, handle, params, 'data_compute_persistence_intervals');
+  const json = tdaCall(handle, params, 'data_compute_persistence_intervals');
   if (!json) return null;
   return JSON.parse(json) as PersistenceInterval[];
 }
@@ -517,8 +503,7 @@ export function computeBetti0Curve(
   handle: number,
   params: Record<string, unknown>
 ): BettiPoint[] | null {
-  const wasm = getRuntimeExports();
-  const json = tdaCall(wasm, handle, params, 'data_compute_betti0_curve');
+  const json = tdaCall(handle, params, 'data_compute_betti0_curve');
   if (!json) return null;
   return JSON.parse(json) as BettiPoint[];
 }

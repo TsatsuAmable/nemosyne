@@ -22,6 +22,20 @@ export interface MemoryAbiExports {
 }
 
 export interface DatasetHandleExports {
+  data_prepare_spectral_facts(
+    handle: number,
+    timePtr: number,
+    timeLen: number,
+    valuePtr: number,
+    valueLen: number
+  ): number;
+  data_prepare_statistics(handle: number): number;
+  dataset_prepare_json(handle: number): number;
+  data_prepare_betti0_curve(handle: number, paramsPtr: number, paramsLen: number): number;
+  data_prepare_mapper_graph(handle: number, paramsPtr: number, paramsLen: number): number;
+  data_prepare_persistence_intervals(handle: number, paramsPtr: number, paramsLen: number): number;
+  prepared_result_read(token: number, ptr: number, len: number): number;
+  prepared_result_destroy(token: number): void;
   data_load_csv(ptr: number, len: number): number;
   data_load_json(ptr: number, len: number): number;
   data_load_dataset_json(ptr: number, len: number): number;

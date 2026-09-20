@@ -17,57 +17,40 @@ import type {
   SemanticDetailRequestV1,
   SemanticDetailEnvelopeV1,
 } from '../../moneta/representation/SemanticDrillDown.ts';
-import {
-  allocBuffer,
-  allocBytes,
-  deallocBuffer,
-  deallocBytes,
-  readBytes,
-} from './MemoryAbi.ts';
+import { allocBytes } from './MemoryAbi.ts';
+import { readPreparedResult } from './PreparedResultBridge.ts';
 import { getRawRuntimeExports } from './RuntimeState.ts';
 
 interface AggregateSemanticRuntime {
-  moneta_build_aggregate_embodiment_v1(
+  moneta_prepare_aggregate_embodiment_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ): number;
-  moneta_build_distribution_embodiment_v1(
+  moneta_prepare_distribution_embodiment_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ): number;
-  moneta_build_density_embodiment_v1(
+  moneta_prepare_density_embodiment_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ): number;
-  moneta_build_cluster_embodiment_v1(
+  moneta_prepare_cluster_embodiment_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ): number;
-  moneta_build_graph_embodiment_v1(
+  moneta_prepare_graph_embodiment_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ): number;
-  moneta_query_semantic_detail_v1(
+  moneta_prepare_semantic_detail_v1(
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ): number;
 }
 
@@ -174,10 +157,6 @@ function resolveAuthoritativeRequest(
   return structuredClone(authority.request);
 }
 
-function parseEnvelope<T extends EmbodimentEnvelopeV1>(bytes: Uint8Array): T {
-  return JSON.parse(new TextDecoder().decode(bytes)) as T;
-}
-
 function invokeEmbodimentBuilder<TRequest extends EmbodimentRequestV1, TEnvelope extends EmbodimentEnvelopeV1>(
   handle: number,
   request: TRequest,
@@ -185,28 +164,19 @@ function invokeEmbodimentBuilder<TRequest extends EmbodimentRequestV1, TEnvelope
     handle: number,
     inputPtr: number,
     inputLen: number,
-    outPtr: number,
-    outLen: number,
   ) => number,
 ): TEnvelope | null {
+  const owner = getRawRuntimeExports();
   const input = new TextEncoder().encode(JSON.stringify(request));
   const { ptr: inputPtr, len: inputLen } = allocBytes(input);
   try {
-    const required = invoke(handle, inputPtr, inputLen, 0, 0);
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = invoke(handle, inputPtr, inputLen, output.ptr, output.len);
-      if (written !== required) return null;
-      const envelope = parseEnvelope<TEnvelope>(readBytes(output.ptr, written));
-      retainAuthoritativeRequest(handle, request, envelope);
-      return envelope;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
+    const json = readPreparedResult(() => invoke(handle, inputPtr, inputLen), { nullOnReadMismatch: true });
+    if (json === null) return null;
+    const envelope = JSON.parse(json) as TEnvelope;
+    retainAuthoritativeRequest(handle, request, envelope);
+    return envelope;
   } finally {
-    deallocBytes(inputPtr, inputLen);
+    owner.host_buffer_dealloc(inputPtr, inputLen);
   }
 }
 
@@ -221,8 +191,8 @@ export function buildAggregateSemanticEmbodimentV1(
 ): SemanticEmbodimentEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_aggregate_embodiment_v1 !== 'function') return null;
-  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_aggregate_embodiment_v1.bind(runtime));
+  if (typeof runtime.moneta_prepare_aggregate_embodiment_v1 !== 'function') return null;
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_prepare_aggregate_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -236,8 +206,8 @@ export function buildDistributionSemanticEmbodimentV1(
 ): SemanticEmbodimentEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_distribution_embodiment_v1 !== 'function') return null;
-  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_distribution_embodiment_v1.bind(runtime));
+  if (typeof runtime.moneta_prepare_distribution_embodiment_v1 !== 'function') return null;
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_prepare_distribution_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -251,8 +221,8 @@ export function buildDensitySemanticEmbodimentV1(
 ): SemanticEmbodimentEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_density_embodiment_v1 !== 'function') return null;
-  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_density_embodiment_v1.bind(runtime));
+  if (typeof runtime.moneta_prepare_density_embodiment_v1 !== 'function') return null;
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_prepare_density_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -266,8 +236,8 @@ export function buildClusterSemanticEmbodimentV1(
 ): ClusterEmbodimentEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_cluster_embodiment_v1 !== 'function') return null;
-  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_cluster_embodiment_v1.bind(runtime));
+  if (typeof runtime.moneta_prepare_cluster_embodiment_v1 !== 'function') return null;
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_prepare_cluster_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -282,8 +252,8 @@ export function buildGraphSemanticEmbodimentV1(
 ): GraphEmbodimentEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_build_graph_embodiment_v1 !== 'function') return null;
-  return invokeEmbodimentBuilder(handle, request, runtime.moneta_build_graph_embodiment_v1.bind(runtime));
+  if (typeof runtime.moneta_prepare_graph_embodiment_v1 !== 'function') return null;
+  return invokeEmbodimentBuilder(handle, request, runtime.moneta_prepare_graph_embodiment_v1.bind(runtime));
 }
 
 /**
@@ -303,7 +273,7 @@ export function querySemanticDetailV1(
 ): SemanticDetailEnvelopeV1 | null {
   if (!Number.isSafeInteger(handle) || handle <= 0) return null;
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
-  if (typeof runtime.moneta_query_semantic_detail_v1 !== 'function') return null;
+  if (typeof runtime.moneta_prepare_semantic_detail_v1 !== 'function') return null;
 
   const authoritativeRequest = resolveAuthoritativeRequest(handle, request);
   if (!authoritativeRequest) return null;
@@ -314,34 +284,16 @@ export function querySemanticDetailV1(
     generation,
   };
 
+  const owner = getRawRuntimeExports();
   const input = new TextEncoder().encode(JSON.stringify(payload));
   const { ptr: inputPtr, len: inputLen } = allocBytes(input);
   try {
-    const required = runtime.moneta_query_semantic_detail_v1(
-      handle,
-      inputPtr,
-      inputLen,
-      0,
-      0,
+    const json = readPreparedResult(
+      () => runtime.moneta_prepare_semantic_detail_v1(handle, inputPtr, inputLen),
+      { nullOnReadMismatch: true },
     );
-    if (!Number.isSafeInteger(required) || required <= 0) return null;
-
-    const output = allocBuffer(required);
-    try {
-      const written = runtime.moneta_query_semantic_detail_v1(
-        handle,
-        inputPtr,
-        inputLen,
-        output.ptr,
-        output.len,
-      );
-      if (written !== required) return null;
-      const bytes = readBytes(output.ptr, written);
-      return JSON.parse(new TextDecoder().decode(bytes)) as SemanticDetailEnvelopeV1;
-    } finally {
-      deallocBuffer(output.ptr, output.len);
-    }
+    return json === null ? null : JSON.parse(json) as SemanticDetailEnvelopeV1;
   } finally {
-    deallocBytes(inputPtr, inputLen);
+    owner.host_buffer_dealloc(inputPtr, inputLen);
   }
 }

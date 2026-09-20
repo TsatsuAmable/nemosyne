@@ -1,6 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 pub mod command_buffer;
+mod prepared_results;
 mod data;
 pub mod moneta;
 pub use moneta as draco;
@@ -464,11 +465,22 @@ fn write_bytes_out(bytes: &[u8], out_ptr: u32, out_len: u32) -> u32 {
 
 #[wasm_bindgen]
 pub fn dataset_to_json(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    compute_dataset_json_result(handle)
+        .map(|json| write_bytes_out(json.as_bytes(), out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn dataset_prepare_json(handle: u32) -> u32 {
+    if data::with_dataset(handle, |_| ()).is_none() { return 0; }
+    prepared_results::prepare(handle, || compute_dataset_json_result(handle))
+}
+
+fn compute_dataset_json_result(handle: u32) -> Option<String> {
     data::with_dataset(handle, |ds| {
-        let json = ds.to_js_json();
-        write_bytes_out(json.as_bytes(), out_ptr, out_len)
+        prepared_results::record_computation(prepared_results::DATASET_JSON);
+        ds.to_js_json()
     })
-    .unwrap_or(0)
 }
 
 #[wasm_bindgen]
@@ -671,16 +683,29 @@ pub fn data_infer_schema(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
 
 #[wasm_bindgen]
 pub fn data_statistics(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    compute_statistics_result(handle)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_statistics(handle: u32) -> u32 {
+    if data::with_dataset(handle, |_| ()).is_none() { return 0; }
+    prepared_results::prepare(handle, || compute_statistics_result(handle))
+}
+
+fn compute_statistics_result(handle: u32) -> Option<String> {
     let (facts, input_fp) = match data::with_dataset(handle, |ds| {
+        prepared_results::record_computation(prepared_results::STATISTICS);
         (data::statistics::compute_statistics(ds), ds.fingerprint())
     }) {
         Some(v) => v,
-        None => return 0,
+        None => return None,
     };
     let json = serde_json::to_string(&facts).unwrap_or_else(|_| "{}".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record("statistics", serde_json::Value::Null, &input_fp, &output_fp);
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]
@@ -693,42 +718,77 @@ pub fn data_compute_spectral_facts(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    let Some((time_col, val_col)) = parse_spectral_columns(time_ptr, time_len, val_ptr, val_len) else {
+        return 0;
+    };
+    spectral_facts_json(handle, &time_col, &val_col)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_spectral_facts(
+    handle: u32,
+    time_ptr: u32,
+    time_len: u32,
+    val_ptr: u32,
+    val_len: u32,
+) -> u32 {
+    let Some((time_col, val_col)) = parse_spectral_columns(time_ptr, time_len, val_ptr, val_len) else {
+        return 0;
+    };
+    // The direct export is row-backed only. Preserve its null outcome before
+    // admission, including when prepared capacity is exhausted.
+    if data::with_dataset(handle, |_| ()).is_none() {
+        return 0;
+    }
+    prepared_results::prepare(handle, || spectral_facts_json(handle, &time_col, &val_col))
+}
+
+fn parse_spectral_columns(
+    time_ptr: u32,
+    time_len: u32,
+    val_ptr: u32,
+    val_len: u32,
+) -> Option<(String, String)> {
     let time_col = if time_len > 0 {
         let Some(bytes) = (unsafe { allocator::try_view(time_ptr, time_len) }) else {
-            return 0;
+            return None;
         };
         match std::str::from_utf8(bytes) {
             Ok(value) => value.to_string(),
-            Err(_) => return 0,
+            Err(_) => return None,
         }
     } else {
         String::new()
     };
     let val_col = if val_len > 0 {
         let Some(bytes) = (unsafe { allocator::try_view(val_ptr, val_len) }) else {
-            return 0;
+            return None;
         };
         match std::str::from_utf8(bytes) {
             Ok(value) => value.to_string(),
-            Err(_) => return 0,
+            Err(_) => return None,
         }
     } else {
         String::new()
     };
-    let (facts_json, input_fp) = match data::with_dataset(handle, |ds| {
+    Some((time_col, val_col))
+}
+
+fn spectral_facts_json(handle: u32, time_col: &str, val_col: &str) -> Option<String> {
+    let (facts_json, input_fp) = data::with_dataset(handle, |ds| {
+        prepared_results::record_computation(prepared_results::SPECTRAL_FACTS);
         let facts = data::spectral::compute_spectral_facts(ds, &time_col, &val_col);
         (facts, ds.fingerprint())
-    }) {
-        Some(v) => v,
-        None => return 0,
-    };
+    })?;
     let json = match facts_json {
         Some(f) => serde_json::to_string(&f).unwrap_or_else(|_| "null".to_string()),
         None => "null".to_string(),
     };
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record("spectral_facts", serde_json::Value::Null, &input_fp, &output_fp);
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]
@@ -905,14 +965,25 @@ pub fn data_compute_mapper_graph(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    compute_mapper_result(handle, params_ptr, params_len)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_mapper_graph(handle: u32, params_ptr: u32, params_len: u32) -> u32 {
+    prepared_results::prepare(handle, || compute_mapper_result(handle, params_ptr, params_len))
+}
+
+fn compute_mapper_result(handle: u32, params_ptr: u32, params_len: u32) -> Option<String> {
     let Some(params_bytes) = (unsafe { allocator::try_view(params_ptr, params_len) }) else {
-        return 0;
+        return None;
     };
     let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
         Ok(v) => v,
         Err(e) => {
             log_error(&format!("data_compute_mapper_graph params: {}", e));
-            return 0;
+            return None;
         }
     };
     // Kernel-inline resource envelope: refuse in-band before any expensive TDA
@@ -934,7 +1005,7 @@ pub fn data_compute_mapper_graph(
             data::provenance::record_refusal("compute_mapper_graph", params, &input_fp);
             let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
             let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
-            return write_str_out(&json, out_ptr, out_len);
+            return Some(json);
         }
     }
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
@@ -943,13 +1014,14 @@ pub fn data_compute_mapper_graph(
     let overlap = params.get("overlap").and_then(|v| v.as_f64()).unwrap_or(0.3);
 
     let Some((space, input_fp, ingest_mode)) = tda_space(handle, &feature_columns) else {
-        return 0;
+        return None;
     };
+    prepared_results::record_computation(0);
     let graph = data::topology::compute_mapper_graph_space(&space, &filter_values, bins, overlap);
     let json = serde_json::to_string(&graph).unwrap_or_else(|_| "{}".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record_with_ingest("compute_mapper_graph", params, &input_fp, &output_fp, Some(ingest_mode));
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]
@@ -960,14 +1032,25 @@ pub fn data_compute_persistence_intervals(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    compute_persistence_result(handle, params_ptr, params_len)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_persistence_intervals(handle: u32, params_ptr: u32, params_len: u32) -> u32 {
+    prepared_results::prepare(handle, || compute_persistence_result(handle, params_ptr, params_len))
+}
+
+fn compute_persistence_result(handle: u32, params_ptr: u32, params_len: u32) -> Option<String> {
     let Some(params_bytes) = (unsafe { allocator::try_view(params_ptr, params_len) }) else {
-        return 0;
+        return None;
     };
     let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
         Ok(v) => v,
         Err(e) => {
             log_error(&format!("data_compute_persistence_intervals params: {}", e));
-            return 0;
+            return None;
         }
     };
     // Kernel-inline resource envelope (see data_compute_mapper_graph).
@@ -979,7 +1062,7 @@ pub fn data_compute_persistence_intervals(
             data::provenance::record_refusal("compute_persistence_intervals", params, &input_fp);
             let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
             let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
-            return write_str_out(&json, out_ptr, out_len);
+            return Some(json);
         }
     }
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
@@ -987,13 +1070,14 @@ pub fn data_compute_persistence_intervals(
     let max_distance = params.get("maxDistance").and_then(|v| v.as_f64()).unwrap_or(1.0);
 
     let Some((space, input_fp, ingest_mode)) = tda_space(handle, &feature_columns) else {
-        return 0;
+        return None;
     };
+    prepared_results::record_computation(1);
     let intervals = data::topology::compute_persistence_intervals_space(&space, &filter_values, max_distance);
     let json = serde_json::to_string(&intervals).unwrap_or_else(|_| "[]".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record_with_ingest("compute_persistence_intervals", params, &input_fp, &output_fp, Some(ingest_mode));
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]
@@ -1004,14 +1088,25 @@ pub fn data_compute_betti0_curve(
     out_ptr: u32,
     out_len: u32,
 ) -> u32 {
+    compute_betti0_result(handle, params_ptr, params_len)
+        .map(|json| write_str_out(&json, out_ptr, out_len))
+        .unwrap_or(0)
+}
+
+#[wasm_bindgen]
+pub fn data_prepare_betti0_curve(handle: u32, params_ptr: u32, params_len: u32) -> u32 {
+    prepared_results::prepare(handle, || compute_betti0_result(handle, params_ptr, params_len))
+}
+
+fn compute_betti0_result(handle: u32, params_ptr: u32, params_len: u32) -> Option<String> {
     let Some(params_bytes) = (unsafe { allocator::try_view(params_ptr, params_len) }) else {
-        return 0;
+        return None;
     };
     let params: serde_json::Value = match serde_json::from_slice(params_bytes) {
         Ok(v) => v,
         Err(e) => {
             log_error(&format!("data_compute_betti0_curve params: {}", e));
-            return 0;
+            return None;
         }
     };
     // Kernel-inline resource envelope (see data_compute_mapper_graph).
@@ -1023,20 +1118,21 @@ pub fn data_compute_betti0_curve(
             data::provenance::record_refusal("compute_betti0_curve", params, &input_fp);
             let envelope = serde_json::json!({ "unsupportedAtScale": true, "preflight": preflight });
             let json = serde_json::to_string(&envelope).unwrap_or_else(|_| "{}".to_string());
-            return write_str_out(&json, out_ptr, out_len);
+            return Some(json);
         }
     }
     let feature_columns = parse_string_array(params.get("featureColumns").unwrap_or(&serde_json::Value::Null));
     let steps = params.get("steps").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
 
     let Some((space, input_fp, ingest_mode)) = tda_space(handle, &feature_columns) else {
-        return 0;
+        return None;
     };
+    prepared_results::record_computation(2);
     let curve = data::topology::compute_betti0_curve_space(&space, steps);
     let json = serde_json::to_string(&curve).unwrap_or_else(|_| "[]".to_string());
     let output_fp = data::fingerprint::fnv1a_hex(&json);
     data::provenance::record_with_ingest("compute_betti0_curve", params, &input_fp, &output_fp, Some(ingest_mode));
-    write_str_out(&json, out_ptr, out_len)
+    Some(json)
 }
 
 #[wasm_bindgen]
