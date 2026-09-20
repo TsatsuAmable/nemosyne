@@ -160,14 +160,16 @@ The nemosyne.world homepage may carry a lightweight curated Datasphere preview t
 
 Guardrails:
 
-- use dependency-free web presentation (currently semantic SVG/CSS) rather than reintroducing A-Frame or a parallel 3D renderer;
+- preserve the Datasphere's spatial visual character rather than replacing it with an explanatory diagram;
+- render the preview with Three.js, matching Nemosyne's production renderer dependency and reusing Nemosyne visual semantics such as the void/fog world, wireframe emissive ICOSA_NODE-style artefacts, TechnoCore-style orbital structures, governed colour tokens and line/flow vocabulary;
+- do not reintroduce A-Frame, A-Frame scene primitives, or a second analytical/representation authority;
 - represent datasets, derived artefacts, evidence and investigation context at the concept level rather than implying that displayed objects are raw datapoints;
 - label hand-authored layouts explicitly as illustrative and not Moneta-generated;
 - do not infer or imply analytical meaning from visual proximity, size, colour, motion or connectivity unless that meaning is supplied by governed evidence;
 - do not count the homepage preview as production-path, scientific, runtime, WebXR or P1-MCR qualification evidence;
 - as P1-MCR matures, the preview may consume exported or snapshotted RepresentationGraph / SpatialEmbodimentPlan examples, but it must remain downstream of those authorities rather than becoming one.
 
-The historical A-Frame Datasphere prototype is visual-reference material only and is out of scope as a Nemosyne runtime dependency.
+The historical A-Frame Datasphere prototype remains visual-reference material only. Its composition and atmosphere may inform the public preview, but its A-Frame implementation and semantics are out of scope.
 
 ## 5. Sequencing
 
