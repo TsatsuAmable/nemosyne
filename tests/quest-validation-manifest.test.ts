@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   MANIFEST_SCHEMA_VERSION,
+  QUEST_PERFORMANCE_PROFILES,
   VALIDATION_MODE_TABLE,
   deriveValidationManifest,
   validateValidationManifest,
@@ -167,6 +168,23 @@ describe('QV1 mode/gate/profile/evidence/runtime mapping', () => {
     expect(manifest.profile).toBe('quest-3s-qualification');
     expect(manifest.evidenceClass).toBe('governed-physical-validation');
     expect(manifest.runtimeClass).toBe('vite-dev');
+  });
+
+  it('binds allow-listed long-session quest-perf profile overrides into the manifest', () => {
+    for (const profileOverride of QUEST_PERFORMANCE_PROFILES.slice(1)) {
+      const manifest = deriveValidationManifest(baseInput({ mode: 'quest-perf', profileOverride }));
+      expect(manifest.profile).toBe(profileOverride);
+      expect(validateValidationManifest(manifest).ok).toBe(true);
+    }
+  });
+
+  it('fails closed on unknown profile overrides and persisted profile tampering', () => {
+    expect(() =>
+      deriveValidationManifest(baseInput({ mode: 'quest-perf', profileOverride: 'uxr0-invented' }))
+    ).toThrow(/unknown quest-perf profile/i);
+
+    const manifest = deriveValidationManifest(baseInput({ mode: 'quest-perf' }));
+    expect(validateValidationManifest({ ...manifest, profile: 'uxr0-invented' }).ok).toBe(false);
   });
 
   it('maps quest to an exploratory physical-device trial', () => {

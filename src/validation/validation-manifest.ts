@@ -28,18 +28,17 @@ export type EvidenceClass =
   | 'clean-production-qualification';
 
 export type RuntimeClass =
-  | 'vite-dev'
-  | 'clean-production-dist'
-  | 'desktop-browser'
-  | 'desktop-simulator'
-  | 'physical-webxr';
+  'vite-dev' | 'clean-production-dist' | 'desktop-browser' | 'desktop-simulator' | 'physical-webxr';
 
-export type ValidationMode =
-  | 'quest'
-  | 'quest-perf'
-  | 'quest-ux'
-  | 'quest-10m'
-  | 'quest-validate';
+export type ValidationMode = 'quest' | 'quest-perf' | 'quest-ux' | 'quest-10m' | 'quest-validate';
+
+export const QUEST_PERFORMANCE_PROFILES = [
+  'quest-3s-qualification',
+  'uxr0-functional-5m',
+  'uxr0-resource-trend-30m',
+  'uxr0-sustained-60m',
+] as const;
+export type QuestPerformanceProfile = (typeof QUEST_PERFORMANCE_PROFILES)[number];
 
 export type GateDispositionStatus = 'PASS' | 'FAIL' | 'PARTIAL' | 'INVALID_RUN' | 'BLOCKED';
 
@@ -117,6 +116,7 @@ export interface ValidationModeSpec {
   evidenceClass: EvidenceClass;
   gates: string[];
   profile: string | null;
+  allowedProfiles?: readonly string[];
   runtimeClass: RuntimeClass;
   wasmRequired: boolean;
   invalidationReasons: string[];
@@ -144,6 +144,7 @@ export const VALIDATION_MODE_TABLE: Record<ValidationMode, ValidationModeSpec> =
     evidenceClass: 'governed-physical-validation',
     gates: ['PERF-04', 'PERF-05'],
     profile: 'quest-3s-qualification',
+    allowedProfiles: QUEST_PERFORMANCE_PROFILES,
     runtimeClass: 'vite-dev',
     wasmRequired: true,
     invalidationReasons: [],
@@ -184,12 +185,30 @@ export const VALIDATION_MODE_TABLE: Record<ValidationMode, ValidationModeSpec> =
 
 export const VALIDATION_MODES = Object.keys(VALIDATION_MODE_TABLE) as ValidationMode[];
 
+export function resolveValidationProfile(
+  mode: ValidationMode,
+  profileOverride?: string | null
+): string | null {
+  const spec = VALIDATION_MODE_TABLE[mode];
+  if (profileOverride == null || profileOverride === '') return spec.profile;
+  if (mode !== 'quest-perf') {
+    throw new Error(`validation mode '${mode}' does not accept a profile override`);
+  }
+  if (!QUEST_PERFORMANCE_PROFILES.includes(profileOverride as QuestPerformanceProfile)) {
+    throw new Error(
+      `unknown quest-perf profile '${profileOverride}'; valid profiles: ${QUEST_PERFORMANCE_PROFILES.join(', ')}`
+    );
+  }
+  return profileOverride;
+}
+
 export interface ValidationManifestInput {
   sessionId: string;
   sessionLabel: string;
   buildId: string;
   worktree: WorktreeState;
   mode: ValidationMode;
+  profileOverride?: string | null;
   createdAt?: string;
   deviceIdentity?: QuestDeviceIdentity | null;
   deviceIdentityError?: string | null;
@@ -215,6 +234,7 @@ function isoNow(): string {
  */
 export function deriveValidationManifest(input: ValidationManifestInput): ValidationManifest {
   const spec = VALIDATION_MODE_TABLE[input.mode];
+  const profile = resolveValidationProfile(input.mode, input.profileOverride);
   const promotionGradeEvidence =
     spec.evidenceClass === 'governed-physical-validation' ||
     spec.evidenceClass === 'clean-production-qualification';
@@ -237,7 +257,7 @@ export function deriveValidationManifest(input: ValidationManifestInput): Valida
     worktree: input.worktree,
     validationMode: spec.mode,
     gates: [...spec.gates],
-    profile: spec.profile,
+    profile,
     runtimeClass: spec.runtimeClass,
     evidenceClass: spec.evidenceClass,
     deviceIdentity: input.deviceIdentity ?? null,
@@ -263,8 +283,7 @@ export function deriveValidationManifest(input: ValidationManifestInput): Valida
 }
 
 export type ManifestValidationResult =
-  | { ok: true; manifest: ValidationManifest }
-  | { ok: false; errors: string[] };
+  { ok: true; manifest: ValidationManifest } | { ok: false; errors: string[] };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WORKTREE_STATES: WorktreeState[] = ['clean', 'dirty', 'unknown'];
@@ -364,6 +383,22 @@ export function validateValidationManifest(value: unknown): ManifestValidationRe
   }
   if (v.profile !== null && typeof v.profile !== 'string') {
     errors.push('profile must be a string or null');
+  }
+  if (
+    typeof v.validationMode === 'string' &&
+    v.validationMode in VALIDATION_MODE_TABLE &&
+    (v.profile === null || typeof v.profile === 'string')
+  ) {
+    const mode = v.validationMode as ValidationMode;
+    if (mode === 'quest-perf') {
+      if (!QUEST_PERFORMANCE_PROFILES.includes(v.profile as QuestPerformanceProfile)) {
+        errors.push(
+          `quest-perf profile must be one of ${QUEST_PERFORMANCE_PROFILES.map((profile) => `'${profile}'`).join('|')}`
+        );
+      }
+    } else if (v.profile !== VALIDATION_MODE_TABLE[mode].profile) {
+      errors.push(`profile must match validation mode '${mode}'`);
+    }
   }
   if (
     typeof v.runtimeClass !== 'string' ||

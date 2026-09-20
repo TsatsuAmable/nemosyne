@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   deriveValidationManifest,
   type QuestDeviceIdentity,
+  type QuestPerformanceProfile,
   type ValidationManifest,
   type ValidationMode,
 } from '../src/validation/validation-manifest.ts';
@@ -10,9 +11,15 @@ import {
   GUIDED_UX_TASKS,
   type GuidedUxSubmission,
 } from '../src/validation/guided-ux-validation.ts';
-import { QUEST_3S_QUALIFICATION_PROFILE } from '../src/vr/scalability/LoadTestDriver.ts';
+import {
+  QUEST_3S_QUALIFICATION_PROFILE,
+  UXR0_FUNCTIONAL_5M_PROFILE,
+  UXR0_RESOURCE_TREND_30M_PROFILE,
+  UXR0_SUSTAINED_60M_PROFILE,
+} from '../src/vr/scalability/LoadTestDriver.ts';
 import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.ts';
 import {
+  QUEST_PERFORMANCE_PROFILE_POLICIES,
   QUEST_PERF_STEP_POLICY,
   adjudicateValidationEvidence,
   validateQuestBoundaryReport,
@@ -37,7 +44,8 @@ function device(): QuestDeviceIdentity {
 
 function manifest(
   mode: ValidationMode = 'quest-perf',
-  worktree: 'clean' | 'dirty' = 'clean'
+  worktree: 'clean' | 'dirty' = 'clean',
+  profileOverride?: QuestPerformanceProfile
 ): ValidationManifest {
   return deriveValidationManifest({
     sessionId: SESSION_ID,
@@ -45,6 +53,7 @@ function manifest(
     buildId: BUILD,
     worktree,
     mode,
+    profileOverride,
     createdAt: '2026-09-05T09:00:00.000Z',
     deviceIdentity: device(),
   });
@@ -58,17 +67,14 @@ function frameFor(grade: 'green' | 'yellow' | 'red') {
 
 function perfReport(
   value: ValidationManifest,
-  grades: Array<'green' | 'yellow' | 'red'> = [
-    'green',
-    'green',
-    'green',
-    'green',
-    'green',
-  ]
+  grades: Array<'green' | 'yellow' | 'red'> = ['green', 'green', 'green', 'green', 'green']
 ) {
+  const profile = value.profile as QuestPerformanceProfile;
+  const policy = QUEST_PERFORMANCE_PROFILE_POLICIES[profile];
+  let gradedIndex = 0;
   return {
     version: '2',
-    profileName: 'quest-3s-qualification',
+    profileName: profile,
     xrActive: true,
     aborted: false,
     thresholds: { ...LOAD_TEST_THRESHOLDS },
@@ -84,12 +90,20 @@ function perfReport(
       datasetRowsIncluded: false,
       cameraPosesIncluded: false,
     },
-    steps: QUEST_PERF_STEP_POLICY.map((policy, index) => ({
-      spec: { topology: 'TABULAR', rowCount: policy.rowCount, durationSec: policy.durationSec },
-      frames: frameFor(grades[index] ?? 'green'),
-      criticalViolations: 0,
-      grade: grades[index] ?? 'green',
-    })),
+    steps: policy.steps.map((step) => {
+      const grade = step.warmup ? 'green' : (grades[gradedIndex++] ?? 'green');
+      return {
+        spec: {
+          topology: 'TABULAR',
+          rowCount: step.rowCount,
+          durationSec: step.durationSec,
+          warmup: step.warmup,
+        },
+        frames: frameFor(grade),
+        criticalViolations: 0,
+        grade,
+      };
+    }),
   };
 }
 
@@ -156,8 +170,37 @@ function uxSubmission(
 }
 
 describe('QV4 governed policy binding', () => {
+  it('keeps every governed performance policy synchronized with its production profile', () => {
+    const profiles = [
+      QUEST_3S_QUALIFICATION_PROFILE,
+      UXR0_FUNCTIONAL_5M_PROFILE,
+      UXR0_RESOURCE_TREND_30M_PROFILE,
+      UXR0_SUSTAINED_60M_PROFILE,
+    ];
+    for (const profile of profiles) {
+      const policy = QUEST_PERFORMANCE_PROFILE_POLICIES[profile.name as QuestPerformanceProfile];
+      expect(policy.profileName).toBe(profile.name);
+      expect(
+        policy.steps.map(({ rowCount, durationSec, warmup, label }) => ({
+          rowCount,
+          durationSec,
+          warmup,
+          label,
+        }))
+      ).toEqual(
+        profile.steps.map(({ rowCount, durationSec, warmup, label }) => ({
+          rowCount,
+          durationSec,
+          warmup: warmup === true,
+          label,
+        }))
+      );
+    }
+  });
   it('keeps the adjudicator staircase signature synchronized with the production Quest profile', () => {
-    const gradedProfileSteps = QUEST_3S_QUALIFICATION_PROFILE.steps.filter((s) => s.warmup !== true);
+    const gradedProfileSteps = QUEST_3S_QUALIFICATION_PROFILE.steps.filter(
+      (s) => s.warmup !== true
+    );
     // The profile leads with exactly one ungraded warmup step; policy aligns
     // with the graded steps only.
     expect(QUEST_3S_QUALIFICATION_PROFILE.steps[0].warmup).toBe(true);
@@ -183,7 +226,7 @@ describe('QV4 governed policy binding', () => {
     // yellow. The device grades cadence; the recompute must agree.
     // (Assertion via unknown: the adjudicator reads steps structurally, and
     // frameCadence is intentionally absent from the legacy helper's shape.)
-    report.steps[2] = {
+    report.steps[3] = {
       spec: { topology: 'TABULAR', rowCount: 65_000, durationSec: 45 },
       frames: { p95Ms: 6.275, p99Ms: 9.03, droppedPct: 0.0285 },
       frameCadence: { frameCount: 2343, p95Ms: 16.67, p99Ms: 16.85, droppedPct: 4.99 },
@@ -191,27 +234,62 @@ describe('QV4 governed policy binding', () => {
       grade: 'yellow',
     } as unknown as (typeof report.steps)[number];
     const checked = validateQuestPerformanceReport(report, value);
-    expect(
-      checked.errors.filter((error) => error.includes('does not match recomputed'))
-    ).toEqual([]);
+    expect(checked.errors.filter((error) => error.includes('does not match recomputed'))).toEqual(
+      []
+    );
     expect(checked.ok).toBe(true);
   });
 
-  it('skips flagged warmup steps in positional policy alignment', () => {
+  it('rejects a warmup whose manifest-bound duration is altered', () => {
     const value = manifest();
     const report = perfReport(value);
-    report.steps = [
-      {
-        spec: { topology: 'TABULAR', rowCount: 1_000, durationSec: 10, label: 'warmup', warmup: true },
-        frames: { p95Ms: 40, p99Ms: 60, droppedPct: 50 },
-        criticalViolations: 2,
-        grade: 'red',
-      },
-      ...report.steps,
-    ] as unknown as typeof report.steps;
+    report.steps[0].spec.durationSec = 10;
     const checked = validateQuestPerformanceReport(report, value);
-    expect(checked.errors).toEqual([]);
-    expect(checked.ok).toBe(true);
+    expect(checked.ok).toBe(false);
+    expect(checked.errors.join('\n')).toContain('step 1 durationSec must be 15');
+  });
+
+  it('binds long-session reports to the manifest profile and exact duration', () => {
+    const value = manifest('quest-perf', 'clean', 'uxr0-resource-trend-30m');
+    const report = perfReport(value, ['green']);
+    expect(validateQuestPerformanceReport(report, value).ok).toBe(true);
+
+    const mismatched = { ...report, profileName: 'quest-3s-qualification' };
+    const mismatchCheck = validateQuestPerformanceReport(mismatched, value);
+    expect(mismatchCheck.ok).toBe(false);
+    expect(mismatchCheck.errors.join('\n')).toContain('does not match manifest profile');
+
+    report.steps[1].spec.durationSec = 1_799;
+    const durationCheck = validateQuestPerformanceReport(report, value);
+    expect(durationCheck.ok).toBe(false);
+    expect(durationCheck.errors.join('\n')).toContain('step 2 durationSec must be 1800');
+  });
+
+  it('keeps a green 30-minute run PARTIAL when no governed resource PASS threshold exists', () => {
+    const value = manifest('quest-perf', 'clean', 'uxr0-resource-trend-30m');
+    const result = adjudicateValidationEvidence({
+      manifest: value,
+      loadTestReports: [perfReport(value, ['green'])],
+      guidedUxSubmission: null,
+      cohort: { perfCompletedRunCount: 99, perfPassingRunCount: 99 },
+    });
+    expect(result.gateResults.find((gate) => gate.gate === 'PERF-04')?.status).toBe('PARTIAL');
+    expect(result.gateResults.find((gate) => gate.gate === 'PERF-05')?.status).toBe('PARTIAL');
+    expect(result.aggregateStatus).toBe('PARTIAL');
+    expect(result.aggregateReasons.join('\n')).toMatch(
+      /no governed automatic resource-trend PASS threshold/i
+    );
+  });
+
+  it('allows fixed frame thresholds to falsify a long-session run', () => {
+    const value = manifest('quest-perf', 'clean', 'uxr0-sustained-60m');
+    const result = adjudicateValidationEvidence({
+      manifest: value,
+      loadTestReports: [perfReport(value, ['red'])],
+      guidedUxSubmission: null,
+    });
+    expect(result.gateResults.find((gate) => gate.gate === 'PERF-04')?.status).toBe('FAIL');
+    expect(result.aggregateStatus).toBe('FAIL');
   });
 
   it('separates analyzer validity from a PERF-04 gate failure', () => {
@@ -255,7 +333,10 @@ describe('QV4 governed policy binding', () => {
   it('does not make the 250k stretch step a hidden PERF-04 pass requirement', () => {
     const value = manifest();
     const report = perfReport(value, ['green', 'green', 'green', 'green', 'red']);
-    expect(validateQuestPerformanceReport(report, value)).toMatchObject({ ok: true, corePass: true });
+    expect(validateQuestPerformanceReport(report, value)).toMatchObject({
+      ok: true,
+      corePass: true,
+    });
   });
 
   it('fails foreign runtime identity and dirty source attribution closed as INVALID_RUN', () => {
@@ -281,9 +362,7 @@ describe('QV4 governed policy binding', () => {
       guidedUxSubmission: null,
       cohort: { perfPassingRunCount: 3, perfCompletedRunCount: 3 },
       prerequisites: {
-        'PERF-04': [
-          { satisfied: false, reason: 'clean-production prerequisite is not satisfied' },
-        ],
+        'PERF-04': [{ satisfied: false, reason: 'clean-production prerequisite is not satisfied' }],
       },
     });
     expect(result.gateResults.find((gate) => gate.gate === 'PERF-04')).toMatchObject({

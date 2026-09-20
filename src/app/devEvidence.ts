@@ -1,10 +1,17 @@
 import type { Group } from 'three';
-import type { DatasetLoadEntry, TelemetryCollectorLike, WorldEventBusLike } from '../vr/coordinators/types.ts';
+import type {
+  DatasetLoadEntry,
+  TelemetryCollectorLike,
+  WorldEventBusLike,
+} from '../vr/coordinators/types.ts';
 import type { Engine } from '../vr/Engine.ts';
 import type { WorldUIManager } from '../vr/coordinators/WorldUIManager.ts';
 import {
   LoadTestDriver,
   QUEST_3S_QUALIFICATION_PROFILE,
+  UXR0_FUNCTIONAL_5M_PROFILE,
+  UXR0_RESOURCE_TREND_30M_PROFILE,
+  UXR0_SUSTAINED_60M_PROFILE,
   type LoadTestProfile,
   type LoadTestSummary,
 } from '../vr/scalability/LoadTestDriver.ts';
@@ -43,6 +50,23 @@ interface ActiveSpecInfo {
   renderedNodeCount?: number;
 }
 
+export function resolveGovernedQuestPerformanceProfile(
+  profileName: string | null
+): LoadTestProfile {
+  switch (profileName) {
+    case 'quest-3s-qualification':
+      return QUEST_3S_QUALIFICATION_PROFILE;
+    case 'uxr0-functional-5m':
+      return UXR0_FUNCTIONAL_5M_PROFILE;
+    case 'uxr0-resource-trend-30m':
+      return UXR0_RESOURCE_TREND_30M_PROFILE;
+    case 'uxr0-sustained-60m':
+      return UXR0_SUSTAINED_60M_PROFILE;
+    default:
+      throw new Error(`Unsupported governed Quest performance profile '${profileName ?? 'null'}'`);
+  }
+}
+
 export interface DevEvidenceInstallerDependencies {
   engine: Engine;
   eventBus: WorldEventBusLike;
@@ -70,9 +94,7 @@ function validationHeaders(receipt = false): Record<string, string> {
   return {
     [VALIDATION_SESSION_LABEL_HEADER]: session.label,
     [VALIDATION_SESSION_ID_HEADER]: session.id,
-    ...(receipt
-      ? { [VALIDATION_RECEIPT_VERSION_HEADER]: VALIDATION_RECEIPT_VERSION }
-      : {}),
+    ...(receipt ? { [VALIDATION_RECEIPT_VERSION_HEADER]: VALIDATION_RECEIPT_VERSION } : {}),
   };
 }
 
@@ -180,14 +202,10 @@ export function installDevEvidence({
   getActiveSpecInfo,
   getWasmMemoryBytes,
 }: DevEvidenceInstallerDependencies): DevEvidenceHandle {
-  const loadTestDriver = new LoadTestDriver(
-    { loadDataset, getActiveSpecInfo, eventBus },
-    engine,
-    {
-      getWasmMemoryBytes,
-      getSceneStats: () => captureSceneCardinality(engine),
-    }
-  );
+  const loadTestDriver = new LoadTestDriver({ loadDataset, getActiveSpecInfo, eventBus }, engine, {
+    getWasmMemoryBytes,
+    getSceneStats: () => captureSceneCardinality(engine),
+  });
   const questBoundaryProbe = new QuestBoundaryProbe(engine, eventBus);
   const validationContext = readBrowserValidationContext(import.meta.env);
   engine.addUpdatable(loadTestDriver);
@@ -331,7 +349,10 @@ export function installDevEvidence({
     validationPanel = new ValidationOperatorPanel(uiManager.analystAnchor as Group, {
       context: validationContext,
       eventBus,
-      onStartPerformance: () => handle.runLoadTest(QUEST_3S_QUALIFICATION_PROFILE),
+      onStartPerformance: () =>
+        handle.runLoadTest(
+          resolveGovernedQuestPerformanceProfile(validationContext.manifest.profile)
+        ),
       onStartBoundary: () => handle.runQuestBoundaryProbe(),
       onStop: () => handle.stop(),
       onFlush: () => handle.flush(),
@@ -404,10 +425,7 @@ export function installDevEvidence({
     },
 
     runQuestBoundaryProbe() {
-      if (
-        disposed ||
-        (loadTestDriver.phase !== 'IDLE' && loadTestDriver.phase !== 'COMPLETE')
-      ) {
+      if (disposed || (loadTestDriver.phase !== 'IDLE' && loadTestDriver.phase !== 'COMPLETE')) {
         return;
       }
       if (validationContext && validationContext.manifest.validationMode !== 'quest-10m') {

@@ -153,10 +153,10 @@ function sameBuildDevice(a: ValidationManifest, b: ValidationManifest): boolean 
   const bf = b.deviceIdentity?.buildFingerprint ?? null;
   return Boolean(
     af &&
-      bf &&
-      a.buildId === b.buildId &&
-      af === bf &&
-      a.deviceIdentity?.buildIncremental === b.deviceIdentity?.buildIncremental
+    bf &&
+    a.buildId === b.buildId &&
+    af === bf &&
+    a.deviceIdentity?.buildIncremental === b.deviceIdentity?.buildIncremental
   );
 }
 
@@ -170,18 +170,15 @@ function cohortManifestEligible(manifest: ValidationManifest): boolean {
   return false;
 }
 
-function priorSessionCustodyMatches(
-  evidenceDir: string,
-  manifest: ValidationManifest
-): boolean {
+function priorSessionCustodyMatches(evidenceDir: string, manifest: ValidationManifest): boolean {
   const verified = verifyFinalizedCustody(evidenceDir);
   if (!verified.ok) return false;
   const expectedFingerprint = manifest.deviceIdentity?.buildFingerprint ?? null;
   return Boolean(
     verified.custody.sessionId === manifest.sessionId &&
-      verified.custody.sessionLabel === manifest.sessionLabel &&
-      verified.custody.buildId === manifest.buildId &&
-      verified.custody.deviceBuildFingerprint === expectedFingerprint
+    verified.custody.sessionLabel === manifest.sessionLabel &&
+    verified.custody.buildId === manifest.buildId &&
+    verified.custody.deviceBuildFingerprint === expectedFingerprint
   );
 }
 
@@ -228,8 +225,12 @@ export function scanValidationCohort(
 
     const reports = readBoundedJsonLines(path.join(evidenceDir, 'loadtest-results.jsonl'));
     if (manifest.validationMode === 'quest-perf') {
+      // Only the governed staircase contributes to the three-run PERF-04 cohort.
+      // Long-session UXR5 profiles are independently attributable evidence and
+      // must never inflate the staircase repeat count.
+      if (manifest.profile !== 'quest-3s-qualification') continue;
       const perfReports = reports.filter(
-        (report) => isRecord(report) && report.profileName === 'quest-3s-qualification'
+        (report) => isRecord(report) && report.profileName === manifest.profile
       );
       if (perfReports.length !== 1) continue;
       const checked = validateQuestPerformanceReport(perfReports[0], manifest);
@@ -288,7 +289,11 @@ function readPrerequisites(
     for (const [gate, value] of Object.entries(raw)) {
       if (!Array.isArray(value)) continue;
       const states = value.flatMap((item) => {
-        if (!isRecord(item) || typeof item.satisfied !== 'boolean' || typeof item.reason !== 'string') {
+        if (
+          !isRecord(item) ||
+          typeof item.satisfied !== 'boolean' ||
+          typeof item.reason !== 'string'
+        ) {
           return [];
         }
         return [{ satisfied: item.satisfied, reason: item.reason.slice(0, 512) }];
@@ -311,9 +316,9 @@ function finalizationReady(manifest: ValidationManifest, evidenceDir: string): b
     if (!submission || validateGuidedUxSubmission(submission).length > 0) return false;
     return Boolean(
       submission.sessionId === manifest.sessionId &&
-        submission.sessionLabel === manifest.sessionLabel &&
-        submission.buildId === manifest.buildId &&
-        submission.deviceBuildFingerprint === (manifest.deviceIdentity?.buildFingerprint ?? null)
+      submission.sessionLabel === manifest.sessionLabel &&
+      submission.buildId === manifest.buildId &&
+      submission.deviceBuildFingerprint === (manifest.deviceIdentity?.buildFingerprint ?? null)
     );
   }
   return false;
@@ -363,8 +368,12 @@ function buildReport(
 function readDispositionStatus(evidenceDir: string): string | null {
   const disposition = readJson(path.join(evidenceDir, 'disposition.json'));
   if (!isRecord(disposition)) return null;
-  const gateDisposition = isRecord(disposition.gateDisposition) ? disposition.gateDisposition : null;
-  return gateDisposition && typeof gateDisposition.status === 'string' ? gateDisposition.status : null;
+  const gateDisposition = isRecord(disposition.gateDisposition)
+    ? disposition.gateDisposition
+    : null;
+  return gateDisposition && typeof gateDisposition.status === 'string'
+    ? gateDisposition.status
+    : null;
 }
 
 function writeLocalLedger(validationLogRoot: string): void {
@@ -592,10 +601,7 @@ export function finalizeValidationSession(options: {
       path.join(evidenceDir, 'evidence-index.json'),
       `${JSON.stringify(evidenceIndex, null, 2)}\n`
     );
-    atomicWrite(
-      path.join(evidenceDir, 'analysis.json'),
-      `${JSON.stringify(analysis, null, 2)}\n`
-    );
+    atomicWrite(path.join(evidenceDir, 'analysis.json'), `${JSON.stringify(analysis, null, 2)}\n`);
     atomicWrite(
       path.join(evidenceDir, 'disposition.json'),
       `${JSON.stringify(disposition, null, 2)}\n`

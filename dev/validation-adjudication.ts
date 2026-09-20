@@ -8,9 +8,11 @@ import {
   validateGuidedUxSubmission,
   type GuidedUxSubmission,
 } from '../src/validation/guided-ux-validation.ts';
-import type {
-  GateDispositionStatus,
-  ValidationManifest,
+import {
+  QUEST_PERFORMANCE_PROFILES,
+  type GateDispositionStatus,
+  type QuestPerformanceProfile,
+  type ValidationManifest,
 } from '../src/validation/validation-manifest.ts';
 import type { Uxr4EvidenceObservation } from '../src/validation/uxr4-verification-envelope.ts';
 
@@ -76,13 +78,27 @@ export interface QuestBoundaryReportValidation {
   outcome: 'completed' | 'failed' | 'aborted' | null;
 }
 
-const QUEST_PERF_PROFILE = 'quest-3s-qualification';
+export const QUEST_PERF_PROFILE: QuestPerformanceProfile = 'quest-3s-qualification';
 const QUEST_BOUNDARY_PROFILE = 'quest-3s-rust-boundary-10m';
 
+export interface QuestPerformanceStepPolicy {
+  rowCount: number;
+  durationSec: number;
+  warmup: boolean;
+  requiredForPerf04: boolean;
+  label: string;
+}
+
+export interface QuestPerformanceProfilePolicy {
+  profileName: QuestPerformanceProfile;
+  repeatQualifying: boolean;
+  steps: readonly QuestPerformanceStepPolicy[];
+}
+
 /**
- * Mirrors the production Quest profile deliberately. A test must compare this
- * signature against QUEST_3S_QUALIFICATION_PROFILE so profile drift cannot be
- * silently adjudicated under stale expectations.
+ * Existing PERF-04 staircase policy remains the promotion authority. Long-session
+ * profiles reuse the same fixed frame thresholds only as falsifiers; they do not
+ * acquire a resource-boundedness PASS rule by existing.
  */
 export const QUEST_PERF_STEP_POLICY = [
   { rowCount: 1_000, durationSec: 30, requiredForPerf04: true, label: '1k baseline' },
@@ -91,6 +107,86 @@ export const QUEST_PERF_STEP_POLICY = [
   { rowCount: 100_000, durationSec: 300, requiredForPerf04: true, label: '100k soak' },
   { rowCount: 250_000, durationSec: 60, requiredForPerf04: false, label: '250k stretch' },
 ] as const;
+
+export const QUEST_PERFORMANCE_PROFILE_POLICIES: Record<
+  QuestPerformanceProfile,
+  QuestPerformanceProfilePolicy
+> = {
+  'quest-3s-qualification': {
+    profileName: 'quest-3s-qualification',
+    repeatQualifying: true,
+    steps: [
+      {
+        rowCount: 1_000,
+        durationSec: 15,
+        warmup: true,
+        requiredForPerf04: false,
+        label: 'warmup (ungraded)',
+      },
+      ...QUEST_PERF_STEP_POLICY.map((step) => ({ ...step, warmup: false })),
+    ],
+  },
+  'uxr0-functional-5m': {
+    profileName: 'uxr0-functional-5m',
+    repeatQualifying: false,
+    steps: [
+      {
+        rowCount: 100_000,
+        durationSec: 30,
+        warmup: true,
+        requiredForPerf04: false,
+        label: 'same-scale warmup (ungraded)',
+      },
+      {
+        rowCount: 100_000,
+        durationSec: 300,
+        warmup: false,
+        requiredForPerf04: true,
+        label: 'functional-5m',
+      },
+    ],
+  },
+  'uxr0-resource-trend-30m': {
+    profileName: 'uxr0-resource-trend-30m',
+    repeatQualifying: false,
+    steps: [
+      {
+        rowCount: 100_000,
+        durationSec: 30,
+        warmup: true,
+        requiredForPerf04: false,
+        label: 'same-scale warmup (ungraded)',
+      },
+      {
+        rowCount: 100_000,
+        durationSec: 1_800,
+        warmup: false,
+        requiredForPerf04: true,
+        label: 'resource-trend-30m',
+      },
+    ],
+  },
+  'uxr0-sustained-60m': {
+    profileName: 'uxr0-sustained-60m',
+    repeatQualifying: false,
+    steps: [
+      {
+        rowCount: 100_000,
+        durationSec: 30,
+        warmup: true,
+        requiredForPerf04: false,
+        label: 'same-scale warmup (ungraded)',
+      },
+      {
+        rowCount: 100_000,
+        durationSec: 3_600,
+        warmup: false,
+        requiredForPerf04: true,
+        label: 'sustained-60m',
+      },
+    ],
+  },
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -154,7 +250,7 @@ function validateCollectionPolicy(report: Record<string, unknown>, errors: strin
 
 function validatePerfStep(
   value: unknown,
-  expected: (typeof QUEST_PERF_STEP_POLICY)[number],
+  expected: QuestPerformanceStepPolicy,
   index: number,
   errors: string[]
 ): VerdictGrade | null {
@@ -174,6 +270,11 @@ function validatePerfStep(
   if (spec.durationSec !== expected.durationSec) {
     errors.push(`step ${index + 1} durationSec must be ${expected.durationSec}`);
   }
+  if ((spec.warmup === true) !== expected.warmup) {
+    errors.push(
+      `step ${index + 1} warmup must be ${expected.warmup ? 'true' : 'false'} for the governed profile`
+    );
+  }
 
   const frames = objectAt(value, 'frames');
   if (!frames) {
@@ -181,7 +282,8 @@ function validatePerfStep(
     return null;
   }
   for (const field of ['p95Ms', 'p99Ms', 'droppedPct'] as const) {
-    if (!finiteNumber(frames[field])) errors.push(`step ${index + 1} frames.${field} must be finite`);
+    if (!finiteNumber(frames[field]))
+      errors.push(`step ${index + 1} frames.${field} must be finite`);
   }
   if (!finiteNumber(value.criticalViolations) || value.criticalViolations < 0) {
     errors.push(`step ${index + 1} criticalViolations must be a non-negative number`);
@@ -235,8 +337,23 @@ export function validateQuestPerformanceReport(
       coreFailureReasons: [],
     };
   }
+
+  const manifestProfile =
+    typeof manifest.profile === 'string' &&
+    QUEST_PERFORMANCE_PROFILES.includes(manifest.profile as QuestPerformanceProfile)
+      ? (manifest.profile as QuestPerformanceProfile)
+      : null;
+  const policy = manifestProfile ? QUEST_PERFORMANCE_PROFILE_POLICIES[manifestProfile] : null;
+
+  if (!policy) {
+    errors.push('manifest does not bind a supported governed Quest performance profile');
+  }
   if (value.version !== '2') errors.push('performance report version must be 2');
-  if (value.profileName !== QUEST_PERF_PROFILE) errors.push(`profileName must be ${QUEST_PERF_PROFILE}`);
+  if (value.profileName !== manifestProfile) {
+    errors.push(
+      `profileName '${String(value.profileName)}' does not match manifest profile '${manifestProfile ?? 'null'}'`
+    );
+  }
   if (value.xrActive !== true) errors.push('xrActive must be true');
   const aborted = value.aborted === true;
   if (typeof value.aborted !== 'boolean') errors.push('aborted must be boolean');
@@ -246,39 +363,37 @@ export function validateQuestPerformanceReport(
     errors.push('reported thresholds do not match the governed fixed threshold authority');
   }
 
-  const allSteps = Array.isArray(value.steps) ? value.steps : [];
-  // Flagged warmup steps are measured and recorded but excluded from
-  // positional policy alignment and grading — the same exclusion the device
-  // verdict applies. Runs without flags validate exactly as before.
-  const steps = allSteps.filter((step) => {
-    if (!isRecord(step)) return true;
-    const spec = objectAt(step, 'spec');
-    return spec?.warmup !== true;
-  });
+  const steps = Array.isArray(value.steps) ? value.steps : [];
+  const expectedSteps = policy?.steps ?? [];
   if (!Array.isArray(value.steps) || steps.length === 0) errors.push('steps must be non-empty');
-  if (!aborted && steps.length !== QUEST_PERF_STEP_POLICY.length) {
-    errors.push(`completed performance report must contain exactly ${QUEST_PERF_STEP_POLICY.length} steps`);
+  if (!aborted && steps.length !== expectedSteps.length) {
+    errors.push(
+      `completed performance report for ${manifestProfile ?? 'unknown'} must contain exactly ${expectedSteps.length} steps`
+    );
   }
-  if (steps.length > QUEST_PERF_STEP_POLICY.length) {
-    errors.push('performance report contains more steps than the governed profile');
+  if (steps.length > expectedSteps.length) {
+    errors.push('performance report contains more steps than the manifest-bound governed profile');
   }
 
   const grades: Array<VerdictGrade | null> = [];
-  for (let index = 0; index < steps.length && index < QUEST_PERF_STEP_POLICY.length; index += 1) {
-    grades.push(validatePerfStep(steps[index], QUEST_PERF_STEP_POLICY[index], index, errors));
+  for (let index = 0; index < steps.length && index < expectedSteps.length; index += 1) {
+    grades.push(validatePerfStep(steps[index], expectedSteps[index], index, errors));
   }
 
   const coreFailureReasons: string[] = [];
-  if (!aborted) {
-    QUEST_PERF_STEP_POLICY.forEach((policy, index) => {
-      if (!policy.requiredForPerf04) return;
+  if (!aborted && policy) {
+    policy.steps.forEach((stepPolicy, index) => {
+      if (!stepPolicy.requiredForPerf04) return;
       const grade = grades[index];
       if (grade !== 'green') {
-        coreFailureReasons.push(`${policy.label} adjudicated ${grade ?? 'invalid'}; PERF-04 requires green`);
+        coreFailureReasons.push(
+          `${stepPolicy.label} adjudicated ${grade ?? 'invalid'}; governed frame threshold requires green`
+        );
       }
     });
   }
-  const corePass = !aborted && errors.length === 0 && coreFailureReasons.length === 0;
+  const corePass =
+    !aborted && errors.length === 0 && coreFailureReasons.length === 0 && Boolean(policy);
   return { ok: errors.length === 0, errors, aborted, corePass, coreFailureReasons };
 }
 
@@ -291,13 +406,15 @@ export function validateQuestBoundaryReport(
     return { ok: false, errors: ['boundary report must be an object'], outcome: null };
   }
   if (value.version !== '1') errors.push('boundary report version must be 1');
-  if (value.profileName !== QUEST_BOUNDARY_PROFILE) errors.push(`profileName must be ${QUEST_BOUNDARY_PROFILE}`);
+  if (value.profileName !== QUEST_BOUNDARY_PROFILE)
+    errors.push(`profileName must be ${QUEST_BOUNDARY_PROFILE}`);
   if (value.xrActive !== true) errors.push('xrActive must be true');
   validatePhysicalRuntimeIdentity(value, manifest, errors);
   validateCollectionPolicy(value, errors);
 
   const scenario = objectAt(value, 'scenario');
-  if (!scenario || scenario.rows !== 10_000_000) errors.push('boundary scenario must contain exactly 10M rows');
+  if (!scenario || scenario.rows !== 10_000_000)
+    errors.push('boundary scenario must contain exactly 10M rows');
   const outcomeValue = objectAt(value, 'outcome')?.status;
   const outcome = ['completed', 'failed', 'aborted'].includes(String(outcomeValue))
     ? (outcomeValue as 'completed' | 'failed' | 'aborted')
@@ -368,12 +485,19 @@ function blockingManifestInvalidations(manifest: ValidationManifest): string[] {
   );
 }
 
-function aggregate(results: GateAdjudication[]): { status: GateDispositionStatus; reasons: string[] } {
+function aggregate(results: GateAdjudication[]): {
+  status: GateDispositionStatus;
+  reasons: string[];
+} {
   if (results.length === 0) {
-    return { status: 'PARTIAL', reasons: ['no governed gate is adjudicable in this validation mode'] };
+    return {
+      status: 'PARTIAL',
+      reasons: ['no governed gate is adjudicable in this validation mode'],
+    };
   }
   const order: GateDispositionStatus[] = ['INVALID_RUN', 'FAIL', 'BLOCKED', 'PARTIAL', 'PASS'];
-  const status = order.find((candidate) => results.some((result) => result.status === candidate)) ?? 'PARTIAL';
+  const status =
+    order.find((candidate) => results.some((result) => result.status === candidate)) ?? 'PARTIAL';
   const reasons = results
     .filter((result) => result.status === status)
     .flatMap((result) => result.reasons.map((reason) => `${result.gate}: ${reason}`));
@@ -385,15 +509,23 @@ export function deriveUxr4LaneObservations(
   gateResults: GateAdjudication[]
 ): Uxr4EvidenceObservation[] {
   const byGate = new Map(gateResults.map((result) => [result.gate, result]));
-  const observation = (evidenceClass: Uxr4EvidenceObservation['evidenceClass'], gates: string[], fallback: string): Uxr4EvidenceObservation => {
-    const present = gates.flatMap((gateId) => byGate.has(gateId) ? [byGate.get(gateId)!] : []);
+  const observation = (
+    evidenceClass: Uxr4EvidenceObservation['evidenceClass'],
+    gates: string[],
+    fallback: string
+  ): Uxr4EvidenceObservation => {
+    const present = gates.flatMap((gateId) => (byGate.has(gateId) ? [byGate.get(gateId)!] : []));
     if (present.length === 0) return { evidenceClass, status: 'PARTIAL', reasons: [fallback] };
     const result = aggregate(present);
     return { evidenceClass, status: result.status, reasons: result.reasons };
   };
   if (manifest.validationMode === 'quest-ux') {
     return [
-      observation('interaction', ['UX-03', 'RF-049', 'RF-050', 'P1-U9'], 'guided interaction evidence is not adjudicable'),
+      observation(
+        'interaction',
+        ['UX-03', 'RF-049', 'RF-050', 'P1-U9'],
+        'guided interaction evidence is not adjudicable'
+      ),
       observation('responsiveness', ['UX-03'], 'guided responsiveness evidence is not adjudicable'),
     ];
   }
@@ -404,7 +536,13 @@ export function deriveUxr4LaneObservations(
     ];
   }
   if (manifest.validationMode === 'quest-10m') {
-    return [observation('semantic-scale', ['RF-029', 'RF-051'], 'semantic-scale evidence is not adjudicable')];
+    return [
+      observation(
+        'semantic-scale',
+        ['RF-029', 'RF-051'],
+        'semantic-scale evidence is not adjudicable'
+      ),
+    ];
   }
   return [];
 }
@@ -419,12 +557,12 @@ export function adjudicateValidationEvidence(
 
   const manifestInvalidations = blockingManifestInvalidations(manifest);
   if (manifestInvalidations.length > 0) {
-    gateResults = manifest.gates.map((gateId) => gate(gateId, 'INVALID_RUN', manifestInvalidations));
+    gateResults = manifest.gates.map((gateId) =>
+      gate(gateId, 'INVALID_RUN', manifestInvalidations)
+    );
     validationErrors.push(...manifestInvalidations);
   } else if (manifest.validationMode === 'quest-perf') {
-    const reports = input.loadTestReports.filter(
-      (candidate) => isRecord(candidate) && candidate.profileName === QUEST_PERF_PROFILE
-    );
+    const reports = input.loadTestReports.filter((candidate) => isRecord(candidate));
     if (reports.length === 0) {
       gateResults = manifest.gates.map((gateId) =>
         gate(gateId, 'PARTIAL', ['performance evidence has not been captured'])
@@ -446,7 +584,7 @@ export function adjudicateValidationEvidence(
             'performance run was aborted; retained as evidence but cannot pass a gate',
           ])
         );
-      } else {
+      } else if (manifest.profile === QUEST_PERF_PROFILE) {
         const perf04 = checked.corePass
           ? cohort.perfPassingRunCount >= QUALIFICATION_REPEAT_TARGET
             ? gate('PERF-04', 'PASS', [
@@ -458,6 +596,16 @@ export function adjudicateValidationEvidence(
           : gate('PERF-04', 'FAIL', checked.coreFailureReasons);
         const perf05 = gate('PERF-05', 'PARTIAL', [
           'allocation/GC evidence was captured, but PERF-05 has no fixed automatic device pass threshold; QV4 will not invent one',
+        ]);
+        gateResults = [perf04, perf05];
+      } else {
+        const perf04 = checked.corePass
+          ? gate('PERF-04', 'PARTIAL', [
+              `${manifest.profile} completed within the existing fixed frame thresholds, but long-session evidence does not satisfy the repeated staircase PERF-04 promotion criterion`,
+            ])
+          : gate('PERF-04', 'FAIL', checked.coreFailureReasons);
+        const perf05 = gate('PERF-05', 'PARTIAL', [
+          `${manifest.profile} captured bounded JS heap, WASM, GPU/scene and sustained-performance aggregates, but no governed automatic resource-trend PASS threshold exists; QV4 will not invent one`,
         ]);
         gateResults = [perf04, perf05];
       }

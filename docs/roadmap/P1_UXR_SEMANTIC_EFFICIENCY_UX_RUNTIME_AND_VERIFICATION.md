@@ -64,7 +64,7 @@ Issue #620 is a historical execution checklist. Its unchecked boxes and former n
 | UXR2 | **PARTIAL / NEXT FORWARD FRONTIER** | Selected allocation reductions and #718's large-grid batching are landed. The explicit `ACTIVE -> WARM -> COLD -> EVICTED` governor and long-session resource-residency proof remain open. |
 | UXR3 | **PARTIAL / NEXT FRONTIER SEAM** | Structure-first entry, bounded drill-down and several bounded/batched semantic projections are landed. A unified device/resource-aware working set, bounded streaming/backpressure and reconstructable refine/collapse/evict behavior remain open. |
 | UXR4 | **PARTIAL / DOWNSTREAM OF UXR2-UXR3** | QV4 adjudication/custody (#668/#669), headset-loop plumbing and UXR0 telemetry are reusable, but the full interaction/responsiveness/render/resource/semantic-scale evidence and adjudication model is not complete. |
-| UXR5 | **OPEN / PHYSICAL EVIDENCE REQUIRED** | No attributable evidence closes the required Quest input, comfort, 30-minute resource-trend or 60-minute sustained-device claims. Browser/IWER evidence and isolated physical observations cannot do so. |
+| UXR5 | **OPEN / GOVERNED LONG-SESSION SEAM READY / PHYSICAL EVIDENCE REQUIRED** | The governed Quest performance lane can now bind and adjudicate the existing 5-minute, 30-minute and 60-minute profiles without relabelling them as the staircase or inventing resource PASS thresholds. Fresh attributable Quest input, comfort, 30-minute resource-trend and 60-minute sustained-device evidence is still required. |
 
 The next forward PR should be one bounded UXR2 tranche that establishes the resource-lifecycle authority and its interface to UXR3's semantic residency. UXR2 and UXR3 are described together because they share that production seam, not because two forward implementation PRs are authorized. The recursive adversarial loop and one-forward-PR policy in `docs/ROADMAP.md` remain in force.
 
@@ -357,7 +357,9 @@ One red class must not be hidden inside an aggregate score.
 
 # 8. UXR5 — physical qualification and STOP
 
-**Current status:** OPEN / PHYSICAL EVIDENCE REQUIRED
+**Current status:** OPEN / GOVERNED LONG-SESSION EXECUTION READY / PHYSICAL EVIDENCE REQUIRED
+
+The governed Quest performance path now binds the exact existing 5-minute, 30-minute or 60-minute profile from launcher manifest through the headset operator, report validation and custody finalization. Long-session runs remain evidence-conservative: fixed frame thresholds may falsify a run, but no automatic resource-boundedness PASS is inferred without a governed decision rule. Physical acquisition remains open.
 
 Run the revised qualification on the Quest 3S-class reference device after UXR1-UXR4 are implemented.
 

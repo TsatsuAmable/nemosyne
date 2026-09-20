@@ -415,11 +415,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
     }
 
     const runId: ValidationAction =
-      mode === 'quest-perf'
-        ? 'run-performance'
-        : mode === 'quest-10m'
-          ? 'run-boundary'
-          : 'refresh';
+      mode === 'quest-perf' ? 'run-performance' : mode === 'quest-10m' ? 'run-boundary' : 'refresh';
 
     const runLabel =
       mode === 'quest-perf'
@@ -485,9 +481,14 @@ export class ValidationOperatorPanel extends SpatialPanel {
 
     const lines = [
       'GOVERNED SESSION',
-      statusLabel + ' · ' + manifest.validationMode + ' · ' + (manifest.gates.join(', ') || 'no gate'),
+      statusLabel +
+        ' · ' +
+        manifest.validationMode +
+        ' · ' +
+        (manifest.gates.join(', ') || 'no gate'),
       'Session: ' + manifest.sessionLabel,
       'Build: ' + manifest.buildId.slice(0, 12) + ' · tree ' + manifest.worktree.toUpperCase(),
+      'Profile: ' + (manifest.profile ?? 'none'),
       'Device: ' +
         (device?.model ?? 'UNAVAILABLE') +
         ' · firmware/build ' +
@@ -500,9 +501,9 @@ export class ValidationOperatorPanel extends SpatialPanel {
     if (!confirmed || !this._context.attributable || manifest.invalidations.length > 0) {
       const reason = !confirmed
         ? 'Exact launcher manifest has not yet been confirmed by the evidence sink.'
-        : this._context.attributionIssue ??
+        : (this._context.attributionIssue ??
           manifest.invalidations[0] ??
-          'Run cannot support promotion-grade claims.';
+          'Run cannot support promotion-grade claims.');
       lines.push('Reason: ' + reason);
     }
 
@@ -575,12 +576,16 @@ export class ValidationOperatorPanel extends SpatialPanel {
         );
       }
     } else if (!confirmed) {
-      lines.push('Governed start is locked until the evidence sink confirms the exact launcher manifest.');
+      lines.push(
+        'Governed start is locked until the evidence sink confirms the exact launcher manifest.'
+      );
     } else if (manifest.validationMode === 'quest-perf') {
       lines.push(
         this._armed === 'performance'
-          ? 'Confirm within 10 seconds to start the governed Quest 3S staircase.'
-          : 'Quest 3S performance staircase. Arm first, then confirm.'
+          ? 'Confirm within 10 seconds to start ' + (manifest.profile ?? 'unknown') + '.'
+          : 'Governed performance profile ' +
+              (manifest.profile ?? 'unknown') +
+              '. Arm first, then confirm.'
       );
     } else if (manifest.validationMode === 'quest-10m') {
       lines.push(

@@ -7,10 +7,7 @@ import {
   type ValidationMode,
   type WorktreeState,
 } from './validation-manifest.ts';
-import {
-  readValidationSessionEnv,
-  type ValidationSessionIdentity,
-} from './validation-session.ts';
+import { readValidationSessionEnv, type ValidationSessionIdentity } from './validation-session.ts';
 
 export const VALIDATION_MANIFEST_ENV = 'VITE_NEMOSYNE_VALIDATION_MANIFEST_JSON';
 
@@ -64,22 +61,30 @@ function provisionalContext(env: Record<string, unknown>): BrowserValidationCont
         }
       : null;
 
-  let manifest = deriveValidationManifest({
-    sessionId: session.id,
-    sessionLabel: session.label,
-    buildId,
-    worktree,
-    mode,
-    deviceIdentity,
-    deviceIdentityError: deviceIdentity ? null : 'machine-captured ADB identity is unavailable',
-    declaredQuestModel: model,
-    declaredFirmwareVersion: buildIncremental,
-  });
+  let manifest: ValidationManifest;
+  try {
+    manifest = deriveValidationManifest({
+      sessionId: session.id,
+      sessionLabel: session.label,
+      buildId,
+      worktree,
+      mode,
+      profileOverride: envString(env, 'VITE_NEMOSYNE_VALIDATION_PROFILE'),
+      deviceIdentity,
+      deviceIdentityError: deviceIdentity ? null : 'machine-captured ADB identity is unavailable',
+      declaredQuestModel: model,
+      declaredFirmwareVersion: buildIncremental,
+    });
+  } catch {
+    return null;
+  }
 
   // This projection may only make eligibility *stricter* while waiting for the
   // exact server-owned manifest. It must never upgrade a governed run.
   const governed = VALIDATION_MODE_TABLE[mode].evidenceClass === 'governed-physical-validation';
-  const recognisableQuest = Boolean(deviceIdentity && /quest|oculus|meta/i.test(deviceIdentity.model));
+  const recognisableQuest = Boolean(
+    deviceIdentity && /quest|oculus|meta/i.test(deviceIdentity.model)
+  );
   if (governed && !recognisableQuest) {
     manifest = {
       ...manifest,
@@ -95,7 +100,8 @@ function provisionalContext(env: Record<string, unknown>): BrowserValidationCont
     session,
     manifest,
     attributable: true,
-    attributionIssue: 'launcher env projected; exact manifest confirmation is pending from the evidence sink',
+    attributionIssue:
+      'launcher env projected; exact manifest confirmation is pending from the evidence sink',
     source: 'launcher-env-provisional',
   };
 }
@@ -134,7 +140,8 @@ export function readBrowserValidationContext(
       },
       manifest: validated.manifest,
       attributable: false,
-      attributionIssue: 'validation manifest is present but the browser session identity is missing or malformed',
+      attributionIssue:
+        'validation manifest is present but the browser session identity is missing or malformed',
       source: 'serialized-manifest',
     };
   }
@@ -180,6 +187,9 @@ export function validationManifestConfirmationIssue(
   }
   if (sinkManifest.validationMode !== browserManifest.validationMode) {
     return 'sink manifest validation lane does not match the launcher-projected browser lane';
+  }
+  if (sinkManifest.profile !== browserManifest.profile) {
+    return 'sink manifest validation profile does not match the launcher-projected browser profile';
   }
   if (sinkManifest.worktree !== browserManifest.worktree) {
     return 'sink manifest worktree state does not match the launcher-projected browser state';
