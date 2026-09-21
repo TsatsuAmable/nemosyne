@@ -66,6 +66,18 @@ describe('WorkspaceSurfaceManager', () => {
     expect(panel.mesh.visible).toBe(true);
   });
 
+  it('shows and hides SpatialPanel-like surfaces without MovablePanel lifecycle methods', () => {
+    const spatial = new THREE.Group();
+    spatial.visible = false;
+    spatial.position.set(0, 1.5, -1);
+    manager.register('spatial', { mesh: spatial, title: 'Spatial' });
+
+    expect(manager.show('spatial')).toBe(true);
+    expect(spatial.visible).toBe(true);
+    expect(manager.hide('spatial')).toBe(true);
+    expect(spatial.visible).toBe(false);
+  });
+
   it('toggles surfaces independently', () => {
     const a = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
     const b = new TestPanel(cameraGroup, 'B', [0.5, 1.5, -1]);
