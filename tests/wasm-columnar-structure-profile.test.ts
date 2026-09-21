@@ -3,6 +3,7 @@ import {
   structureProfileToDatasetEvidence,
   type RustDatasetStructureProfile,
 } from '../src/data/evidence/index.ts';
+import { assertRustDatasetStructureProfile } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { rowMaterialisationCount } from '../src/wasm/ColumnarBoundary.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
 
@@ -173,6 +174,14 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
     try {
       const profile = bridge.computeDatasetStructureProfile(handle);
       expect(profile).not.toBeNull();
+      // Run the boundary validator over the real payload first. The other WASM
+      // datasets in this suite are numeric/categorical only, so their `spectral`
+      // and `temporal` records are null and the validator's renamed-field checks
+      // for those two records would never execute against a live kernel. The
+      // typed fixture is the only real payload with a temporal column, so this
+      // call is what proves the strictest new requirements do not reject a valid
+      // profile. A false rejection here is an outage at the evidence boundary.
+      assertRustDatasetStructureProfile(profile as unknown as RustDatasetStructureProfile);
       const evidence = structureProfileToDatasetEvidence(
         profile as unknown as RustDatasetStructureProfile
       );
@@ -230,6 +239,10 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
       const periodicities = (temporal?.value as { periodicities?: readonly { heuristicScore?: unknown }[] })
         .periodicities;
       expect(periodicities).toBeDefined();
+      // Guard against a vacuous loop: `temporal` is defined even when the
+      // manifest carries no entries, so without this the per-entry assertion
+      // below (and the retired-key walk) would pass on an empty list.
+      expect(periodicities?.length).toBeGreaterThan(0);
       for (const periodicity of periodicities ?? []) {
         expect(typeof periodicity.heuristicScore).toBe('number');
       }
@@ -238,6 +251,50 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
       // only these three values can ever be transported.
       expect([0.15, 0.4, 0.7]).toContain(
         (density?.value as { heuristicScaleDensityProxy: number }).heuristicScaleDensityProxy
+      );
+    } finally {
+      bridge.call('typed_dataset_destroy', handle);
+    }
+  });
+
+  it('rejects the real profile when a renamed spectral or temporal field is dropped', () => {
+    const payload = typedPayload({ correlatedNumericColumns: true });
+    const allocation = bridge.allocBytes(payload);
+    const handle = Number(bridge.call('data_load_typed_columns', allocation.ptr, allocation.len));
+    bridge.deallocBytes(allocation.ptr, allocation.len);
+    expect(handle).toBeGreaterThan(0);
+
+    try {
+      const profile = bridge.computeDatasetStructureProfile(handle);
+      expect(profile).not.toBeNull();
+      const clone = JSON.parse(JSON.stringify(profile)) as unknown as RustDatasetStructureProfile;
+
+      // The real payload must actually carry the fields whose absence is
+      // asserted below, otherwise this test would pass vacuously and prove
+      // nothing about the transport.
+      const real = profile as unknown as {
+        spectral?: Record<string, unknown>;
+        temporal?: { periodicities?: readonly Record<string, unknown>[] } | null;
+      };
+      expect(typeof real.spectral?.periodicityHeuristicScore).toBe('number');
+      expect(real.temporal?.periodicities?.[0]).toBeDefined();
+      expect(typeof real.temporal?.periodicities?.[0]?.heuristicScore).toBe('number');
+
+      // Dropping the renamed field must fail closed at the boundary rather than
+      // degrading to a silent `undefined` downstream.
+      const mutatedSpectral = clone as unknown as { spectral: Record<string, unknown> };
+      delete mutatedSpectral.spectral.periodicityHeuristicScore;
+      expect(() => assertRustDatasetStructureProfile(clone)).toThrow(
+        /periodicityHeuristicScore/,
+      );
+
+      // And so must a retired name reappearing on the real transport.
+      const mutatedRetired = JSON.parse(JSON.stringify(profile)) as unknown as {
+        temporal: { periodicities: Record<string, unknown>[] };
+      };
+      mutatedRetired.temporal.periodicities[0].confidence = 0.5;
+      expect(() => assertRustDatasetStructureProfile(mutatedRetired as unknown as RustDatasetStructureProfile)).toThrow(
+        /confidence/,
       );
     } finally {
       bridge.call('typed_dataset_destroy', handle);
