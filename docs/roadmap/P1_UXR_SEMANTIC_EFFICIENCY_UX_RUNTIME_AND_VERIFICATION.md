@@ -1,10 +1,10 @@
 # P1-UXR — Semantic-Efficiency UX, Runtime Simplification & Verification
 
-**Status:** ACTIVE / UXR2-UXR3 NEXT FORWARD FRONTIER; UXR4-UXR5 EVIDENCE DOWNSTREAM
+**Status:** ACTIVE / UXR2-UXR3 BOUNDED SOFTWARE STOP; UXR4-UXR5 PHYSICAL EVIDENCE FRONTIER
 
-**Status reconciled:** 15 September 2026
+**Status reconciled:** 21 September 2026
 
-**Integration base:** `main@f451f4dc6b955b91884aee5b4ba3354d0c2d7f78` (#751)
+**Integration base:** `main@a9fcb5cdece5267a8d1a1823cc21fc5276c4ee14` (#807)
 
 **Established:** 6 September 2026  
 **Canonical implementation-status authority:** `docs/ROADMAP.md`  
@@ -38,17 +38,19 @@ This programme is intentionally limited to already-public product/engineering di
 
 PT6 through PT8 have landed at their bounded software/governance exits. P1-UXR is the **active product-development programme** before PT9, PT10 and the post-PT9 RepresentationOntology/RepresentationGraph/compositional full-Moneta path. Device/human evidence gates remain claim-specific rather than global blockers for unrelated implementation.
 
-```text
-main@f451f4dc (#751)
+ ```text
+main@a9fcb5c (#807)
   -> UXR0 bounded software contract LANDED / physical profiles open
     -> UXR1 bounded software migration LANDED / physical qualification open
-      -> UXR2 render/resource efficiency + lifecycle governor PARTIAL / NEXT
-        -> UXR3 bounded semantic working set + progressive materialisation PARTIAL / NEXT SEAM
-          -> UXR4 verification-infrastructure refocus PARTIAL / DOWNSTREAM
-            -> UXR5 physical Quest qualification + STOP review OPEN
-              -> PT9 Moneta learning-evidence pipeline
-                -> PT10 private-preview learning loop
-                  -> post-PT9 compositional/full-Moneta prerequisites
+      -> UXR2 bounded lifecycle software LANDED / physical resource evidence open
+        -> UXR3 bounded semantic working-set software LANDED / STOP
+          -> UXR4 governed Quest 5/30/60 profiles BOUND / physical execution ACTIVE
+            -> UXR5 attributable physical Quest qualification + STOP review OPEN
+              -> P1-WP / P1-WQ web productionization and investigator qualification
+                -> P1-TEC trustworthy-evidence closure
+                  -> PT9 Moneta learning-evidence pipeline
+                    -> PT10 private-preview learning loop
+                      -> post-PT9 compositional/full-Moneta prerequisites
 ```
 
 The programme must not become an indiscriminate dependency-migration sprint. Every substitution needs a named UX/maintenance/performance defect and evidence that the proposed mature implementation is at least performance-neutral on the target device.
@@ -61,12 +63,12 @@ Issue #620 is a historical execution checklist. Its unchecked boxes and former n
 | --- | --- | --- |
 | UXR0 | **BOUNDED SOFTWARE CONTRACT LANDED / PHYSICAL PROFILES OPEN** | #701-#705 land baseline telemetry, replacement qualification and selected hot-path work; #706-#708 add the experimental profiles, calibration spine and governed evidence adapters. No completed 30/60-minute physical-device profile or human claim follows from that software/simulator evidence. |
 | UXR1 | **BOUNDED SOFTWARE IMPLEMENTATION LANDED / PHYSICAL REPLACEMENT QUALIFICATION OPEN** | #716, #720-#728, #734-#744 and #746 migrate the canonical panels and normal navigation to UIKit/semantic surfaces, retire VRMenu, move the generic launcher out of the analyst path and add contextual capability guidance. Automated parity/reachability evidence and the audit's defect-triggering Quest observation do not establish general controller/hand reliability, comfort or human utility. |
-| UXR2 | **PARTIAL / NEXT FORWARD FRONTIER** | Selected allocation reductions and #718's large-grid batching are landed. The explicit `ACTIVE -> WARM -> COLD -> EVICTED` governor and long-session resource-residency proof remain open. |
-| UXR3 | **PARTIAL / NEXT FRONTIER SEAM** | Structure-first entry, bounded drill-down and several bounded/batched semantic projections are landed. A unified device/resource-aware working set, bounded streaming/backpressure and reconstructable refine/collapse/evict behavior remain open. |
-| UXR4 | **PARTIAL / DOWNSTREAM OF UXR2-UXR3** | QV4 adjudication/custody (#668/#669), headset-loop plumbing and UXR0 telemetry are reusable, but the full interaction/responsiveness/render/resource/semantic-scale evidence and adjudication model is not complete. |
+| UXR2 | **BOUNDED SOFTWARE LANDED / PHYSICAL RESOURCE EVIDENCE OPEN** | #761 closes the bounded ownership/lifecycle software path. Long-session physical memory/resource behavior remains an empirical Quest claim, not a software inference. |
+| UXR3 | **BOUNDED SOFTWARE STOP** | #763/#764/#769 establish semantic materialisation, replacement and reconstructable lifecycle continuity; #779/#781/#783 close Worker admission/stale recycling/outcomes; #784 closes bounded streaming/backpressure; #790 closes duplicate authoritative computation; #791 removes redundant fresh-load copies. Physical performance claims remain open. |
+| UXR4 | **GOVERNED PROFILES BOUND / PHYSICAL EXECUTION ACTIVE** | #806 binds attributable Quest 5/30/60-minute profiles to the governed evidence chain. Execute and adjudicate the 5-minute functional profile first; browser/IWER/simulator evidence cannot establish physical fitness. |
 | UXR5 | **OPEN / GOVERNED LONG-SESSION SEAM READY / PHYSICAL EVIDENCE REQUIRED** | The governed Quest performance lane can now bind and adjudicate the existing 5-minute, 30-minute and 60-minute profiles without relabelling them as the staircase or inventing resource PASS thresholds. Fresh attributable Quest input, comfort, 30-minute resource-trend and 60-minute sustained-device evidence is still required. |
 
-The next forward PR should be one bounded UXR2 tranche that establishes the resource-lifecycle authority and its interface to UXR3's semantic residency. UXR2 and UXR3 are described together because they share that production seam, not because two forward implementation PRs are authorized. The recursive adversarial loop and one-forward-PR policy in `docs/ROADMAP.md` remain in force.
+The immediate frontier is governed physical evidence acquisition, beginning with the UXR4 5-minute Quest functional profile. #807 repairs the persistent workspace-panel authority/reachability defect exposed during physical preparation, but does not itself qualify the device experience. Material failures from governed runs become bounded fix-forward work. The recursive adversarial loop and one-forward-tranche policy in `docs/ROADMAP.md` remain in force.
 
 ---
 
@@ -163,7 +165,7 @@ A replacement is not complete because code was deleted. It must preserve or impr
 
 # 5. UXR2 — rendering/resource efficiency and lifecycle governor
 
-**Current status:** PARTIAL / NEXT FORWARD FRONTIER
+**Current status:** BOUNDED SOFTWARE LANDED / PHYSICAL RESOURCE EVIDENCE OPEN
 
 **Mission:** make allocation avoidance and bounded resource residency part of the product UX contract.
 
@@ -220,7 +222,7 @@ Rules:
 
 # 6. UXR3 — bounded semantic working set and progressive materialisation
 
-**Current status:** PARTIAL / NEXT FRONTIER SEAM
+**Current status:** BOUNDED SOFTWARE STOP
 
 **Mission:** make dataset scale, perceptual scale and temporal/session scale independent dimensions.
 
@@ -251,7 +253,7 @@ Required public implementation work:
 
 # 7. UXR4 — verification infrastructure refocus
 
-**Current status:** PARTIAL / DOWNSTREAM OF UXR2-UXR3
+**Current status:** GOVERNED PROFILES BOUND / PHYSICAL EXECUTION ACTIVE
 
 The existing QV infrastructure remains valuable because it already provides attributable device runs, governed manifests, evidence sinks, automatic adjudication and chain of custody. It should be **extended, not discarded**.
 

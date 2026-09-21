@@ -37,7 +37,7 @@
       "status": "IMPLEMENTATION PARTIAL",
       "statusNote": "Production FileLoader -> Atlas -> Rust -> Dataset policy consolidation and hostile live-path evidence remain incomplete.",
       "evidence": [
-        "docs/STREAM_C_SECURITY_ASSURANCE.md#rf-039"
+        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-039"
       ]
     },
     {
@@ -47,7 +47,7 @@
       "status": "IMPLEMENTATION PARTIAL",
       "statusNote": "The authoritative telemetry lifecycle and end-to-end revoke/export/erasure evidence remain incomplete.",
       "evidence": [
-        "docs/STREAM_C_SECURITY_ASSURANCE.md#rf-040"
+        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-040"
       ]
     },
     {
@@ -77,7 +77,7 @@
       "status": "IMPLEMENTATION PARTIAL",
       "statusNote": "Systematic hostile-input fuzz/property evidence across parser and exported WASM ABI boundaries remains incomplete.",
       "evidence": [
-        "docs/STREAM_C_SECURITY_ASSURANCE.md#rf-043"
+        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-043"
       ]
     }
   ]

@@ -1,7 +1,11 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-09-16",
-  "statuses": ["canonical", "active", "historical"],
+  "lastReviewed": "2026-09-21",
+  "statuses": [
+    "canonical",
+    "active",
+    "historical"
+  ],
   "documents": [
     {
       "path": "docs/Nemosyne_Definitive_Vision_and_Roadmap.md",
@@ -88,22 +92,22 @@
       "owner": "architecture"
     },
     {
-      "path": "docs/IMPLEMENTATION_PLAN_V3.md",
-      "status": "active",
-      "authority": "implementation-sequencing-reference",
-      "owner": "engineering"
+      "path": "docs/archive/IMPLEMENTATION_PLAN_V3.md",
+      "status": "historical",
+      "authority": "historical-implementation-sequencing-reference",
+      "owner": "archive"
     },
     {
-      "path": "docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
-      "status": "active",
-      "authority": "implementation-quality-policy",
-      "owner": "engineering"
+      "path": "docs/archive/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
+      "status": "historical",
+      "authority": "historical-implementation-quality-contract",
+      "owner": "archive"
     },
     {
-      "path": "docs/STREAM_C_SECURITY_ASSURANCE.md",
-      "status": "active",
-      "authority": "security-assurance-findings",
-      "owner": "security"
+      "path": "docs/archive/STREAM_C_SECURITY_ASSURANCE.md",
+      "status": "historical",
+      "authority": "historical-security-assurance-reference",
+      "owner": "archive"
     },
     {
       "path": "docs/CI_TEST_ACCELERATION_STRATEGY.md",

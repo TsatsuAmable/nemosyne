@@ -5,7 +5,7 @@ Nemosyne keeps a small set of authoritative documents and a larger body of subor
 ## Governing authorities
 
 - [`Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md) - canonical product, research, and architecture direction.
-- [`ROADMAP.md`](ROADMAP.md) - canonical live implementation status, programme order, current Streams A-D ownership/collision rules, and review findings.
+- [`ROADMAP.md`](ROADMAP.md) - canonical live implementation status, programme order, current authorized forward tranche, collision rules, and review findings.
 - [`../AGENTS.md`](../AGENTS.md) - canonical tool-neutral engineering/agent contract.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) - active technical reference, subordinate to the governing vision where migration remains incomplete.
 
@@ -24,14 +24,11 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 
 ## Implementation and engineering reference
 
-- [`IMPLEMENTATION_PLAN_V3.md`](IMPLEMENTATION_PLAN_V3.md) - V3 sequencing and dependency structure; `ROADMAP.md` governs live status.
 - [`roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`](roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md) - dedicated downstream Moneta compositional-representation workstream; reuses RepresentationGraph, semantic/spatial embodiment contracts and keeps evolutionary synthesis/search separate.
 - [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) - developer onboarding and codebase mental model.
 - [`MIGRATION.md`](MIGRATION.md) - migration reference where still applicable.
 - [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) - CI evidence/latency strategy and measured sharding work.
 - [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) - generated human projection of desired service boundaries, implementation/deployment states, and verification obligations. `governance/production-readiness.json` is its machine-readable source; `ROADMAP.md` still governs sequencing and completion claims.
-- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) - quality-process contract created under the previous A/B/C wave; still useful as engineering guidance but not the current Stream A mission.
-- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) - security/live-path finding set created under the previous A/B/C wave; unresolved findings are now owned by current Stream D.
 - [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) - governed statistical method inventory.
 - [`GETTING_STARTED.md`](GETTING_STARTED.md) - user/developer setup reference.
 - [`../README.md`](../README.md) - repository entry point.
@@ -67,6 +64,9 @@ The repository GitHub Wiki is a generated reference surface, not an independent 
 If information in the Wiki conflicts with repository documentation or executable configuration, the repository source is authoritative. Changes intended for the Wiki must therefore be made to the corresponding source document or generator, reviewed through the normal pull-request process, and then published automatically.
 
 ## Historical archive
+
+The documentation lifecycle review of 21 September 2026 demoted `IMPLEMENTATION_PLAN_V3.md`, `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`, and `STREAM_C_SECURITY_ASSURANCE.md` from active authority. They remain repository history/reference until physically moved under `docs/archive/`; they must not be used as live sequencing, concurrency, or finding-status authority.
+
 
 - [`archive/README.md`](archive/README.md) - archive index.
 - Historical roadmaps, completed sprint plans, superseded designs, audits, and point-in-time readiness reports belong under `archive/`.

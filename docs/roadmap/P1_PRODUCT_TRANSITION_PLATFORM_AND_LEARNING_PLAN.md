@@ -994,7 +994,7 @@ Operationalise existing in-code gesture/Moneta registry concepts without creatin
 
 ### P1-UXR sequencing gate before PT9
 
-PT9 must not start merely because PT8 landed. P1-UXR remains the active programme first: UXR0 and UXR1 have bounded software landings, while the next forward frontier is UXR2's resource lifecycle at the UXR3 bounded-semantic-working-set seam, followed by UXR4 verification refocus and UXR5 physical STOP evidence. Only then does the sequence resume with PT9 and PT10. This gate preserves the one-forward-PR and recursive adversarial policy in `docs/ROADMAP.md`.
+PT9 must not start merely because PT8 landed. P1-UXR remains the active programme first: UXR0-UXR3 have reached their bounded software exits, #806 binds the governed UXR4 Quest 5/30/60-minute profiles, and UXR4/UXR5 now require attributable physical execution and STOP evidence. The roadmap then proceeds through P1-WP/P1-WQ web productionization and investigator qualification and P1-TEC trustworthy-evidence closure before PT9/PT10 promotion. `docs/ROADMAP.md` remains the sole authority for live sequencing and may refine this order as governed evidence lands.
 
 ## PT9 — Moneta learning-evidence pipeline
 

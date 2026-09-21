@@ -7,7 +7,7 @@ This is the canonical tool-neutral engineering contract for AI-assisted work in 
 Read these in order when they are relevant:
 
 1. `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` - product, research, and architecture direction.
-2. `docs/ROADMAP.md` - live implementation status, current Streams A-D, collision rules, review findings, and programme order.
+2. `docs/ROADMAP.md` - live implementation status, programme order, collision rules, review findings, and the currently authorized forward tranche.
 3. `docs/ARCHITECTURE.md` - current technical reference, subordinate to the governing vision while migration is active.
 4. Executable configuration - `package.json`, `.github/workflows/*.yml`, `vitest*.config.ts`, `rust-toolchain.toml`, and source code are authoritative for commands, versions, thresholds, and runtime behavior.
 5. `governance/review-findings.json` - mutable disposition authority for migrated live `RF-*` findings. `docs/ROADMAP.md` remains the execution/sequencing authority; any repeated finding status must be a mechanically checked projection of this ledger.
@@ -118,18 +118,13 @@ One filesystem worktree has exactly one writer at a time. Implementation agents 
 
 When a host provides a workstream lease/sentinel coordinator, acquire the lease **before the first source edit** and release it only after the workstream has committed/stashed or otherwise returned the worktree to an explicit handoff state. If a lease/sentinel belongs to another owner, ownership is ambiguous, or the intended branch is already checked out elsewhere, stop and choose a separate worktree rather than editing through the conflict. Local coordination machinery is enforcement support, not repository authority; it must implement this contract without weakening Git/CI/roadmap rules.
 
-## Current four-stream operating model
+## Current execution topology
 
-The active implementation topology is defined in `docs/ROADMAP.md`. The previous A/B/C execution wave is complete; historical files keep their original stream labels for provenance and must not be treated as current ownership.
+The active implementation topology and forward tranche are defined only in `docs/ROADMAP.md`. Earlier A/B/C and A/B/C/D stream models are historical execution structures; their names may remain in retained evidence and contracts for provenance but do not grant current implementation ownership or parallelism.
 
-- **Stream A - Progressive Disclosure & Semantic Drill-down:** owns the generic structure/region/group -> bounded observation subset -> datum/provenance contract and production transition semantics. It is the shared semantic integration spine.
-- **Stream B - Source-Authoritative Structural Representations:** owns representation-specific source graph/hierarchy/temporal/geospatial/spectral scientific contracts, Rust/WASM payloads and thin adapters. It must consume Stream A's generic drill-down contract rather than invent a competing one.
-- **Stream C - Visible Investigator Product Convergence:** owns product shell/world-object presentation, epistemic-object usefulness, state legibility and desktop/XR task parity. It consumes analytical truth and may not infer scientific facts from visual presentation.
-- **Stream D - Assurance & Private-Preview Readiness:** owns Quest validation operations plus the unresolved security/privacy/supply-chain/WASM assurance work and later qualification/production-readiness gates. The legacy file `docs/STREAM_C_SECURITY_ASSURANCE.md` is now a Stream D subordinate finding set despite its historical name.
+Default integration policy is **one authorized forward implementation tranche at a time**, unless `docs/ROADMAP.md` explicitly authorizes disjoint parallel work. Research, adversarial review, governed evidence acquisition and documentation may proceed concurrently only when their changed-file/authority surfaces do not collide with the forward tranche. Shared integration files and authority contracts are exclusive seams: do not create competing versions across branches.
 
-Default concurrency is one open implementation PR per current stream. Stream D may use disjoint QV and security-assurance sub-lanes only when changed-file sets and governance contracts do not collide. Shared integration files named in `docs/ROADMAP.md` are exclusive integration seams: do not create competing versions of the same generic contract across branches.
-
-Independent adversarial review is **cross-cutting process, not a fifth stream**. Each stream must obtain the review/evidence required by its checkpoint and risk tier before promotion.
+Independent adversarial review is cross-cutting process, not a separate implementation stream. Every tranche must obtain the review/evidence required by its checkpoint and risk tier before promotion.
 
 Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requires implementation plus the programme-specific evidence and independent review disposition where the programme explicitly requires independence.
 
