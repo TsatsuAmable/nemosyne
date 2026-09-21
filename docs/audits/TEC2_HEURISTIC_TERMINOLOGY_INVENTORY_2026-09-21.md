@@ -1,0 +1,326 @@
+# TEC2 Heuristic Terminology Inventory
+
+- **Status:** inventory / draft (not a closure claim)
+- **Base:** `main` @ `3198ff8713752ac35fdbb3c78c0ae5a2eaf7b751`
+- **Date:** 2026-09-21
+- **Purpose:** Trace the six "bootstrap heuristic" fields enumerated in `docs/STATISTICAL_FOUNDATIONS.md:105-114` end-to-end (Rust producer → wire transport → TS consumers → persistence → UI → tests), and determine the concrete blast radius of renaming each one.
+- **Scope statement:** This is TEC2 audit work. It makes no closure claim, changes no production code, and asserts no new statistical semantics. Every claim below was verified against source at the stated SHA; no claim is inferred from a field name alone.
+
+Naming note: `docs/STATISTICAL_FOUNDATIONS.md:226` ("Migration debt") states the governing constraint — compatibility must never turn a magnitude threshold into significance, a silhouette-derived score into stability confidence, or sample count into statistical confidence. This inventory records where that constraint is currently satisfied by narrowing at an adapter boundary and where the legacy name survives.
+
+---
+
+## 1. `CorrelationProfile.significant_pairs_count`
+
+### 1.1 Producer (Rust)
+- Struct field: `wasm/src/data/profile.rs:66` — `pub significant_pairs_count: usize` on `CorrelationProfile` (`:63-68`).
+- Computation: `wasm/src/data/profile.rs:922-927` — iterates `stats.correlation`, computes `let is_strong = absolute > 0.6;` (`:926`) and increments the counter for each strong pair (`:927`). Assigned into the struct at `:938`.
+- This is a pure magnitude count. No test statistic, no p-value, no multiple-comparison correction, no sample-size dependence. The name "significant" is not backed by any inferential procedure in this file.
+
+### 1.2 Transport
+- `CorrelationProfile` carries `#[serde(rename_all = "camelCase")]` (`wasm/src/data/profile.rs:61-62`), so the wire name is **`significantPairsCount`**.
+- TS transport mirror: `src/data/evidence/RustStructureProfile.ts:51` (`RustCorrelationProfile.significantPairsCount`).
+- Validator: `src/atlas/MonetaEvidenceAuthority.ts:38-79` (`assertRustDatasetStructureProfile`) checks only that `correlations` is an object (`:53-68`) and that `provenance` has `kernelVersion` / `datasetFingerprint` / `algorithmSuite` / `timestampMs` (`:70-78`). It does **not** type-check `significantPairsCount` or any of the other five fields. A rename in Rust would therefore not be caught at the boundary; the value would silently become `undefined` at the adapter.
+- Adapter: `src/data/evidence/StructureProfileEvidenceAdapter.ts:212` maps `profile.correlations.significantPairsCount` → **`strongCorrelationPairCount`** in the `dependency:correlations` evidence item (`:199-216`). This is the narrowing point required by the terminology migration. `pair.isStrong` is likewise narrowed to `isStrongByMagnitudeThreshold` at `:209`.
+
+### 1.3 TypeScript consumers
+- `src/moneta/representation/DatasetEvidenceSignature.ts:447-450` reads the narrowed key `dependency.strongCorrelationPairCount` back into the **legacy-named** signature field `dependence.significantPairsCount`. Epistemic marking: `:253-259` marks it `heuristic` with note "Pair count uses a magnitude threshold; it is not statistical significance".
+- `src/moneta/representation/DatasetSignature.ts:55` declares the fact path `'dependence.significantPairsCount'`; `:170` declares `significantPairsCount?: number` on `DatasetSignatureDependence`.
+- **Independent TS recomputation with a different threshold:** `src/moneta/representation/SignatureBuilder.ts:79-91` recomputes the count locally from `Facts.correlation` using `if (absolute >= 0.5) significantPairsCount += 1;` (`:88`). Assigned at `:161` and `:352`; epistemic-marked `measured` with note "Computed by supplied Rust kernel Facts" (`:162-174`, `:353-365`).
+- `Facts`-type declaration carried through `src/data/types.ts` (accessed as `facts.correlation`).
+- **Decision-bearing?** No. Grep across `src/` shows `dependence.significantPairsCount` / `dependence.maxCorrelation` are written into the signature and marked epistemically, but no module reads them for a threshold, ranking, gate, promotion or admissibility decision. `src/moneta/representation/FitnessModel.ts` contains no reference to `dependence` at all. It is carried, not used.
+
+### 1.4 Persisted / serialized consumers
+- None. Not present in `src/data/evidence/EvidenceReceipt.ts`; not present in any `tests/fixtures/**` JSON. No evidence-signature or replay format encodes it.
+- The only durable form is the in-memory `DatasetEvidence` envelope produced by the adapter (`StructureProfileEvidenceAdapter.ts:382-387`), which is rebuilt from the live kernel handle per `src/atlas/MonetaEvidenceAuthority.ts:85-109`.
+
+### 1.5 Investigator-visible label
+- None. No string in `src/vr/**` or `src/ui/**` surfaces this field or a human-readable variant. Grep for label variants (case-insensitive "significant pair", etc.) across `src/`, `tests/`, `wasm/src/` returns only `DatasetEvidenceSignature.ts:513` ("density variation") and Rust code comments.
+
+### 1.6 Test coverage
+- `tests/representation-signature.test.ts:94` — `expect(sig.dependence.significantPairsCount).toBe(1)`. Asserts the **legacy name** on the signature.
+- `tests/dataset-evidence-wiring.test.ts:130` (sets `source.correlations.significantPairsCount = 2`) and `:139` (`expect.objectContaining({ strongCorrelationPairCount: 2 })`), with `:140` asserting `JSON.stringify(dependency?.value)` does **not** match `/significant/i`.
+- `tests/dataset-evidence-wiring.test.ts:48` — fixture value `significantPairsCount: 0`.
+- `tests/atlas-moneta-evidence-authority.test.ts:32` — fixture value `significantPairsCount: 1`.
+- `tests/helpers/moneta-kernel-fixture.ts:56` — fixture value `significantPairsCount: 0`.
+- No test asserts the threshold value 0.6 or 0.5, and no test pins the count's relationship to `pairs` length.
+
+### 1.7 Blast radius of a rename
+Source files that must change: `wasm/src/data/profile.rs`, `src/data/evidence/RustStructureProfile.ts`, `src/data/evidence/StructureProfileEvidenceAdapter.ts`, `src/moneta/representation/SignatureBuilder.ts`, `src/moneta/representation/DatasetSignature.ts`, `src/moneta/representation/DatasetEvidenceSignature.ts`.
+Test files that must change: `tests/representation-signature.test.ts`, `tests/dataset-evidence-wiring.test.ts`, `tests/atlas-moneta-evidence-authority.test.ts`, `tests/helpers/moneta-kernel-fixture.ts`.
+Persisted/serialized format impact: **none** — no fixture, receipt, or replay format records the name.
+Compatibility alias: **not required for persistence.** Required only if the `DatasetSignature` consumer surface (`dependence.significantPairsCount`) must remain stable for out-of-tree callers; the canonical evidence key is already narrowed to `strongCorrelationPairCount`, so a Rust-side rename is contained to the adapter.
+Additional note: because `assertRustDatasetStructureProfile` does not type-check this field, a rename without updating `RustStructureProfile.ts` + the adapter fails **silently**, not loudly.
+
+---
+
+## 2. `ClusterProfile.stability_confidence`
+
+### 2.1 Producer (Rust)
+- Struct field: `wasm/src/data/profile.rs:77` — `pub stability_confidence: f64` on `ClusterProfile` (`:72-87`).
+- Zero-case: `wasm/src/data/profile.rs:281` — `stability_confidence: 0.0` in `empty_cluster_profile` (`:270-295`).
+- Computation: `wasm/src/data/profile.rs:545-549` — `if has_clusters { (best_silhouette * 0.9).clamp(0.1, 1.0) } else { 0.0 }`. `best_silhouette` is the best average silhouette over candidate k (`:529-532`); `has_clusters` is `best_silhouette > 0.35 && best_k > 1` (`:535`).
+- The value is a deterministic affine rescaling of one silhouette score. There is no resampling, no bootstrap, no repetition, and no seed variation in this computation — despite the `sampling_seed` field present on the same struct (`:81`), which is used for bottom-k sample selection (a sampling bound, not a stability measurement).
+
+### 2.2 Transport
+- camelCase via `wasm/src/data/profile.rs:70-71` → wire name **`stabilityConfidence`**.
+- TS mirror: `src/data/evidence/RustStructureProfile.ts:60`.
+- Adapter: `src/data/evidence/StructureProfileEvidenceAdapter.ts:156` maps it to **`legacySilhouetteDerivedScore`** inside the `cluster:global` evidence item (`:146-185`). Note the adapter names the neighbouring fields `heuristicSeparationScore` (`:154`) and `heuristicDensityVariation` (`:155`), so the whole cluster block is narrowed here.
+
+### 2.3 TypeScript consumers
+- Only one: `src/data/evidence/StructureProfileEvidenceAdapter.ts:156`.
+- It is **not** reconstructed into `DatasetSignature`: `src/moneta/representation/DatasetEvidenceSignature.ts:456-470` reads only `heuristicEstimatedCount`, `heuristicPartitionDetected`, `heuristicSeparationScore`, `heuristicDensityVariation` as `clusterStructure.{estimatedCount,hasClusters,separationScore,densityVariation}`. `legacySilhouetteDerivedScore` has no destination in `DatasetSignature`.
+- **Decision-bearing?** No. The value is transported and labelled, then dropped. No ranking, gate, or admissibility path reads it.
+- Contrast (adjacency, not this field): `clusterStructure.hasClusters` **is** decision-bearing — `src/moneta/representation/FitnessModel.ts:247-249, 291-296` (CLUSTER family score 0.95) and `src/moneta/representation/DatasetEvidenceSignature.ts:512` (decision-relevance equality gate).
+
+### 2.4 Persisted / serialized consumers
+- None. `src/data/evidence/EvidenceReceipt.ts` has a first-class `EvidenceReceiptStabilityV1` (`:33-37`: `method`, `score`, `repetitions`) but no code path populates it from `stability_confidence`. `docs/audits/TEC0_EVIDENCE_PROPAGATION_AUDIT_2026-09-20.md:25` records this as "explicitly legacy/heuristic" and "Required migration; heuristic compatibility only meanwhile".
+- No fixture under `tests/fixtures/**` records it.
+
+### 2.5 Investigator-visible label
+- None in `src/vr/**` or `src/ui/**`. The only user-adjacent string mentioning it is the audit/design reference in `docs/`.
+
+### 2.6 Test coverage
+- `tests/dataset-evidence-wiring.test.ts:133` sets `source.clusters.stabilityConfidence = 0.648` and `:145` asserts the narrowed transport `legacySilhouetteDerivedScore: 0.648`; `:146` asserts `JSON.stringify(cluster?.value)` does **not** match `/confidence/i`. This test actively asserts against the misleading name.
+- `tests/dataset-evidence-wiring.test.ts:40` / `:56` — fixture values `stabilityConfidence: 0.72` / `0`.
+- `tests/helpers/moneta-kernel-fixture.ts:64` — `stabilityConfidence: hasClusters ? 0.8 : 1`. This is **inverted relative to Rust**, which returns `0.0` when `has_clusters` is false (`profile.rs:548`). Recorded as a fixture observation only; no production impact.
+- `tests/representation-preview-purity.test.ts:70` — fixture value `legacySilhouetteDerivedScore: 0`.
+- No Rust test asserts on `stability_confidence` values (grep over `wasm/src/**/*.rs` returns only the struct field and the two assignments).
+
+### 2.7 Blast radius of a rename
+Source: `wasm/src/data/profile.rs`, `src/data/evidence/RustStructureProfile.ts`, `src/data/evidence/StructureProfileEvidenceAdapter.ts`.
+Tests: `tests/dataset-evidence-wiring.test.ts`, `tests/helpers/moneta-kernel-fixture.ts`, `tests/atlas-moneta-evidence-authority.test.ts`, `tests/representation-preview-purity.test.ts`.
+Persisted/serialized impact: **none**.
+Compatibility alias: **not required.** The canonical evidence key is already `legacySilhouetteDerivedScore`; nothing downstream reads it.
+
+---
+
+## 3. `SpectralFacts.periodicity_confidence`
+
+### 3.1 Producer (Rust)
+- Primary struct field: `wasm/src/data/spectral.rs:33` — `pub periodicity_confidence: f64` on `SpectralFacts` (`:21-43`), with the comment at `:31-32`: "Historical field name retained for ABI compatibility. This is an uncalibrated deterministic heuristic score, not statistical confidence."
+- Computation: `wasm/src/data/spectral.rs:316-321`:
+  - `has_periodicity = power_spectrum_peak > 0.35 && normalized_entropy < 0.75` (`:316`)
+  - `periodicity_confidence = (power_spectrum_peak * 0.6 + (1.0 - normalized_entropy) * 0.4).clamp(0.0, 1.0)` when `has_periodicity`, else `0.0` (`:317-321`)
+  - Rounded to 3 decimals at `:336`. Zero-case at `:274`.
+- The weighted combination of peak power and spectral entropy is exactly as described in `docs/STATISTICAL_FOUNDATIONS.md:111`. No null distribution, no calibration, no threshold-vs-null comparison is computed.
+- Second Rust carrier: `wasm/src/data/profile.rs:200` — `SpectralProfile.periodicity_confidence`, populated from `facts.periodicity_confidence` at `:1007`. The same value is also copied into every `PeriodicityProfile.confidence` at `:1029` (`PeriodicityProfile` at `profile.rs:100-108`, with comment at `:106`: "Historical heuristic score, not calibrated statistical confidence").
+
+### 3.2 Transport
+- `SpectralFacts` camelCase via `wasm/src/data/spectral.rs:19-20`; `SpectralProfile` and `PeriodicityProfile` camelCase via `profile.rs:192-193` and `:98-99`.
+- Wire names: **`periodicityConfidence`** on `spectral` (mirror `src/data/evidence/RustStructureProfile.ts:158`), **`periodicityConfidence`** on the profile as well (`src/data/evidence/RustStructureProfile.ts` `RustSpectralProfile`), and **`confidence`** on each periodicity (`src/data/evidence/RustStructureProfile.ts:85`, `RustPeriodicityProfile.confidence`).
+- Adapter: `src/data/evidence/StructureProfileEvidenceAdapter.ts:297` maps to **`periodicityHeuristicScore`** in `spectral:global`; `:296` maps `hasPeriodicity` → `heuristicPeriodicityDetected`; `:270` maps each periodicity's `confidence` → **`heuristicScore`**.
+
+### 3.3 TypeScript consumers
+- Narrowed path: `src/moneta/representation/DatasetEvidenceSignature.ts:127-130` reads `spectral.periodicityHeuristicScore` into `SpectralFacts.periodicityHeuristicScore`; `:397-403` marks `hasPeriodicity` and `periodicityHeuristicScore` as `heuristic` with note "Periodicity detection/score is explicitly heuristic".
+- Legacy path: `src/moneta/representation/DatasetSignature.ts:122-125` declares `periodicityConfidence?: number` as `@deprecated` alongside `periodicityHeuristicScore?: number`; `:77-78` declares both fact paths.
+- `src/moneta/representation/SignatureBuilder.ts:54-59` marks both `spectralStructure.periodicityConfidence` and `spectralStructure.periodicityHeuristicScore` as `heuristic` in the epistemic map.
+- Legacy TS mirror of the raw payload: `src/data/types.ts:243` (`SpectralFacts.periodicityConfidence`, used by `RepresentationHypothesisEngine.reason` callers — see `MonetaHypothesisEngine.ts:177, 190`).
+- **Decision-bearing?** The **value** is not. Grep for `periodicityConfidence` / `periodicityHeuristicScore` across `src/` returns only declaration + adapter + epistemic-marking sites; no comparison, threshold, or ranking reads it.
+- **However, its sibling derived boolean is decision-bearing.** `signature.spectralStructure.hasPeriodicity` is computed from the same expression (`spectral.rs:316`) and is consumed by:
+  - `src/moneta/representation/FitnessModel.ts:282-285` — FREQUENCY family receives `score = 1` when `candidate.supports.includes('periodic-spectrum') && signature.spectralStructure?.hasPeriodicity === true`. This is a ranking input (`score` feeds `0.7 * score + 0.3 * requiredCoverage` at `:316`).
+  - `src/moneta/representation/MonetaHypothesisEngine.ts:429-431` — asserts the fact "spectral periodicity detected in signal".
+  - `src/moneta/representation/MonetaHypothesisEngine.ts:935` — `if (layout === 'SPECTRAL_VOLUME' && !signature.spectralStructure?.hasPeriodicity)` — a layout-admissibility rejection.
+  - `src/moneta/representation/DatasetEvidenceSignature.ts:516` — the decision-relevance equality gate `assertDecisionRelevantSignatureMatchesEvidence` compares `spectralStructure?.hasPeriodicity` between the provided and authoritative signature and throws on mismatch. `periodicityHeuristicScore` is **not** in that check list (`:500-517`).
+
+### 3.4 Persisted / serialized consumers
+- `src/data/evidence/EvidenceReceipt.ts` does not reference it.
+- No fixture JSON under `tests/fixtures/**` records it.
+- It **is** baked into the in-memory evidence envelope, and — notably — the decision-relevance gate at `DatasetEvidenceSignature.ts:516` is the one place a value derived from the same computation is used to **throw** on mismatch.
+
+### 3.5 Investigator-visible label
+- None directly. No `src/vr/**` or `src/ui/**` string surfaces `periodicityConfidence` or a variant. User-facing text that mentions periodicity derives from `hasPeriodicity`, not from this score (e.g. the FREQUENCY representation family label path, not the number).
+
+### 3.6 Test coverage
+- **Rust ABI test asserts the misleading camelCase name:** `wasm/src/data/spectral.rs:404-428` (`spectral_facts_serialize_camel_case_for_wasm_abi`) includes `"periodicityConfidence"` in the required-key list at `:416` and asserts the key is present (`:424`). This test would fail on a Rust-side rename and is the single Rust test pinning any of the six names.
+- `tests/dataset-evidence-wiring.test.ts:181` and `:231` — profile fixtures with `periodicityConfidence: 0.8`; `:215` and `:246` assert `periodicityHeuristicScore: 0.8`; `:226` asserts `JSON.stringify(spectral?.value)` does **not** match `/confidence/i`.
+- `tests/spectral-analysis.test.ts:19` — `periodicityConfidence: 0.88` in a `SpectralFacts` fixture.
+- `tests/frequency-field.test.ts:144` — `periodicityConfidence: 0.9` in a `SpectralFacts` fixture; `:157-162` asserts the FREQUENCY family is chosen and that the evidence list mentions "spectral periodicity" (the decision here follows `hasPeriodicity`, not the score).
+- `tests/synthetic/representation-fixtures.ts:132` — `periodicityConfidence: 0.94` in a fixture whose `expectedFamily` is `'FREQUENCY'` (`:136`).
+
+### 3.7 Blast radius of a rename
+Source: `wasm/src/data/spectral.rs`, `wasm/src/data/profile.rs`, `src/data/evidence/RustStructureProfile.ts`, `src/data/evidence/StructureProfileEvidenceAdapter.ts`, `src/moneta/representation/DatasetSignature.ts`, `src/moneta/representation/DatasetEvidenceSignature.ts`, `src/moneta/representation/SignatureBuilder.ts`, `src/data/types.ts`.
+Tests: `wasm/src/data/spectral.rs` (in-file ABI test), `tests/dataset-evidence-wiring.test.ts`, `tests/spectral-analysis.test.ts`, `tests/frequency-field.test.ts`, `tests/synthetic/representation-fixtures.ts`.
+Persisted/serialized impact: **the `SpectralFacts` camelCase ABI is asserted as a frozen contract by a Rust test** (`spectral.rs:404-428`) and is declared in `wasm/pkg/nemosyne_wasm.d.ts` generated bindings territory. There is no on-disk fixture recording the value, so a rename does not break recorded data, but it does break the asserted ABI shape.
+Compatibility alias: **recommended for the Rust→TS hop** unless the ABI test is updated in the same change. The TS-side canonical key is already narrowed to `periodicityHeuristicScore`, so the alias surface is confined to `RustStructureProfile.ts` + the adapter.
+
+---
+
+## 4. `DensityProfile.global_density`
+
+### 4.1 Producer (Rust)
+- Struct field: `wasm/src/data/profile.rs:92` — `pub global_density: f64` on `DensityProfile` (`:91-96`).
+- Computation: `wasm/src/data/profile.rs:987-993` — a three-step row-count threshold function on `row_count` alone: `>= 50 → 0.7`, `>= 20 → 0.4`, else `0.15`.
+- No observation coordinates, no bandwidth, no kernel, no volume element, and no row-count normalization enter this value. Two datasets with identical row counts receive identical `global_density` regardless of their data. The function is exactly the "row-count threshold heuristic" named in `docs/STATISTICAL_FOUNDATIONS.md:112`.
+- Sibling on the same struct: `is_sparse: row_count < 15` (`:996`) — also row-count-only.
+
+### 4.2 Transport
+- camelCase via `wasm/src/data/profile.rs:89-90` → wire name **`globalDensity`**.
+- TS mirror: `src/data/evidence/RustStructureProfile.ts:73` (`RustDensityProfile.globalDensity`).
+- Adapter: `src/data/evidence/StructureProfileEvidenceAdapter.ts:139` places it in the `density:global` evidence item (`:133-145`) **retaining the name `globalDensity`**, unlike its sibling on `:140` which is renamed to `heuristicLocalDensityVariation` and `:141` which is renamed to `heuristicModeCount`. The density block is therefore only partly narrowed.
+
+### 4.3 TypeScript consumers
+- Only one: `src/data/evidence/StructureProfileEvidenceAdapter.ts:139`.
+- `DatasetSignature` has **no density section at all**. Confirmed against `src/moneta/representation/DatasetSignature.ts`: the fact-path union (`:50-88`) contains no density path and the `DatasetSignature` interface (`:211` onward) has no `density` member. `src/moneta/representation/DatasetEvidenceSignature.ts:434-455` reconstructs `distribution`, `dependence`, and `clusterStructure` but never reads the `density:global` item.
+- **Decision-bearing?** No. The value is named, wrapped in an evidence item with `uncertainty: { kind: 'none' }` (`StructureProfileEvidenceAdapter.ts:65`), and then carried with no reader.
+- Adjacency worth recording: `src/app/densityEvidenceDiagnostics.ts` and `src/moneta/representation/FitnessModel.ts:367-409` (`scoreDensityHandling`) concern density-capable candidate selection, but `scoreDensityHandling` gates on `requirements.requiredStructures` and on `signature.clusterStructure.densityVariation` (`:374-381`) — **not** on `globalDensity`.
+
+### 4.4 Persisted / serialized consumers
+- None. Absent from `src/data/evidence/EvidenceReceipt.ts` and from all `tests/fixtures/**` JSON.
+
+### 4.5 Investigator-visible label
+- None. Grep over `src/vr/**` and `src/ui/**` for `globalDensity` and for human-readable variants returns no matches. The nearest user-visible density strings are representation-candidate labels such as `DENSITY_FIELD` and "Binned density" (e.g. `src/app/densityEvidenceDiagnostics.ts:231`), which do not surface this value.
+
+### 4.6 Test coverage
+- `tests/atlas-moneta-evidence-authority.test.ts:52` — fixture value `globalDensity: 0.4` (note: 0.4 is the `>= 20` branch value, and the fixture also declares `rowCount: 128`, which in Rust would yield 0.7 — the fixture is internally inconsistent with the producer, confirming fixtures are not replay data).
+- `tests/dataset-evidence-wiring.test.ts:68` — `globalDensity: 0.5` (a value Rust can never emit: the reachable set is `{0.15, 0.4, 0.7}`).
+- `tests/evidence-backed-moneta.test.ts:71` — `globalDensity: 1` (also unreachable in Rust).
+- `tests/helpers/moneta-kernel-fixture.ts:76` — `globalDensity: 0.5`.
+- `tests/representation-preview-purity.test.ts:60` — `globalDensity: 1`.
+- No test asserts on the threshold behaviour, and no Rust test asserts on `global_density` (grep over `wasm/src/**/*.rs` returns only the struct field and the assignment).
+- Observation: three separate fixtures use values the Rust producer cannot emit. No test would fail if the Rust value were replaced by a constant.
+
+### 4.7 Blast radius of a rename
+Source: `wasm/src/data/profile.rs`, `src/data/evidence/RustStructureProfile.ts`, `src/data/evidence/StructureProfileEvidenceAdapter.ts`.
+Tests: `tests/atlas-moneta-evidence-authority.test.ts`, `tests/dataset-evidence-wiring.test.ts`, `tests/evidence-backed-moneta.test.ts`, `tests/helpers/moneta-kernel-fixture.ts`, `tests/representation-preview-purity.test.ts`.
+Persisted/serialized impact: **none**.
+Compatibility alias: **not required.** No consumer reads the key.
+
+---
+
+## 5. `DensityProfile.local_density_variation`
+
+### 5.1 Producer (Rust)
+- Struct field: `wasm/src/data/profile.rs:93` — `pub local_density_variation: f64` on `DensityProfile`.
+- Computation: `wasm/src/data/profile.rs:994` — `local_density_variation: if clusters.has_clusters { 0.3 } else { 0.1 }`.
+- This is a two-valued constant selected by the heuristic cluster-detection boolean. It is not a local-density statistic of any kind: no neighbour distance, no k-NN density, no kernel estimate, no per-observation aggregation is computed. It matches `docs/STATISTICAL_FOUNDATIONS.md:113` exactly ("fixed value conditioned on heuristic cluster detection").
+
+### 5.2 Transport
+- camelCase via `wasm/src/data/profile.rs:89-90` → wire name **`localDensityVariation`**.
+- TS mirror: `src/data/evidence/RustStructureProfile.ts:74`.
+- Adapter: `src/data/evidence/StructureProfileEvidenceAdapter.ts:140` maps to **`heuristicLocalDensityVariation`** inside `density:global`.
+
+### 5.3 TypeScript consumers
+- Only one: `src/data/evidence/StructureProfileEvidenceAdapter.ts:140`.
+- Not reconstructed into `DatasetSignature` (no density section; see §4.3).
+- **Decision-bearing?** No.
+- **Distinct field, do not conflate:** `ClusterProfile.density_variation` (`wasm/src/data/profile.rs:76`, computed `:544` as `if has_clusters { 0.25 } else { 0.0 }` — also a constant) is a *different* field. It travels as `heuristicDensityVariation` (`StructureProfileEvidenceAdapter.ts:155`), is reconstructed into `signature.clusterStructure.densityVariation` (`DatasetEvidenceSignature.ts:466-469`, epistemic `heuristic` at `:268-279`), and **is** consumed by a decision:
+  - `src/moneta/representation/FitnessModel.ts:367-381` (`scoreDensityHandling`) — `knownDensityVariation = hasAuthoritativeDensityEvidence && signature.clusterStructure.densityVariation > 0` (`:377-380`), and `densityRelevant = (densityRequirement?.importance ?? 0) > 0 || knownDensityVariation` (`:381`). When `densityRelevant` is false the method returns 1 (`:385`); otherwise the candidate is scored 1 / 0.75 / 0 / 0.25 (`:387-409`), which feeds the composite fitness.
+  - `src/moneta/representation/DatasetEvidenceSignature.ts:513` — the decision-relevance equality gate includes `clusterStructure.densityVariation` and throws on mismatch.
+
+  Since `ClusterProfile.density_variation` is a two-valued constant conditional on `has_clusters`, this ranking input carries no more information than `hasClusters` while appearing as a continuous quantity. This is outside the six listed fields but is the same class of defect and is the one instance in this inventory where a *density* heuristic reaches a ranking path.
+
+### 5.4 Persisted / serialized consumers
+- None for `localDensityVariation`. Absent from `src/data/evidence/EvidenceReceipt.ts` and from all `tests/fixtures/**` JSON.
+
+### 5.5 Investigator-visible label
+- None. No `src/vr/**` or `src/ui/**` string references it. The one human-readable string that mentions density variation is the equality-gate error label `'density variation'` at `src/moneta/representation/DatasetEvidenceSignature.ts:513`, which refers to `clusterStructure.densityVariation`, not to this field, and surfaces only in a thrown `Error` message compared by `tests/evidence-backed-moneta.test.ts:210`.
+
+### 5.6 Test coverage
+- `tests/atlas-moneta-evidence-authority.test.ts:53` — `localDensityVariation: 0.61` (a value Rust cannot emit: the reachable set is `{0.1, 0.3}`).
+- `tests/dataset-evidence-wiring.test.ts:69` — `localDensityVariation: 0.1`.
+- `tests/helpers/moneta-kernel-fixture.ts:77` — `localDensityVariation: densityVariation` where `densityVariation = options.densityVariation ?? 0.2` (`:31`).
+- `tests/evidence-backed-moneta.test.ts:72` — `heuristicLocalDensityVariation: densityVariation`.
+- `tests/representation-preview-purity.test.ts:61` — `heuristicLocalDensityVariation: 0`.
+- No test asserts on the two-valued behaviour, and no Rust test asserts on `local_density_variation`.
+- Observation: fixtures use arbitrary continuous values (0.61, 0.2) that the producer cannot emit, so no test would detect replacement or removal of the field.
+
+### 5.7 Blast radius of a rename (or removal)
+Source if renamed: `wasm/src/data/profile.rs`, `src/data/evidence/RustStructureProfile.ts`, `src/data/evidence/StructureProfileEvidenceAdapter.ts`.
+Source if **removed**: Rust struct field, `RustStructureProfile.ts`, and the adapter line — then the `density:global` evidence item retains `globalDensity`, `heuristicModeCount`, `isSparse`.
+Tests: `tests/atlas-moneta-evidence-authority.test.ts`, `tests/dataset-evidence-wiring.test.ts`, `tests/helpers/moneta-kernel-fixture.ts`, `tests/evidence-backed-moneta.test.ts`, `tests/representation-preview-purity.test.ts`.
+Persisted/serialized impact: **none**.
+Compatibility alias: **not required.** This is the only one of the six whose documentation-prescribed remedy is removal rather than rename (`docs/STATISTICAL_FOUNDATIONS.md:113`), and removal is contained to three source files.
+
+---
+
+## 6. Moneta sample-count `confidence_weight`
+
+### 6.1 Producer (Rust)
+- This is a **local variable, not a struct field**. It is therefore not part of the `DatasetStructureProfile` ABI at all; it is an internal step in a cost-adjustment function.
+- `wasm/src/moneta/evidence.rs:20` — `let confidence_weight = (ev.sample_count as f64 / 10.0).min(1.0);`
+- `wasm/src/moneta/evidence.rs:25` — `let utility_delta = (ev.composite_utility - 0.5) * 30.0 * confidence_weight;`
+- Function: `wasm/src/moneta/evidence.rs:10-29` (`adjust_candidate_cost_with_evidence(base_cost, evidence) -> (f64, f64)`), returning `(adjusted_cost, -utility_delta)` (`:26-28`).
+- Input struct: `EmpiricalUtilityEvidence { sample_count: usize, composite_utility: f64 }` at `wasm/src/moneta/evidence.rs:5-8`.
+- **Byte-identical duplicate exists:** `wasm/src/draco/evidence.rs` is identical to `wasm/src/moneta/evidence.rs` (`diff` exits 0, no differences) — `wasm/src/lib.rs:7` does `pub use moneta as draco;`, so `draco::evidence::*` and `moneta::evidence::*` are the same module reached two ways.
+- The expression saturates at N=10; the in-code rationale is the comment at `wasm/src/moneta/evidence.rs:19` ("Confidence weighting based on sample count (approaches 1.0 at N=10)"). Sample count is used as a multiplier on a utility delta. It is not a confidence interval, standard error, or posterior quantity.
+
+### 6.2 Transport
+- No camelCase struct rename applies (local variable). The transported scalar is **`sampleCount`**, inside the input object `{ baseCost, evidence: { sampleCount, compositeUtility } }`.
+- WASM export: `wasm/src/lib.rs:1958-1988` — `#[no_mangle] pub extern "C" fn draco_adjust_evidence(...)`, with a locally declared `#[serde(rename_all = "camelCase")] struct Input { base_cost, evidence }` (`:1966-1970`) producing `{ adjustedCost, delta }` (`:1983-1986`).
+- Generated binding declarations: `wasm/pkg/nemosyne_wasm.d.ts:347`, `wasm/pkg/nemosyne_wasm_bg.wasm.d.ts:70`.
+- TS host declaration: `src/wasm/runtime/RuntimeExports.ts:189`.
+- TS transport wrapper: `src/wasm/runtime/KernelContractBridge.ts:119-133` — `adjustMonetaEvidence(baseCost, evidence)`; alias `adjustDracoEvidence` at `:135`; re-exported through the facade at `src/wasm/RuntimeBridge.ts:90-91`.
+- **TS re-implementation of the same formula:** `src/moneta/evidence/EvidenceWeightedScorer.ts:24-25` (`const confidenceWeight = Math.min(1.0, utility.sampleCount / 10); const utilityDelta = (utility.compositeUtility - 0.5) * 30.0 * confidenceWeight;`) and again at `:42-43` with a different downstream weight (`(0.5 - u) * 20.0 * (confidenceWeight || 1.0)`). `sampleCount` originates from `EvidenceStore.computeUtilityForSpec` (`src/moneta/evidence/EvidenceStore.ts:151`) / `computeUtilityScores` (`:97`) as `n = matches.length`.
+
+### 6.3 TypeScript consumers
+- **No production consumer exists.** Grep for `adjustMonetaEvidence` / `adjustDracoEvidence` across the repo returns only: the bridge definition (`KernelContractBridge.ts:119`), the alias (`:135`), the facade re-exports (`RuntimeBridge.ts:90-91`), and two tests (`tests/runtime-bridge-module-boundaries.test.ts:44-45, 187`, `tests/wasm-runtime.test.ts:429`). No module under `src/vr/**`, `src/app/**`, `src/atlas/**`, or `src/moneta/**` calls it.
+- `EvidenceWeightedScorer` is exported from the barrel at `src/moneta/evidence/index.ts:3` but its only callers are `tests/evidence-draco.test.ts:27, 120, 163`.
+- **Decision-bearing if wired — and it is a ranking function, not a display value.** `src/moneta/evidence/EvidenceWeightedScorer.ts:52-65` (`reRankCandidates`) calls `adjustCandidateScore` for every candidate, overwrites `cost` with `adjustedCost`, and `.sort((a, b) => a.cost - b.cost)`. `adjustCandidateScore` (`:35-50`) is the path where the sample-count multiplier determines the magnitude of the cost shift. So this heuristic is a candidate-ordering input by construction — today it is prevented from affecting production only by having no caller, not by any guard or gate.
+- `src/atlas/MonetaEvidenceAuthority.ts` and the `DatasetEvidence`/`DatasetSignature` pipeline are entirely separate from this path; the sample-count weight never enters evidence identity, admissibility, or the fitness model.
+
+### 6.4 Persisted / serialized consumers
+- None. `sampleCount` appears in `src/data/evidence/RustStructureProfile.ts` and `StructureProfileEvidenceAdapter.ts` only as part of the cluster-estimator parameter manifest (`StructureProfileEvidenceAdapter.ts:159, 171`; `RustStructureProfile.ts:63`), which is a different sample count (clustering bottom-k sample size), not the Moneta empirical sample count.
+- `tests/fixtures/draco-golden/golden-pairs.json` contains no `confidenceWeight`, `confidence_weight`, or `sampleCount` keys (verified by inspection of the fixture structure: `description` + `pairs[]` with `id`, `topology`, `dataInput`, `expectedLayout`, `expectedGeometry`).
+- No durable store: `src/persistence/ClientPersistence.ts` persists gesture profiles only (`:7`, `:14`).
+
+### 6.5 Investigator-visible label
+- None. No `src/vr/**` or `src/ui/**` string surfaces the field or a variant. The only prose describing it is the Rust comment at `wasm/src/moneta/evidence.rs:19` and its duplicate `wasm/src/draco/evidence.rs:19`.
+- Adjacent: `MonetaEmpiricalTuner` produces a human-readable `rationale` (`src/moneta/evidence/MonetaEmpiricalTuner.ts:95-97`) mentioning "promoted"/"demoted" by N and utility — but that is a separate module with its own `sampleCount` and no `confidence_weight`, and it too has no production caller.
+
+### 6.6 Test coverage
+- `tests/evidence-draco.test.ts:105-134` — records 10 outcomes and asserts `adjustedCost < 50` and `empiricalDelta < 0` from `adjustCandidateScore`; the 10-outcome count is exactly the saturation point, so the test exercises the saturated branch.
+- `tests/evidence-draco.test.ts:135-168` — asserts `reRankCandidates` places the empirically superior spec first. **This is the only test asserting the ranking consequence of the sample-count weight.**
+- Rust unit tests: `wasm/src/moneta/evidence.rs:35-44` and the identical `wasm/src/draco/evidence.rs:35-44` — `adjust_cost_reduces_penalty_for_positive_utility` asserts `adjusted < 50` and `delta == -9.0` for `sample_count: 10`.
+- `tests/wasm-runtime.test.ts:429` — calls `bridge.adjustMonetaEvidence(Number.NaN, {...})` only to assert non-finite inputs are refused (returns `null`).
+- `tests/runtime-bridge-module-boundaries.test.ts:44-45, 187` — asserts the facade exports both names and that `adjustDracoEvidence === adjustMonetaEvidence`.
+- No test asserts the name `confidence_weight` itself; the name exists only as a local binding and a Rust comment.
+
+### 6.7 Blast radius of a rename
+Source: `wasm/src/moneta/evidence.rs` (local variable + comment), `wasm/src/draco/evidence.rs` (identical duplicate), `src/moneta/evidence/EvidenceWeightedScorer.ts` (local variable, two sites).
+No struct field or wire key changes, so `wasm/src/lib.rs`, `RuntimeExports.ts`, `KernelContractBridge.ts`, `RuntimeBridge.ts` and the generated `wasm/pkg/*.d.ts` do not change.
+Tests: none reference the name; `tests/evidence-draco.test.ts` and the two Rust unit tests assert on numerical outcomes only and would be unaffected.
+Persisted/serialized impact: **none**.
+Compatibility alias: **not required** — renaming a local variable changes no ABI, no envelope, and no fixture.
+Residual risk to record: renaming the variable does not change the fact that `EvidenceWeightedScorer.reRankCandidates` is a live ranking implementation of a sample-count multiplier. The terminology fix and the decision-surface question are separate.
+
+---
+
+## Summary
+
+| Field | Rust source | TS decision-bearing? | Persisted? | User-visible? | Rename blast radius | Compatibility alias needed? |
+| --- | --- | --- | --- | --- | --- | --- |
+| `CorrelationProfile.significant_pairs_count` | `wasm/src/data/profile.rs:66`; computed `:922-927` (`abs(r) > 0.6`) | No — carried into signature + epistemic map only | No (no receipt, no fixture) | No | Rust struct + `RustStructureProfile.ts:51` + adapter `:212` + `SignatureBuilder.ts` (2 sites) + `DatasetSignature.ts:55,170` + `DatasetEvidenceSignature.ts:447-450`; 4 test files | No (adapter already uses `strongCorrelationPairCount`) |
+| `ClusterProfile.stability_confidence` | `wasm/src/data/profile.rs:77`; computed `:545-549` (`silhouette * 0.9`, clamp 0.1–1.0) | No — mapped to `legacySilhouetteDerivedScore`, then dropped; never enters `DatasetSignature` | No | No | Rust struct + `RustStructureProfile.ts:60` + adapter `:156`; 4 test files | No |
+| `SpectralFacts.periodicity_confidence` | `wasm/src/data/spectral.rs:33`; computed `:316-321` (0.6·peak + 0.4·(1−entropy)) | Value: no. **Sibling `hasPeriodicity` is**: `FitnessModel.ts:282-285`, `MonetaHypothesisEngine.ts:429,935`, gate `DatasetEvidenceSignature.ts:516` | No | No | `spectral.rs` + `profile.rs` + 6 TS files (`RustStructureProfile.ts`, adapter `:270,297`, `DatasetSignature.ts:77-78,122-125`, `DatasetEvidenceSignature.ts:127-130,399`, `SignatureBuilder.ts:54-59`, `types.ts:243`) + 5 test files incl. Rust ABI test | **Yes for the Rust→TS hop** — `wasm/src/data/spectral.rs:416` freezes the camelCase name |
+| `DensityProfile.global_density` | `wasm/src/data/profile.rs:92`; computed `:987-993` (row-count step: ≥50→0.7, ≥20→0.4, else 0.15) | No — no reader; `DatasetSignature` has no density section | No | No | Rust struct + `RustStructureProfile.ts:73` + adapter `:139`; 5 test files | No |
+| `DensityProfile.local_density_variation` | `wasm/src/data/profile.rs:93`; computed `:994` (`has_clusters ? 0.3 : 0.1`) | No — adapter `:140` only. Adjacent `ClusterProfile.density_variation` (`:76`, `:544`) **is** used in `FitnessModel.ts:367-409` and gate `DatasetEvidenceSignature.ts:513` | No | No | Rust struct + `RustStructureProfile.ts:74` + adapter `:140`; 5 test files. Removal is viable and equally contained | No |
+| Moneta sample-count `confidence_weight` | Local variable, not a field: `wasm/src/moneta/evidence.rs:20,25` and duplicate `wasm/src/draco/evidence.rs:20,25` | Mirror `EvidenceWeightedScorer.ts:24-25,42-43` **is a ranking function** (`reRankCandidates` `:52-65`) but has **no production caller**; WASM path `draco_adjust_evidence` (`lib.rs:1959`) also has no production caller | No (golden fixture has no such key) | No | 4 source sites in 3 files; no ABI/wire key changes; no test references the name | No |
+
+---
+
+## Open questions
+
+1. **Which threshold is authoritative for `significant_pairs_count`?** Rust uses `abs(r) > 0.6` (`wasm/src/data/profile.rs:926`); `SignatureBuilder.ts:88` recomputes the same-named field with `abs >= 0.5`. The code does not state which is canonical, and no test pins either. Resolving this is a prerequisite to choosing the rename target.
+2. **Is the `confidence_weight` path intended to become live?** `EvidenceWeightedScorer.reRankCandidates` is a complete, tested ranking implementation with no production caller, and the equivalent Rust kernel function `draco_adjust_evidence` is likewise wired to the bridge but never called. Whether this is dead code awaiting a caller or an intentionally parked capability cannot be determined from the code alone.
+3. **Is `EvidenceReceiptStabilityV1` (`src/data/evidence/EvidenceReceipt.ts:33-37`) intended to receive a real resampling stability score in place of `stability_confidence`?** The receipt shape has `method`, `score`, `repetitions`, but no code path populates it and no producer emits repetitions.
+4. **Why do fixtures use `globalDensity` values (`0.5`, `1`) and `localDensityVariation` values (`0.61`, `0.2`) that the Rust producer cannot emit?** The `{0.15, 0.4, 0.7}` and `{0.1, 0.3}` value sets are fully determined by the producer; the fixtures were evidently authored independently. This is recorded as an observation, not a defect claim.
+5. **`tests/helpers/moneta-kernel-fixture.ts:64` sets `stabilityConfidence: hasClusters ? 0.8 : 1`, inverting the producer** (which yields `0.0` when `has_clusters` is false, `profile.rs:548`). No test depends on the inverted value being realistic, but the fixture does not mirror the kernel contract.
+6. **No human-visible label exists for any of the six fields.** This inventory found no UI string, panel label, tooltip, or telemetry key surfacing any of them, so the "investigator-visible label" sub-part is a verified negative for all six. If a label catalogue outside this repository's `src/` is used at runtime, it was not available to inspect.
+7. **`assertRustDatasetStructureProfile` (`src/atlas/MonetaEvidenceAuthority.ts:38-79`) type-checks none of the six fields.** Whether boundary validators should be extended for the renamed fields is a design question this inventory does not answer; it is recorded because it makes renames fail silently rather than loudly.
+
+---
+
+## Verification addendum (independent spot-check)
+
+The following claims were independently re-checked against source on receipt of this inventory, because they are the ones that would drive TEC1/TEC2 tranche selection:
+
+| Claim | Verified | Evidence |
+| --- | --- | --- |
+| Two different thresholds under one name | **Confirmed** | Rust `profile.rs:926` is `absolute > 0.6`; `SignatureBuilder.ts:88` is `absolute >= 0.5` |
+| Adapter narrows all six names | **Partly false, as recorded** | `globalDensity` is retained verbatim at `StructureProfileEvidenceAdapter.ts:139` while `heuristicLocalDensityVariation` (`:140`) and `heuristicModeCount` (`:141`) are narrowed |
+| Rust ABI test freezes `periodicityConfidence` | **Confirmed** | `wasm/src/data/spectral.rs:416` requires the camelCase key; `:425-428` assert snake_case keys are absent |
+| `reRankCandidates` has no production caller | **Confirmed** | Grep for `reRankCandidates` / `adjustCandidateScore` / `adjustMonetaEvidence` / `adjustDracoEvidence` across `src/` and `tests/` returns only bridge definitions, facade re-exports, and `tests/evidence-draco.test.ts` |
+| `ClusterProfile.density_variation` reaches ranking | **Confirmed** | Rust `profile.rs:544` is `if has_clusters { 0.25 } else { 0.0 }`; `FitnessModel.ts:374-381` derives `densityRelevant` from `signature.clusterStructure.densityVariation` and returns 1 or scores the candidate |
+
+Recorded by: audit pass, 2026-09-21. Base `main@3198ff87`.
