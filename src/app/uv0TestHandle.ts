@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 /**
  * P1-UV0 instrumented runtime handle.
  *
@@ -26,6 +28,23 @@ interface Uv0RuntimePort {
       activeBudgetCount: number;
     };
     settingsPanel?: { visible?: boolean };
+    workspaceSurfaces?: {
+      ids(): string[];
+      panels: Array<{ mesh?: THREE.Object3D; title?: string }>;
+      idFor(panel: object): string | null;
+      isVisible(id: string): boolean;
+      recenterAll(): void;
+    };
+    handWheelMenu?: {
+      _categories?: Array<{
+        id: string;
+        items: Array<{ id: string; callback(): void }>;
+      }>;
+    };
+  };
+  engine: {
+    camera: THREE.Object3D;
+    input: { panels: unknown[] };
   };
   representationSurface?: {
     currentNode?: {
@@ -101,8 +120,20 @@ export interface Uv0RuntimeSnapshot {
   } | null;
 }
 
+export interface Uv0WorkspaceSurfaceSnapshot {
+  id: string;
+  visible: boolean;
+  inputRegistered: boolean;
+  distanceToViewer: number;
+  viewDot: number;
+}
+
 export interface NemosyneUv0TestHandle {
   snapshot(): Uv0RuntimeSnapshot;
+  workspaceSurface(id: string): Uv0WorkspaceSurfaceSnapshot | null;
+  invokeWheelItem(categoryId: string, itemId: string): boolean;
+  moveWorkspaceSurface(id: string, position: [number, number, number]): boolean;
+  recenterWorkspaceSurfaces(): void;
   /** Select a palace node by index (default first) via the real `_showDataCard` path. */
   selectNode(index?: number): boolean;
   /** Dispatch the same `onInspect` callback the ContextualTaskSurface Inspect verb fires. */
@@ -135,6 +166,12 @@ function visibleAssessmentKind(): 'decision' | 'nil' | 'pending' {
 
 export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
   const runtime = world as Uv0RuntimePort;
+
+  const resolveWorkspaceSurface = (id: string) => {
+    const manager = runtime.uiManager?.workspaceSurfaces;
+    if (!manager) return null;
+    return manager.panels.find((panel) => manager.idFor(panel as object) === id) ?? null;
+  };
 
   return {
     snapshot(): Uv0RuntimeSnapshot {
@@ -175,6 +212,49 @@ export function installUv0TestHandle(world: object): NemosyneUv0TestHandle {
             })()
           : null,
       };
+    },
+    workspaceSurface(id: string): Uv0WorkspaceSurfaceSnapshot | null {
+      const manager = runtime.uiManager?.workspaceSurfaces;
+      const panel = resolveWorkspaceSurface(id);
+      const mesh = panel?.mesh;
+      if (!manager || !panel || !mesh) return null;
+
+      runtime.engine.camera.updateMatrixWorld(true);
+      mesh.updateMatrixWorld(true);
+      const viewer = new THREE.Vector3();
+      const surface = new THREE.Vector3();
+      const forward = new THREE.Vector3();
+      runtime.engine.camera.getWorldPosition(viewer);
+      runtime.engine.camera.getWorldDirection(forward);
+      mesh.getWorldPosition(surface);
+      const toSurface = surface.sub(viewer);
+      const distance = toSurface.length();
+      return {
+        id,
+        visible: manager.isVisible(id),
+        inputRegistered: runtime.engine.input.panels.includes(panel),
+        distanceToViewer: distance,
+        viewDot: distance > 0 ? forward.dot(toSurface.normalize()) : -1,
+      };
+    },
+    invokeWheelItem(categoryId: string, itemId: string): boolean {
+      const category = runtime.uiManager?.handWheelMenu?._categories?.find(
+        (candidate) => candidate.id === categoryId
+      );
+      const item = category?.items.find((candidate) => candidate.id === itemId);
+      if (!item) return false;
+      item.callback();
+      return true;
+    },
+    moveWorkspaceSurface(id: string, position: [number, number, number]): boolean {
+      const panel = resolveWorkspaceSurface(id);
+      if (!panel?.mesh) return false;
+      panel.mesh.position.set(position[0], position[1], position[2]);
+      panel.mesh.updateMatrixWorld(true);
+      return true;
+    },
+    recenterWorkspaceSurfaces(): void {
+      runtime.uiManager?.workspaceSurfaces?.recenterAll();
     },
     selectNode(index = 0): boolean {
       const mesh = runtime.representationSurface?.currentNode?.artifact?.nodeMeshes?.[index];

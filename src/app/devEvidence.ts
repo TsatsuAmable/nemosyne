@@ -73,7 +73,11 @@ export interface DevEvidenceInstallerDependencies {
   telemetryCollector: TelemetryCollectorLike;
   uiManager: Pick<
     WorldUIManager,
-    'analystAnchor' | 'panelManager' | 'panelRolesManager' | 'showPanel'
+    | 'analystAnchor'
+    | 'panelRolesManager'
+    | 'workspaceSurfaces'
+    | 'showWorkspaceSurface'
+    | 'toggleWorkspaceSurface'
   >;
   loadDataset(entry: DatasetLoadEntry): void;
   getActiveSpecInfo(): ActiveSpecInfo | null;
@@ -334,11 +338,11 @@ export function installDevEvidence({
       onStop: () => handle.stop(),
       onFlush: () => handle.flush(),
     });
-    uiManager.panelManager.register(loadTestPanel);
+    uiManager.workspaceSurfaces.register('dev-load-test', loadTestPanel);
     applyPanelLayout(loadTestPanel, PANEL_LAYOUT.loadTestPanel);
     engine.input.addPanel(loadTestPanel);
     engine.addUpdatable(loadTestPanel);
-    uiManager.panelManager.hidePanel(loadTestPanel);
+    uiManager.workspaceSurfaces.hide('dev-load-test');
     return loadTestPanel;
   };
 
@@ -365,11 +369,11 @@ export function installDevEvidence({
         await refreshValidationStatus();
       },
     });
-    uiManager.panelManager.register(validationPanel);
+    uiManager.workspaceSurfaces.register('device-validation', validationPanel);
     applyPanelLayout(validationPanel, PANEL_LAYOUT.loadTestPanel);
     engine.input.addPanel(validationPanel);
     engine.addUpdatable(validationPanel);
-    uiManager.panelManager.hidePanel(validationPanel);
+    uiManager.workspaceSurfaces.hide('device-validation');
     queueMicrotask(() => {
       void refreshValidationStatus().catch((error) => {
         validationPanel?.setDeliveryFailure(
@@ -389,11 +393,17 @@ export function installDevEvidence({
     stop: engine.onStopLoadTest,
   };
   const installedCallbacks = {
-    togglePanel: () => uiManager.panelManager.togglePanel(getOperatorPanel()),
+    togglePanel: () => {
+      getOperatorPanel();
+      uiManager.toggleWorkspaceSurface(validationContext ? 'device-validation' : 'dev-load-test');
+    },
     // Governed sessions must pass through the on-device confirmation UI rather
     // than allowing a hidden developer hotkey to bypass deliberate start.
     start: () => {
-      if (validationContext) uiManager.showPanel(getOrCreateValidationPanel());
+      if (validationContext) {
+        getOrCreateValidationPanel();
+        uiManager.showWorkspaceSurface('device-validation');
+      }
       else handle.runLoadTest();
     },
     stop: () => handle.stop(),
@@ -412,9 +422,13 @@ export function installDevEvidence({
         return;
       }
       lastQuestBoundarySummary = null;
-      uiManager.showPanel(
-        validationContext ? getOrCreateValidationPanel() : getOrCreateLoadTestPanel()
-      );
+      if (validationContext) {
+        getOrCreateValidationPanel();
+        uiManager.showWorkspaceSurface('device-validation');
+      } else {
+        getOrCreateLoadTestPanel();
+        uiManager.showWorkspaceSurface('dev-load-test');
+      }
       telemetryConsentBeforeRun = telemetryCollector.enabled;
       try {
         telemetryCollector.setEnabled?.(true);
@@ -435,9 +449,13 @@ export function installDevEvidence({
         return;
       }
       lastLoadTestSummary = null;
-      uiManager.showPanel(
-        validationContext ? getOrCreateValidationPanel() : getOrCreateLoadTestPanel()
-      );
+      if (validationContext) {
+        getOrCreateValidationPanel();
+        uiManager.showWorkspaceSurface('device-validation');
+      } else {
+        getOrCreateLoadTestPanel();
+        uiManager.showWorkspaceSurface('dev-load-test');
+      }
       questBoundaryProbe.run();
     },
 
@@ -470,14 +488,14 @@ export function installDevEvidence({
       if (loadTestPanel) {
         engine.removeUpdatable(loadTestPanel);
         engine.input.removePanel(loadTestPanel);
-        uiManager.panelManager.unregister?.(loadTestPanel);
+        uiManager.workspaceSurfaces.unregister('dev-load-test');
         loadTestPanel.dispose();
         loadTestPanel = null;
       }
       if (validationPanel) {
         engine.removeUpdatable(validationPanel);
         engine.input.removePanel(validationPanel);
-        uiManager.panelManager.unregister?.(validationPanel);
+        uiManager.workspaceSurfaces.unregister('device-validation');
         validationPanel.dispose();
         validationPanel = null;
       }
@@ -493,7 +511,8 @@ export function installDevEvidence({
   // without depending on the legacy developer wheel or a keyboard shortcut.
   // This only runs inside the DEV-gated installer and does not start any test.
   if (validationContext) {
-    uiManager.showPanel(getOrCreateValidationPanel());
+    getOrCreateValidationPanel();
+    uiManager.showWorkspaceSurface('device-validation');
   }
 
   return handle;

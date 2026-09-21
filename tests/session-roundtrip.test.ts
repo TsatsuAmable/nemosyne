@@ -19,6 +19,7 @@ import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
 import { MonetaHypothesisEngine } from '../src/moneta/representation/MonetaHypothesisEngine.ts';
+import { UI_TREATMENT_VERSION } from '../src/vr/ui/panelLayout.ts';
 
 /**
  * Minimal transaction-correct in-memory IndexedDB fake. The production store
@@ -188,9 +189,21 @@ function makeSessionHarness(sessionStore: SessionStore): {
       settings[k] = v;
     }),
   };
-  const panelManager = {
-    getPanelPositions: () => [{ title: 'A', position: [1, 2, 3], visible: true }],
-    setPanelPositions: vi.fn(),
+  const workspaceSurfaces = {
+    panels: [],
+    ids: () => ['a'],
+    has: () => true,
+    idFor: () => 'a',
+    isVisible: () => true,
+    register: vi.fn(),
+    unregister: vi.fn(),
+    show: vi.fn(() => true),
+    hide: vi.fn(() => true),
+    toggle: vi.fn(() => true),
+    recenter: vi.fn(() => true),
+    recenterAll: vi.fn(),
+    capturePositions: () => [{ id: 'a', title: 'A', position: [1, 2, 3], visible: true }],
+    restorePositions: vi.fn(),
   };
   const narrativeStrip = { setHistory: vi.fn() };
   const focusController = new FocusContextController();
@@ -229,14 +242,14 @@ function makeSessionHarness(sessionStore: SessionStore): {
         if (!state.finished) this._renderStep();
       },
     },
-    panelManager,
+    workspaceSurfaces,
     comfortSettingsController: { apply: vi.fn(), applyPanelDistance: vi.fn() },
     userModeController: { apply: vi.fn() },
     focusContext,
     narrativeStrip,
     uiManager: {
       settingsPanel,
-      panelManager,
+      workspaceSurfaces,
       narrativeStrip,
     },
     sessionStore,
@@ -258,7 +271,7 @@ function makeSessionHarness(sessionStore: SessionStore): {
     cameraGroup,
     theme: stub.engine.theme,
     settingsPanel,
-    panelManager: panelManager as never,
+    workspaceSurfaces: workspaceSurfaces as never,
     guidedTour: stub.guidedTour,
     comfortSettingsController: stub.comfortSettingsController,
     focusContext,
@@ -364,12 +377,13 @@ describe('WorldSessionController save/load roundtrip', () => {
     const snap: any = await store.loadSession('manual');
     expect(snap.schemaVersion).toBe(2);
     expect(snap.presentation.theme).toBe('neonMidnight');
+    expect(snap.presentation.uiTreatmentVersion).toBe(UI_TREATMENT_VERSION);
     expect(snap.presentation.tour).toEqual({ stepIndex: 2, finished: false });
     expect(snap.presentation.camera.position).toEqual([1.5, 2.0, -3.0]);
     expect(snap.presentation.camera.rotationY).toBeCloseTo(0.7);
     expect(snap.presentation.settings.userMode).toBe('intermediate');
     expect(snap.presentation.panelPositions).toEqual([
-      { title: 'A', position: [1, 2, 3], visible: true },
+      { id: 'a', title: 'A', position: [1, 2, 3], visible: true },
     ]);
     expect(snap.originalDataset).toBeTruthy();
     expect(snap.currentDataset).toBeTruthy();
@@ -420,8 +434,8 @@ describe('WorldSessionController save/load roundtrip', () => {
 
     // Theme + panel positions restored.
     expect(stub.engine.theme.applyPreset).toHaveBeenCalledWith('neonMidnight');
-    expect(stub.uiManager.panelManager.setPanelPositions).toHaveBeenCalledWith([
-      { title: 'A', position: [1, 2, 3], visible: true },
+    expect(stub.uiManager.workspaceSurfaces.restorePositions).toHaveBeenCalledWith([
+      { id: 'a', title: 'A', position: [1, 2, 3], visible: true },
     ]);
 
     // Tour resumed at the saved step.
@@ -447,6 +461,24 @@ describe('WorldSessionController save/load roundtrip', () => {
     expect(stub.atlas.activeRepresentationDecision).toBeNull();
   });
 
+  it('rejects persisted panel poses from an incompatible UI treatment generation', async () => {
+    await controller.saveSession('stale-ui-layout');
+    const snapshot: any = await store.loadSession('stale-ui-layout');
+    snapshot.presentation.uiTreatmentVersion = 'panel-layout/5+intent-wheel/3+frames/body-stable';
+    snapshot.presentation.panelPositions = [
+      { id: 'a', title: 'A', position: [80, 2, 80], visible: true },
+    ];
+    await store.saveSession('stale-ui-layout', snapshot);
+
+    stub.uiManager.workspaceSurfaces.restorePositions.mockClear();
+    stub.uiManager.workspaceSurfaces.recenterAll.mockClear();
+
+    await expect(controller.loadSession('stale-ui-layout')).resolves.toBe(true);
+
+    expect(stub.uiManager.workspaceSurfaces.restorePositions).not.toHaveBeenCalled();
+    expect(stub.uiManager.workspaceSurfaces.recenterAll).toHaveBeenCalledOnce();
+  });
+
   it('fails closed for malformed presentation coordinates and semantic focus', async () => {
     await controller.saveSession('malformed-presentation');
     const snapshot: any = await store.loadSession('malformed-presentation');
@@ -465,13 +497,14 @@ describe('WorldSessionController save/load roundtrip', () => {
     await store.saveSession('malformed-presentation', snapshot);
     stub.engine.cameraGroup.position.set(9, 8, 7);
     stub.engine.cameraGroup.rotation.y = 0.25;
-    stub.uiManager.panelManager.setPanelPositions.mockClear();
+    stub.uiManager.workspaceSurfaces.restorePositions.mockClear();
+    stub.uiManager.workspaceSurfaces.recenterAll.mockClear();
 
     await expect(controller.loadSession('malformed-presentation')).resolves.toBe(true);
 
     expect(stub.engine.cameraGroup.position.toArray()).toEqual([9, 8, 7]);
     expect(stub.engine.cameraGroup.rotation.y).toBe(0.25);
-    expect(stub.uiManager.panelManager.setPanelPositions).toHaveBeenCalledWith([]);
+    expect(stub.uiManager.workspaceSurfaces.restorePositions).toHaveBeenCalledWith([]);
     expect(stub.uiManager.settingsPanel.getAllSettings().defaultPanelDistance).toBe(1.4);
     expect(stub.uiManager.settingsPanel.getAllSettings().userMode).toBe('intermediate');
     expect(stub.engine.theme.applyPreset).not.toHaveBeenCalled();

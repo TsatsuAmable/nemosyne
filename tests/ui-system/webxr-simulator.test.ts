@@ -7,6 +7,8 @@ import { P_HAND_INPUT } from 'iwer';
 import { InputRouter } from '../../src/vr/InputRouter.ts';
 import { ControllerPointer } from '../../src/vr/Controllers.ts';
 import { HandPointer } from '../../src/vr/Hands.ts';
+import { MovablePanel } from '../../src/vr/ui/MovablePanel.ts';
+import { WorkspaceSurfaceManager } from '../../src/vr/ui/WorkspaceSurfaceManager.ts';
 import { SpatialErgonomicsLinter } from '../../dev/spatial-tools/SpatialErgonomicsLinter.ts';
 import {
   WebXRSimulatorAdapter,
@@ -116,6 +118,100 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
       expect(result).toBeTruthy();
       expect(result!.hovered, 'controller ray hovers the control').toBe(true);
       expect(result!.selected, 'controller trigger selects through the real router').toBe(1);
+    } finally {
+      await adapter.endSession();
+      adapter.uninstall();
+    }
+  }, 15000);
+
+  it('recovers a stale workspace panel into the IWER HMD view and accepts controller input', async () => {
+    const adapter = new WebXRSimulatorAdapter();
+    adapter.install();
+    try {
+      await adapter.startSession();
+      adapter.setHeadPose(0, 1.6, 0);
+      adapter.setControllerPosition('right', 0, 1.5, -0.25);
+
+      const cameraGroup = new THREE.Group();
+      const camera = new THREE.PerspectiveCamera(75, 1, 0.05, 200);
+      cameraGroup.add(camera);
+      const engine = {
+        renderer: { xr: { getSession: () => adapter.session } },
+        camera,
+        cameraGroup,
+      };
+      const router = new InputRouter(engine as never);
+      const controller = new ControllerPointer({ xr: { getController: () => new THREE.Group() } } as never, 0);
+      router.addController(controller as never);
+      bindInputSources(adapter.getInputSources(), controller, undefined);
+
+      const refSpace = adapter.referenceSpace!;
+      await adapter.runInFrame((frame) => {
+        const viewerPose = frame.getViewerPose(refSpace);
+        if (!viewerPose) throw new Error('IWER viewer pose unavailable');
+        const position = viewerPose.transform.position;
+        const orientation = viewerPose.transform.orientation;
+        camera.position.set(position.x, position.y, position.z);
+        camera.quaternion.set(orientation.x, orientation.y, orientation.z, orientation.w);
+        camera.updateMatrixWorld(true);
+        return true;
+      });
+
+      const surfaces = new WorkspaceSurfaceManager(cameraGroup, camera);
+      const panel = new MovablePanel(cameraGroup, {
+        title: 'IWER PANEL',
+        position: [0, 1.5, -1],
+        worldSize: [0.7, 0.5],
+      });
+      surfaces.register('iwer-panel', panel);
+      router.addPanel(panel);
+
+      panel.mesh.position.set(0, 1.5, 8);
+      panel.hide();
+      expect(surfaces.show('iwer-panel')).toBe(true);
+
+      camera.updateMatrixWorld(true);
+      panel.mesh.updateMatrixWorld(true);
+      const viewer = new THREE.Vector3();
+      const surface = new THREE.Vector3();
+      const forward = new THREE.Vector3();
+      camera.getWorldPosition(viewer);
+      camera.getWorldDirection(forward);
+      panel.mesh.getWorldPosition(surface);
+      const toPanel = surface.clone().sub(viewer);
+      expect(toPanel.length()).toBeGreaterThanOrEqual(0.35);
+      expect(toPanel.length()).toBeLessThanOrEqual(2.5);
+      expect(forward.dot(toPanel.normalize())).toBeGreaterThan(0);
+
+      adapter.setControllerTrigger('right', true);
+      const result = await adapter.runInFrame((frame) => {
+        const source = adapter.getInputSources().find((candidate) => candidate.handedness === 'right');
+        const pose = frame.getPose(source!.targetRaySpace, refSpace);
+        controller.space.matrix.fromArray(pose!.transform.matrix as unknown as number[]);
+        controller.space.matrix.decompose(
+          controller.space.position,
+          controller.space.quaternion,
+          controller.space.scale
+        );
+        controller.space.updateMatrixWorld(true);
+        router.update(frame, refSpace, adapter.session!, 0);
+        return {
+          captured: router.machine.capturedPanel === panel,
+          state: router.machine.state,
+        };
+      });
+
+      expect(result?.captured, 'controller press is consumed by the real panel').toBe(true);
+      expect(result?.state).toBe('down');
+
+      adapter.setControllerTrigger('right', false);
+      await adapter.runInFrame((frame) => {
+        router.update(frame, refSpace, adapter.session!, 0);
+        return true;
+      });
+      surfaces.dispose();
+      panel.dispose();
+      router.dispose();
     } finally {
       await adapter.endSession();
       adapter.uninstall();

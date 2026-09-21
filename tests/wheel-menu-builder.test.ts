@@ -27,11 +27,6 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
     dropToFloor: fn('locomotion.dropToFloor'),
   };
 
-  const panelManager = {
-    togglePanel: fn('panelManager.togglePanel'),
-    toggleLauncher: fn('panelManager.toggleLauncher'),
-    recenter: fn('panelManager.recenter'),
-  };
   const dashboard = {
     scrollBySlots: fn('dashboard.scrollBySlots'),
     resetDashboard: fn('dashboard.resetDashboard'),
@@ -52,7 +47,6 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
 
   const world: any = {
     uiManager: {
-      panelManager,
       dashboard,
       operationLogPanel: opLog,
       metricsPanel: metPanel,
@@ -64,6 +58,8 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
       dataSourcePanel,
       vaultPanel,
       capabilityGuidePanel,
+      toggleWorkspaceSurface: fn('toggleWorkspaceSurface'),
+      recenterWorkspaceSurfaces: fn('recenterWorkspaceSurfaces'),
       // Lazy panel accessors (return the pre-built stub panels so `toggle` fires).
       getOrCreateOperationLogPanel: () => opLog,
       getOrCreateInteractionCoach: () => coachPanel,
@@ -77,7 +73,6 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
       toggleFrustrationResponseManager: fn('toggleFrustrationResponseManager'),
       toggleJITGestureHintManager: fn('toggleJITGestureHintManager'),
     },
-    panelManager,
     dashboard,
     collaborationCoordinator: { isConnected: () => false },
     engine: {
@@ -221,7 +216,7 @@ describe('WheelMenuBuilder', () => {
     const find = (cat: typeof panels, id: string) => cat.items.find((i) => i.id === id)!;
 
     find(panels, 'settings').callback();
-    expect(spy._toggleSettingsPanel).toHaveBeenCalledTimes(1);
+    expect(spy.toggleWorkspaceSurface).toHaveBeenCalledWith('settings');
 
     find(panels, 'exit-vr').callback();
     expect(spy.exitVR).toHaveBeenCalledTimes(1);
@@ -244,9 +239,9 @@ describe('WheelMenuBuilder', () => {
     find(panels, 'export-story').callback();
     expect(spy.exportAnalysisStory).toHaveBeenCalledTimes(1);
 
-    // A panel-toggle item must delegate to panelManager.togglePanel.
+    // Panel items delegate by stable workspace-surface id.
     find(panels, 'operation-log').callback();
-    expect(spy['panelManager.togglePanel']).toHaveBeenCalledTimes(1);
+    expect(spy.toggleWorkspaceSurface).toHaveBeenCalledWith('operation-log');
 
     find(views, 'cycle-theme').callback();
     expect(spy._cycleThemePreset).toHaveBeenCalledTimes(1);
@@ -298,41 +293,49 @@ describe('WheelMenuBuilder', () => {
     expect(spy.disconnectLiveStream).toHaveBeenCalledTimes(1);
     expect(spy.connectLiveStream).not.toHaveBeenCalled();
   });
-  it('keeps the generic launcher out of ordinary analyst menus and retains it only in Dev Lab', () => {
-    const { world, spy } = makeStubWorld();
-    const legacy = buildWheelMenuCategories(world);
-    const panels = legacy.find((c) => c.id === 'panels')!;
-    const superuser = legacy.find((c) => c.id === 'superuser')!;
-    expect(panels.items.some((item) => item.id === 'launcher')).toBe(false);
-
-    const devLauncher = superuser.items.find((item) => item.id === 'su-panel-launcher');
-    expect(devLauncher).toBeDefined();
-    devLauncher!.callback();
-    expect(spy['panelManager.toggleLauncher']).toHaveBeenCalledTimes(1);
+  it('contains no generic panel launcher in analyst or Dev Lab menus', () => {
+    const { world } = makeStubWorld();
+    for (const categories of [
+      buildWheelMenuCategories(world),
+      buildIntentWheelMenuCategories(world),
+    ]) {
+      for (const category of categories) {
+        expect(category.items.some((item) => item.id.includes('panel-launcher'))).toBe(false);
+      }
+    }
   });
 
-  it('keeps focused Data Sources and Vault directly reachable without the launcher', () => {
+  it('routes production panel actions through stable workspace-surface ids', () => {
     const { world, spy } = makeStubWorld();
     const intent = buildIntentWheelMenuCategories(world);
-    const data = intent.find((c) => c.id === 'DATA')!;
-    const study = intent.find((c) => c.id === 'STUDY')!;
-    const system = intent.find((c) => c.id === 'SYSTEM')!;
-    const superuser = intent.find((c) => c.id === 'SUPERUSER')!;
+    const byId = (category: string, item: string) =>
+      intent.find((c) => c.id === category)!.items.find((i) => i.id === item)!;
 
-    expect(system.items.some((item) => item.id === 'launcher')).toBe(false);
+    const cases = [
+      ['DATA', 'data-sources', 'data-sources'],
+      ['STUDY', 'coach', 'coach'],
+      ['STUDY', 'timeline', 'timeline'],
+      ['STUDY', 'guidance', 'guidance'],
+      ['STUDY', 'vault', 'vault'],
+      ['COLLABORATE', 'network-panel', 'network'],
+      ['SYSTEM', 'settings', 'settings'],
+      ['SYSTEM', 'operation-log', 'operation-log'],
+      ['SYSTEM', 'console', 'vr-console'],
+      ['SYSTEM', 'perf', 'performance'],
+      ['SYSTEM', 'telemetry', 'telemetry'],
+      ['GUIDE', 'what-can-i-do', 'capability-guide'],
+      ['SUPERUSER', 'su-schema-mapping', 'schema-map'],
+      ['SUPERUSER', 'su-gesture-confidence', 'gesture-confidence'],
+    ] as const;
 
-    data.items.find((item) => item.id === 'data-sources')!.callback();
-    expect(spy['panelManager.togglePanel']).toHaveBeenLastCalledWith(
-      (world.uiManager as any).dataSourcePanel,
-    );
+    for (const [category, item, surfaceId] of cases) {
+      spy.toggleWorkspaceSurface.mockClear();
+      byId(category, item).callback();
+      expect(spy.toggleWorkspaceSurface).toHaveBeenCalledExactlyOnceWith(surfaceId);
+    }
 
-    study.items.find((item) => item.id === 'vault')!.callback();
-    expect(spy['panelManager.togglePanel']).toHaveBeenLastCalledWith(
-      (world.uiManager as any).vaultPanel,
-    );
-
-    superuser.items.find((item) => item.id === 'su-panel-launcher')!.callback();
-    expect(spy['panelManager.toggleLauncher']).toHaveBeenCalledTimes(1);
+    byId('VIEW', 'recenter').callback();
+    expect(spy.recenterWorkspaceSurfaces).toHaveBeenCalledOnce();
   });
 
 
@@ -342,7 +345,7 @@ describe('WheelMenuBuilder', () => {
     const whatCanIDo = guide?.items.find((item) => item.id === 'what-can-i-do');
     expect(whatCanIDo).toBeDefined();
     whatCanIDo?.callback();
-    expect(spy['capabilityGuidePanel.toggle']).toHaveBeenCalledTimes(1);
+    expect(spy.toggleWorkspaceSurface).toHaveBeenCalledWith('capability-guide');
   });
 
 

@@ -10,7 +10,7 @@ import { mountDesktopInvestigationJourney } from './DesktopInvestigationJourney.
 /**
  * Install the PT5C production investigation path after the base application has
  * started. This is deliberately a composition extension: it reuses the live
- * Atlas aggregate and panel manager and creates no second persistence authority.
+ * Atlas aggregate and workspace-surface authority and creates no second persistence authority.
  */
 export function installInvestigationJourney(app: AppInstance): () => void {
   const { world } = app;
@@ -44,15 +44,15 @@ export function installInvestigationJourney(app: AppInstance): () => void {
 
   const desktop = mountDesktopInvestigationJourney({ journey, subscribeContext });
   const panel = new InvestigationJourneyPanel(world.uiManager.analystAnchor, journey);
-  world.uiManager.panelManager.register(panel);
-  world.uiManager.panelManager.hidePanel(panel);
+  world.uiManager.workspaceSurfaces.register('investigation-journey', panel);
+  world.uiManager.workspaceSurfaces.hide('investigation-journey');
 
   const unsubscribePanelContext = subscribeContext(() => panel.refreshJourney());
 
   const dispose = (): void => {
     unsubscribePanelContext();
     desktop.dispose();
-    world.uiManager.panelManager.unregister(panel);
+    world.uiManager.workspaceSurfaces.unregister('investigation-journey');
     panel.dispose();
     disposeNilRuntime();
   };

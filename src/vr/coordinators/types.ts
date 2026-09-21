@@ -154,7 +154,9 @@ export interface PanelLike {
   drag?: DragState;
   isGrabbed?: boolean;
   applyAccessibility?(options: AccessibilityOptions): void;
+  show?(): void;
   hide?(): void;
+  resetToDefaultPosition?(): void;
   render?(): void;
   // Panels registered as Engine updatables are ticked via `update`.
   update?(delta?: number, time?: number): void;
@@ -165,22 +167,6 @@ export interface PanelLike {
   onHide?: (() => void) | null;
   onDragDelta?: ((delta: Vector3) => void) | null;
   onDragEnd?: (() => void) | null;
-  dispose?(): void;
-}
-
-export interface PanelManagerLike {
-  panels: PanelLike[];
-  register(panel: PanelLike): void;
-  unregister?(panel: PanelLike): void;
-  showPanel(panel: PanelLike): void;
-  hidePanel(panel: PanelLike): void;
-  togglePanel(panel: PanelLike): void;
-  recenter(): void;
-  toggleLauncher(): void;
-  isLauncherVisible(): boolean;
-  handleLauncherHit?(raycaster: Raycaster): PanelLike | null;
-  getPanelPositions?(): { title?: string; position?: number[]; visible?: boolean }[];
-  setPanelPositions?(positions: { title?: string; position?: number[]; visible?: boolean }[]): void;
   dispose?(): void;
 }
 
@@ -229,7 +215,6 @@ export interface HandWheelMenuLike {
 }
 
 export interface WorldUIManagerLike {
-  panelManager?: PanelManagerLike;
   dashboard?: DashboardLike;
   handWheelMenu?: HandWheelMenuLike;
   dataSourcePanel?: (PanelLike & { setLiveConnected?(connected: boolean): void }) | null;
@@ -256,8 +241,6 @@ export interface WorldUIManagerLike {
   getOrCreateNarrativeStrip?(): NarrativeStripLike | null;
   /** Superuser / Dev Lab panel accessors (DEVELOPER mode only). */
   getOrCreateSchemaMappingPanel?(): PanelLike | null;
-  /** Toggle the schema-mapping SpatialPanel (lifecycle mirrors settings). */
-  toggleSchemaMappingPanel?(): void;
   getOrCreateGestureConfidenceHUD?(): PanelLike | null;
   /** Superuser service-class toggles (not PanelLike — construct + log for review). */
   toggleRepresentationCarousel?(): void;
@@ -265,6 +248,11 @@ export interface WorldUIManagerLike {
   toggleProgressiveDisclosure?(): void;
   toggleFrustrationResponseManager?(): void;
   toggleJITGestureHintManager?(): void;
+  toggleWorkspaceSurface?(id: string): boolean;
+  showWorkspaceSurface?(id: string): boolean;
+  hideWorkspaceSurface?(id: string): boolean;
+  recenterWorkspaceSurfaces?(): void;
+  workspaceSurfaceIds?(): string[];
 }
 
 export interface WheelMenuAction {
@@ -391,7 +379,6 @@ export interface InputRouterLike {
   feedback: FeedbackLike;
   panels: PanelLike[];
   removePanel?(panel: PanelLike): void;
-  setPanelManager(manager: PanelManagerLike | null): void;
   addPanel(panel: PanelLike): void;
   setHandWheelMenu(menu: HandWheelMenuLike | null): void;
   setSuppressSceneSelection?(enabled: boolean): void;
@@ -839,13 +826,26 @@ export interface UserModeControllerLike {
 
 /** Saved panel position entry. */
 export interface PanelPosition {
+  id: string;
   title?: string;
   position?: number[];
   visible?: boolean;
 }
 
 /** Panel manager slice extended with session-restore panel positioning. */
-export type WorldPanelManagerLike = PanelManagerLike & {
-  getPanelPositions?(): PanelPosition[];
-  setPanelPositions?(positions: PanelPosition[]): void;
-};
+export interface WorkspaceSurfaceManagerLike {
+  panels: PanelLike[];
+  ids(): string[];
+  has(id: string): boolean;
+  idFor(panel: PanelLike): string | null;
+  isVisible(id: string): boolean;
+  register(id: string, panel: PanelLike, options?: { recenter?: () => void; persist?: boolean }): void;
+  unregister(idOrPanel: string | PanelLike): void;
+  show(id: string): boolean;
+  hide(id: string): boolean;
+  toggle(id: string): boolean;
+  recenter(id: string): boolean;
+  recenterAll(): void;
+  capturePositions(): PanelPosition[];
+  restorePositions(positions: PanelPosition[]): void;
+}

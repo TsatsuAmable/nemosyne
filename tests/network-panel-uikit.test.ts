@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { NetworkPanel } from '../src/vr/ui/NetworkPanel.ts';
-import { PanelManager } from '../src/vr/ui/PanelManager.ts';
+import { WorkspaceSurfaceManager } from '../src/vr/ui/WorkspaceSurfaceManager.ts';
 
 describe('NetworkPanel UXR1 UIKit migration', () => {
   it('uses SpatialPanel-compatible lifecycle without legacy canvas rendering', () => {
@@ -39,27 +39,30 @@ describe('NetworkPanel UXR1 UIKit migration', () => {
     ).not.toThrow();
   });
 
-  it('can be managed by the generic PanelManager without being a MovablePanel', () => {
+  it('uses the same workspace-surface lifecycle as legacy panels', () => {
     const cameraGroup = new THREE.Group();
     const anchor = new THREE.Group();
     cameraGroup.add(anchor);
-    const manager = new PanelManager(cameraGroup, { analystAnchor: anchor });
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 1.6, 0);
+    cameraGroup.add(camera);
+    const manager = new WorkspaceSurfaceManager(cameraGroup, camera);
     const panel = new NetworkPanel(anchor);
 
-    manager.register(panel);
+    manager.register('network', panel);
     expect(manager.panels).toContain(panel);
-    manager.hidePanel(panel);
+    manager.hide('network');
     expect(panel.visible).toBe(false);
-    manager.showPanel(panel);
+    manager.show('network');
     expect(panel.visible).toBe(true);
 
     const moved = panel.defaultPosition.clone().add(new THREE.Vector3(0.2, 0.1, 0));
     panel.position.copy(moved);
-    manager.hidePanel(panel);
-    manager.showPanel(panel);
+    manager.hide('network');
+    manager.show('network');
     expect(panel.position.toArray()).toEqual(moved.toArray());
 
-    manager.recenter();
+    manager.recenterAll();
     expect(panel.position.toArray()).toEqual(panel.defaultPosition.toArray());
 
     manager.dispose();

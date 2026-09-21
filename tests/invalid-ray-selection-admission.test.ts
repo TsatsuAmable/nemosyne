@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { InteractableRegistry } from '../src/vr/input/InteractableRegistry.ts';
 import { PointerEventMachine } from '../src/vr/input/PointerEventMachine.ts';
 import { SelectionDispatcher } from '../src/vr/input/SelectionDispatcher.ts';
-import type { PanelLike, PanelManagerLike, PointerLike } from '../src/vr/coordinators/types.ts';
+import type { PanelLike, PointerLike } from '../src/vr/coordinators/types.ts';
 
 function invalidPointer(): PointerLike {
   return {
@@ -59,27 +59,20 @@ describe('invalid pointer-ray admission', () => {
     );
   });
 
-  it('PointerEventMachine refuses launcher, panel, HUD and scene dispatch for an invalid press', () => {
+  it('PointerEventMachine refuses panel, HUD and scene dispatch for an invalid press', () => {
     const registry = new InteractableRegistry();
     seedRaycaster(registry);
     const panelDown = vi.fn(() => 'down');
     registry.panels = [{ handlePointerDown: panelDown } as PanelLike];
     const hud = vi.spyOn(registry, 'dispatchHudClick');
 
-    const launcherHit = vi.fn();
-    const panelManager = {
-      isLauncherVisible: vi.fn(() => true),
-      handleLauncherHit: launcherHit,
-    } as unknown as PanelManagerLike;
     const sceneDispatch = vi.fn();
     const machine = new PointerEventMachine(registry, {
-      panelManager,
       onTriggerSelect: sceneDispatch,
     });
 
     expect(machine.press(invalidPointer())).toBe(false);
     expectSeedRayUnchanged(registry);
-    expect(launcherHit).not.toHaveBeenCalled();
     expect(panelDown).not.toHaveBeenCalled();
     expect(hud).not.toHaveBeenCalled();
     expect(sceneDispatch).not.toHaveBeenCalled();

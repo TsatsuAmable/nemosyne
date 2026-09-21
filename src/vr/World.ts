@@ -506,9 +506,7 @@ export class World {
       setTourMode: (mode) => this.guidedTour?.setUserMode?.(mode),
       setTooltipEnabled: (enabled) => this.tooltipManager?.setEnabled?.(enabled),
       hideCoachPanel: () => {
-        if (this.uiManager.interactionCoach) {
-          this.uiManager.panelManager?.hidePanel?.(this.uiManager.interactionCoach);
-        }
+        this.uiManager.hideWorkspaceSurface('coach');
       },
     });
 
@@ -851,7 +849,7 @@ export class World {
     // Apply initial settings to feedback.
     this._applyFeedbackSettings(this.uiManager.settingsPanel.getAllSettings());
     // The settings panel is toggled on demand; do not show it at startup.
-    this.uiManager.settingsPanel.hide();
+    this.uiManager.hideWorkspaceSurface('settings');
 
     // Guided tour: step-by-step spatial onboarding.
     this.tourController = new GuidedTourController(this);
@@ -882,7 +880,7 @@ export class World {
       cameraGroup: this.engine.cameraGroup,
       theme: this.engine.theme,
       settingsPanel: this.uiManager.settingsPanel,
-      panelManager: this.uiManager.panelManager,
+      workspaceSurfaces: this.uiManager.workspaceSurfaces,
       guidedTour: this.guidedTour,
       comfortSettingsController: this.comfortSettingsController,
       focusContext: this.focusContext,
@@ -1507,7 +1505,7 @@ export class World {
   }
 
   _toggleRecommendationPanel(): void {
-    this.uiManager?.panelManager?.togglePanel?.(this.uiManager.recommendationPanel);
+    this.uiManager?.toggleWorkspaceSurface?.('guidance');
   }
 
   _applyRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
@@ -1771,7 +1769,7 @@ export class World {
     const archiveId = await this.sessionController.archiveStore.freezeInvestigation(label, snapshot, metadata);
     const archives = await this.sessionController.archiveStore.listArchives?.() ?? [];
     this.uiManager.vaultPanel.setArchives(archives);
-    this.uiManager.vaultPanel.show();
+    this.uiManager.showWorkspaceSurface('vault');
     this.uiManager.vrConsole?.log?.('log', [`Frozen investigation: ${archiveId}`]);
     this._logInteraction('Freeze investigation', { result: archiveId });
   }
@@ -1959,7 +1957,7 @@ export class World {
 
   _toggleSettingsPanel(): void {
     if (!this.uiManager.settingsPanel) return;
-    this.uiManager.toggleSettingsPanel();
+    this.uiManager.toggleWorkspaceSurface('settings');
     this.adaptiveAssist.recordPanelToggle('settings', this.uiManager.settingsPanel.mesh.visible);
     this._logInteraction('Settings panel', {
       result: this.uiManager.settingsPanel.mesh.visible ? 'opened' : 'closed',
@@ -1968,7 +1966,7 @@ export class World {
 
   _toggleVaultPanel(): void {
     if (!this.uiManager?.vaultPanel) return;
-    this.uiManager.panelManager.togglePanel(this.uiManager.vaultPanel);
+    this.uiManager.toggleWorkspaceSurface('vault');
     this._logInteraction('Evidence Vault', {
       result: this.uiManager.vaultPanel.mesh.visible ? 'opened' : 'closed',
     });
@@ -1977,7 +1975,7 @@ export class World {
   _toggleDracoExplainer(): void {
     const panel = this.uiManager?.dracoExplainerPanel;
     if (!panel) return;
-    this.uiManager.panelManager.togglePanel(panel);
+    this.uiManager.toggleWorkspaceSurface('why-view');
     if (panel.mesh.visible && this.dracoNode) {
       panel.setDracoNode(this.dracoNode);
     }
@@ -1986,7 +1984,7 @@ export class World {
   /**
    * Toggle the Draco constraint diagnostic HUD (Dev Lab / superuser). World owns
    * this HUD and rebuilds it per palace, so we toggle its mesh visibility
-   * directly rather than routing through PanelManager. No-op (with a console
+   * directly because it is a diagnostic HUD rather than a workspace panel. No-op (with a console
    * hint) when no palace is loaded.
    */
   _toggleDracoDiagnostic(): void {
@@ -2136,7 +2134,7 @@ export class World {
     };
 
     // Delegate panel theming to the UI manager so the SpatialPanel-based
-    // SettingsPanel (no longer in panelManager.panels) is re-themed too, along
+    // SettingsPanel is re-themed too, along
     // with the registered MovablePanels and the hand wheel menu.
     this.uiManager.applyAccessibility(options);
 
@@ -2293,11 +2291,8 @@ export class World {
     const strip = this.uiManager.narrativeStrip;
     strip?.render?.();
     if (this.atlas.analysisHistory.length > 0) {
-      if (!strip) {
-        this.uiManager.panelManager?.showPanel?.(this.uiManager.getOrCreateNarrativeStrip());
-      } else {
-        this.uiManager.panelManager?.showPanel?.(strip);
-      }
+      if (!strip) this.uiManager.getOrCreateNarrativeStrip();
+      this.uiManager.showWorkspaceSurface('timeline');
     }
   }
 
