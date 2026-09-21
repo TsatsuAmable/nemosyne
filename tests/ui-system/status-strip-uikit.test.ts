@@ -75,7 +75,7 @@ describe('UXR1 StatusStripPanel UIKit migration', () => {
     panel.dispose();
   });
 
-  it('keeps accessibility theming available after leaving the legacy PanelManager', () => {
+  it('keeps accessibility theming available outside workspace lifecycle management', () => {
     const panel = new StatusStripPanel(new THREE.Group(), { statusStrip: new StatusStripController() });
     const state = internals(panel);
     const firstLineUpdate = vi.spyOn(state._lineTexts[0], 'setProperties');

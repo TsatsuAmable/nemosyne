@@ -94,7 +94,7 @@ function applicationIntentDispatcher(world: World): ApplicationDispatchIntentDis
     undoHistory: () => world.undoAnalysis(),
     redoHistory: () => world.redoAnalysis(),
     toggleStatisticalLens: () => world._toggleStatisticalLens(),
-    openSettings: () => world.uiManager.settingsPanel.show(),
+    openSettings: () => { world.uiManager.showWorkspaceSurface('settings'); },
   });
 }
 
@@ -349,8 +349,8 @@ function devTraceBindings(world: World): DevTraceBindings {
 function applyNormalAnalystShell(world: World): void {
   if (world.uiManager.panelRolesManager.uiMode === 'DEVELOPER') return;
 
-  world.uiManager.panelManager.hidePanel(world.uiManager.telemetryPanel);
-  world.uiManager.panelManager.hidePanel(world.uiManager.vrConsole);
+  world.uiManager.hideWorkspaceSurface('input-telemetry');
+  world.uiManager.hideWorkspaceSurface('vr-console');
   world.uiManager.dashboard.wallGroup.visible = false;
   world.uiManager.peerPresenceHUD.setEnabled(false);
   world.diagnostic?.hide();
@@ -410,7 +410,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
     portalA: world.portalA,
     portalB: world.portalB,
     landmarkController: world.landmarkController,
-    panelManager: world.uiManager.panelManager,
+    showWorkspaceSurface: (id) => world.uiManager.showWorkspaceSurface(id),
     recommendationPanel: world.uiManager.recommendationPanel,
     vaultPanel: world.uiManager.vaultPanel,
     tooltipManager: world.tooltipManager,

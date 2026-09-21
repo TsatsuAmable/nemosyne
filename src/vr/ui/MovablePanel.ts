@@ -24,11 +24,6 @@ export interface PanelCameraGroup extends THREE.Group {
     telemetry?: {
       recordPanelAction?(title: string, action: string): void;
     };
-    uiManager?: {
-      panelManager?: {
-        showLauncher?(): void;
-      };
-    };
   };
 }
 
@@ -223,7 +218,6 @@ export class MovablePanel implements IPanelContentHandler {
     const mb = this.minimizeBtn;
     if (cx >= mb.x && cx <= mb.x + mb.w && cy >= mb.y && cy <= mb.y + mb.h) {
       this.hide();
-      this.cameraGroup?.engine?.uiManager?.panelManager?.showLauncher?.();
       return 'minimize';
     }
 

@@ -11,7 +11,7 @@ describe('governed validation operator reachability', () => {
     const installer = source('src/app/devEvidence.ts');
     const handleIndex = installer.indexOf('const handle: DevEvidenceHandle = {');
     const autoShowIndex = installer.indexOf(
-      "if (validationContext) {\n    uiManager.showPanel(getOrCreateValidationPanel());\n  }"
+      "if (validationContext) {\n    getOrCreateValidationPanel();\n    uiManager.showWorkspaceSurface('device-validation');\n  }"
     );
     const returnIndex = installer.indexOf('return handle;', autoShowIndex);
 
@@ -27,7 +27,7 @@ describe('governed validation operator reachability', () => {
     const end = installer.indexOf('return handle;', start);
     const block = installer.slice(start, end);
 
-    expect(block).toContain('uiManager.showPanel(getOrCreateValidationPanel())');
+    expect(block).toContain("uiManager.showWorkspaceSurface('device-validation')");
     expect(block).not.toContain('handle.runLoadTest');
     expect(block).not.toContain('handle.runQuestBoundaryProbe');
   });

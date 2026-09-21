@@ -72,7 +72,8 @@ describe('B-V1 functional convergence', () => {
     expect(panel).toContain('allSampleDatasets');
     expect(manager).toContain('new DataSourcePanel');
     expect(manager).toContain('onSelectLiveSource: callbacks.onSelectLiveSource');
-    expect(manager).toContain('this.dataSourcePanel.hide()');
+    expect(manager).toContain("this.workspaceSurfaces.register('data-sources', this.dataSourcePanel)");
+    expect(manager).toContain("this.workspaceSurfaces.hide('data-sources')");
   });
 
   it('removes decorative SpatialAssetRegistry plumbing without deleting HandWheel behavior', () => {

@@ -6,7 +6,6 @@ import {
 } from '../../app/intents/ApplicationIntent.ts';
 import type {
   CollaborationCoordinatorLike,
-  PanelLike,
   WheelMenuCategory,
   WorldEngineLike,
   WorldUIManagerLike,
@@ -26,15 +25,15 @@ export interface WheelMenuHost {
     | 'metricsPanel'
     | 'narrativeStrip'
     | 'networkPanel'
-    | 'panelManager'
     | 'performancePanel'
     | 'recommendationPanel'
     | 'toggleFrustrationResponseManager'
     | 'toggleJITGestureHintManager'
     | 'toggleProgressiveDisclosure'
     | 'toggleRepresentationCarousel'
-    | 'toggleSchemaMappingPanel'
     | 'toggleTransientContextCards'
+    | 'toggleWorkspaceSurface'
+    | 'recenterWorkspaceSurfaces'
     | 'vaultPanel'
     | 'vrConsole'
   >;
@@ -127,14 +126,8 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
-  // Panels and managers live on world.uiManager.
-  const pm = world.uiManager?.panelManager;
   const dashboard = world.uiManager?.dashboard;
-  const toggle = (panel: PanelLike | null | undefined) => {
-    if (panel && pm) {
-      pm.togglePanel(panel);
-    }
-  };
+  const toggleSurface = (id: string) => world.uiManager?.toggleWorkspaceSurface?.(id);
 
   return [
     {
@@ -146,25 +139,25 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'settings',
           label: 'Settings',
           icon: '⚙️',
-          callback: () => world._toggleSettingsPanel(),
+          callback: () => toggleSurface('settings'),
         },
         {
           id: 'data-sources',
           label: 'Data Sources',
           icon: '🗂️',
-          callback: () => toggle(world.uiManager?.dataSourcePanel),
+          callback: () => toggleSurface('data-sources'),
         },
         {
           id: 'vault',
           label: 'Vault',
           icon: '🧊',
-          callback: () => toggle(world.uiManager?.vaultPanel),
+          callback: () => toggleSurface('vault'),
         },
         {
           id: 'draco-explainer',
           label: 'Explain',
           icon: '💡',
-          callback: () => world._toggleDracoExplainer?.(),
+          callback: () => toggleSurface('why-view'),
         },
         {
           id: 'exit-vr',
@@ -176,44 +169,44 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'operation-log',
           label: 'Log',
           icon: '📝',
-          callback: () => toggle(world.uiManager?.getOrCreateOperationLogPanel?.()),
+          callback: () => toggleSurface('operation-log'),
         },
         {
           id: 'telemetry',
           label: 'Telemetry',
           icon: '📊',
-          callback: () => toggle(world.uiManager?.metricsPanel),
+          callback: () => toggleSurface('telemetry'),
         },
         {
           id: 'performance',
           label: 'Perf',
           icon: '⏱️',
-          callback: () => toggle(world.uiManager?.performancePanel),
+          callback: () => toggleSurface('performance'),
         },
         {
           id: 'interaction-coach',
           label: 'Coach',
           icon: '🎓',
-          callback: () => toggle(world.uiManager?.getOrCreateInteractionCoach?.()),
+          callback: () => toggleSurface('coach'),
         },
         { id: 'tour', label: 'Tour', icon: '📍', callback: () => world.startTour() },
         {
           id: 'narrative-strip',
           label: 'Timeline',
           icon: '🎞️',
-          callback: () => toggle(world.uiManager?.getOrCreateNarrativeStrip?.()),
+          callback: () => toggleSurface('timeline'),
         },
         {
           id: 'recommendation',
           label: 'Guidance',
           icon: '🧭',
-          callback: () => toggle(world.uiManager?.recommendationPanel),
+          callback: () => toggleSurface('guidance'),
         },
         {
           id: 'recenter',
           label: 'Recenter',
           icon: '🎯',
-          callback: () => pm?.recenter(),
+          callback: () => world.uiManager?.recenterWorkspaceSurfaces?.(),
         },
         {
           id: 'scroll-dashboard-left',
@@ -374,7 +367,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'explain-view',
           label: 'Why View?',
           icon: '💡',
-          callback: () => world._toggleDracoExplainer?.(),
+          callback: () => toggleSurface('why-view'),
         },
       ],
     },
@@ -410,11 +403,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'collab-panel',
           label: 'Network',
           icon: '🌐',
-          callback: () =>
-            toggle(
-              world.uiManager?.networkPanel ??
-                (world as unknown as { networkPanel?: PanelLike }).networkPanel
-            ),
+          callback: () => toggleSurface('network'),
         },
       ],
     },
@@ -474,12 +463,6 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
       icon: '🔬',
       items: [
         {
-          id: 'su-panel-launcher',
-          label: 'Panel Launcher',
-          icon: '🧪',
-          callback: () => pm?.toggleLauncher(),
-        },
-        {
           id: 'su-representation-carousel',
           label: 'Rep Carousel',
           icon: '🎠',
@@ -501,7 +484,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'su-schema-mapping',
           label: 'Schema Map',
           icon: '🗂️',
-          callback: () => world.uiManager?.toggleSchemaMappingPanel?.(),
+          callback: () => toggleSurface('schema-map'),
         },
         {
           id: 'su-draco-diagnostic',
@@ -513,7 +496,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           id: 'su-gesture-confidence',
           label: 'Gest Conf',
           icon: '✋',
-          callback: () => toggle(world.uiManager?.getOrCreateGestureConfidenceHUD?.()),
+          callback: () => toggleSurface('gesture-confidence'),
         },
         {
           id: 'su-frustration-response',
@@ -549,13 +532,8 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
     onHover: () => world.previewDataOperation(op),
     onLeave: () => world.clearOperationPreview(),
   });
-  const pm = world.uiManager?.panelManager;
   const dashboard = world.uiManager?.dashboard;
-  const toggle = (panel: PanelLike | null | undefined) => {
-    if (panel && pm) {
-      pm.togglePanel(panel);
-    }
-  };
+  const toggleSurface = (id: string) => world.uiManager?.toggleWorkspaceSurface?.(id);
 
   return [
     {
@@ -612,9 +590,9 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'explain',
           label: 'Why View?',
           icon: '💡',
-          callback: () => world._toggleDracoExplainer?.(),
+          callback: () => toggleSurface('why-view'),
         },
-        { id: 'recenter', label: 'Recenter Panels', icon: '🧲', callback: () => pm?.recenter() },
+        { id: 'recenter', label: 'Recenter Panels', icon: '🧲', callback: () => world.uiManager?.recenterWorkspaceSurfaces?.() },
         {
           id: 'dash-left',
           label: '◀ Dash',
@@ -692,7 +670,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'data-sources',
           label: 'Data Sources',
           icon: '🗂️',
-          callback: () => toggle(world.uiManager?.dataSourcePanel),
+          callback: () => toggleSurface('data-sources'),
         },
         {
           id: 'live-stream',
@@ -737,25 +715,25 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'coach',
           label: 'Coach',
           icon: '🎓',
-          callback: () => toggle(world.uiManager?.getOrCreateInteractionCoach?.()),
+          callback: () => toggleSurface('coach'),
         },
         {
           id: 'timeline',
           label: 'Timeline Strip',
           icon: '🎞️',
-          callback: () => toggle(world.uiManager?.getOrCreateNarrativeStrip?.()),
+          callback: () => toggleSurface('timeline'),
         },
         {
           id: 'guidance',
           label: 'Guidance',
           icon: '🧭',
-          callback: () => toggle(world.uiManager?.recommendationPanel),
+          callback: () => toggleSurface('guidance'),
         },
         {
           id: 'vault',
           label: 'Vault',
           icon: '🧊',
-          callback: () => toggle(world.uiManager?.vaultPanel),
+          callback: () => toggleSurface('vault'),
         },
         {
           id: 'story',
@@ -795,7 +773,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'network-panel',
           label: 'Network Panel',
           icon: '🌐',
-          callback: () => toggle(world.uiManager?.networkPanel),
+          callback: () => toggleSurface('network'),
         },
       ],
     },
@@ -808,31 +786,31 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'settings',
           label: 'Settings',
           icon: '⚙️',
-          callback: () => world._toggleSettingsPanel(),
+          callback: () => toggleSurface('settings'),
         },
         {
           id: 'operation-log',
           label: 'Operation Log',
           icon: '📝',
-          callback: () => toggle(world.uiManager?.getOrCreateOperationLogPanel?.()),
+          callback: () => toggleSurface('operation-log'),
         },
         {
           id: 'console',
           label: 'VR Console',
           icon: '🖥️',
-          callback: () => toggle(world.uiManager?.vrConsole as unknown as PanelLike),
+          callback: () => toggleSurface('vr-console'),
         },
         {
           id: 'perf',
           label: 'Perf Budget',
           icon: '⏱️',
-          callback: () => toggle(world.uiManager?.performancePanel),
+          callback: () => toggleSurface('performance'),
         },
         {
           id: 'telemetry',
           label: 'Telemetry',
           icon: '📊',
-          callback: () => toggle(world.uiManager?.metricsPanel),
+          callback: () => toggleSurface('telemetry'),
         },
         {
           id: 'exit-vr',
@@ -851,13 +829,13 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'what-can-i-do',
           label: 'What can I do here?',
           icon: '?',
-          callback: () => world.uiManager?.capabilityGuidePanel?.toggle?.(),
+          callback: () => toggleSurface('capability-guide'),
         },
         {
           id: 'coach',
           label: 'Interaction Coach',
           icon: '🎓',
-          callback: () => toggle(world.uiManager?.getOrCreateInteractionCoach?.()),
+          callback: () => toggleSurface('coach'),
         },
       ],
     },
@@ -869,12 +847,6 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
       label: 'Dev Lab',
       icon: '🔬',
       items: [
-        {
-          id: 'su-panel-launcher',
-          label: 'Panel Launcher',
-          icon: '🧪',
-          callback: () => pm?.toggleLauncher(),
-        },
         {
           id: 'su-representation-carousel',
           label: 'Rep Carousel',
@@ -897,7 +869,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'su-schema-mapping',
           label: 'Schema Map',
           icon: '🗂️',
-          callback: () => world.uiManager?.toggleSchemaMappingPanel?.(),
+          callback: () => toggleSurface('schema-map'),
         },
         {
           id: 'su-draco-diagnostic',
@@ -909,7 +881,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           id: 'su-gesture-confidence',
           label: 'Gest Conf',
           icon: '✋',
-          callback: () => toggle(world.uiManager?.getOrCreateGestureConfidenceHUD?.()),
+          callback: () => toggleSurface('gesture-confidence'),
         },
         {
           id: 'su-frustration-response',
