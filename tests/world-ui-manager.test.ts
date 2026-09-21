@@ -67,7 +67,7 @@ describe('WorldUIManager', () => {
   });
 
   it('creates all expected panel accessors', () => {
-    expect(ui.panelManager).toBeTruthy();
+    expect(ui.workspaceSurfaces).toBeTruthy();
     expect(ui.dashboard).toBeTruthy();
     expect(ui.handWheelMenu).toBeTruthy();
     expect(ui.dataSourcePanel).toBeTruthy();
@@ -128,8 +128,8 @@ describe('WorldUIManager', () => {
   it('applies accessibility options to the SpatialPanel settings panel via the manager (the World._applyAccessibilitySettings path)', () => {
     // World._applyAccessibilitySettings delegates panel theming to
     // uiManager.applyAccessibility; the migrated settings panel is no longer in
-    // panelManager.panels, so this is the path that reaches it. Verify the
-    // settings panel's accessibility state updates through the manager.
+    // The settings panel shares the same workspace lifecycle; verify its
+    // accessibility state still updates through WorldUIManager.
     const before = (ui.settingsPanel as unknown as { _highContrast: boolean })._highContrast;
     ui.applyAccessibility({ highContrast: true, colorblindMode: 'deuteranopia', textScale: 1.5 });
     const state = ui.settingsPanel as unknown as {
@@ -154,7 +154,7 @@ describe('WorldUIManager', () => {
     expect(ui.getOrCreateGestureConfidenceHUD()).toBe(confidenceHUD);
     expect(ui.frustrationResponseManager).toBe(frustrationResponse);
     expect(ui.jitGestureHintManager).toBe(jitHints);
-    expect(ui.panelManager.panels).toContain(confidenceHUD);
+    expect(ui.workspaceSurfaces.panels).toContain(confidenceHUD);
 
     ui.toggleJITGestureHintManager();
     expect(jitHints.enabled).toBe(false);
@@ -173,9 +173,9 @@ describe('WorldUIManager', () => {
     const wheelDispose = vi.spyOn(ui.handWheelMenu, 'dispose');
     const overviewDispose = vi.spyOn(ui.miniOverview, 'dispose');
     const presenceDispose = vi.spyOn(ui.peerPresenceHUD, 'dispose');
-    const panelManagerDispose = vi.spyOn(ui.panelManager, 'dispose');
+    const workspaceDispose = vi.spyOn(ui.workspaceSurfaces, 'dispose');
     const statusDispose = vi.spyOn(ui.statusStripPanel, 'dispose');
-    const registeredPanels = [...ui.panelManager.panels];
+    const registeredPanels = [...ui.workspaceSurfaces.panels];
 
     ui.dispose();
     ui.dispose();
@@ -184,13 +184,12 @@ describe('WorldUIManager', () => {
     expect(wheelDispose).toHaveBeenCalledOnce();
     expect(overviewDispose).toHaveBeenCalledOnce();
     expect(presenceDispose).toHaveBeenCalledOnce();
-    expect(panelManagerDispose).toHaveBeenCalledOnce();
+    expect(workspaceDispose).toHaveBeenCalledOnce();
     expect(statusDispose).toHaveBeenCalledOnce();
     expect(ui.statusStripPanel.parent).toBeNull();
-    expect(ui.panelManager.panels).toEqual([]);
+    expect(ui.workspaceSurfaces.panels).toEqual([]);
     expect(engine.input.panels).toEqual([]);
     expect(engine.input.handWheelMenu).toBeNull();
-    expect(engine.input.panelManager).toBeNull();
     expect(engine.input.hudObjects).not.toContain(ui.handWheelMenu);
     for (const panel of registeredPanels) expect(engine.updatables).not.toContain(panel);
     expect(engine.updatables).not.toContain(ui.dashboard);
@@ -210,23 +209,25 @@ describe('WorldUIManager', () => {
     ui.dispose();
 
     expect(engine.input.panels).not.toContain(confidenceHUD);
-    expect(ui.panelManager.panels).not.toContain(confidenceHUD);
+    expect(ui.workspaceSurfaces.panels).not.toContain(confidenceHUD);
     expect(confidenceDispose).not.toHaveBeenCalled();
     expect(frustrationResponse.dispose).not.toHaveBeenCalled();
     expect(jitHints.dispose).not.toHaveBeenCalled();
     confidenceHUD.dispose();
   });
 
-  it('parents the dashboard, launcher, and wheel menu to the analyst anchor', () => {
-    expect(ui.panelManager._launcherGroup.parent).toBe(anchor);
+  it('parents the dashboard and wheel menu to the analyst anchor', () => {
     expect(ui.dashboard.wallGroup.parent).toBe(anchor);
     expect(ui.handWheelMenu.group.parent).toBe(anchor);
   });
 
-  it('registers the telemetry panel, console, and VR menu with PanelManager', () => {
-    expect(ui.panelManager.panels).toContain(ui.telemetryPanel);
-    expect(ui.panelManager.panels).toContain(ui.vrConsole);
-    expect(ui.panelManager.panels).toContain(ui.dataSourcePanel);
+  it('registers persistent panels in the single workspace-surface authority', () => {
+    expect(ui.workspaceSurfaces.panels).toContain(ui.telemetryPanel);
+    expect(ui.workspaceSurfaces.panels).toContain(ui.vrConsole);
+    expect(ui.workspaceSurfaces.panels).toContain(ui.dataSourcePanel);
+    expect(ui.workspaceSurfaceIds()).toEqual(
+      expect.arrayContaining(['input-telemetry', 'vr-console', 'data-sources', 'settings'])
+    );
   });
 
   it('registers interactive legacy panels but keeps the persistent status strip off input routing', () => {
@@ -234,12 +235,8 @@ describe('WorldUIManager', () => {
     expect(engine.input.panels).toContain(ui.vrConsole);
     expect(engine.input.panels).toContain(ui.dataSourcePanel);
     expect(engine.input.panels).not.toContain(ui.statusStripPanel);
-    expect(ui.panelManager.panels).not.toContain(ui.statusStripPanel);
+    expect(ui.workspaceSurfaces.panels).not.toContain(ui.statusStripPanel);
     expect(ui.statusStripPanel.parent).toBe(anchor);
-  });
-
-  it('sets the panel manager on the input router', () => {
-    expect(engine.input.panelManager).toBe(ui.panelManager);
   });
 
   it('sets the hand wheel menu on the input router', () => {
@@ -282,23 +279,19 @@ describe('WorldUIManager', () => {
 
   it('toggles the settings panel', () => {
     expect(ui.settingsPanel.mesh.visible).toBe(true);
-    ui.toggleSettingsPanel();
+    ui.toggleWorkspaceSurface('settings');
     expect(ui.settingsPanel.mesh.visible).toBe(false);
-    ui.toggleSettingsPanel();
+    ui.toggleWorkspaceSurface('settings');
     expect(ui.settingsPanel.mesh.visible).toBe(true);
   });
 
-  it('toggles the launcher ring', () => {
-    expect(ui.isLauncherVisible).toBe(false);
-    ui.toggleLauncher();
-    expect(ui.isLauncherVisible).toBe(true);
-    ui.toggleLauncher();
-    expect(ui.isLauncherVisible).toBe(false);
+  it('does not expose a competing generic launcher surface', () => {
+    expect(ui.workspaceSurfaceIds().some((id) => id.includes('launcher'))).toBe(false);
   });
 
-  it('recenter panels via PanelManager', () => {
-    const recenterSpy = vi.spyOn(ui.panelManager, 'recenter');
-    ui.recenterPanels();
+  it('recenters all persistent workspace surfaces through one authority', () => {
+    const recenterSpy = vi.spyOn(ui.workspaceSurfaces, 'recenterAll');
+    ui.recenterWorkspaceSurfaces();
     expect(recenterSpy).toHaveBeenCalledOnce();
   });
 

@@ -8,7 +8,7 @@ import type { Group, Mesh } from 'three';
 import { InputTelemetry } from '../InputTelemetry.ts';
 import { VRConsole } from '../ui/VRConsole.ts';
 import { DataSourcePanel } from '../ui/DataSourcePanel.ts';
-import { PanelManager } from '../ui/PanelManager.ts';
+import { WorkspaceSurfaceManager } from '../ui/WorkspaceSurfaceManager.ts';
 import { SettingsPanel } from '../ui/SettingsPanel.ts';
 import { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import { HandWheelMenu } from '../ui/HandWheelMenu.ts';
@@ -154,17 +154,16 @@ export class WorldUIManager {
   contextualTaskSurface: ContextualTaskSurface;
   capabilityGuidePanel: CapabilityGuidePanel;
   /**
-   * Enforces the analyst workspace panel budget for SpatialPanel-based surfaces
-   * (HolographicInspector, SettingsPanel, and future migrated precision
-   * surfaces). Legacy MovablePanel surfaces remain under `panelManager` /
-   * `panelRolesManager` until they migrate.
+   * Enforces the analyst workspace budget for SpatialPanel-based precision
+   * surfaces. WorkspaceSurfaceManager owns lifecycle semantics for persistent
+   * investigator-facing panels regardless of rendering substrate.
    */
   panelBudgetController: PanelBudgetController;
 
   telemetryPanel: InputTelemetry;
   vrConsole: VRConsole;
   dataSourcePanel: DataSourcePanel;
-  panelManager: PanelManager;
+  workspaceSurfaces: WorkspaceSurfaceManager;
   miniOverview: MiniOverview;
   peerPresenceHUD: PeerPresenceHUD;
   dashboard: DashboardManager;
@@ -181,7 +180,7 @@ export class WorldUIManager {
   vaultPanel: VaultPanel;
   statusStripPanel: StatusStripPanel;
 
-  // Superuser / Dev Lab — panel subclasses (wired into PanelManager on first access)
+  // Superuser / Dev Lab panel subclasses, registered on first access.
   schemaMappingPanel: SchemaMappingPanel | null = null;
   gestureConfidenceHUD: GestureConfidenceHUD | null = null;
 
@@ -276,18 +275,22 @@ export class WorldUIManager {
       onSelectLiveSource: callbacks.onSelectLiveSource,
     } as LooseOptions);
     applyPanelLayout(this.dataSourcePanel, PANEL_LAYOUT.dataSourcePanel);
-    this.dataSourcePanel.hide();
 
-    // Panel manager owns per-panel visibility and a Dev Lab-only fallback launcher.
-    this.panelManager = new PanelManager(engine.cameraGroup, {
-      analystAnchor,
-      freeFloating: true,
+    // One lifecycle authority owns all persistent workspace panels regardless
+    // of their current rendering substrate.
+    this.workspaceSurfaces = new WorkspaceSurfaceManager(engine.cameraGroup, engine.camera, {
       onChange: callbacks.onPanelChange,
     });
-    this.panelManager.register(this.telemetryPanel);
-    this.panelManager.register(this.vrConsole);
-    this.panelManager.register(this.dataSourcePanel);
-    this.engine.input.setPanelManager(this.panelManager);
+    this.workspaceSurfaces.register('input-telemetry', this.telemetryPanel);
+    this.workspaceSurfaces.register('vr-console', this.vrConsole);
+    this.workspaceSurfaces.register('data-sources', this.dataSourcePanel);
+    this.workspaceSurfaces.hide('data-sources');
+    this.workspaceSurfaces.register('capability-guide', this.capabilityGuidePanel, {
+      recenter: () => {
+        this.capabilityGuidePanel.position.copy(this.capabilityGuidePanel.defaultPosition);
+        this.capabilityGuidePanel.updateMatrixWorld();
+      },
+    });
     this.engine.input.addPanel(this.telemetryPanel);
     this.engine.input.addPanel(this.vrConsole);
     this.engine.input.addPanel(this.dataSourcePanel);
@@ -357,8 +360,8 @@ export class WorldUIManager {
     this.engine.input.setHandWheelMenu(this.handWheelMenu);
     this.engine.input.addPanel(this.handWheelMenu);
 
-    // Settings panel (SpatialPanel/UIKit substrate; not registered with the
-    // MovablePanel-only PanelManager — pointer routing is via engine.input).
+    // Settings panel uses UIKit/SpatialPanel rendering but the same workspace
+    // lifecycle authority as every other persistent panel.
     this.settingsPanel = new SettingsPanel({
       torsoAnchor: this.analystAnchor,
       worldScene: engine.scene,
@@ -373,6 +376,12 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.settingsPanel);
     applyPanelLayout(this.settingsPanel, PANEL_LAYOUT.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
+    this.workspaceSurfaces.register('settings', this.settingsPanel, {
+      recenter: () => {
+        this.settingsPanel.position.copy(this.settingsPanel.defaultPosition);
+        this.settingsPanel.updateMatrixWorld();
+      },
+    });
 
     // Telemetry metrics panel.
     this.metricsPanel = new TelemetryPanel(this.analystAnchor, {
@@ -380,10 +389,10 @@ export class WorldUIManager {
       budget: engine.performanceBudget as PerformanceBudgetLike,
       datasetTopology: '-',
     });
-    this.panelManager.register(this.metricsPanel);
+    this.workspaceSurfaces.register('telemetry', this.metricsPanel);
     this.engine.input.addPanel(this.metricsPanel);
     this.engine.addUpdatable(this.metricsPanel);
-    this.panelManager.hidePanel(this.metricsPanel);
+    this.workspaceSurfaces.hide('telemetry');
     applyPanelLayout(this.metricsPanel, PANEL_LAYOUT.telemetryPanel);
 
     // Performance budget panel.
@@ -391,20 +400,20 @@ export class WorldUIManager {
       budget: engine.performanceBudget as PerformanceBudgetLike,
       telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
     });
-    this.panelManager.register(this.performancePanel);
+    this.workspaceSurfaces.register('performance', this.performancePanel);
     this.engine.input.addPanel(this.performancePanel);
     this.engine.addUpdatable(this.performancePanel);
-    this.panelManager.hidePanel(this.performancePanel);
+    this.workspaceSurfaces.hide('performance');
     applyPanelLayout(this.performancePanel, PANEL_LAYOUT.performancePanel);
 
     // Collaboration network panel.
     this.networkPanel = new NetworkPanel(this.analystAnchor, {
       roomId: '-',
     });
-    this.panelManager.register(this.networkPanel);
+    this.workspaceSurfaces.register('network', this.networkPanel);
     this.engine.input.addPanel(this.networkPanel);
     this.engine.addUpdatable(this.networkPanel);
-    this.panelManager.hidePanel(this.networkPanel);
+    this.workspaceSurfaces.hide('network');
     applyPanelLayout(this.networkPanel, PANEL_LAYOUT.networkPanel);
 
     // Core secondary panels are lazy to avoid unconditional boot-time GPU
@@ -426,19 +435,19 @@ export class WorldUIManager {
       onCommitRemediation: callbacks.onCommitRemediation,
       onCancelRemediationPreview: callbacks.onCancelRemediationPreview,
     });
-    this.panelManager.register(this.recommendationPanel);
+    this.workspaceSurfaces.register('guidance', this.recommendationPanel);
     this.engine.input.addPanel(this.recommendationPanel);
     this.engine.addUpdatable(this.recommendationPanel);
-    this.panelManager.hidePanel(this.recommendationPanel);
+    this.workspaceSurfaces.hide('guidance');
     applyPanelLayout(this.recommendationPanel, PANEL_LAYOUT.recommendationPanel);
 
     // Draco explainer panel ("Why this palace?").
     this.dracoExplainerPanel = new DracoExplainerPanel(this.analystAnchor);
     applyPanelLayout(this.dracoExplainerPanel, PANEL_LAYOUT.monetaExplainerPanel);
-    this.panelManager.register(this.dracoExplainerPanel);
+    this.workspaceSurfaces.register('why-view', this.dracoExplainerPanel);
     this.engine.input.addPanel(this.dracoExplainerPanel);
     this.engine.addUpdatable(this.dracoExplainerPanel);
-    this.panelManager.hidePanel(this.dracoExplainerPanel);
+    this.workspaceSurfaces.hide('why-view');
 
     // Evidence Vault panel — archive/restore investigation snapshots.
     this.vaultPanel = new VaultPanel(this.analystAnchor, {
@@ -447,10 +456,10 @@ export class WorldUIManager {
       onExport: callbacks.onExportArchive,
       onDelete: callbacks.onDeleteArchive,
     });
-    this.panelManager.register(this.vaultPanel);
+    this.workspaceSurfaces.register('vault', this.vaultPanel);
     this.engine.input.addPanel(this.vaultPanel);
     this.engine.addUpdatable(this.vaultPanel);
-    this.panelManager.hidePanel(this.vaultPanel);
+    this.workspaceSurfaces.hide('vault');
     applyPanelLayout(this.vaultPanel, PANEL_LAYOUT.vaultPanel);
 
     // Register eagerly-constructed panels into PanelRolesManager with semantic roles.
@@ -471,9 +480,8 @@ export class WorldUIManager {
     // so the Super User wheel category can list them before first construction.
     // DracoDiagnosticHUD is owned by World (rebuilt per palace) and toggled via
     // world._toggleDracoDiagnostic, so it is not registered here.
-    // SchemaMappingPanel migrated to a SpatialPanel lifecycle (P1-U3) and is
-    // toggled via `toggleSchemaMappingPanel` (not `panelManager.togglePanel`),
-    // so it is no longer pre-registered with the role manager.
+    // SchemaMappingPanel uses SpatialPanel rendering and the canonical
+    // workspace-surface lifecycle, so it is not pre-registered with role policy.
     this.panelRolesManager.registerPanel(
       'su-gesture-confidence',
       'Gesture Confidence HUD',
@@ -485,9 +493,9 @@ export class WorldUIManager {
     if (!this.operationLogPanel) {
       this.operationLogPanel = new OperationLogPanel(this.analystAnchor);
       applyPanelLayout(this.operationLogPanel, PANEL_LAYOUT.operationLogPanel);
-      this.panelManager.register(this.operationLogPanel);
+      this.workspaceSurfaces.register('operation-log', this.operationLogPanel);
       this.engine.input.addPanel(this.operationLogPanel);
-      this.panelManager.hidePanel(this.operationLogPanel);
+      this.workspaceSurfaces.hide('operation-log');
     }
     return this.operationLogPanel;
   }
@@ -497,11 +505,11 @@ export class WorldUIManager {
       this.interactionCoach = new InteractionCoach(this.analystAnchor, {
         userMode: (this.callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
       } as LooseOptions);
-      this.panelManager.register(this.interactionCoach);
+      this.workspaceSurfaces.register('coach', this.interactionCoach);
       applyPanelLayout(this.interactionCoach, PANEL_LAYOUT.interactionCoach);
       this.engine.input.addPanel(this.interactionCoach);
       this.engine.addUpdatable(this.interactionCoach);
-      this.panelManager.hidePanel(this.interactionCoach);
+      this.workspaceSurfaces.hide('coach');
     }
     return this.interactionCoach;
   }
@@ -513,12 +521,12 @@ export class WorldUIManager {
         history: this.callbacks.analysisHistory,
         onSeek: this.callbacks.onSeekHistory,
       } as LooseOptions);
-      this.panelManager.register(this.narrativeStrip);
+      this.workspaceSurfaces.register('timeline', this.narrativeStrip);
       // Anchor-parented: place via anchor-local near-low slot (finding F1).
       applyPanelLayout(this.narrativeStrip, PANEL_LAYOUT.narrativeStrip);
       this.engine.input.addPanel(this.narrativeStrip);
       this.engine.addUpdatable(this.narrativeStrip);
-      this.panelManager.hidePanel(this.narrativeStrip);
+      this.workspaceSurfaces.hide('timeline');
     }
     return this.narrativeStrip;
   }
@@ -539,30 +547,31 @@ export class WorldUIManager {
         onApplyMapping: (updated) => this.callbacks.applySchemaMapping?.(updated),
         panelBudgetController: this.panelBudgetController,
       });
-      // SpatialPanel lifecycle: NOT registered with the MovablePanel-only
-      // PanelManager. Pointer routing is via engine.input; workspace budget is
-      // mediated by panelBudgetController (role: 'reference'), mirroring the
-      // SettingsPanel migration.
+      // Pointer routing remains owned by engine.input; workspace lifecycle is
+      // owned by WorkspaceSurfaceManager and budget policy by PanelBudgetController.
       applyPanelLayout(this.schemaMappingPanel, PANEL_LAYOUT.schemaMappingPanel);
       this.engine.input.addPanel(this.schemaMappingPanel);
-      this.schemaMappingPanel.hide();
+      this.workspaceSurfaces.register('schema-map', this.schemaMappingPanel, {
+        recenter: () => {
+          if (this.schemaMappingPanel) {
+            applyPanelLayout(this.schemaMappingPanel, PANEL_LAYOUT.schemaMappingPanel);
+            this.schemaMappingPanel.updateMatrixWorld();
+          }
+        },
+      });
+      this.workspaceSurfaces.hide('schema-map');
     }
     return this.schemaMappingPanel;
-  }
-
-  /** Toggle the schema-mapping panel (SpatialPanel lifecycle, mirrors settings). */
-  toggleSchemaMappingPanel(): void {
-    this.getOrCreateSchemaMappingPanel().toggle();
   }
 
   getOrCreateGestureConfidenceHUD(): GestureConfidenceHUD {
     if (!this.gestureConfidenceHUD) {
       this.gestureConfidenceHUD = new GestureConfidenceHUD(this.analystAnchor);
       applyPanelLayout(this.gestureConfidenceHUD, PANEL_LAYOUT.gestureConfidenceHUD);
-      this.panelManager.register(this.gestureConfidenceHUD);
+      this.workspaceSurfaces.register('gesture-confidence', this.gestureConfidenceHUD);
       this.engine.input.addPanel(this.gestureConfidenceHUD);
       this.engine.addUpdatable(this.gestureConfidenceHUD);
-      this.panelManager.hidePanel(this.gestureConfidenceHUD);
+      this.workspaceSurfaces.hide('gesture-confidence');
     }
     return this.gestureConfidenceHUD;
   }
@@ -574,7 +583,9 @@ export class WorldUIManager {
     this._borrowedResources.add(controller.confidenceHUD);
     this._borrowedResources.add(controller.frustrationResponse);
     this._borrowedResources.add(controller.jitHints);
-    this.panelManager.register(controller.confidenceHUD);
+    this.workspaceSurfaces.unregister('gesture-confidence');
+    this.workspaceSurfaces.register('gesture-confidence', controller.confidenceHUD);
+    this.workspaceSurfaces.hide('gesture-confidence');
   }
 
   /** Build a minimal empty Dataset so SchemaMappingPanel chrome renders for review. */
@@ -583,9 +594,9 @@ export class WorldUIManager {
   }
 
   /**
-   * Superuser service-class toggles. These managers are not MovablePanels and are
-   * not registered with PanelManager; they are constructed on first toggle and
-   * logged to the VR console so a developer can review their state. Full visual
+   * Superuser service-class toggles are not workspace panels. They are
+   * constructed on first toggle and logged to the VR console so a developer
+   * can review their state. Full visual
    * integration is deferred (see Dev Lab roadmap item).
    */
 
@@ -667,7 +678,7 @@ export class WorldUIManager {
       return;
     }
     this._syncPanelVisibilityWithRoles();
-    this.panelManager.showPanel(this.recommendationPanel);
+    this.workspaceSurfaces.show('guidance');
     this.recommendationPanel.setActiveTab('constraints');
   }
 
@@ -679,7 +690,8 @@ export class WorldUIManager {
     const isCurrentlyOpen = this.panelRolesManager.isPanelOpen(id);
     if (isCurrentlyOpen) {
       this.panelRolesManager.closePanel(id);
-      this.panelManager.hidePanel(panel);
+      const surfaceId = this.workspaceSurfaces.idFor(panel);
+      if (surfaceId) this.workspaceSurfaces.hide(surfaceId);
       return false;
     }
 
@@ -693,8 +705,8 @@ export class WorldUIManager {
 
     // Synchronize visibility of registered panels if any were auto-dismissed (e.g. max task panels rule)
     this._syncPanelVisibilityWithRoles();
-    this.panelManager.showPanel(panel);
-    return true;
+    const surfaceId = this.workspaceSurfaces.idFor(panel);
+    return surfaceId ? this.workspaceSurfaces.show(surfaceId) : false;
   }
 
   private _syncPanelVisibilityWithRoles(): void {
@@ -712,7 +724,8 @@ export class WorldUIManager {
 
     for (const [id, p] of Object.entries(rolePanelMap)) {
       if (!this.panelRolesManager.isPanelOpen(id) && p?.mesh?.visible) {
-        this.panelManager.hidePanel(p);
+        const surfaceId = this.workspaceSurfaces.idFor(p);
+        if (surfaceId) this.workspaceSurfaces.hide(surfaceId);
       }
     }
   }
@@ -731,79 +744,79 @@ export class WorldUIManager {
    */
   applyAccessibility(options: Partial<AccessibilityOptions>): void {
     const full = { ...DEFAULT_ACCESSIBILITY, ...options } as AccessibilityOptions;
-    for (const panel of this.panelManager.panels) {
+    for (const panel of this.workspaceSurfaces.panels) {
       if (panel?.applyAccessibility) panel.applyAccessibility(full);
     }
-    // SpatialPanel surfaces are not in the legacy MovablePanel PanelManager;
-    // theme persistent/migrated surfaces explicitly so they stay in sync.
+    // UIKit surfaces still need explicit accessibility propagation while
+    // MovablePanel implementations expose applyAccessibility through the registry.
     this.statusStripPanel?.applyAccessibility(full);
     this.settingsPanel?.applyAccessibility(full);
     this.handWheelMenu?.applyAccessibility?.(full);
   }
 
-  /** Toggle the settings panel directly (SpatialPanel lifecycle). */
-  toggleSettingsPanel(): void {
-    this.settingsPanel.toggle();
-  }
-
-  /** Return whether the settings panel mesh is currently visible. */
   get isSettingsPanelVisible(): boolean {
-    return !!this.settingsPanel?.mesh?.visible;
+    return this.workspaceSurfaces.isVisible('settings');
   }
 
-  /** Show a panel via PanelManager. */
-  showPanel(panel: PanelLike): void {
-    this.panelManager.showPanel(panel);
+  private _ensureWorkspaceSurface(id: string): void {
+    if (this.workspaceSurfaces.has(id)) return;
+    switch (id) {
+      case 'operation-log':
+        this.getOrCreateOperationLogPanel();
+        return;
+      case 'coach':
+        this.getOrCreateInteractionCoach();
+        return;
+      case 'timeline':
+        this.getOrCreateNarrativeStrip();
+        return;
+      case 'schema-map':
+        this.getOrCreateSchemaMappingPanel();
+        return;
+      case 'gesture-confidence':
+        this.getOrCreateGestureConfidenceHUD();
+        return;
+      default:
+        return;
+    }
   }
 
-  /** Hide a panel via PanelManager. */
-  hidePanel(panel: PanelLike): void {
-    this.panelManager.hidePanel(panel);
+  toggleWorkspaceSurface(id: string): boolean {
+    this._ensureWorkspaceSurface(id);
+    return this.workspaceSurfaces.toggle(id);
   }
 
-  /** Recenter the panel layout. */
-  recenterPanels(): void {
-    this.panelManager.recenter();
+  showWorkspaceSurface(id: string): boolean {
+    this._ensureWorkspaceSurface(id);
+    return this.workspaceSurfaces.show(id);
   }
 
-  /** Toggle the diagnostic-only fallback launcher. */
-  toggleLauncher(): void {
-    this.panelManager.toggleLauncher();
+  hideWorkspaceSurface(id: string): boolean {
+    this._ensureWorkspaceSurface(id);
+    return this.workspaceSurfaces.hide(id);
   }
 
-  get isLauncherVisible(): boolean {
-    return this.panelManager.isLauncherVisible();
+  recenterWorkspaceSurfaces(): void {
+    this.workspaceSurfaces.recenterAll();
+  }
+
+  workspaceSurfaceIds(): string[] {
+    return this.workspaceSurfaces.ids();
   }
 
   dispose(): void {
     if (this._disposed) return;
     this._disposed = true;
 
-    const panels = new Set(this.panelManager.panels);
+    const panels = new Set(this.workspaceSurfaces.panels);
     for (const panel of panels) {
       this.engine.removeUpdatable(panel);
       this.engine.input.removePanel(panel);
-      this.panelManager.unregister(panel);
+      this.workspaceSurfaces.unregister(panel);
       if (!this._borrowedResources.has(panel)) panel.dispose?.();
     }
 
-    // The settings panel is a SpatialPanel (not registered with the
-    // MovablePanel-only PanelManager) but is tracked by engine.input; detach
-    // and dispose it explicitly so no owned resource leaks past dispose.
-    this.engine.removeUpdatable(this.settingsPanel);
-    this.engine.input.removePanel(this.settingsPanel);
-    if (!this._borrowedResources.has(this.settingsPanel)) this.settingsPanel.dispose?.();
-
-    // The schema-mapping panel is likewise a SpatialPanel tracked only by
-    // engine.input + the budget controller; detach it explicitly when it has
-    // been lazily constructed.
-    if (this.schemaMappingPanel) {
-      this.engine.input.removePanel(this.schemaMappingPanel);
-      this.panelBudgetController.close(this.schemaMappingPanel);
-      if (!this._borrowedResources.has(this.schemaMappingPanel))
-        this.schemaMappingPanel.dispose?.();
-      this.schemaMappingPanel = null;
-    }
+    this.schemaMappingPanel = null;
 
     // Untrack any SpatialPanels still held by the budget controller (e.g. the
     // borrowed HolographicInspector, owned by the scene composer) so the
@@ -818,14 +831,11 @@ export class WorldUIManager {
     this.engine.removeUpdatable(this.dashboard);
     this.engine.removeUpdatable(this.handWheelMenu);
     this.engine.removeUpdatable(this.contextualTaskSurface);
-    this.engine.removeUpdatable(this.capabilityGuidePanel);
     this.engine.removeUpdatable(this.statusStripPanel);
     this.engine.removeHudObject(this.handWheelMenu);
     this.engine.input.removePanel(this.handWheelMenu);
     this.engine.input.removePanel(this.contextualTaskSurface);
-    this.engine.input.removePanel(this.capabilityGuidePanel);
     this.engine.input.setHandWheelMenu(null);
-    this.engine.input.setPanelManager(null);
 
     this.miniOverview.dispose();
     this.peerPresenceHUD.dispose();
@@ -835,8 +845,7 @@ export class WorldUIManager {
     if (!this._borrowedResources.has(this.contextualTaskSurface)) {
       this.contextualTaskSurface.dispose?.();
     }
-    this.capabilityGuidePanel.dispose?.();
-    this.panelManager.dispose();
+    this.workspaceSurfaces.dispose();
 
     if (this.representationCarousel && !this._borrowedResources.has(this.representationCarousel)) {
       this.representationCarousel.dispose();

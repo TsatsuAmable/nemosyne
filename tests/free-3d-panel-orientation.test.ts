@@ -2,16 +2,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
-import { PanelManager } from '../src/vr/ui/PanelManager.ts';
 import { setBodyFrameViewerTargetLocal } from '../src/vr/spatial/BodyFrameState.ts';
 
 describe('Free 3D Panel Motion & Body-Frame Orientation', () => {
-  it('configures PanelManager for freeFloating = true unconstrained 3D motion', () => {
-    const cameraGroup = new THREE.Group();
-    const manager = new PanelManager(cameraGroup, { freeFloating: true });
-
-    expect(manager.freeFloating).toBe(true);
-  });
 
   it('orients in parent-local space and does not counter-rotate toward world origin', () => {
     const bodyFrame = new THREE.Group();

@@ -37,8 +37,8 @@ export function installInvestigationContinuity(app: AppInstance): () => void {
 
   const desktop = mountDesktopInvestigationContinuity(continuity);
   const panel = new InvestigationContinuityPanel(world.uiManager.analystAnchor, continuity);
-  world.uiManager.panelManager.register(panel);
-  world.uiManager.panelManager.hidePanel(panel);
+  world.uiManager.workspaceSurfaces.register('investigation-continuity', panel);
+  world.uiManager.workspaceSurfaces.hide('investigation-continuity');
 
   const vault = world.uiManager.vaultPanel;
   const originalVaultCallbacks = {
@@ -107,7 +107,7 @@ export function installInvestigationContinuity(app: AppInstance): () => void {
     vault.onExport = originalVaultCallbacks.onExport;
     vault.onDelete = originalVaultCallbacks.onDelete;
     desktop.dispose();
-    world.uiManager.panelManager.unregister(panel);
+    world.uiManager.workspaceSurfaces.unregister('investigation-continuity');
     panel.dispose();
   };
   world.registerExtensionDisposer(dispose);

@@ -118,7 +118,7 @@ describe('World performance integration', () => {
   it('creates a performance budget and panel', () => {
     expect(world!.engine.performanceBudget).toBeInstanceOf(PerformanceBudget);
     expect(world!.uiManager.performancePanel).toBeTruthy();
-    expect(world!.uiManager.panelManager.panels).toContain(world!.uiManager.performancePanel);
+    expect(world!.uiManager.workspaceSurfaces.panels).toContain(world!.uiManager.performancePanel);
   });
 
   it('adds a Performance action to the hand wheel menu', () => {

@@ -21,8 +21,8 @@ describe('P1-UV1 task-first investigator shell', () => {
 
     expect(source).toContain('function applyNormalAnalystShell(world: World)');
     expect(source).toContain("panelRolesManager.uiMode === 'DEVELOPER'");
-    expect(source).toContain('hidePanel(world.uiManager.telemetryPanel)');
-    expect(source).toContain('hidePanel(world.uiManager.vrConsole)');
+    expect(source).toContain("hideWorkspaceSurface('input-telemetry')");
+    expect(source).toContain("hideWorkspaceSurface('vr-console')");
     expect(source).toContain('world.uiManager.dashboard.wallGroup.visible = false');
     expect(source).toContain('world.uiManager.peerPresenceHUD.setEnabled(false)');
     expect(source).toContain("telemetry.hidden = import.meta.env.VITE_NEMOSYNE_DIAGNOSTICS !== '1'");

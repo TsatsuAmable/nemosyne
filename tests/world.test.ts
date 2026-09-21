@@ -295,12 +295,10 @@ describe('World integration', () => {
     const toggle = vi.spyOn(world.uiManager.handWheelMenu, 'toggle');
 
     expect(typeof world.engine.input.onSystemToggle).toBe('function');
-    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
 
     world.engine.input.onSystemToggle();
 
     expect(toggle).toHaveBeenCalledTimes(1);
-    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
   });
 
   it('creates and registers a hand-attached wheel menu', () => {
@@ -325,15 +323,15 @@ describe('World integration', () => {
     expect(world.dracoNode).toBeInstanceOf(DracoTopologyNode);
   });
 
-  it('toggles individual panels via PanelManager', () => {
+  it('toggles individual panels through WorkspaceSurfaceManager', () => {
     world = new World(); wireKernel(world);
     const panel = world.uiManager.telemetryPanel;
 
     expect(panel.mesh.visible).toBe(true);
-    world.uiManager.panelManager.hidePanel(panel);
+    world.uiManager.workspaceSurfaces.hide('input-telemetry');
     expect(panel.mesh.visible).toBe(false);
 
-    world.uiManager.panelManager.showPanel(panel);
+    world.uiManager.workspaceSurfaces.show('input-telemetry');
     expect(panel.mesh.visible).toBe(true);
   });
 
@@ -499,7 +497,6 @@ describe('World integration', () => {
 
   it('parents HUD managers to the analyst anchor', () => {
     world = new World(); wireKernel(world);
-    expect(world.uiManager.panelManager._launcherGroup.parent).toBe(world.analystAnchor);
     expect(world.uiManager.dashboard.wallGroup.parent).toBe(world.analystAnchor);
     expect(world.uiManager.handWheelMenu.group.parent).toBe(world.analystAnchor);
   });
@@ -613,7 +610,7 @@ describe('World integration', () => {
     world.applyDataOperation('filter');
 
     // Move a free-floating HUD panel so we can verify its position is persisted.
-    world.uiManager.panelManager.showPanel(world.uiManager.metricsPanel);
+    world.uiManager.workspaceSurfaces.show('telemetry');
     world.uiManager.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
     world.engine.cameraGroup.updateMatrixWorld(true);
 
@@ -634,9 +631,9 @@ describe('World integration', () => {
     expect(restoredWorld.uiManager.metricsPanel.mesh.position.y).toBeCloseTo(1.2, 2);
     expect(restoredWorld.uiManager.metricsPanel.mesh.position.z).toBeCloseTo(-0.8, 2);
     expect(restoredWorld.uiManager.metricsPanel.mesh.visible).toBe(true);
-    const savedMetrics = restoredWorld.uiManager.panelManager
-      .getPanelPositions()
-      .find((p) => p.title === 'TELEMETRY');
+    const savedMetrics = restoredWorld.uiManager.workspaceSurfaces
+      .capturePositions()
+      .find((p) => p.id === 'telemetry');
     expect(savedMetrics?.visible).toBe(true);
   });
 
@@ -666,7 +663,7 @@ describe('World integration', () => {
 
     // 4) Spatial state — camera pose + a free-floating panel.
     world.engine.cameraGroup.position.set(2.5, 1.75, -4.25);
-    world.uiManager.panelManager.showPanel(world.uiManager.metricsPanel);
+    world.uiManager.workspaceSurfaces.show('telemetry');
     world.uiManager.metricsPanel.mesh.position.set(0.5, 1.2, -0.8);
     world.engine.cameraGroup.updateMatrixWorld(true);
 
@@ -721,9 +718,9 @@ describe('World integration', () => {
 
     // Spatial state restored.
     expect(restoredWorld.engine.cameraGroup.position.toArray()).toEqual([2.5, 1.75, -4.25]);
-    const restoredMetrics = restoredWorld.uiManager.panelManager
-      .getPanelPositions()
-      .find((p) => p.title === 'TELEMETRY');
+    const restoredMetrics = restoredWorld.uiManager.workspaceSurfaces
+      .capturePositions()
+      .find((p) => p.id === 'telemetry');
     expect(restoredMetrics?.visible).toBe(true);
   });
 
@@ -979,7 +976,7 @@ describe('World integration', () => {
     expect(world.uiManager.interactionCoach).toBeNull();
     const coach = world.uiManager.getOrCreateInteractionCoach();
     expect(coach).toBeTruthy();
-    expect(world.uiManager.panelManager.panels).toContain(coach);
+    expect(world.uiManager.workspaceSurfaces.panels).toContain(coach);
     expect(coach.mesh.visible).toBe(false);
   });
 
@@ -1036,7 +1033,6 @@ describe('World integration', () => {
     const call = logSpy.mock.calls.find((c) => c[0].action === 'Command wheel');
     expect(call).toBeTruthy();
     expect(call[0].result).toBe('opened');
-    expect(world.uiManager.panelManager.isLauncherVisible()).toBe(false);
   });
 
   it('wires the controller gesture mapper into input', () => {

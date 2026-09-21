@@ -14,13 +14,13 @@ describe('Feature 3: God Object Refactoring & Sub-Manager Architecture', () => {
     expect(controller.analysisHistory).toBeDefined();
   });
 
-  it('F3-TC2: WorldUIManager manages HUD panel lifecycle and launcher registry', () => {
+  it('F3-TC2: WorldUIManager manages the canonical workspace-surface lifecycle', () => {
     const engine = new Engine();
     const eventBus = new WorldEventBus();
     const analystAnchor = engine.cameraGroup;
 
     const uiManager = new WorldUIManager(engine, analystAnchor, eventBus);
-    expect(uiManager.panelManager).toBeDefined();
+    expect(uiManager.workspaceSurfaces).toBeDefined();
     expect(uiManager.dashboard).toBeDefined();
 
     engine.dispose();

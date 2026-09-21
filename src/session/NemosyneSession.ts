@@ -30,6 +30,7 @@ export interface PresentationState {
   settings: Record<string, unknown>;
   tour: { stepIndex: number; finished: boolean };
   theme: string;
+  uiTreatmentVersion?: string;
   panelPositions: Array<unknown>;
   entry: { name: string; topology?: string; encodings?: EncodingMapping; maxDepth?: number };
   /**
@@ -109,6 +110,7 @@ export class NemosyneSession {
     if (partial.settings) this._presentation.settings = partial.settings;
     if (partial.tour) this._presentation.tour = partial.tour as PresentationState['tour'];
     if (partial.theme) this._presentation.theme = partial.theme;
+    if (partial.uiTreatmentVersion) this._presentation.uiTreatmentVersion = partial.uiTreatmentVersion;
     if (partial.panelPositions) this._presentation.panelPositions = partial.panelPositions;
     if (partial.entry) this._presentation.entry = partial.entry as PresentationState['entry'];
     if (partial.focus) this._presentation.focus = partial.focus;
@@ -262,6 +264,7 @@ export class NemosyneSession {
       settings: json.presentation?.settings ?? {},
       tour: json.presentation?.tour ?? { stepIndex: 0, finished: true },
       theme: json.presentation?.theme ?? 'neonMidnight',
+      uiTreatmentVersion: json.presentation?.uiTreatmentVersion,
       panelPositions: json.presentation?.panelPositions ?? [],
       entry: json.entry ?? json.presentation?.entry ?? { name: 'dataset' },
       focus: json.presentation?.focus,
@@ -281,6 +284,7 @@ export class NemosyneSession {
       settings: json.presentation?.settings ?? {},
       tour: json.presentation?.tour ?? { stepIndex: 0, finished: true },
       theme: json.presentation?.theme ?? 'neonMidnight',
+      uiTreatmentVersion: json.presentation?.uiTreatmentVersion,
       panelPositions: json.presentation?.panelPositions ?? [],
       entry: json.entry ?? json.presentation?.entry ?? { name: 'dataset' },
       focus: json.presentation?.focus,

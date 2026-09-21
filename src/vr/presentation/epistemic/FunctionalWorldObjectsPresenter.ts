@@ -6,7 +6,6 @@ import type { FarcasterPortal } from '../../artifacts/FarcasterPortal.ts';
 import type { WorldLandmarkController } from '../../coordinators/WorldLandmarkController.ts';
 import type { RecommendationPanel } from '../../ui/RecommendationPanel.ts';
 import type { VaultPanel } from '../../ui/VaultPanel.ts';
-import type { PanelManager } from '../../ui/PanelManager.ts';
 import type { TooltipManager } from '../../ui/TooltipManager.ts';
 import type { Engine } from '../../Engine.ts';
 import {
@@ -29,7 +28,7 @@ export interface FunctionalWorldObjectsHost {
   portalA: FarcasterPortal;
   portalB: FarcasterPortal;
   landmarkController: WorldLandmarkController;
-  panelManager: PanelManager;
+  showWorkspaceSurface(id: string): boolean;
   recommendationPanel: RecommendationPanel;
   vaultPanel: VaultPanel;
   tooltipManager: TooltipManager;
@@ -133,7 +132,7 @@ export class FunctionalWorldObjectsPresenter {
   private openRepresentationGuidance(): void {
     this.host.recommendationPanel.markDirty();
     this.host.recommendationPanel.setActiveTab('guidance');
-    this.host.panelManager.showPanel(this.host.recommendationPanel);
+    this.host.showWorkspaceSurface('guidance');
   }
 
   private syncVaultAndPortals(): void {
