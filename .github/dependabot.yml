@@ -9,6 +9,10 @@ updates:
       timezone: Europe/London
     open-pull-requests-limit: 5
     versioning-strategy: increase-if-necessary
+    ignore:
+      # jsdom 30.1.0 regression: URL.createObjectURL TypeError (_buffer) breaks tests/download-utils.test.ts
+      dependency-name: "jsdom"
+      versions: [">=30.1.0"]
     groups:
       development-tooling:
         dependency-type: development
