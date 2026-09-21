@@ -11,7 +11,7 @@ import { WorldUIManager } from '../src/vr/coordinators/WorldUIManager.ts';
 import { buildIntentWheelMenuCategories, buildWheelMenuCategories, type WheelMenuHost } from '../src/vr/coordinators/WheelMenuBuilder.ts';
 import { WorldEventBus } from '../src/utils/EventBus.ts';
 import type { Engine } from '../src/vr/Engine.ts';
-import type { PanelLike, EngineLike } from '../src/vr/coordinators/types.ts';
+import type { EngineLike } from '../src/vr/coordinators/types.ts';
 
 describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', () => {
   describe('1. InteractionModeController & Authoritative State Transitions', () => {
@@ -139,7 +139,6 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
         input: {
           hands: [],
           panels: [],
-          setPanelManager: vi.fn(),
           addPanel: vi.fn(),
           setHandWheelMenu: vi.fn(),
           feedback: { playGestureTone: vi.fn(), playHaptic: vi.fn() },
@@ -213,15 +212,17 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       const uiManager = new WorldUIManager(engine, analystAnchor, eventBus);
       uiManager.panelRolesManager.setUIMode('DEVELOPER');
 
-      const mockPanel: PanelLike = { mesh: new THREE.Mesh(), visible: false };
+      const panel = uiManager.recommendationPanel;
 
-      const opened = uiManager.togglePanelWithRole('recommendation', mockPanel);
+      const opened = uiManager.togglePanelWithRole('recommendation', panel);
       expect(opened).toBe(true);
       expect(uiManager.panelRolesManager.isPanelOpen('recommendation')).toBe(true);
+      expect(uiManager.workspaceSurfaces.isVisible('guidance')).toBe(true);
 
-      const closed = uiManager.togglePanelWithRole('recommendation', mockPanel);
+      const closed = uiManager.togglePanelWithRole('recommendation', panel);
       expect(closed).toBe(false);
       expect(uiManager.panelRolesManager.isPanelOpen('recommendation')).toBe(false);
+      expect(uiManager.workspaceSurfaces.isVisible('guidance')).toBe(false);
     });
   });
 
@@ -332,7 +333,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       const markMomentSpy = vi.fn();
       const applyOpSpy = vi.fn();
       const stubWorld: WheelMenuHost = {
-        uiManager: { panelManager: { togglePanel: vi.fn(), recenter: vi.fn() } },
+        uiManager: { toggleWorkspaceSurface: vi.fn(), recenterWorkspaceSurfaces: vi.fn() },
         collaborationCoordinator: { isConnected: () => false },
         engine: { locomotion: {} },
         applyDataOperation: applyOpSpy,
@@ -374,7 +375,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
 
     it('exposes the required novice vocabulary (UX spec §6.1: Move, Undo/Redo, Return)', () => {
       const stubWorld: WheelMenuHost = {
-        uiManager: { panelManager: { togglePanel: vi.fn(), toggleLauncher: vi.fn() } },
+        uiManager: { toggleWorkspaceSurface: vi.fn(), recenterWorkspaceSurfaces: vi.fn() },
         collaborationCoordinator: { isConnected: () => false },
         engine: {
           locomotion: {
@@ -409,7 +410,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
 
     it('maintains backwards compatibility for legacy buildWheelMenuCategories', () => {
       const stubWorld: WheelMenuHost = {
-        uiManager: { panelManager: { togglePanel: vi.fn() } },
+        uiManager: { toggleWorkspaceSurface: vi.fn(), recenterWorkspaceSurfaces: vi.fn() },
         collaborationCoordinator: { isConnected: () => false },
         engine: { locomotion: {} },
         applyDataOperation: vi.fn(),

@@ -5,21 +5,12 @@ import { buildIntentWheelMenuCategories, type WheelMenuHost } from '../src/vr/co
 import { ContextualTaskSurface } from '../src/vr/ui/ContextualTaskSurface.ts';
 
 function minimalWorld(): WheelMenuHost {
-  const panelManager = {
-    panels: [],
-    register: vi.fn(),
-    togglePanel: vi.fn(),
-    toggleLauncher: vi.fn(),
-    showPanel: vi.fn(),
-    hidePanel: vi.fn(),
-    isLauncherVisible: () => false,
-    recenter: vi.fn(),
-  };
   return {
     uiManager: {
-      panelManager,
       dataSourcePanel: { mesh: new THREE.Group() },
       vaultPanel: { mesh: new THREE.Group() },
+      toggleWorkspaceSurface: vi.fn(),
+      recenterWorkspaceSurfaces: vi.fn(),
     },
     engine: {
       locomotion: {
@@ -83,6 +74,6 @@ describe('post-UXR1 UI capability reachability', () => {
     expect(categories.find((c) => c.id === 'DATA')?.items.some((i) => i.id === 'data-sources')).toBe(true);
     expect(categories.find((c) => c.id === 'STUDY')?.items.some((i) => i.id === 'vault')).toBe(true);
     expect(categories.find((c) => c.id === 'SYSTEM')?.items.some((i) => i.id === 'launcher')).toBe(false);
-    expect(categories.find((c) => c.id === 'SUPERUSER')?.items.some((i) => i.id === 'su-panel-launcher')).toBe(true);
+    expect(categories.find((c) => c.id === 'SUPERUSER')?.items.some((i) => i.id === 'su-panel-launcher')).toBe(false);
   });
 });

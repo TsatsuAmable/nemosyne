@@ -27,11 +27,9 @@ function makeWheelWorld() {
   const dispatched: Array<{ type: string; [k: string]: unknown }> = [];
   const world: any = {
     uiManager: {
-      panelManager: {
-        togglePanel: vi.fn(),
-        toggleLauncher: vi.fn(),
-        recenter: vi.fn(),
-      },
+      toggleWorkspaceSurface: vi.fn(),
+      recenterWorkspaceSurfaces: vi.fn(),
+
       dashboard: {
         scrollBySlots: vi.fn(),
         resetDashboard: vi.fn(),

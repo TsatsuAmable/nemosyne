@@ -94,7 +94,7 @@ describe('World accessibility integration', () => {
   });
 
   it('applies text scale to panels when settings change', () => {
-    const panel = world!.uiManager.panelManager.panels[0] as any;
+    const panel = world!.uiManager.workspaceSurfaces.panels[0] as any;
     const spy = vi.spyOn(panel, 'applyAccessibility');
     world!.uiManager.settingsPanel.setSetting('textScale', 1.5);
     expect(spy).toHaveBeenCalled();
@@ -102,13 +102,13 @@ describe('World accessibility integration', () => {
   });
 
   it('applies high contrast to panels when settings change', () => {
-    const panel = world!.uiManager.panelManager.panels[0] as any;
+    const panel = world!.uiManager.workspaceSurfaces.panels[0] as any;
     world!.uiManager.settingsPanel.setSetting('highContrast', true);
     expect(panel.highContrast).toBe(true);
   });
 
   it('sets colorblind mode on panels and theme', () => {
-    const panel = world!.uiManager.panelManager.panels[0] as any;
+    const panel = world!.uiManager.workspaceSurfaces.panels[0] as any;
     world!.uiManager.settingsPanel.setSetting('colorblindMode', 'deuteranopia');
     expect(panel.colorblindMode).toBe('deuteranopia');
     expect(world!.engine.theme.pointLight.color.getHex()).not.toBe(

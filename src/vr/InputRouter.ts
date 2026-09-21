@@ -23,7 +23,6 @@ import type {
   FeedbackLike,
   HandWheelMenuLike,
   PanelLike,
-  PanelManagerLike,
   PointerLike,
 } from './coordinators/types.ts';
 
@@ -56,7 +55,6 @@ export class InputRouter {
   feedback: FeedbackLike;
   hovered: InteractableEntry | null;
 
-  panelManager: PanelManagerLike | null;
   handWheelMenu: HandWheelMenuLike | null;
   controllerGestureMapper: ControllerGestureMapperLike | null;
 
@@ -159,7 +157,6 @@ export class InputRouter {
       configurable: true,
     });
 
-    this.panelManager = null;
     this.handWheelMenu = null;
     this.controllerGestureMapper = null;
     this.activePointer = null;
@@ -236,11 +233,6 @@ export class InputRouter {
     this.registry.removePanel(panel);
   }
 
-  setPanelManager(manager: PanelManagerLike | null): void {
-    this.panelManager = manager;
-    this.machine.panelManager = manager;
-  }
-
   setHandWheelMenu(menu: HandWheelMenuLike | null): void {
     this.handWheelMenu = menu;
   }
@@ -261,8 +253,6 @@ export class InputRouter {
     this.pointers.clear();
     this.feedback.dispose?.();
     this.registry.clear();
-    this.panelManager = null;
-    this.machine.panelManager = null;
     this.handWheelMenu = null;
     this.setControllerGestureMapper(null);
     this.activePointer = null;

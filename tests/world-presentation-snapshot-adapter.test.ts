@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PresentationState } from '../src/session/NemosyneSession.ts';
 import { WorldPresentationSnapshotAdapter } from '../src/vr/presentation/session/WorldPresentationSnapshotAdapter.ts';
+import { UI_TREATMENT_VERSION } from '../src/vr/ui/panelLayout.ts';
 
 describe('WorldPresentationSnapshotAdapter restore isolation', () => {
   it('clears live semantic focus when the restored snapshot has no focus field', async () => {
@@ -20,9 +21,21 @@ describe('WorldPresentationSnapshotAdapter restore isolation', () => {
         getAllSettings: () => settings,
         setSetting: vi.fn(),
       } as never,
-      panelManager: {
-        getPanelPositions: () => [],
-        setPanelPositions: vi.fn(),
+      workspaceSurfaces: {
+        panels: [],
+        ids: () => [],
+        has: () => false,
+        idFor: () => null,
+        isVisible: () => false,
+        register: vi.fn(),
+        unregister: vi.fn(),
+        show: vi.fn(),
+        hide: vi.fn(),
+        toggle: vi.fn(),
+        recenter: vi.fn(),
+        recenterAll: vi.fn(),
+        capturePositions: () => [],
+        restorePositions: vi.fn(),
       } as never,
       guidedTour: {
         capturePresentationState: () => ({ stepIndex: 0, finished: true }),
@@ -47,6 +60,7 @@ describe('WorldPresentationSnapshotAdapter restore isolation', () => {
       settings,
       tour: { stepIndex: 0, finished: true },
       theme: 'neonMidnight',
+      uiTreatmentVersion: UI_TREATMENT_VERSION,
       panelPositions: [],
       entry: { name: 'archive' },
     };

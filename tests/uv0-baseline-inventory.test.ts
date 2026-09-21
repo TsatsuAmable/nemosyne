@@ -54,7 +54,7 @@ const EAGER_WORLD_UI_DISPOSITIONS: Readonly<Record<string, string>> = {
   vrConsole: 'vr-console',
   statusStripPanel: 'excluded: persistent status grounding, not an independently visible surface',
   dataSourcePanel: 'focused-data-sources',
-  panelManager: 'excluded: panel lifecycle manager, not a visible surface',
+  workspaceSurfaces: 'excluded: workspace lifecycle authority, not a visible surface',
   miniOverview: 'mini-overview',
   peerPresenceHUD: 'peer-presence-hud',
   dashboard: 'dashboard-wall',

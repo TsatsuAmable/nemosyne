@@ -12,20 +12,18 @@
  */
 
 import * as THREE from 'three';
-import type { PanelLike, PanelManagerLike, PointerLike } from '../coordinators/types.ts';
+import type { PanelLike, PointerLike } from '../coordinators/types.ts';
 import type { InteractableRegistry } from './InteractableRegistry.ts';
 import { isUsablePointerRay } from './pointerRayValidity.ts';
 
 type PointerState = 'idle' | 'down' | 'drag';
 
 interface PointerEventMachineOptions {
-  panelManager?: PanelManagerLike | null;
   onTriggerSelect?: (pointer: PointerLike) => void;
 }
 
 export class PointerEventMachine {
   registry: InteractableRegistry;
-  panelManager: PanelManagerLike | null;
   onTriggerSelect: (pointer: PointerLike) => void;
 
   state: PointerState = 'idle';
@@ -35,28 +33,21 @@ export class PointerEventMachine {
 
   constructor(
     registry: InteractableRegistry,
-    { panelManager = null, onTriggerSelect = () => {} }: PointerEventMachineOptions = {}
+    { onTriggerSelect = () => {} }: PointerEventMachineOptions = {}
   ) {
     this.registry = registry;
-    this.panelManager = panelManager;
     this.onTriggerSelect = onTriggerSelect;
   }
 
   /**
    * Press the pointer. Returns true only when a usable pointer ray is consumed
-   * by launcher, panel, HUD or scene selection. Tracking-loss rays fail closed
+   * by panel, HUD or scene selection. Tracking-loss rays fail closed
    * before any interaction side effect or pointer-state transition.
    */
   press(pointer: PointerLike): boolean {
     const ray = pointer.getRay(new THREE.Ray());
     if (!isUsablePointerRay(ray)) return false;
     this.registry.raycaster.ray.copy(ray);
-
-    // Launcher ring takes precedence when visible.
-    if (this.panelManager?.isLauncherVisible?.()) {
-      const hit = this.panelManager.handleLauncherHit?.(this.registry.raycaster);
-      if (hit) return true;
-    }
 
     // Panels take precedence over scene and HUD.
     for (const panel of this.registry.panels) {

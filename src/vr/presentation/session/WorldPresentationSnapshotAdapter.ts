@@ -5,9 +5,10 @@ import type {
   DatasetLoadEntry,
   SettingsPanelLike,
   WorldEngineLike,
-  WorldPanelManagerLike,
+  WorkspaceSurfaceManagerLike,
 } from '../../coordinators/types.ts';
 import type { PresentationSnapshotPort } from './PresentationSnapshotPort.ts';
+import { UI_TREATMENT_VERSION } from '../../ui/panelLayout.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -27,7 +28,7 @@ export interface WorldPresentationSnapshotDependencies {
   cameraGroup: WorldEngineLike['cameraGroup'];
   theme: NonNullable<WorldEngineLike['theme']>;
   settingsPanel: SettingsPanelLike;
-  panelManager: WorldPanelManagerLike;
+  workspaceSurfaces: WorkspaceSurfaceManagerLike;
   guidedTour: GuidedTourPresentationPort;
   comfortSettingsController: ComfortSettingsControllerLike;
   focusContext: Pick<FocusContextController, 'exportState' | 'restoreState' | 'clearFocus'>;
@@ -57,7 +58,8 @@ export class WorldPresentationSnapshotAdapter implements PresentationSnapshotPor
       settings: deps.settingsPanel.getAllSettings(),
       tour: deps.guidedTour.capturePresentationState(),
       theme: deps.theme.currentPreset,
-      panelPositions: deps.panelManager.getPanelPositions?.() ?? [],
+      uiTreatmentVersion: UI_TREATMENT_VERSION,
+      panelPositions: deps.workspaceSurfaces.capturePositions(),
       entry: {
         name:
           entry.name ??
@@ -107,13 +109,19 @@ export class WorldPresentationSnapshotAdapter implements PresentationSnapshotPor
     if (typeof snapshot.theme === 'string' && snapshot.theme.length > 0) {
       deps.theme.applyPreset?.(snapshot.theme);
     }
-    if (Array.isArray(snapshot.panelPositions)) {
+    if (snapshot.uiTreatmentVersion === UI_TREATMENT_VERSION && Array.isArray(snapshot.panelPositions)) {
       const panelPositions = snapshot.panelPositions.filter(
-        (value): value is { title?: string; position?: number[]; visible?: boolean } => {
+        (value): value is { id: string; title?: string; position?: number[]; visible?: boolean } => {
           if (!value || typeof value !== 'object') return false;
-          const item = value as { title?: unknown; position?: unknown; visible?: unknown };
+          const item = value as {
+            id?: unknown;
+            title?: unknown;
+            position?: unknown;
+            visible?: unknown;
+          };
           return (
-            typeof item.title === 'string' &&
+            typeof item.id === 'string' &&
+            item.id.length > 0 &&
             Array.isArray(item.position) &&
             item.position.length === 3 &&
             item.position.every(
@@ -123,9 +131,10 @@ export class WorldPresentationSnapshotAdapter implements PresentationSnapshotPor
           );
         }
       );
-      deps.panelManager.setPanelPositions?.(
-        panelPositions as Parameters<NonNullable<WorldPanelManagerLike['setPanelPositions']>>[0]
-      );
+      deps.workspaceSurfaces.restorePositions(panelPositions);
+    } else {
+      // A body-frame/layout revision invalidates old spatial coordinates.
+      deps.workspaceSurfaces.recenterAll();
     }
 
     const tour = snapshot.tour;

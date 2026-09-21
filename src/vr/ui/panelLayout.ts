@@ -101,4 +101,4 @@ export type PanelLayoutKey = keyof typeof PANEL_LAYOUT;
  * participant-facing spatial arrangement or reference-frame behavior changes
  * and record it in docs/study/UI_TREATMENT.md.
  */
-export const UI_TREATMENT_VERSION = 'panel-layout/5+intent-wheel/3+frames/body-stable' as const;
+export const UI_TREATMENT_VERSION = 'panel-layout/6+workspace-surfaces/1+frames/body-stable' as const;
