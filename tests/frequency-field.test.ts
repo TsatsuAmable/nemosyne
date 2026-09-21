@@ -141,7 +141,7 @@ describe('Phase 6: FrequencyField Representation and Renderer', () => {
       directionalAnisotropy: 0.0,
       characteristicScale: 16.0,
       hasPeriodicity: true,
-      periodicityConfidence: 0.9,
+      periodicityHeuristicScore: 0.9,
       method: 'full-series-fft',
       observedCount: 64,
       transformLength: 64,

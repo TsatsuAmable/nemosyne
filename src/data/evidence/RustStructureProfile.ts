@@ -42,13 +42,19 @@ export interface RustCorrelationPairSummary {
   columnA: string;
   columnB: string;
   r: number;
-  isStrong: boolean;
+  /** True when |r| exceeds a fixed magnitude threshold. Not a significance test. */
+  exceedsMagnitudeThreshold: boolean;
 }
 
 export interface RustCorrelationProfile {
   pairs: RustCorrelationPairSummary[];
   maxCorrelation: number;
-  significantPairsCount: number;
+  /**
+   * Count of pairs whose |r| exceeds a fixed magnitude threshold. No null
+   * distribution or multiplicity correction is applied, so this is a magnitude
+   * count and not a count of statistically significant pairs.
+   */
+  pairsAboveMagnitudeThreshold: number;
   isRankDeficient: boolean;
 }
 
@@ -57,7 +63,11 @@ export interface RustClusterProfile {
   hasClusters: boolean;
   separationScore: number;
   densityVariation: number;
-  stabilityConfidence: number;
+  /**
+   * Affine rescale of a single silhouette score. Named for its provenance
+   * because `separationScore` sits adjacent; it is not a stability confidence.
+   */
+  heuristicSilhouettePartitionScore: number;
   method: string;
   eligibleObservationCount: number;
   sampleCount: number;
@@ -70,10 +80,19 @@ export interface RustClusterProfile {
 }
 
 export interface RustDensityProfile {
-  globalDensity: number;
-  localDensityVariation: number;
+  /**
+   * Row-count-scaled density proxy. A heuristic scale proxy, not an estimated
+   * probability density.
+   */
+  heuristicScaleDensityProxy: number;
+  /**
+   * `localDensityVariation` was removed rather than renamed: it was a
+   * two-valued constant with no estimand behind it. A genuine local-density
+   * statistic must arrive under a new name with its own contract.
+   */
   modeCount: number;
-  isSparse: boolean;
+  /** Row-count sparsity rule, not a density estimate. */
+  heuristicSparseByRowCount: boolean;
 }
 
 export interface RustPeriodicityProfile {
@@ -81,8 +100,8 @@ export interface RustPeriodicityProfile {
   frequency: number;
   /** Period in the same time-coordinate unit. */
   periodTimeUnits: number;
-  /** Historical uncalibrated heuristic score, not statistical confidence. */
-  confidence: number;
+  /** Uncalibrated deterministic heuristic periodicity score, not statistical confidence. */
+  heuristicScore: number;
 }
 
 export interface RustTemporalProfile {
@@ -155,7 +174,8 @@ export interface RustSpectralProfile {
   spectralEntropy: number;
   powerSpectrumPeak: number;
   hasPeriodicity: boolean;
-  periodicityConfidence: number;
+  /** Uncalibrated deterministic heuristic periodicity score, not statistical confidence. */
+  periodicityHeuristicScore: number;
   method: string;
   observedCount: number;
   transformLength: number;

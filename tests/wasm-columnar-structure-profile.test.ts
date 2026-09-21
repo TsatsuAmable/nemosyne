@@ -1,6 +1,42 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import {
+  structureProfileToDatasetEvidence,
+  type RustDatasetStructureProfile,
+} from '../src/data/evidence/index.ts';
 import { rowMaterialisationCount } from '../src/wasm/ColumnarBoundary.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
+
+/**
+ * TEC2 retired every transport name that overstated a heuristic as statistical
+ * confidence or significance. A surviving key means the rename missed a site,
+ * and every one of these renames degrades to a silent `undefined` rather than a
+ * thrown error on the adapter path, so this walk is the only loud check.
+ */
+const RETIRED_TERMINOLOGY = /significant|confidence|localDensityVariation/i;
+
+function collectTransportDefects(
+  node: unknown,
+  path: string,
+  undefinedPaths: string[],
+  retiredKeyPaths: string[]
+): void {
+  if (node === undefined) {
+    undefinedPaths.push(path);
+    return;
+  }
+  if (Array.isArray(node)) {
+    node.forEach((child, index) =>
+      collectTransportDefects(child, `${path}[${index}]`, undefinedPaths, retiredKeyPaths)
+    );
+    return;
+  }
+  if (node === null || typeof node !== 'object') return;
+  for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+    const childPath = `${path}.${key}`;
+    if (RETIRED_TERMINOLOGY.test(key)) retiredKeyPaths.push(childPath);
+    collectTransportDefects(child, childPath, undefinedPaths, retiredKeyPaths);
+  }
+}
 
 const encoder = new TextEncoder();
 
@@ -22,16 +58,26 @@ function pushString(parts: Uint8Array[], value: string): void {
   parts.push(bytes);
 }
 
-function typedPayload(): Uint8Array {
+function typedPayload(options: { correlatedNumericColumns?: boolean } = {}): Uint8Array {
   const rows = 8;
   const parts: Uint8Array[] = [encoder.encode('NTC1')];
   pushU32(parts, rows);
-  pushU32(parts, 3);
+  // `value_mirror` is an exact copy of `value`, so the kernel emits one
+  // correlation pair at maximum |r| and the pair-level transport can be
+  // observed on the real path rather than over an empty pair list.
+  const columns: readonly (readonly [number, string, number])[] = options.correlatedNumericColumns
+    ? [
+        [1, 'value', 2],
+        [1, 'value_mirror', 2],
+        [2, 'time', 1],
+      ]
+    : [
+        [1, 'value', 2],
+        [2, 'time', 1],
+      ];
+  pushU32(parts, columns.length + 1);
 
-  for (const [type, name, scale] of [
-    [1, 'value', 2],
-    [2, 'time', 1],
-  ] as const) {
+  for (const [type, name, scale] of columns) {
     parts.push(Uint8Array.of(type));
     pushString(parts, name);
     const values = new Uint8Array(rows * 8);
@@ -112,6 +158,87 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
         hasPeriodicity: true,
       });
       expect(rowMaterialisationCount()).toBe(before);
+    } finally {
+      bridge.call('typed_dataset_destroy', handle);
+    }
+  });
+
+  it('transports only renamed heuristic fields, with no undefined values, on the real profile', () => {
+    const payload = typedPayload({ correlatedNumericColumns: true });
+    const allocation = bridge.allocBytes(payload);
+    const handle = Number(bridge.call('data_load_typed_columns', allocation.ptr, allocation.len));
+    bridge.deallocBytes(allocation.ptr, allocation.len);
+    expect(handle).toBeGreaterThan(0);
+
+    try {
+      const profile = bridge.computeDatasetStructureProfile(handle);
+      expect(profile).not.toBeNull();
+      const evidence = structureProfileToDatasetEvidence(
+        profile as unknown as RustDatasetStructureProfile
+      );
+
+      const undefinedPaths: string[] = [];
+      const retiredKeyPaths: string[] = [];
+      for (const entry of evidence.evidence) {
+        collectTransportDefects(entry, entry.id, undefinedPaths, retiredKeyPaths);
+      }
+      expect(undefinedPaths).toEqual([]);
+      expect(retiredKeyPaths).toEqual([]);
+
+      const density = evidence.evidence.find((entry) => entry.id === 'density:global');
+      expect(density?.value).toMatchObject({
+        heuristicScaleDensityProxy: expect.any(Number),
+        heuristicModeCount: expect.any(Number),
+        heuristicSparseByRowCount: expect.any(Boolean),
+      });
+      expect(density?.value).not.toHaveProperty('localDensityVariation');
+
+      const dependency = evidence.evidence.find((entry) => entry.id === 'dependency:correlations');
+      expect(dependency?.value).toMatchObject({
+        strongCorrelationPairCount: expect.any(Number),
+        maxAbsolutePearsonCorrelation: expect.any(Number),
+      });
+      const pairs = (dependency?.value as { pairs?: readonly { isStrongByMagnitudeThreshold?: unknown }[] })
+        .pairs;
+      expect(pairs?.length).toBeGreaterThan(0);
+      let pairsAboveThreshold = 0;
+      for (const pair of pairs ?? []) {
+        expect(typeof pair.isStrongByMagnitudeThreshold).toBe('boolean');
+        if (pair.isStrongByMagnitudeThreshold === true) pairsAboveThreshold += 1;
+      }
+      // The transported count must agree with the transported per-pair flags:
+      // both are derived from one magnitude rule, so a divergence here would
+      // mean the count is being recomputed somewhere other than the kernel.
+      expect(dependency?.value).toMatchObject({
+        strongCorrelationPairCount: pairsAboveThreshold,
+      });
+
+      const cluster = evidence.evidence.find((entry) => entry.id === 'cluster:global');
+      expect(cluster?.value).toMatchObject({
+        legacySilhouetteDerivedScore: expect.any(Number),
+      });
+
+      // The typed fixture is a regular 8-point time series, so Rust emits both the
+      // physical-unit spectral profile and the temporal periodicity manifest.
+      const spectral = evidence.evidence.find((entry) => entry.id === 'spectral:global');
+      expect(spectral?.value).toMatchObject({
+        periodicityHeuristicScore: expect.any(Number),
+      });
+
+      const temporal = evidence.evidence.find((entry) => entry.id === 'temporal:global');
+      expect(temporal).toBeDefined();
+      const periodicities = (temporal?.value as { periodicities?: readonly { heuristicScore?: unknown }[] })
+        .periodicities;
+      expect(periodicities).toBeDefined();
+      for (const periodicity of periodicities ?? []) {
+        expect(typeof periodicity.heuristicScore).toBe('number');
+      }
+
+      // Reachable value set: the scale/density proxy is a row-count threshold, so
+      // only these three values can ever be transported.
+      expect([0.15, 0.4, 0.7]).toContain(
+        (density?.value as { heuristicScaleDensityProxy: number }).heuristicScaleDensityProxy
+      );
     } finally {
       bridge.call('typed_dataset_destroy', handle);
     }

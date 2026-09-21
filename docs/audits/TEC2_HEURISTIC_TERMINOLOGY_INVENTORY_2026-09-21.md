@@ -1,6 +1,6 @@
 # TEC2 Heuristic Terminology Inventory
 
-- **Status:** inventory / draft (not a closure claim)
+- **Status:** inventory (not a closure claim). The six migrations it enumerates were implemented in place on 2026-09-21 — see the Closure record at the end. TEC2 itself remains open.
 - **Base:** `main` @ `3198ff8713752ac35fdbb3c78c0ae5a2eaf7b751`
 - **Date:** 2026-09-21
 - **Purpose:** Trace the six "bootstrap heuristic" fields enumerated in `docs/STATISTICAL_FOUNDATIONS.md:105-114` end-to-end (Rust producer → wire transport → TS consumers → persistence → UI → tests), and determine the concrete blast radius of renaming each one.
@@ -324,3 +324,54 @@ The following claims were independently re-checked against source on receipt of 
 | `ClusterProfile.density_variation` reaches ranking | **Confirmed** | Rust `profile.rs:544` is `if has_clusters { 0.25 } else { 0.0 }`; `FitnessModel.ts:374-381` derives `densityRelevant` from `signature.clusterStructure.densityVariation` and returns 1 or scores the candidate |
 
 Recorded by: audit pass, 2026-09-21. Base `main@3198ff87`.
+
+---
+
+## Closure record — implementation slice (2026-09-21)
+
+This slice implements the six migrations enumerated above. It **does not close TEC2**: other heuristic-named surfaces remain, and `docs/ROADMAP.md:155` still records TEC1 as open.
+
+Branch: `feat/tec2-heuristic-terminology-migration`.
+
+### Applied renames
+
+| Former Rust field | New Rust field | Wire name | Adapter key |
+| --- | --- | --- | --- |
+| `significant_pairs_count` | `pairs_above_magnitude_threshold` | `pairsAboveMagnitudeThreshold` | `strongCorrelationPairCount` (unchanged) |
+| `is_strong` (pair) | `exceeds_magnitude_threshold` | `exceedsMagnitudeThreshold` | `isStrongByMagnitudeThreshold` (unchanged) |
+| `stability_confidence` | `heuristic_silhouette_partition_score` | `heuristicSilhouettePartitionScore` | `legacySilhouetteDerivedScore` (unchanged) |
+| `global_density` | `heuristic_scale_density_proxy` | `heuristicScaleDensityProxy` | `heuristicScaleDensityProxy` (**renamed**) |
+| `local_density_variation` | *removed* | *removed* | `heuristicLocalDensityVariation` (**removed**) |
+| `is_sparse` | `heuristic_sparse_by_row_count` | `heuristicSparseByRowCount` | `heuristicSparseByRowCount` (**renamed**) |
+| `periodicity_confidence` | `periodicity_heuristic_score` | `periodicityHeuristicScore` | `periodicityHeuristicScore` (unchanged) |
+| `confidence` (`PeriodicityProfile`) | `heuristic_score` | `heuristicScore` | `heuristicScore` (unchanged) |
+| `confidence_weight` (local) | `sample_count_weight` (local) | — | local only |
+
+Renames were applied **at the Rust transport**, in place, with no `#[serde(alias)]` anywhere in `wasm/src/`. `docs/STATISTICAL_FOUNDATIONS.md:174` prefers adapter-only wrapping with unchanged serialized shapes; that preference is conditional, and the conditions here favour the transport rename — `docs/ROADMAP.md:167` explicitly sanctions "Rename", `:166` requires RFC/ADR governance only for an ABI/public-format change and this profile is internal transport with no persistence, export, replay or external consumer (which is `:174`'s own stated condition), and the precedent `period_samples` → `period_time_units` was performed on this same struct in place.
+
+### Findings this slice created
+
+1. **There was a live TypeScript shadow analytical authority.** `SignatureBuilder.correlationSummary` recomputed a pair count in TypeScript at `abs >= 0.5` while Rust uses `abs > 0.6`, and labelled the result `'measured'` with the note "Computed by supplied Rust kernel Facts". The count field and the recomputation were **deleted**, not harmonised: changing `0.5` to `0.6` would have left TypeScript holding shadow authority on the exact field TEC2 names. `dependence.maxCorrelation` remains a genuine TypeScript reduction over kernel-supplied pairs and is unchanged.
+2. **Most of these names failed silently when wrong.** Only `significant_pairs_count` and `periodicity_confidence` reached a guard that throws; the rest degraded to `undefined`. `assertRustDatasetStructureProfile` (`src/atlas/MonetaEvidenceAuthority.ts`) type-checked none of the six. It now asserts each renamed field's presence and type, and rejects each retired name if it reappears — including a per-pair and per-periodicity check. This is not a closed key set, deliberately: the payload has no schema-version field and no `deny_unknown_fields`, so a closed set would turn every future additive Rust field into a hard throw with nothing to version it against.
+
+### Decision held: `algorithmSuite` stays `-v3`
+
+No algorithm changed; every computation site is numerically untouched apart from the removal of a two-valued constant. Bumping the suite label would falsely advertise an algorithmic change, and it is asserted in `tests/wasm-columnar-structure-profile.test.ts`. **Falsifier that would flip this:** if the profile JSON ever becomes a persisted, replay or exported format, or any consumer begins keying on `methodVersion`, then `-v4` becomes mandatory in that same change.
+
+### Open questions resolved
+
+- **Q1 (which threshold is authoritative)** — resolved by deletion. The TypeScript `abs >= 0.5` recomputation is gone, so Rust's rule is the only one, and its literal is now the named `CORRELATION_MAGNITUDE_THRESHOLD`.
+- **Q7 (validator hardening)** — resolved; see finding 2.
+- **Q4 and Q5 (fixture values the producer cannot emit; the inverted `stabilityConfidence` fixture)** — **recorded, deliberately not corrected.** The implementation changed names only. Correcting `globalDensity: 0.5` / `1`, `localDensityVariation: 0.61`, and `stabilityConfidence: hasClusters ? 0.8 : 1` would mix a value change into a rename and weaken the "numerics unchanged" falsifier. These remain owned findings.
+- **Q2, Q3, Q6** — unchanged and out of this slice's scope.
+
+### Deferred, with reasons
+
+- **`ClusterProfile.density_variation`** is *not* renamed. Unlike the six above it is behaviour-bearing: it reaches `FitnessModel.scoreDensityHandling` and a throwing equality gate in `DatasetEvidenceSignature.ts`. Renaming it changes behaviour, not just names, and needs its own contract.
+- **`dependence.maxCorrelation` is still labelled `measured`** although it is a TypeScript reduction over kernel-supplied pairs. The reduction cannot be removed while `Facts` carries only raw pairs, so this needs a separate decision.
+- **`EvidenceWeightedScorer`** keeps its `20.0` scale and its `(sampleCountWeight || 1.0)` zero-weight inversion, which diverge from Rust's `30.0`; only the local was renamed. The scorer still has no production caller.
+- **`wasm/src/moneta/evidence.rs`** is unreachable — only the `draco` twin is exported through `draco_adjust_evidence`. Kept byte-identical to its twin as a convention; separate cleanup.
+
+### Verification performed
+
+Real-WASM round-trip over `computeDatasetStructureProfile` → `structureProfileToDatasetEvidence` asserting that no transported value is `undefined`, no key matches `/significant|confidence|localDensityVariation/i`, each renamed field is present with the right type, the transported pair count agrees with the transported per-pair flags, and `heuristicScaleDensityProxy` stays inside its reachable set `{0.15, 0.4, 0.7}`. Plus negative boundary cases proving a payload with a **missing** renamed field throws and one carrying a **retired** name throws.

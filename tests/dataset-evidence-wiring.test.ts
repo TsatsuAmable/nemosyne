@@ -45,7 +45,7 @@ function profile(): RustDatasetStructureProfile {
     correlations: {
       pairs: [],
       maxCorrelation: 0,
-      significantPairsCount: 0,
+      pairsAboveMagnitudeThreshold: 0,
       isRankDeficient: false,
     },
     clusters: {
@@ -53,7 +53,7 @@ function profile(): RustDatasetStructureProfile {
       hasClusters: false,
       separationScore: 0,
       densityVariation: 0.1,
-      stabilityConfidence: 0,
+      heuristicSilhouettePartitionScore: 0,
       method: 'full-complete-row-kmeans',
       eligibleObservationCount: 3,
       sampleCount: 3,
@@ -65,10 +65,9 @@ function profile(): RustDatasetStructureProfile {
       silhouetteSampleCount: 3,
     },
     density: {
-      globalDensity: 0.5,
-      localDensityVariation: 0.1,
+      heuristicScaleDensityProxy: 0.5,
       modeCount: 1,
-      isSparse: false,
+      heuristicSparseByRowCount: false,
     },
     temporal: null,
     graph: null,
@@ -127,17 +126,31 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
 
   it('narrows misleading legacy Rust names at the canonical evidence boundary', () => {
     const source = profile();
-    source.correlations.significantPairsCount = 2;
+    source.correlations.pairsAboveMagnitudeThreshold = 2;
     source.clusters.hasClusters = true;
     source.clusters.separationScore = 0.72;
-    source.clusters.stabilityConfidence = 0.648;
+    source.clusters.heuristicSilhouettePartitionScore = 0.648;
 
     const result = structureProfileToDatasetEvidence(source);
     const dependency = result.evidence.find((item) => item.id === 'dependency:correlations');
     const cluster = result.evidence.find((item) => item.id === 'cluster:global');
+    const density = result.evidence.find((item) => item.id === 'density:global');
 
     expect(dependency?.value).toEqual(expect.objectContaining({ strongCorrelationPairCount: 2 }));
     expect(JSON.stringify(dependency?.value)).not.toMatch(/significant/i);
+    expect(density?.value).toEqual(
+      expect.objectContaining({
+        heuristicScaleDensityProxy: 0.5,
+        heuristicModeCount: 1,
+        heuristicSparseByRowCount: false,
+      })
+    );
+    // The removed local-density field must not survive under any spelling, and
+    // the scale proxy must not be transported back under its old bare name.
+    expect(density?.value).not.toHaveProperty('localDensityVariation');
+    expect(density?.value).not.toHaveProperty('heuristicLocalDensityVariation');
+    expect(density?.value).not.toHaveProperty('globalDensity');
+    expect(JSON.stringify(density?.value)).not.toMatch(/localDensityVariation|globalDensity/i);
     expect(cluster?.value).toEqual(
       expect.objectContaining({
         heuristicPartitionDetected: true,
@@ -169,7 +182,7 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
         {
           frequency: 0.125,
           periodTimeUnits: 8,
-          confidence: 0.8,
+          heuristicScore: 0.8,
         },
       ],
     };
@@ -178,7 +191,7 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
       spectralEntropy: 0.2,
       powerSpectrumPeak: 0.9,
       hasPeriodicity: true,
-      periodicityConfidence: 0.8,
+      periodicityHeuristicScore: 0.8,
       method: 'regular-time-fft',
       observedCount: 64,
       transformLength: 64,
@@ -228,7 +241,7 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
       spectralEntropy: 0.2,
       powerSpectrumPeak: 0.9,
       hasPeriodicity: true,
-      periodicityConfidence: 0.8,
+      periodicityHeuristicScore: 0.8,
       method: 'regular-time-mean-pooled-fft',
       observedCount: 1_000_000,
       transformLength: 65_536,

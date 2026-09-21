@@ -52,7 +52,6 @@ export const DATASET_SIGNATURE_FACT_PATHS = [
   'distribution.meanEntropy',
   'distribution.kurtosisProfile',
   'dependence.maxCorrelation',
-  'dependence.significantPairsCount',
   'dependence.rankDeficiency',
   'clusterStructure.estimatedCount',
   'clusterStructure.hasClusters',
@@ -74,7 +73,6 @@ export const DATASET_SIGNATURE_FACT_PATHS = [
   'spectralStructure.directionalAnisotropy',
   'spectralStructure.characteristicScale',
   'spectralStructure.hasPeriodicity',
-  'spectralStructure.periodicityConfidence',
   'spectralStructure.periodicityHeuristicScore',
   'spectralStructure.method',
   'spectralStructure.observedCount',
@@ -119,8 +117,6 @@ export interface SpectralFacts {
   /** Present only when the analytical source actually computes a characteristic scale. */
   characteristicScale?: number;
   hasPeriodicity: boolean;
-  /** @deprecated Legacy kernel field. Prefer periodicityHeuristicScore when the value is heuristic. */
-  periodicityConfidence?: number;
   /** Epistemically narrow name for a non-calibrated periodicity score. */
   periodicityHeuristicScore?: number;
   method?: string;
@@ -167,7 +163,6 @@ export interface DatasetSignatureDistribution {
 
 export interface DatasetSignatureDependence {
   maxCorrelation?: number;
-  significantPairsCount?: number;
   rankDeficiency?: boolean;
 }
 

@@ -91,7 +91,10 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
     expect(sig.distribution.maxSkewness).toBe(0.45);
     expect(sig.distribution.meanEntropy).toBe(1.5);
     expect(sig.dependence.maxCorrelation).toBe(0.75);
-    expect(sig.dependence.significantPairsCount).toBe(1);
+    // TEC2: the TypeScript shadow recomputation of a pair count is gone. The
+    // signature must not re-introduce a significance-shaped count at any
+    // threshold; the magnitude count lives on the Rust evidence envelope.
+    expect(sig.dependence).not.toHaveProperty('significantPairsCount');
     // RF-045: cluster fields require authoritative Rust DatasetEvidence, not legacy envelope
     expect(sig.clusterStructure.estimatedCount).toBeUndefined();
     expect(sig.clusterStructure.hasClusters).toBeUndefined();

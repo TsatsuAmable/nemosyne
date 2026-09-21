@@ -53,7 +53,7 @@ export function createMonetaStructureProfile(
     correlations: {
       pairs: [],
       maxCorrelation: 0,
-      significantPairsCount: 0,
+      pairsAboveMagnitudeThreshold: 0,
       isRankDeficient: false,
     },
     clusters: {
@@ -61,7 +61,7 @@ export function createMonetaStructureProfile(
       hasClusters,
       separationScore: options.separationScore ?? (hasClusters ? 0.8 : 0),
       densityVariation,
-      stabilityConfidence: hasClusters ? 0.8 : 1,
+      heuristicSilhouettePartitionScore: hasClusters ? 0.8 : 1,
       method: 'full-complete-row-kmeans',
       eligibleObservationCount: options.rowCount,
       sampleCount: options.rowCount,
@@ -73,10 +73,9 @@ export function createMonetaStructureProfile(
       silhouetteSampleCount: Math.min(options.rowCount, 50),
     },
     density: {
-      globalDensity: 0.5,
-      localDensityVariation: densityVariation,
+      heuristicScaleDensityProxy: 0.5,
       modeCount: clusterCount,
-      isSparse: false,
+      heuristicSparseByRowCount: false,
     },
     temporal: null,
     graph: null,

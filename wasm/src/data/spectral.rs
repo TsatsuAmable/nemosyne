@@ -28,9 +28,10 @@ pub struct SpectralFacts {
     /// Reciprocal dominant frequency, in the same time-coordinate unit.
     pub characteristic_scale: f64,
     pub has_periodicity: bool,
-    /// Historical field name retained for ABI compatibility. This is an
-    /// uncalibrated deterministic heuristic score, not statistical confidence.
-    pub periodicity_confidence: f64,
+    /// Uncalibrated deterministic heuristic periodicity score; not statistical
+    /// confidence. TEC2 renamed this in place from the earlier
+    /// `periodicityConfidence` wire name rather than aliasing it.
+    pub periodicity_heuristic_score: f64,
     pub method: String,
     pub observed_count: usize,
     pub transform_length: usize,
@@ -271,7 +272,7 @@ fn compute_regular_fft(
             directional_anisotropy: 0.0,
             characteristic_scale: 0.0,
             has_periodicity: false,
-            periodicity_confidence: 0.0,
+            periodicity_heuristic_score: 0.0,
             method,
             observed_count,
             transform_length,
@@ -314,7 +315,7 @@ fn compute_regular_fft(
     };
 
     let has_periodicity = power_spectrum_peak > 0.35 && normalized_entropy < 0.75;
-    let periodicity_confidence = if has_periodicity {
+    let periodicity_heuristic_score = if has_periodicity {
         (power_spectrum_peak * 0.6 + (1.0 - normalized_entropy) * 0.4).clamp(0.0, 1.0)
     } else {
         0.0
@@ -333,7 +334,7 @@ fn compute_regular_fft(
         directional_anisotropy: 0.0,
         characteristic_scale: (characteristic_scale * 1000.0).round() / 1000.0,
         has_periodicity,
-        periodicity_confidence: (periodicity_confidence * 1000.0).round() / 1000.0,
+        periodicity_heuristic_score: (periodicity_heuristic_score * 1000.0).round() / 1000.0,
         method,
         observed_count,
         transform_length,
@@ -413,7 +414,7 @@ mod tests {
             "directionalAnisotropy",
             "characteristicScale",
             "hasPeriodicity",
-            "periodicityConfidence",
+            "periodicityHeuristicScore",
             "observedCount",
             "transformLength",
             "sourceObservationsPerBin",
@@ -426,6 +427,14 @@ mod tests {
         assert!(json.get("dominant_frequencies").is_none());
         assert!(json.get("source_observations_per_bin").is_none());
         assert!(json.get("frequency_resolution").is_none());
+        // TEC2 renamed this field in place rather than aliasing it. `cargo test` is
+        // the only place the spectral ABI shape is pinned, so asserting the retired
+        // name is absent is what stops a compatibility alias from silently
+        // reinstating a claim-shaped name on the wire.
+        assert!(
+            json.get("periodicityConfidence").is_none(),
+            "retired periodicityConfidence name must not be aliased back onto the ABI"
+        );
     }
 
     #[test]

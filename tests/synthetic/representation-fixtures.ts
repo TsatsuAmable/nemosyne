@@ -129,7 +129,7 @@ export const SYNTHETIC_FIXTURES: SyntheticFixture[] = [
       directionalAnisotropy: 0.0,
       characteristicScale: 16.0,
       hasPeriodicity: true,
-      periodicityConfidence: 0.94,
+      periodicityHeuristicScore: 0.94,
     },
     requirements: createDefaultRequirements('explore'),
     expectedFamily: 'FREQUENCY',

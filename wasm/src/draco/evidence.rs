@@ -16,13 +16,14 @@ pub fn adjust_candidate_cost_with_evidence(
         _ => return (base_cost, 0.0),
     };
 
-    // Confidence weighting based on sample count (approaches 1.0 at N=10)
-    let confidence_weight = (ev.sample_count as f64 / 10.0).min(1.0);
+    // Sample-count weighting: a saturating size multiplier approaching 1.0 at N=10.
+    // This is a sample-count weight, not statistical confidence.
+    let sample_count_weight = (ev.sample_count as f64 / 10.0).min(1.0);
 
     // Delta relative to baseline neutral utility (0.5)
     // Positive utility (>0.5) decreases penalty cost (better).
     // Negative utility (<0.5) increases penalty cost (worse).
-    let utility_delta = (ev.composite_utility - 0.5) * 30.0 * confidence_weight;
+    let utility_delta = (ev.composite_utility - 0.5) * 30.0 * sample_count_weight;
     let adjusted_cost = (base_cost - utility_delta).max(0.0).round();
 
     (adjusted_cost, (-utility_delta).round())
