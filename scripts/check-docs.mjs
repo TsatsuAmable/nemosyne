@@ -111,18 +111,18 @@ try {
     }
   }
 
-  const assurance = read('docs/STREAM_C_SECURITY_ASSURANCE.md');
+  const assurance = read('docs/archive/STREAM_C_SECURITY_ASSURANCE.md');
   for (const finding of ledger.findings) {
     const heading = `### ${finding.id} -`;
     const sectionStart = assurance.indexOf(heading);
     if (sectionStart < 0) {
-      fail(`docs/STREAM_C_SECURITY_ASSURANCE.md is missing ${finding.id}`);
+      fail(`docs/archive/STREAM_C_SECURITY_ASSURANCE.md is missing ${finding.id}`);
       continue;
     }
     const nextHeading = assurance.indexOf('\n### RF-', sectionStart + heading.length);
     const section = assurance.slice(sectionStart, nextHeading < 0 ? assurance.length : nextHeading);
     if (/^\*\*Status:\*\*/m.test(section)) {
-      fail(`docs/STREAM_C_SECURITY_ASSURANCE.md must not restate mutable status for ${finding.id}`);
+      fail(`docs/archive/STREAM_C_SECURITY_ASSURANCE.md must not restate mutable status for ${finding.id}`);
     }
   }
 } catch (error) {

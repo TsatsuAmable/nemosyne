@@ -223,7 +223,7 @@ Active authorities after this audit:
 - V3 definitive vision: product/research/architecture governance;
 - `ROADMAP.md`: live implementation state and issue queue;
 - this audit: dated evidence and adversarial findings;
-- `IMPLEMENTATION_PLAN_V3.md`: executable V3 sequencing;
+- `docs/archive/IMPLEMENTATION_PLAN_V3.md`: executable V3 sequencing;
 - `ARCHITECTURE.md` and developer/study references: technical and operational layers.
 
 Archived in this audit:

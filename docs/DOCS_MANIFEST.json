@@ -92,19 +92,19 @@
       "owner": "architecture"
     },
     {
-      "path": "docs/IMPLEMENTATION_PLAN_V3.md",
+      "path": "docs/archive/IMPLEMENTATION_PLAN_V3.md",
       "status": "historical",
       "authority": "historical-implementation-sequencing-reference",
       "owner": "archive"
     },
     {
-      "path": "docs/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
+      "path": "docs/archive/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
       "status": "historical",
       "authority": "historical-implementation-quality-contract",
       "owner": "archive"
     },
     {
-      "path": "docs/STREAM_C_SECURITY_ASSURANCE.md",
+      "path": "docs/archive/STREAM_C_SECURITY_ASSURANCE.md",
       "status": "historical",
       "authority": "historical-security-assurance-reference",
       "owner": "archive"

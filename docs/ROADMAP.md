@@ -485,9 +485,9 @@ C owns product shell/world-object/presentation state and affordances. It consume
 # Stream D - Assurance & Private-Preview Readiness
 
 **Status:** PARTIALLY LANDED / NOW CONSUMED AS BOUNDED ASSURANCE TRANCHES WITHIN P1-PT  
-**Primary programmes:** `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`, `STREAM_C_SECURITY_ASSURANCE.md` (legacy execution name), issue #314 hardening backlog, and later P1-U9/P1-W gates.
+**Primary programmes:** `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`, `docs/archive/STREAM_C_SECURITY_ASSURANCE.md` (legacy execution name), issue #314 hardening backlog, and later P1-U9/P1-W gates.
 
-The file `STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current product-transition programme, unresolved security/privacy/live-path findings are selected as bounded forward tranches rather than executed as a parallel stream.
+The file `docs/archive/STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current product-transition programme, unresolved security/privacy/live-path findings are selected as bounded forward tranches rather than executed as a parallel stream.
 
 Quest is a concrete reference platform for standalone-XR performance, interaction and comfort evidence. It is not a strategic ceiling and its unfinished qualification work does not block unrelated product-transition work.
 
@@ -734,8 +734,8 @@ These remain authoritative for their scoped contracts/evidence even when their s
 - `roadmap/P1_UV0_BASELINE_INVENTORY.md` - executable visible baseline/inventory;
 - `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md` - Quest validation operations specification;
 - `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` - active product-transition tranche specification;
-- `STREAM_C_SECURITY_ASSURANCE.md` - legacy-named security assurance finding set, now consumed by bounded P1-PT assurance tranches;
-- `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md` - implementation-quality policy from the prior wave, still useful as process guidance but not the current Stream A mission;
+- `docs/archive/STREAM_C_SECURITY_ASSURANCE.md` - legacy-named security assurance finding set, now consumed by bounded P1-PT assurance tranches;
+- `docs/archive/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md` - implementation-quality policy from the prior wave, still useful as process guidance but not the current Stream A mission;
 - issue #620 - historical product-transition checklist through the earlier tranches; stale for current status/ordering, which is governed by this roadmap;
 - issue #314 - post-Moneta hardening backlog;
 - issue #300 - major dependency modernization, deferred as a broad sprint during this wave.
