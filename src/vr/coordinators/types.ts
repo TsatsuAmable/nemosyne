@@ -839,7 +839,11 @@ export interface WorkspaceSurfaceManagerLike {
   has(id: string): boolean;
   idFor(panel: PanelLike): string | null;
   isVisible(id: string): boolean;
-  register(id: string, panel: PanelLike, options?: { recenter?: () => void; persist?: boolean }): void;
+  registerPanel(
+    id: string,
+    panel: PanelLike,
+    options?: { recenter?: () => void; persist?: boolean }
+  ): void;
   unregister(idOrPanel: string | PanelLike): void;
   show(id: string): boolean;
   hide(id: string): boolean;

@@ -65,8 +65,8 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
       expect(adapter.getInputSources().length).toBeGreaterThan(0);
       const frameProduced = await adapter.runInFrame((frame) => !!frame);
       expect(frameProduced).toBe(true);
-      const constructorName = (session as unknown as { constructor?: { name?: string } }).constructor
-        ?.name;
+      const constructorName = (session as unknown as { constructor?: { name?: string } })
+        .constructor?.name;
       expect(constructorName).toBe('XRSession');
     } finally {
       await adapter.endSession();
@@ -141,7 +141,10 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
         cameraGroup,
       };
       const router = new InputRouter(engine as never);
-      const controller = new ControllerPointer({ xr: { getController: () => new THREE.Group() } } as never, 0);
+      const controller = new ControllerPointer(
+        { xr: { getController: () => new THREE.Group() } } as never,
+        0
+      );
       router.addController(controller as never);
       bindInputSources(adapter.getInputSources(), controller, undefined);
 
@@ -163,7 +166,7 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
         position: [0, 1.5, -1],
         worldSize: [0.7, 0.5],
       });
-      surfaces.register('iwer-panel', panel);
+      surfaces.registerPanel('iwer-panel', panel);
       router.addPanel(panel);
 
       panel.mesh.position.set(0, 1.5, 8);
@@ -185,7 +188,9 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
 
       adapter.setControllerTrigger('right', true);
       const result = await adapter.runInFrame((frame) => {
-        const source = adapter.getInputSources().find((candidate) => candidate.handedness === 'right');
+        const source = adapter
+          .getInputSources()
+          .find((candidate) => candidate.handedness === 'right');
         const pose = frame.getPose(source!.targetRaySpace, refSpace);
         controller.space.matrix.fromArray(pose!.transform.matrix as unknown as number[]);
         controller.space.matrix.decompose(
@@ -343,7 +348,9 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
   it('fails closed for unsupported simulator capabilities', () => {
     const adapter = new WebXRSimulatorAdapter();
     expect(adapter.supportsFeature('hand-tracking')).toBe(true);
-    expect(() => adapter.assertSupported('dom-overlay')).toThrow(UnsupportedSimulatorCapabilityError);
+    expect(() => adapter.assertSupported('dom-overlay')).toThrow(
+      UnsupportedSimulatorCapabilityError
+    );
   });
 });
 
@@ -371,7 +378,9 @@ describe('P1-USIM / USIM-0 — simulator lifecycle and isolation', () => {
     // fresh device in another test sees unmodified geometry.
     const readThumbX = (adapter: WebXRSimulatorAdapter): number => {
       const hand = adapter.device.hands.right as never as {
-        [P_HAND_INPUT]?: { poses: Record<string, { jointTransforms: Record<string, { offsetMatrix: number[] }> }> };
+        [P_HAND_INPUT]?: {
+          poses: Record<string, { jointTransforms: Record<string, { offsetMatrix: number[] }> }>;
+        };
       };
       return hand[P_HAND_INPUT]?.poses.default.jointTransforms['thumb-tip'].offsetMatrix[12] ?? -1;
     };
