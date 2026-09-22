@@ -128,7 +128,10 @@ export class WorkspaceSurfaceManager {
     const panel = entry.panel;
     this._ensureReachable(entry);
     if (panel.show) panel.show();
-    else if (panel.mesh) {
+    // SpatialPanel/UIKit surfaces intentionally do not expose MovablePanel's
+    // show()/hide() lifecycle. Visibility therefore always has to be applied
+    // to the common mesh contract, even when a legacy show() hook exists.
+    if (panel.mesh) {
       panel.mesh.visible = true;
       if (panel.isMinimized != null) panel.isMinimized = false;
       if (panel.tilt != null) panel.mesh.rotation.x = -panel.tilt;
@@ -144,7 +147,8 @@ export class WorkspaceSurfaceManager {
     if (!entry) return false;
     const panel = entry.panel;
     if (panel.hide) panel.hide();
-    else if (panel.mesh) panel.mesh.visible = false;
+    // See show(): mesh visibility is the substrate-neutral lifecycle contract.
+    if (panel.mesh) panel.mesh.visible = false;
     this._notifyChange();
     return !panel.mesh?.visible;
   }
