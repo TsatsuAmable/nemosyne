@@ -16,7 +16,7 @@ describe('Phase 5: Spectral Analysis in Rust/WASM & AtlasCore', () => {
     directionalAnisotropy: 0.0,
     characteristicScale: 16.0,
     hasPeriodicity: true,
-    periodicityConfidence: 0.88,
+    periodicityHeuristicScore: 0.88,
     method: 'full-series-fft',
     observedCount: 64,
     transformLength: 64,

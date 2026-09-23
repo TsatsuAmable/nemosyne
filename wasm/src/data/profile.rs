@@ -55,7 +55,9 @@ pub struct CorrelationPairSummary {
     pub column_a: String,
     pub column_b: String,
     pub r: f64,
-    pub is_strong: bool,
+    /// True when `|r|` exceeds `CORRELATION_MAGNITUDE_THRESHOLD`. This is a
+    /// magnitude threshold, not a significance test.
+    pub exceeds_magnitude_threshold: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,7 +65,9 @@ pub struct CorrelationPairSummary {
 pub struct CorrelationProfile {
     pub pairs: Vec<CorrelationPairSummary>,
     pub max_correlation: f64,
-    pub significant_pairs_count: usize,
+    /// Count of pairs whose `|r|` exceeds `CORRELATION_MAGNITUDE_THRESHOLD`.
+    /// This is a magnitude count, not a count of statistically significant pairs.
+    pub pairs_above_magnitude_threshold: usize,
     pub is_rank_deficient: bool,
 }
 
@@ -74,7 +78,9 @@ pub struct ClusterProfile {
     pub has_clusters: bool,
     pub separation_score: f64,
     pub density_variation: f64,
-    pub stability_confidence: f64,
+    /// Deterministic affine rescale of the best silhouette score. Named for its
+    /// provenance: this is not a resampling-derived stability confidence.
+    pub heuristic_silhouette_partition_score: f64,
     pub method: String,
     pub eligible_observation_count: usize,
     pub sample_count: usize,
@@ -89,10 +95,13 @@ pub struct ClusterProfile {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DensityProfile {
-    pub global_density: f64,
-    pub local_density_variation: f64,
+    /// Row-count-banded scale/density proxy. This is a size heuristic, not a
+    /// density estimand and not a statistical confidence.
+    pub heuristic_scale_density_proxy: f64,
     pub mode_count: usize,
-    pub is_sparse: bool,
+    /// Sparse-by-row-count flag: a dataset-size threshold, not a density
+    /// measurement.
+    pub heuristic_sparse_by_row_count: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -103,8 +112,8 @@ pub struct PeriodicityProfile {
     /// Period in the same time-coordinate unit. This replaces the scientifically
     /// incorrect `periodSamples` label now that FFT uses the actual time axis.
     pub period_time_units: f64,
-    /// Historical heuristic score, not calibrated statistical confidence.
-    pub confidence: f64,
+    /// Non-calibrated heuristic periodicity score; not statistical confidence.
+    pub heuristic_score: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -197,7 +206,8 @@ pub struct SpectralProfile {
     pub spectral_entropy: f64,
     pub power_spectrum_peak: f64,
     pub has_periodicity: bool,
-    pub periodicity_confidence: f64,
+    /// Non-calibrated heuristic periodicity score; not statistical confidence.
+    pub periodicity_heuristic_score: f64,
     pub method: String,
     pub observed_count: usize,
     pub transform_length: usize,
@@ -238,6 +248,11 @@ pub struct DatasetStructureProfile {
     pub provenance: AnalysisProvenance,
 }
 
+/// Absolute Pearson correlation magnitude above which a pair is counted as
+/// exceeding the magnitude threshold. This is a magnitude rule, not a
+/// significance level: no null distribution or multiplicity correction is
+/// applied, so counts derived from it are not statistical significance.
+const CORRELATION_MAGNITUDE_THRESHOLD: f64 = 0.6;
 const MAX_CLUSTER_SAMPLE_ROWS: usize = 65_536;
 const CLUSTER_SAMPLING_SEED: u32 = 0x4e4d_5359;
 const CLUSTER_ITERATIONS: usize = 5;
@@ -278,7 +293,7 @@ fn empty_cluster_profile(
         has_clusters: false,
         separation_score: 0.0,
         density_variation: 0.0,
-        stability_confidence: 0.0,
+        heuristic_silhouette_partition_score: 0.0,
         method: method.to_string(),
         eligible_observation_count,
         sample_count,
@@ -542,7 +557,7 @@ fn evaluate_clusters_from_accessor(
             0.0
         },
         density_variation: if has_clusters { 0.25 } else { 0.0 },
-        stability_confidence: if has_clusters {
+        heuristic_silhouette_partition_score: if has_clusters {
             (best_silhouette * 0.9).clamp(0.1, 1.0)
         } else {
             0.0
@@ -919,23 +934,23 @@ fn assemble_structure_profile(
 
     let mut correlation_pairs = Vec::new();
     let mut max_correlation: f64 = 0.0;
-    let mut significant_pairs_count = 0;
+    let mut pairs_above_magnitude_threshold = 0;
     for pair in &stats.correlation {
         let absolute = pair.value.abs();
         max_correlation = max_correlation.max(absolute);
-        let is_strong = absolute > 0.6;
-        significant_pairs_count += usize::from(is_strong);
+        let exceeds_magnitude_threshold = absolute > CORRELATION_MAGNITUDE_THRESHOLD;
+        pairs_above_magnitude_threshold += usize::from(exceeds_magnitude_threshold);
         correlation_pairs.push(CorrelationPairSummary {
             column_a: pair.a.clone(),
             column_b: pair.b.clone(),
             r: pair.value,
-            is_strong,
+            exceeds_magnitude_threshold,
         });
     }
     let correlations = CorrelationProfile {
         pairs: correlation_pairs,
         max_correlation,
-        significant_pairs_count,
+        pairs_above_magnitude_threshold,
         is_rank_deficient: max_correlation > 0.98,
     };
     let dimensionality = DimensionalityProfile {
@@ -984,16 +999,15 @@ fn assemble_structure_profile(
         has_high_cardinality,
     };
     let density = DensityProfile {
-        global_density: if row_count >= 50 {
+        heuristic_scale_density_proxy: if row_count >= 50 {
             0.7
         } else if row_count >= 20 {
             0.4
         } else {
             0.15
         },
-        local_density_variation: if clusters.has_clusters { 0.3 } else { 0.1 },
         mode_count: clusters.estimated_count,
-        is_sparse: row_count < 15,
+        heuristic_sparse_by_row_count: row_count < 15,
     };
 
     let (temporal, spectral) = if !stats.temporal_stats.is_empty() && numeric_col_count > 0 {
@@ -1004,7 +1018,7 @@ fn assemble_structure_profile(
             spectral_entropy: facts.spectral_entropy,
             power_spectrum_peak: facts.power_spectrum_peak,
             has_periodicity: facts.has_periodicity,
-            periodicity_confidence: facts.periodicity_confidence,
+            periodicity_heuristic_score: facts.periodicity_heuristic_score,
             method: facts.method.clone(),
             observed_count: facts.observed_count,
             transform_length: facts.transform_length,
@@ -1026,7 +1040,7 @@ fn assemble_structure_profile(
                         } else {
                             0.0
                         },
-                        confidence: profile.periodicity_confidence,
+                        heuristic_score: profile.periodicity_heuristic_score,
                     })
                     .collect()
             })

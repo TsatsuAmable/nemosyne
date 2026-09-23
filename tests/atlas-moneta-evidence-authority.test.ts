@@ -29,7 +29,7 @@ function profile(): RustDatasetStructureProfile {
     correlations: {
       pairs: [],
       maxCorrelation: 0.7,
-      significantPairsCount: 1,
+      pairsAboveMagnitudeThreshold: 1,
       isRankDeficient: false,
     },
     clusters: {
@@ -37,7 +37,7 @@ function profile(): RustDatasetStructureProfile {
       hasClusters: true,
       separationScore: 0.8,
       densityVariation: 0.61,
-      stabilityConfidence: 0.72,
+      heuristicSilhouettePartitionScore: 0.72,
       method: 'full-complete-row-kmeans',
       eligibleObservationCount: 128,
       sampleCount: 128,
@@ -49,10 +49,9 @@ function profile(): RustDatasetStructureProfile {
       silhouetteSampleCount: 50,
     },
     density: {
-      globalDensity: 0.4,
-      localDensityVariation: 0.61,
+      heuristicScaleDensityProxy: 0.4,
       modeCount: 4,
-      isSparse: false,
+      heuristicSparseByRowCount: false,
     },
     temporal: null,
     graph: null,
@@ -124,6 +123,19 @@ function kernel(): WasmRuntimeBridgeFull {
   };
 }
 
+/**
+ * Clone the authoritative fixture into a plain mutable payload so a single
+ * field can be dropped, or a retired pre-TEC2 name re-introduced, the way a
+ * stale kernel build or a `#[serde(alias)]` would.
+ */
+function mutatedProfile(
+  mutate: (raw: Record<string, unknown>) => void
+): RustDatasetStructureProfile {
+  const raw = JSON.parse(JSON.stringify(profile())) as Record<string, unknown>;
+  mutate(raw);
+  return raw as unknown as RustDatasetStructureProfile;
+}
+
 function dataset(): Dataset {
   return Dataset.fromJSON({
     name: 'authority-fixture',
@@ -175,6 +187,77 @@ describe('Atlas → Moneta evidence authority boundary', () => {
     expect(() =>
       datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => null }, 7)
     ).toThrow(/structureprofile unavailable/i);
+  });
+
+  it('fails closed when a TEC2-renamed kernel field is missing from the payload', () => {
+    const missingDensity = mutatedProfile((raw) => {
+      delete (raw.density as Record<string, unknown>).heuristicScaleDensityProxy;
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => missingDensity }, 7)
+    ).toThrow(/heuristicScaleDensityProxy/);
+
+    const missingCluster = mutatedProfile((raw) => {
+      delete (raw.clusters as Record<string, unknown>).heuristicSilhouettePartitionScore;
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => missingCluster }, 7)
+    ).toThrow(/heuristicSilhouettePartitionScore/);
+  });
+
+  it('rejects a payload that still carries a retired pre-TEC2 field name', () => {
+    const retiredDensity = mutatedProfile((raw) => {
+      (raw.density as Record<string, unknown>).localDensityVariation = 0.3;
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => retiredDensity }, 7)
+    ).toThrow(/localDensityVariation/);
+
+    const retiredCorrelation = mutatedProfile((raw) => {
+      (raw.correlations as Record<string, unknown>).significantPairsCount = 1;
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile(
+        { computeDatasetStructureProfile: () => retiredCorrelation },
+        7
+      )
+    ).toThrow(/significantPairsCount/);
+
+    const retiredPairFlag = mutatedProfile((raw) => {
+      const correlations = raw.correlations as Record<string, unknown>;
+      correlations.pairs = [
+        { columnA: 'x', columnB: 'y', r: 0.9, exceedsMagnitudeThreshold: true, isStrong: true },
+      ];
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile(
+        { computeDatasetStructureProfile: () => retiredPairFlag },
+        7
+      )
+    ).toThrow(/isStrong/);
+
+    // The worst case: the retired name is still present *and* the new name was
+    // emitted alongside it, which is what a `#[serde(alias)]` would look like.
+    const aliasedSpectral = mutatedProfile((raw) => {
+      raw.spectral = {
+        periodicityHeuristicScore: 0.8,
+        hasPeriodicity: true,
+        periodicityConfidence: 0.8,
+      };
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile({ computeDatasetStructureProfile: () => aliasedSpectral }, 7)
+    ).toThrow(/periodicityConfidence/);
+
+    const aliasedPeriodicity = mutatedProfile((raw) => {
+      raw.temporal = { periodicities: [{ heuristicScore: 0.8, confidence: 0.8 }] };
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile(
+        { computeDatasetStructureProfile: () => aliasedPeriodicity },
+        7
+      )
+    ).toThrow(/confidence/);
   });
 
   it('lets RepresentationState rank only the signature reconstructed from Rust evidence', () => {

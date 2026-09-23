@@ -57,10 +57,9 @@ function evidence(): DatasetEvidence {
         maxSkewness: 0,
       }),
       item('density:global', 'density', {
-        globalDensity: 1,
-        heuristicLocalDensityVariation: 0,
+        heuristicScaleDensityProxy: 1,
         heuristicModeCount: 1,
-        isSparse: false,
+        heuristicSparseByRowCount: false,
       }),
       item('cluster:global', 'cluster', {
         heuristicEstimatedCount: 1,

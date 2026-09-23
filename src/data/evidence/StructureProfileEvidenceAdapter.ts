@@ -74,6 +74,13 @@ function item(
  * validates, and transports facts already emitted by Rust/WASM. Legacy Rust
  * field names that overstate statistical meaning are intentionally translated
  * to epistemically narrower names at this canonical evidence boundary.
+ *
+ * TEC2 completed that translation at the transport too: the Rust fields now
+ * carry the same narrowed vocabulary this adapter emits (`heuristic*`,
+ * `...MagnitudeThreshold`), so no field is renamed on the way through. The
+ * `global_density` value is now narrowed on both sides, and
+ * `local_density_variation` was removed rather than renamed — it was a
+ * two-valued constant with no estimand behind it.
  */
 export function structureProfileToDatasetEvidence(
   profile: RustDatasetStructureProfile
@@ -136,10 +143,9 @@ export function structureProfileToDatasetEvidence(
       'density',
       'density-profile',
       {
-        globalDensity: profile.density.globalDensity,
-        heuristicLocalDensityVariation: profile.density.localDensityVariation,
+        heuristicScaleDensityProxy: profile.density.heuristicScaleDensityProxy,
         heuristicModeCount: profile.density.modeCount,
-        isSparse: profile.density.isSparse,
+        heuristicSparseByRowCount: profile.density.heuristicSparseByRowCount,
       },
       'structure-profile/density'
     ),
@@ -153,7 +159,7 @@ export function structureProfileToDatasetEvidence(
         heuristicPartitionDetected: profile.clusters.hasClusters,
         heuristicSeparationScore: profile.clusters.separationScore,
         heuristicDensityVariation: profile.clusters.densityVariation,
-        legacySilhouetteDerivedScore: profile.clusters.stabilityConfidence,
+        legacySilhouetteDerivedScore: profile.clusters.heuristicSilhouettePartitionScore,
         method: profile.clusters.method,
         eligibleObservationCount: profile.clusters.eligibleObservationCount,
         sampleCount: profile.clusters.sampleCount,
@@ -206,10 +212,10 @@ export function structureProfileToDatasetEvidence(
           columnA: pair.columnA,
           columnB: pair.columnB,
           r: pair.r,
-          isStrongByMagnitudeThreshold: pair.isStrong,
+          isStrongByMagnitudeThreshold: pair.exceedsMagnitudeThreshold,
         })),
         maxAbsolutePearsonCorrelation: profile.correlations.maxCorrelation,
-        strongCorrelationPairCount: profile.correlations.significantPairsCount,
+        strongCorrelationPairCount: profile.correlations.pairsAboveMagnitudeThreshold,
         heuristicRankDeficiency: profile.correlations.isRankDeficient,
       },
       'structure-profile/correlations'
@@ -267,7 +273,7 @@ export function structureProfileToDatasetEvidence(
           periodicities: profile.temporal.periodicities.map((periodicity) => ({
             frequencyPerTimeUnit: periodicity.frequency,
             periodTimeUnits: periodicity.periodTimeUnits,
-            heuristicScore: periodicity.confidence,
+            heuristicScore: periodicity.heuristicScore,
           })),
         },
         'structure-profile/temporal',
@@ -294,7 +300,7 @@ export function structureProfileToDatasetEvidence(
           spectralEntropy: profile.spectral.spectralEntropy,
           powerSpectrumPeak: profile.spectral.powerSpectrumPeak,
           heuristicPeriodicityDetected: profile.spectral.hasPeriodicity,
-          periodicityHeuristicScore: profile.spectral.periodicityConfidence,
+          periodicityHeuristicScore: profile.spectral.periodicityHeuristicScore,
           method: profile.spectral.method,
           observedCount: profile.spectral.observedCount,
           transformLength: profile.spectral.transformLength,

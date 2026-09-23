@@ -21,8 +21,8 @@ export class EvidenceWeightedScorer {
       return { adjustedCost: baseCost, evidenceAdjustment: 0, sampleCount: 0 };
     }
 
-    const confidenceWeight = Math.min(1.0, utility.sampleCount / 10);
-    const utilityDelta = (utility.compositeUtility - 0.5) * 30.0 * confidenceWeight;
+    const sampleCountWeight = Math.min(1.0, utility.sampleCount / 10);
+    const utilityDelta = (utility.compositeUtility - 0.5) * 30.0 * sampleCountWeight;
     const adjustedCost = Math.max(0, Math.round(baseCost - utilityDelta));
 
     return {
@@ -39,8 +39,8 @@ export class EvidenceWeightedScorer {
   ): { adjustedCost: number; empiricalDelta: number; utilityScore: number } {
     const utility = this._store.computeUtilityForSpec(candidate, condition);
     const u = utility ? utility.compositeUtility : 0.5;
-    const confidenceWeight = utility ? Math.min(1.0, utility.sampleCount / 10) : 0;
-    const empiricalDelta = (0.5 - u) * 20.0 * (confidenceWeight || 1.0);
+    const sampleCountWeight = utility ? Math.min(1.0, utility.sampleCount / 10) : 0;
+    const empiricalDelta = (0.5 - u) * 20.0 * (sampleCountWeight || 1.0);
     const adjustedCost = Math.max(0, baseCost + empiricalDelta);
     return {
       adjustedCost,

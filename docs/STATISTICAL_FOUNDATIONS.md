@@ -104,16 +104,16 @@ These states describe mathematical applicability, not empirical truth.
 
 Current bootstrap heuristics remain useful, but several names overstate their evidence:
 
-| Current field / concept | Current computation | Required migration |
-| --- | --- | --- |
-| `CorrelationProfile.significant_pairs_count` | counts pairs with `abs(r) > 0.6` | rename to magnitude-based terminology unless an actual inferential test is introduced |
-| `ClusterProfile.stability_confidence` | deterministic function of silhouette score | rename as heuristic separation/partition score until resampling stability exists |
-| `SpectralFacts.periodicity_confidence` | weighted combination of peak power and spectral entropy | rename as heuristic periodicity score until calibration exists |
-| `DensityProfile.global_density` | row-count threshold heuristic | label as heuristic scale/density proxy or replace with a defined density estimand |
-| `DensityProfile.local_density_variation` | fixed value conditioned on heuristic cluster detection | remove or replace with an actual local-density statistic |
-| Moneta sample-count `confidence_weight` | saturating sample-count multiplier | rename as sample-count weight; it is not statistical confidence |
+| Current field / concept | Current computation | Required migration | Status |
+| --- | --- | --- | --- |
+| `CorrelationProfile.significant_pairs_count` | counts pairs with `abs(r) > 0.6` | rename to magnitude-based terminology unless an actual inferential test is introduced | **RESOLVED (TEC2)** — Rust `pairs_above_magnitude_threshold` (wire `pairsAboveMagnitudeThreshold`); the `0.6` literal is now the named `CORRELATION_MAGNITUDE_THRESHOLD`; the TypeScript recomputation of this count at a different threshold was deleted outright |
+| `ClusterProfile.stability_confidence` | deterministic function of silhouette score | rename as heuristic separation/partition score until resampling stability exists | **RESOLVED (TEC2)** — Rust `heuristic_silhouette_partition_score` (wire `heuristicSilhouettePartitionScore`); adapter key `legacySilhouetteDerivedScore` unchanged |
+| `SpectralFacts.periodicity_confidence` | weighted combination of peak power and spectral entropy | rename as heuristic periodicity score until calibration exists | **RESOLVED (TEC2)** — Rust `periodicity_heuristic_score` (wire `periodicityHeuristicScore`), on both the kernel-ABI facts and the structure profile; the legacy `DatasetSignature` alias field and fact path were deleted rather than kept |
+| `DensityProfile.global_density` | row-count threshold heuristic | label as heuristic scale/density proxy or replace with a defined density estimand | **RESOLVED (TEC2)** — Rust `heuristic_scale_density_proxy` (wire `heuristicScaleDensityProxy`), narrowing both the transport and the adapter value |
+| `DensityProfile.local_density_variation` | fixed value conditioned on heuristic cluster detection | remove or replace with an actual local-density statistic | **RESOLVED (TEC2)** — removed from the Rust struct, the transport mirror, and the adapter value. A real local-density estimand must arrive under a new name with its own contract |
+| Moneta sample-count `confidence_weight` | saturating sample-count multiplier | rename as sample-count weight; it is not statistical confidence | **RESOLVED (TEC2)** — `sample_count_weight` in `wasm/src/{moneta,draco}/evidence.rs` and `sampleCountWeight` in `EvidenceWeightedScorer.ts`. No wire key was involved |
 
-Compatibility changes must inventory serialized consumers before removing or renaming fields.
+Compatibility changes must inventory serialized consumers before removing or renaming fields. That inventory is `docs/audits/TEC2_HEURISTIC_TERMINOLOGY_INVENTORY_2026-09-21.md`. At the **wire/transport level** it records that none of these six names reaches persistence, export, replay or an external consumer: `DatasetStructureProfile` is internal transport, so the renames were applied in place with **no compatibility alias**. At the **signature level** (corrected 2026-09-23, RFC 0008) two deleted fields — `dependence.significantPairsCount` and `spectralStructure.periodicityConfidence` — had been carried inside historical persisted `RepresentationDecision.datasetSignature` payloads (`investigation/representation.json`) and are digest-bearing in the v2 investigation digest; packages carrying them continue to replay because replay restores decisions verbatim, and any future stripping or normalization of those persisted keys is an explicit, versioned format migration. Re-publishing a retired name through `#[serde(alias)]` is prohibited — it would reinstate exactly the overstatement this section removes. The boundary validator rejects a retired name if it ever reappears **in a live wire payload from the kernel**; per RFC 0008 that rejection never applies to historical persisted representation decisions.
 
 ## Measurement semantics
 

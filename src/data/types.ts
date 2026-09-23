@@ -240,7 +240,8 @@ export interface SpectralFacts {
   directionalAnisotropy: number;
   characteristicScale: number;
   hasPeriodicity: boolean;
-  periodicityConfidence: number;
+  /** Uncalibrated deterministic heuristic periodicity score, not statistical confidence. */
+  periodicityHeuristicScore: number;
   method: string;
   observedCount: number;
   transformLength: number;

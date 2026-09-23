@@ -51,9 +51,6 @@ function markSpectralFacts(
   markDatasetSignatureFact(epistemic, 'spectralStructure.hasPeriodicity', 'heuristic', {
     note: 'Periodicity detection is a non-calibrated analytical heuristic',
   });
-  if (spectral.periodicityConfidence !== undefined) {
-    markDatasetSignatureFact(epistemic, 'spectralStructure.periodicityConfidence', 'heuristic');
-  }
   if (spectral.periodicityHeuristicScore !== undefined) {
     markDatasetSignatureFact(epistemic, 'spectralStructure.periodicityHeuristicScore', 'heuristic');
   }
@@ -76,18 +73,23 @@ function meanCategoricalEntropy(facts: Facts): number | undefined {
     facts.categorical.length;
 }
 
-function correlationSummary(facts: Facts): {
-  maxCorrelation: number;
-  significantPairsCount: number;
-} {
+/**
+ * Largest absolute pairwise correlation, reduced from kernel-supplied pairs.
+ *
+ * TEC2 removed the pair-count reduction that previously lived here. It applied a
+ * `>= 0.5` magnitude threshold in TypeScript while the Rust kernel applies
+ * `> 0.6`, and labelled the result `measured`. A count of pairs above an
+ * arbitrary magnitude threshold is not a statistical significance claim, so the
+ * count is no longer derived in TypeScript at all; the kernel-owned count travels
+ * as `strongCorrelationPairCount` on the DatasetEvidence envelope.
+ */
+function maxAbsoluteCorrelation(facts: Facts): number {
   let maxCorrelation = 0;
-  let significantPairsCount = 0;
   for (const corr of facts.correlation) {
     const absolute = Math.abs(corr.value);
     if (absolute > maxCorrelation) maxCorrelation = absolute;
-    if (absolute >= 0.5) significantPairsCount += 1;
   }
-  return { maxCorrelation, significantPairsCount };
+  return maxCorrelation;
 }
 
 function numericSummary(facts: Facts): {
@@ -152,13 +154,11 @@ export function buildDatasetSignature(
 
     if (facts) {
       const numeric = numericSummary(facts);
-      const correlations = correlationSummary(facts);
       distribution.hasOutliers = numeric.totalOutliers > 0;
       distribution.outlierFraction = numeric.totalOutliers / Math.max(1, facts.rowCount);
       distribution.anomalyCount = numeric.totalOutliers;
       distribution.maxSkewness = numeric.maxSkewness;
-      dependence.maxCorrelation = correlations.maxCorrelation;
-      dependence.significantPairsCount = correlations.significantPairsCount;
+      dependence.maxCorrelation = maxAbsoluteCorrelation(facts);
       mark(
         epistemic,
         [
@@ -167,7 +167,6 @@ export function buildDatasetSignature(
           'distribution.anomalyCount',
           'distribution.maxSkewness',
           'dependence.maxCorrelation',
-          'dependence.significantPairsCount',
         ],
         'measured',
         'Computed by supplied Rust kernel Facts',
@@ -343,13 +342,11 @@ export function buildDatasetSignature(
 
   if (hasKernelFacts) {
     const numeric = numericSummary(facts);
-    const correlations = correlationSummary(facts);
     distribution.hasOutliers = numeric.totalOutliers > 0;
     distribution.outlierFraction = numeric.totalOutliers / Math.max(1, rowCount);
     distribution.anomalyCount = numeric.totalOutliers;
     distribution.maxSkewness = numeric.maxSkewness;
-    dependence.maxCorrelation = correlations.maxCorrelation;
-    dependence.significantPairsCount = correlations.significantPairsCount;
+    dependence.maxCorrelation = maxAbsoluteCorrelation(facts);
     mark(
       epistemic,
       [
@@ -358,7 +355,6 @@ export function buildDatasetSignature(
         'distribution.anomalyCount',
         'distribution.maxSkewness',
         'dependence.maxCorrelation',
-        'dependence.significantPairsCount',
       ],
       'measured',
       'Computed by supplied Rust kernel Facts',

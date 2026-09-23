@@ -252,13 +252,6 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
   markFromEvidence(epistemic, 'dependence.maxCorrelation', 'measured', dependencyItem);
   markFromEvidence(
     epistemic,
-    'dependence.significantPairsCount',
-    'heuristic',
-    dependencyItem,
-    'Pair count uses a magnitude threshold; it is not statistical significance',
-  );
-  markFromEvidence(
-    epistemic,
     'dependence.rankDeficiency',
     'heuristic',
     dependencyItem,
@@ -443,10 +436,6 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
       maxCorrelation: finiteNumber(
         dependency.maxAbsolutePearsonCorrelation,
         'dependency.maxAbsolutePearsonCorrelation',
-      ),
-      significantPairsCount: finiteNumber(
-        dependency.strongCorrelationPairCount,
-        'dependency.strongCorrelationPairCount',
       ),
       rankDeficiency: booleanValue(
         dependency.heuristicRankDeficiency,

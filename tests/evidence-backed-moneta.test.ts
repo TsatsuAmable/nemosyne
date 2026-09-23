@@ -68,10 +68,9 @@ function evidence(extra: AnalyticalEvidence[] = [], densityVariation = 0): Datas
         maxSkewness: 0,
       }),
       item('density:global', 'density', {
-        globalDensity: 1,
-        heuristicLocalDensityVariation: densityVariation,
+        heuristicScaleDensityProxy: 1,
         heuristicModeCount: 1,
-        isSparse: false,
+        heuristicSparseByRowCount: false,
       }),
       item('cluster:global', 'cluster', {
         heuristicEstimatedCount: densityVariation > 0 ? 2 : 1,
