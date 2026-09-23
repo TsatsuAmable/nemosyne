@@ -338,7 +338,7 @@ export function installDevEvidence({
       onStop: () => handle.stop(),
       onFlush: () => handle.flush(),
     });
-    uiManager.workspaceSurfaces.register('dev-load-test', loadTestPanel);
+    uiManager.workspaceSurfaces.registerPanel('dev-load-test', loadTestPanel);
     applyPanelLayout(loadTestPanel, PANEL_LAYOUT.loadTestPanel);
     engine.input.addPanel(loadTestPanel);
     engine.addUpdatable(loadTestPanel);
@@ -369,7 +369,7 @@ export function installDevEvidence({
         await refreshValidationStatus();
       },
     });
-    uiManager.workspaceSurfaces.register('device-validation', validationPanel);
+    uiManager.workspaceSurfaces.registerPanel('device-validation', validationPanel);
     applyPanelLayout(validationPanel, PANEL_LAYOUT.loadTestPanel);
     engine.input.addPanel(validationPanel);
     engine.addUpdatable(validationPanel);
@@ -403,8 +403,7 @@ export function installDevEvidence({
       if (validationContext) {
         getOrCreateValidationPanel();
         uiManager.showWorkspaceSurface('device-validation');
-      }
-      else handle.runLoadTest();
+      } else handle.runLoadTest();
     },
     stop: () => handle.stop(),
   };

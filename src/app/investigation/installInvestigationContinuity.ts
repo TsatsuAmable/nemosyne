@@ -37,7 +37,7 @@ export function installInvestigationContinuity(app: AppInstance): () => void {
 
   const desktop = mountDesktopInvestigationContinuity(continuity);
   const panel = new InvestigationContinuityPanel(world.uiManager.analystAnchor, continuity);
-  world.uiManager.workspaceSurfaces.register('investigation-continuity', panel);
+  world.uiManager.workspaceSurfaces.registerPanel('investigation-continuity', panel);
   world.uiManager.workspaceSurfaces.hide('investigation-continuity');
 
   const vault = world.uiManager.vaultPanel;
@@ -69,17 +69,20 @@ export function installInvestigationContinuity(app: AppInstance): () => void {
   // callbacks active would allow weaker digest-null checkpoints and portable
   // exports without PT5D's resumable workspace entry.
   vault.onFreeze = () => {
-    void continuity.createCheckpoint('Evidence Vault checkpoint')
+    void continuity
+      .createCheckpoint('Evidence Vault checkpoint')
       .then(() => refresh())
       .catch((error) => logFailure('Checkpoint', error));
   };
   vault.onRestore = (archiveId) => {
-    void continuity.restoreCheckpoint(archiveId)
+    void continuity
+      .restoreCheckpoint(archiveId)
       .then(() => refresh())
       .catch((error) => logFailure('Checkpoint restore', error));
   };
   vault.onExport = (archiveId) => {
-    void continuity.exportCheckpoint(archiveId)
+    void continuity
+      .exportCheckpoint(archiveId)
       .then((bytes) => {
         downloadPortable(bytes);
         refresh();
@@ -87,14 +90,21 @@ export function installInvestigationContinuity(app: AppInstance): () => void {
       .catch((error) => logFailure('Checkpoint export', error));
   };
   vault.onDelete = (archiveId) => {
-    void continuity.deleteCheckpoint(archiveId)
+    void continuity
+      .deleteCheckpoint(archiveId)
       .then(() => refresh())
       .catch((error) => logFailure('Checkpoint delete', error));
   };
 
-  const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, () => queueMicrotask(refresh));
-  const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, () => queueMicrotask(refresh));
-  const unsubscribeHistory = world.eventBus.on(WorldTopics.HISTORY_SEEK, () => queueMicrotask(refresh));
+  const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, () =>
+    queueMicrotask(refresh)
+  );
+  const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, () =>
+    queueMicrotask(refresh)
+  );
+  const unsubscribeHistory = world.eventBus.on(WorldTopics.HISTORY_SEEK, () =>
+    queueMicrotask(refresh)
+  );
 
   refresh();
 
