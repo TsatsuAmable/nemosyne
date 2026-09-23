@@ -1,0 +1,90 @@
+import { describe, it, expect } from 'vitest';
+import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
+
+const mockDracoFacts = {
+  topology: 'TABULAR',
+  rowCount: 100,
+  nodeCount: 100,
+  edgeCount: 0,
+  depth: 0,
+  numericColumns: 3,
+  categoricalColumns: 2,
+  temporalColumns: 1,
+  hasTimeSeries: true,
+  hasContinuousValues: true,
+  density: 0.8,
+  estimatedDensity: 0.8,
+  outlierCount: 5,
+  cardinalityOfColor: 5,
+  hasHighCardinality: false,
+  isLargeDataset: false,
+  clusterCount: 3,
+  columnStats: {
+    colA: {
+      mean: 10,
+      median: 9,
+      stdDev: 2,
+      skew: 0.45,
+      kurtosis: 1.2,
+      min: 2,
+      max: 20,
+    },
+  },
+  correlationMatrix: {
+    colA: { colB: 0.75 },
+  },
+  categoryDistribution: {
+    catA: { topCategories: [], entropy: 1.5 },
+  },
+  trendDirection: 'up',
+  seasonalityHint: true,
+  hasOutliers: true,
+  hasHighVariance: true,
+  numericSkew: 0.45,
+  topCategory: null,
+};
+
+const mockKernelFacts = {
+  rowCount: 100,
+  columnCount: 6,
+  numeric: [
+    {
+      name: 'colA',
+      count: 100,
+      sum: 1000,
+      mean: 10,
+      median: 9,
+      std: 2,
+      var: 4,
+      min: 2,
+      max: 20,
+      skew: 0.45,
+      kurtosis: 1.2,
+      outlierCount: 5,
+    },
+  ],
+  categorical: [
+    {
+      name: 'catA',
+      cardinality: 5,
+      entropy: 1.5,
+      top: [],
+    },
+  ],
+  correlation: [
+    { a: 'colA', b: 'colB', value: 0.75 },
+  ],
+  temporal: [],
+  temporalStats: [],
+};
+
+describe('DatasetSignature provenance for maxCorrelation', () => {
+  it('marks dependence.maxCorrelation as derived from Rust kernel pairs', () => {
+    const sig = buildDatasetSignature(mockDracoFacts, mockKernelFacts, null, 'fp-tabular');
+    const fact = sig.epistemic?.facts['dependence.maxCorrelation'];
+    expect(fact).toBeDefined();
+    expect(fact?.source).toBe('derived');
+    expect(fact?.note).toContain('Rust kernel correlation');
+    expect(sig.dependence.maxCorrelation).toBe(0.75);
+  });
+});
