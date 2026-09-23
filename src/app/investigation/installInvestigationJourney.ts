@@ -44,7 +44,7 @@ export function installInvestigationJourney(app: AppInstance): () => void {
 
   const desktop = mountDesktopInvestigationJourney({ journey, subscribeContext });
   const panel = new InvestigationJourneyPanel(world.uiManager.analystAnchor, journey);
-  world.uiManager.workspaceSurfaces.register('investigation-journey', panel);
+  world.uiManager.workspaceSurfaces.registerPanel('investigation-journey', panel);
   world.uiManager.workspaceSurfaces.hide('investigation-journey');
 
   const unsubscribePanelContext = subscribeContext(() => panel.refreshJourney());

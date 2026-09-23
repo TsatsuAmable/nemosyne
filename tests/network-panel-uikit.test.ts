@@ -49,7 +49,7 @@ describe('NetworkPanel UXR1 UIKit migration', () => {
     const manager = new WorkspaceSurfaceManager(cameraGroup, camera);
     const panel = new NetworkPanel(anchor);
 
-    manager.register('network', panel);
+    manager.registerPanel('network', panel);
     expect(manager.panels).toContain(panel);
     manager.hide('network');
     expect(panel.visible).toBe(false);

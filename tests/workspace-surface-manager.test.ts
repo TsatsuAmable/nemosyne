@@ -45,7 +45,7 @@ describe('WorkspaceSurfaceManager', () => {
 
   it('registers surfaces by stable id and unregisters them', () => {
     const panel = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
-    manager.register('a', panel);
+    manager.registerPanel('a', panel);
 
     expect(manager.ids()).toEqual(['a']);
     expect(manager.idFor(panel)).toBe('a');
@@ -59,18 +59,47 @@ describe('WorkspaceSurfaceManager', () => {
   it('uses the panel show lifecycle rather than only flipping mesh visibility', () => {
     const panel = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
     panel.hide();
-    manager.register('a', panel);
+    manager.registerPanel('a', panel);
 
     expect(manager.show('a')).toBe(true);
     expect(panel.showCalls).toBe(1);
     expect(panel.mesh.visible).toBe(true);
   });
 
-  it('shows and hides SpatialPanel-like surfaces without MovablePanel lifecycle methods', () => {
+  it('drives an explicit substrate-neutral lifecycle without probing panel hooks', () => {
+    const root = new THREE.Group();
+    root.visible = false;
+    root.position.set(0, 1.5, -1);
+    const panel = { mesh: root, title: 'Explicit' };
+    const open = vi.fn(() => {
+      root.visible = true;
+    });
+    const close = vi.fn(() => {
+      root.visible = false;
+    });
+    const recenter = vi.fn();
+    manager.register('explicit', {
+      panel,
+      root,
+      isOpen: () => root.visible,
+      open,
+      close,
+      recenter,
+    });
+
+    expect(manager.show('explicit')).toBe(true);
+    expect(open).toHaveBeenCalledOnce();
+    expect(manager.hide('explicit')).toBe(true);
+    expect(close).toHaveBeenCalledOnce();
+    manager.recenter('explicit');
+    expect(recenter).toHaveBeenCalled();
+  });
+
+  it('adapts SpatialPanel-like surfaces at registration without MovablePanel lifecycle methods', () => {
     const spatial = new THREE.Group();
     spatial.visible = false;
     spatial.position.set(0, 1.5, -1);
-    manager.register('spatial', { mesh: spatial, title: 'Spatial' });
+    manager.registerPanel('spatial', { mesh: spatial, title: 'Spatial' });
 
     expect(manager.show('spatial')).toBe(true);
     expect(spatial.visible).toBe(true);
@@ -81,8 +110,8 @@ describe('WorkspaceSurfaceManager', () => {
   it('toggles surfaces independently', () => {
     const a = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
     const b = new TestPanel(cameraGroup, 'B', [0.5, 1.5, -1]);
-    manager.register('a', a);
-    manager.register('b', b);
+    manager.registerPanel('a', a);
+    manager.registerPanel('b', b);
 
     manager.hide('a');
     expect(a.mesh.visible).toBe(false);
@@ -95,7 +124,7 @@ describe('WorkspaceSurfaceManager', () => {
 
   it('recovers an off-view panel into its governed default position when opened', () => {
     const panel = new TestPanel(cameraGroup, 'A', [0.2, 1.5, -1]);
-    manager.register('a', panel);
+    manager.registerPanel('a', panel);
     panel.mesh.position.set(0, 1.5, 8);
     panel.hide();
 
@@ -105,7 +134,9 @@ describe('WorkspaceSurfaceManager', () => {
     const world = new THREE.Vector3();
     const cameraWorld = new THREE.Vector3();
     panel.mesh.getWorldPosition(world);
-    const camera = cameraGroup.children.find((child) => child instanceof THREE.Camera) as THREE.Camera;
+    const camera = cameraGroup.children.find(
+      (child) => child instanceof THREE.Camera
+    ) as THREE.Camera;
     camera.getWorldPosition(cameraWorld);
     expect(world.distanceTo(cameraWorld)).toBeLessThan(2.5);
     const forward = new THREE.Vector3();
@@ -119,7 +150,7 @@ describe('WorkspaceSurfaceManager', () => {
     analystAnchor.position.set(0, 1.35, -1);
     local.cameraGroup.add(analystAnchor);
     const panel = new TestPanel(analystAnchor, 'FAR DEFAULT', [0, -0.3, -1.6]);
-    local.manager.register('far', panel);
+    local.manager.registerPanel('far', panel);
     panel.hide();
 
     local.manager.show('far');
@@ -134,12 +165,10 @@ describe('WorkspaceSurfaceManager', () => {
 
   it('recovers a surface whose persisted pose is implausibly far away', () => {
     const panel = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
-    manager.register('a', panel);
+    manager.registerPanel('a', panel);
     panel.hide();
 
-    manager.restorePositions([
-      { id: 'a', title: 'A', position: [40, 2, -40], visible: true },
-    ]);
+    manager.restorePositions([{ id: 'a', title: 'A', position: [40, 2, -40], visible: true }]);
 
     expect(panel.mesh.visible).toBe(true);
     expect(panel.mesh.position.toArray()).toEqual([0, 1.5, -1]);
@@ -148,8 +177,8 @@ describe('WorkspaceSurfaceManager', () => {
   it('captures and restores stable-id positions and visibility', () => {
     const a = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
     const b = new TestPanel(cameraGroup, 'B', [0.5, 1.5, -1]);
-    manager.register('a', a);
-    manager.register('b', b);
+    manager.registerPanel('a', a);
+    manager.registerPanel('b', b);
     a.mesh.position.set(0.1, 1.4, -0.9);
     manager.hide('b');
 
@@ -169,8 +198,8 @@ describe('WorkspaceSurfaceManager', () => {
     const restoredHarness = harness();
     const restoredA = new TestPanel(restoredHarness.cameraGroup, 'A', [0, 1.5, -1]);
     const restoredB = new TestPanel(restoredHarness.cameraGroup, 'B', [0.5, 1.5, -1]);
-    restoredHarness.manager.register('a', restoredA);
-    restoredHarness.manager.register('b', restoredB);
+    restoredHarness.manager.registerPanel('a', restoredA);
+    restoredHarness.manager.registerPanel('b', restoredB);
     restoredHarness.manager.restorePositions(snapshot);
 
     expect(restoredA.mesh.position.toArray()).toEqual([0.1, 1.4, -0.9]);
@@ -181,8 +210,8 @@ describe('WorkspaceSurfaceManager', () => {
   it('never restores by display title when a stable surface id is absent or unknown', () => {
     const first = new TestPanel(cameraGroup, 'DUPLICATE', [-0.4, 1.5, -1]);
     const second = new TestPanel(cameraGroup, 'DUPLICATE', [0.4, 1.5, -1]);
-    manager.register('first', first);
-    manager.register('second', second);
+    manager.registerPanel('first', first);
+    manager.registerPanel('second', second);
 
     manager.restorePositions([
       { id: 'missing', title: 'DUPLICATE', position: [0, 1.2, -0.6], visible: false },
@@ -201,8 +230,8 @@ describe('WorkspaceSurfaceManager', () => {
     spatial.position.set(5, 5, 5);
     const resetSpatial = vi.fn(() => spatial.position.set(0.6, 1.4, -1.1));
 
-    manager.register('legacy', legacy);
-    manager.register(
+    manager.registerPanel('legacy', legacy);
+    manager.registerPanel(
       'spatial',
       { mesh: spatial, title: 'Spatial' },
       { recenter: resetSpatial }
@@ -219,7 +248,7 @@ describe('WorkspaceSurfaceManager', () => {
   it('notifies persistence when a panel is directly minimized or dragged', () => {
     const { manager: notifiedManager, onChange } = harness();
     const panel = new TestPanel(cameraGroup, 'A', [0, 1.5, -1]);
-    notifiedManager.register('a', panel);
+    notifiedManager.registerPanel('a', panel);
 
     panel.hide();
     panel.onDragEnd?.();

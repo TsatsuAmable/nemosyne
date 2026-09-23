@@ -281,11 +281,11 @@ export class WorldUIManager {
     this.workspaceSurfaces = new WorkspaceSurfaceManager(engine.cameraGroup, engine.camera, {
       onChange: callbacks.onPanelChange,
     });
-    this.workspaceSurfaces.register('input-telemetry', this.telemetryPanel);
-    this.workspaceSurfaces.register('vr-console', this.vrConsole);
-    this.workspaceSurfaces.register('data-sources', this.dataSourcePanel);
+    this.workspaceSurfaces.registerPanel('input-telemetry', this.telemetryPanel);
+    this.workspaceSurfaces.registerPanel('vr-console', this.vrConsole);
+    this.workspaceSurfaces.registerPanel('data-sources', this.dataSourcePanel);
     this.workspaceSurfaces.hide('data-sources');
-    this.workspaceSurfaces.register('capability-guide', this.capabilityGuidePanel, {
+    this.workspaceSurfaces.registerPanel('capability-guide', this.capabilityGuidePanel, {
       recenter: () => {
         this.capabilityGuidePanel.position.copy(this.capabilityGuidePanel.defaultPosition);
         this.capabilityGuidePanel.updateMatrixWorld();
@@ -376,7 +376,7 @@ export class WorldUIManager {
     this.engine.addUpdatable(this.settingsPanel);
     applyPanelLayout(this.settingsPanel, PANEL_LAYOUT.settingsPanel);
     this.engine.input.addPanel(this.settingsPanel);
-    this.workspaceSurfaces.register('settings', this.settingsPanel, {
+    this.workspaceSurfaces.registerPanel('settings', this.settingsPanel, {
       recenter: () => {
         this.settingsPanel.position.copy(this.settingsPanel.defaultPosition);
         this.settingsPanel.updateMatrixWorld();
@@ -389,7 +389,7 @@ export class WorldUIManager {
       budget: engine.performanceBudget as PerformanceBudgetLike,
       datasetTopology: '-',
     });
-    this.workspaceSurfaces.register('telemetry', this.metricsPanel);
+    this.workspaceSurfaces.registerPanel('telemetry', this.metricsPanel);
     this.engine.input.addPanel(this.metricsPanel);
     this.engine.addUpdatable(this.metricsPanel);
     this.workspaceSurfaces.hide('telemetry');
@@ -400,7 +400,7 @@ export class WorldUIManager {
       budget: engine.performanceBudget as PerformanceBudgetLike,
       telemetry: callbacks.telemetryCollector as TelemetryCollectorLike | undefined,
     });
-    this.workspaceSurfaces.register('performance', this.performancePanel);
+    this.workspaceSurfaces.registerPanel('performance', this.performancePanel);
     this.engine.input.addPanel(this.performancePanel);
     this.engine.addUpdatable(this.performancePanel);
     this.workspaceSurfaces.hide('performance');
@@ -410,7 +410,7 @@ export class WorldUIManager {
     this.networkPanel = new NetworkPanel(this.analystAnchor, {
       roomId: '-',
     });
-    this.workspaceSurfaces.register('network', this.networkPanel);
+    this.workspaceSurfaces.registerPanel('network', this.networkPanel);
     this.engine.input.addPanel(this.networkPanel);
     this.engine.addUpdatable(this.networkPanel);
     this.workspaceSurfaces.hide('network');
@@ -435,7 +435,7 @@ export class WorldUIManager {
       onCommitRemediation: callbacks.onCommitRemediation,
       onCancelRemediationPreview: callbacks.onCancelRemediationPreview,
     });
-    this.workspaceSurfaces.register('guidance', this.recommendationPanel);
+    this.workspaceSurfaces.registerPanel('guidance', this.recommendationPanel);
     this.engine.input.addPanel(this.recommendationPanel);
     this.engine.addUpdatable(this.recommendationPanel);
     this.workspaceSurfaces.hide('guidance');
@@ -444,7 +444,7 @@ export class WorldUIManager {
     // Draco explainer panel ("Why this palace?").
     this.dracoExplainerPanel = new DracoExplainerPanel(this.analystAnchor);
     applyPanelLayout(this.dracoExplainerPanel, PANEL_LAYOUT.monetaExplainerPanel);
-    this.workspaceSurfaces.register('why-view', this.dracoExplainerPanel);
+    this.workspaceSurfaces.registerPanel('why-view', this.dracoExplainerPanel);
     this.engine.input.addPanel(this.dracoExplainerPanel);
     this.engine.addUpdatable(this.dracoExplainerPanel);
     this.workspaceSurfaces.hide('why-view');
@@ -456,7 +456,7 @@ export class WorldUIManager {
       onExport: callbacks.onExportArchive,
       onDelete: callbacks.onDeleteArchive,
     });
-    this.workspaceSurfaces.register('vault', this.vaultPanel);
+    this.workspaceSurfaces.registerPanel('vault', this.vaultPanel);
     this.engine.input.addPanel(this.vaultPanel);
     this.engine.addUpdatable(this.vaultPanel);
     this.workspaceSurfaces.hide('vault');
@@ -493,7 +493,7 @@ export class WorldUIManager {
     if (!this.operationLogPanel) {
       this.operationLogPanel = new OperationLogPanel(this.analystAnchor);
       applyPanelLayout(this.operationLogPanel, PANEL_LAYOUT.operationLogPanel);
-      this.workspaceSurfaces.register('operation-log', this.operationLogPanel);
+      this.workspaceSurfaces.registerPanel('operation-log', this.operationLogPanel);
       this.engine.input.addPanel(this.operationLogPanel);
       this.workspaceSurfaces.hide('operation-log');
     }
@@ -505,7 +505,7 @@ export class WorldUIManager {
       this.interactionCoach = new InteractionCoach(this.analystAnchor, {
         userMode: (this.callbacks.getSetting?.('userMode') as string | undefined) ?? 'novice',
       } as LooseOptions);
-      this.workspaceSurfaces.register('coach', this.interactionCoach);
+      this.workspaceSurfaces.registerPanel('coach', this.interactionCoach);
       applyPanelLayout(this.interactionCoach, PANEL_LAYOUT.interactionCoach);
       this.engine.input.addPanel(this.interactionCoach);
       this.engine.addUpdatable(this.interactionCoach);
@@ -521,7 +521,7 @@ export class WorldUIManager {
         history: this.callbacks.analysisHistory,
         onSeek: this.callbacks.onSeekHistory,
       } as LooseOptions);
-      this.workspaceSurfaces.register('timeline', this.narrativeStrip);
+      this.workspaceSurfaces.registerPanel('timeline', this.narrativeStrip);
       // Anchor-parented: place via anchor-local near-low slot (finding F1).
       applyPanelLayout(this.narrativeStrip, PANEL_LAYOUT.narrativeStrip);
       this.engine.input.addPanel(this.narrativeStrip);
@@ -551,7 +551,7 @@ export class WorldUIManager {
       // owned by WorkspaceSurfaceManager and budget policy by PanelBudgetController.
       applyPanelLayout(this.schemaMappingPanel, PANEL_LAYOUT.schemaMappingPanel);
       this.engine.input.addPanel(this.schemaMappingPanel);
-      this.workspaceSurfaces.register('schema-map', this.schemaMappingPanel, {
+      this.workspaceSurfaces.registerPanel('schema-map', this.schemaMappingPanel, {
         recenter: () => {
           if (this.schemaMappingPanel) {
             applyPanelLayout(this.schemaMappingPanel, PANEL_LAYOUT.schemaMappingPanel);
@@ -568,7 +568,7 @@ export class WorldUIManager {
     if (!this.gestureConfidenceHUD) {
       this.gestureConfidenceHUD = new GestureConfidenceHUD(this.analystAnchor);
       applyPanelLayout(this.gestureConfidenceHUD, PANEL_LAYOUT.gestureConfidenceHUD);
-      this.workspaceSurfaces.register('gesture-confidence', this.gestureConfidenceHUD);
+      this.workspaceSurfaces.registerPanel('gesture-confidence', this.gestureConfidenceHUD);
       this.engine.input.addPanel(this.gestureConfidenceHUD);
       this.engine.addUpdatable(this.gestureConfidenceHUD);
       this.workspaceSurfaces.hide('gesture-confidence');
@@ -584,7 +584,7 @@ export class WorldUIManager {
     this._borrowedResources.add(controller.frustrationResponse);
     this._borrowedResources.add(controller.jitHints);
     this.workspaceSurfaces.unregister('gesture-confidence');
-    this.workspaceSurfaces.register('gesture-confidence', controller.confidenceHUD);
+    this.workspaceSurfaces.registerPanel('gesture-confidence', controller.confidenceHUD);
     this.workspaceSurfaces.hide('gesture-confidence');
   }
 
