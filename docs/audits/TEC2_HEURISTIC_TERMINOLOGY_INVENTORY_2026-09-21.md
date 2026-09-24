@@ -367,12 +367,12 @@ No algorithm changed; every computation site is numerically untouched apart from
 - **Q1 (which threshold is authoritative)** — resolved by deletion. The TypeScript `abs >= 0.5` recomputation is gone, so Rust's rule is the only one, and its literal is now the named `CORRELATION_MAGNITUDE_THRESHOLD`.
 - **Q7 (validator hardening)** — resolved; see finding 2.
 - **Q4 and Q5 (fixture values the producer cannot emit; the inverted `stabilityConfidence` fixture)** — **recorded, deliberately not corrected.** The implementation changed names only. Correcting `globalDensity: 0.5` / `1`, `localDensityVariation: 0.61`, and `stabilityConfidence: hasClusters ? 0.8 : 1` would mix a value change into a rename and weaken the "numerics unchanged" falsifier. These remain owned findings.
+- **`dependence.maxCorrelation` provenance** — resolved in the 2026-09-23 follow-up slice: the legacy `SignatureBuilder` reduction over Rust-owned correlation pairs retains the same numeric maximum but is now labelled `derived`; the canonical `DatasetEvidence` path remains a direct Rust measurement and retains its `dependency:correlations` evidence identity. RFC 0008 historical persisted signatures remain replayed verbatim.
 - **Q2, Q3, Q6** — unchanged and out of this slice's scope.
 
 ### Deferred, with reasons
 
 - **`ClusterProfile.density_variation`** is *not* renamed. Unlike the six above it is behaviour-bearing: it reaches `FitnessModel.scoreDensityHandling` and a throwing equality gate in `DatasetEvidenceSignature.ts`. Renaming it changes behaviour, not just names, and needs its own contract.
-- **`dependence.maxCorrelation` is still labelled `measured`** although it is a TypeScript reduction over kernel-supplied pairs. The reduction cannot be removed while `Facts` carries only raw pairs, so this needs a separate decision.
 - **`EvidenceWeightedScorer`** keeps its `20.0` scale and its `(sampleCountWeight || 1.0)` zero-weight inversion, which diverge from Rust's `30.0`; only the local was renamed. The scorer still has no production caller.
 - **`wasm/src/moneta/evidence.rs`** is unreachable — only the `draco` twin is exported through `draco_adjust_evidence`. Kept byte-identical to its twin as a convention; separate cleanup.
 

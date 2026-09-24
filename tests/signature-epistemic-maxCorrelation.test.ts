@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
+import { datasetEvidenceToSignature } from '../src/moneta/representation/DatasetEvidenceSignature.ts';
+import { structureProfileToDatasetEvidence } from '../src/data/evidence/StructureProfileEvidenceAdapter.ts';
+import type { DracoFacts } from '../src/moneta/types.ts';
+import type { Facts } from '../src/data/types.ts';
+import { createMonetaStructureProfile } from './helpers/moneta-kernel-fixture.ts';
 
-const mockDracoFacts = {
+const mockDracoFacts: DracoFacts = {
   topology: 'TABULAR',
   rowCount: 100,
   nodeCount: 100,
@@ -44,7 +49,7 @@ const mockDracoFacts = {
   topCategory: null,
 };
 
-const mockKernelFacts = {
+const mockKernelFacts: Facts = {
   rowCount: 100,
   columnCount: 6,
   numeric: [
@@ -86,5 +91,31 @@ describe('DatasetSignature provenance for maxCorrelation', () => {
     expect(fact?.source).toBe('derived');
     expect(fact?.note).toContain('Rust kernel correlation');
     expect(sig.dependence.maxCorrelation).toBe(0.75);
+  });
+  it('preserves direct Rust evidence provenance and identity on the canonical evidence path', () => {
+    const profile = createMonetaStructureProfile({
+      datasetName: 'max-correlation-evidence',
+      rowCount: 50,
+      columnCount: 2,
+      numericColumns: 2,
+      categoricalColumns: 0,
+    });
+    profile.correlations.maxCorrelation = 0.75;
+    profile.correlations.pairs = [
+      {
+        columnA: 'colA',
+        columnB: 'colB',
+        r: 0.75,
+        exceedsMagnitudeThreshold: true,
+      },
+    ];
+    profile.correlations.pairsAboveMagnitudeThreshold = 1;
+
+    const sig = datasetEvidenceToSignature(structureProfileToDatasetEvidence(profile));
+    const fact = sig.epistemic?.facts['dependence.maxCorrelation'];
+
+    expect(sig.dependence.maxCorrelation).toBe(0.75);
+    expect(fact?.source).toBe('measured');
+    expect(fact?.evidenceId).toBe('dependency:correlations');
   });
 });

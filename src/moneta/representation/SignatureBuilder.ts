@@ -41,7 +41,7 @@ function markSpectralFacts(
     'spectralStructure.spectralEntropy',
     'spectralStructure.powerSpectrumPeak',
   ] as const;
-  mark(epistemic, measured, 'derived', 'Supplied spectral analytical result');
+  mark(epistemic, measured, 'measured', 'Supplied spectral analytical result');
   if (spectral.directionalAnisotropy !== undefined) {
     markDatasetSignatureFact(epistemic, 'spectralStructure.directionalAnisotropy', 'measured');
   }
@@ -166,15 +166,17 @@ export function buildDatasetSignature(
           'distribution.outlierFraction',
           'distribution.anomalyCount',
           'distribution.maxSkewness',
-          'dependence.maxCorrelation',
         ],
-        'derived',
-        'Derived from Rust kernel correlation pairs',
+        'measured',
+        'Computed by supplied Rust kernel Facts',
       );
+      markDatasetSignatureFact(epistemic, 'dependence.maxCorrelation', 'derived', {
+        note: 'Maximum absolute correlation derived from Rust kernel correlation pairs',
+      });
       const entropy = meanCategoricalEntropy(facts);
       if (entropy !== undefined) {
         distribution.meanEntropy = entropy;
-        markDatasetSignatureFact(epistemic, 'distribution.meanEntropy', 'derived', {
+        markDatasetSignatureFact(epistemic, 'distribution.meanEntropy', 'measured', {
           note: 'Mean of categorical entropies emitted by supplied Rust kernel Facts',
         });
       }
@@ -354,11 +356,13 @@ export function buildDatasetSignature(
         'distribution.outlierFraction',
         'distribution.anomalyCount',
         'distribution.maxSkewness',
-        'dependence.maxCorrelation',
       ],
-      'derived',
-      'Derived from Rust kernel correlation pairs',
+      'measured',
+      'Computed by supplied Rust kernel Facts',
     );
+    markDatasetSignatureFact(epistemic, 'dependence.maxCorrelation', 'derived', {
+      note: 'Maximum absolute correlation derived from Rust kernel correlation pairs',
+    });
 
     const entropy = meanCategoricalEntropy(facts);
     if (entropy !== undefined) {
