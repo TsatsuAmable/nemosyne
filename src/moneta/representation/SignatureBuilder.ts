@@ -166,11 +166,13 @@ export function buildDatasetSignature(
           'distribution.outlierFraction',
           'distribution.anomalyCount',
           'distribution.maxSkewness',
-          'dependence.maxCorrelation',
         ],
         'measured',
         'Computed by supplied Rust kernel Facts',
       );
+      markDatasetSignatureFact(epistemic, 'dependence.maxCorrelation', 'derived', {
+        note: 'Maximum absolute correlation derived from Rust kernel correlation pairs',
+      });
       const entropy = meanCategoricalEntropy(facts);
       if (entropy !== undefined) {
         distribution.meanEntropy = entropy;
@@ -354,11 +356,13 @@ export function buildDatasetSignature(
         'distribution.outlierFraction',
         'distribution.anomalyCount',
         'distribution.maxSkewness',
-        'dependence.maxCorrelation',
       ],
       'measured',
       'Computed by supplied Rust kernel Facts',
     );
+    markDatasetSignatureFact(epistemic, 'dependence.maxCorrelation', 'derived', {
+      note: 'Maximum absolute correlation derived from Rust kernel correlation pairs',
+    });
 
     const entropy = meanCategoricalEntropy(facts);
     if (entropy !== undefined) {
