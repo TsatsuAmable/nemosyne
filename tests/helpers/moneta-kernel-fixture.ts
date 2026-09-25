@@ -19,7 +19,6 @@ export interface MonetaStructureProfileFixtureOptions {
   clusterCount?: number;
   hasClusters?: boolean;
   separationScore?: number;
-  densityVariation?: number;
 }
 
 export function createMonetaStructureProfile(
@@ -28,7 +27,6 @@ export function createMonetaStructureProfile(
   const temporalColumns = options.temporalColumns ?? 0;
   const clusterCount = options.clusterCount ?? 1;
   const hasClusters = options.hasClusters ?? clusterCount > 1;
-  const densityVariation = options.densityVariation ?? 0.2;
   const fingerprint = options.fingerprint ?? `sha256:test:${options.datasetName}`;
 
   return {
@@ -60,7 +58,6 @@ export function createMonetaStructureProfile(
       estimatedCount: clusterCount,
       hasClusters,
       separationScore: options.separationScore ?? (hasClusters ? 0.8 : 0),
-      densityVariation,
       heuristicSilhouettePartitionScore: hasClusters ? 0.8 : 1,
       method: 'full-complete-row-kmeans',
       eligibleObservationCount: options.rowCount,

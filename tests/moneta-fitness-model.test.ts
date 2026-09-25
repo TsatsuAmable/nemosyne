@@ -4,7 +4,10 @@ import {
   DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS,
   validateBootstrapFitnessWeights,
 } from '../src/moneta/representation/FitnessModel.ts';
-import { minimalDatasetSignature } from '../src/moneta/representation/DatasetSignature.ts';
+import {
+  markDatasetSignatureFact,
+  minimalDatasetSignature,
+} from '../src/moneta/representation/DatasetSignature.ts';
 import { MONETA_REPRESENTATION_CANDIDATES } from '../src/moneta/representation/RepresentationCandidate.ts';
 import { createDefaultRequirements } from '../src/moneta/representation/RepresentationRequirements.ts';
 
@@ -50,6 +53,74 @@ describe('V3 BootstrapFitnessModel', () => {
     expect(densityComponent?.weight).toBe(DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS.densityHandling);
     expect(densityComponent?.rawScore).toBe(1);
     expect(pointDensityComponent?.rawScore).toBe(0);
+  });
+
+  it('does not let a legacy heuristic/unknown densityVariation drive density ranking', () => {
+    // Historical signatures carry `clusterStructure.densityVariation` from the
+    // retired two-valued Rust proxy (0.25 iff clusters detected). Without a
+    // measured/derived epistemic source such a value must not make density
+    // relevant: the retired proxy carried no more information than
+    // `hasClusters` while appearing as a continuous quantity.
+    const signature = minimalDatasetSignature(2_000, 3, 0, 0, 'legacy-density-fixture', 0);
+    signature.clusterStructure.densityVariation = 0.25;
+    const requirements = createDefaultRequirements('explore', 'MEDIUM');
+    requirements.requiredStructures = [];
+    const model = new BootstrapFitnessModel();
+
+    for (const source of ['heuristic', 'unknown'] as const) {
+      markDatasetSignatureFact(signature.epistemic!, 'clusterStructure.densityVariation', source);
+      const evaluation = model.evaluate(
+        signature,
+        requirements,
+        MONETA_REPRESENTATION_CANDIDATES.POINT_SET,
+        'POINT'
+      );
+      const densityComponent = evaluation.components.find((c) => c.dimension === 'densityHandling');
+      expect(densityComponent?.rawScore).toBe(1);
+    }
+  });
+
+  it('still lets explicitly measured or derived densityVariation make density handling relevant', () => {
+    // The epistemic gate is the only legitimate route for a density-variation
+    // value: an explicitly measured/derived fact may drive density handling
+    // even with no declared density requirement. This must survive the removal
+    // of the bogus canonical Rust proxy. Both halves of the gate
+    // ('measured' and 'derived') are exercised so a regression dropping
+    // either one fails here.
+    const signature = minimalDatasetSignature(2_000, 3, 0, 0, 'measured-density-fixture', 0);
+    signature.clusterStructure.densityVariation = 0.8;
+    const requirements = createDefaultRequirements('explore', 'MEDIUM');
+    requirements.requiredStructures = [];
+    const model = new BootstrapFitnessModel();
+
+    for (const source of ['measured', 'derived'] as const) {
+      markDatasetSignatureFact(signature.epistemic!, 'clusterStructure.densityVariation', source);
+
+      // POINT_SET loses `population-density-distribution`, so once density is
+      // relevant its density component must be penalized (0), not neutral (1).
+      const points = model.evaluate(
+        signature,
+        requirements,
+        MONETA_REPRESENTATION_CANDIDATES.POINT_SET,
+        'POINT'
+      );
+      const pointDensityComponent = points.components.find((c) => c.dimension === 'densityHandling');
+      expect(pointDensityComponent?.rawScore, `POINT_SET under ${source}`).toBe(0);
+
+      // A candidate that preserves population density stays at 1 under the same
+      // evidence, proving the gated value changes relevance, not the score
+      // of every candidate uniformly.
+      const densityField = model.evaluate(
+        signature,
+        requirements,
+        MONETA_REPRESENTATION_CANDIDATES.DENSITY_FIELD,
+        'DISTRIBUTION'
+      );
+      const densityFieldComponent = densityField.components.find(
+        (c) => c.dimension === 'densityHandling'
+      );
+      expect(densityFieldComponent?.rawScore, `DENSITY_FIELD under ${source}`).toBe(1);
+    }
   });
 
   it('gives every public structure requirement a defined task-coverage effect', () => {

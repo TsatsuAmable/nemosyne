@@ -45,7 +45,7 @@ function item(
   };
 }
 
-function evidence(extra: AnalyticalEvidence[] = [], densityVariation = 0): DatasetEvidence {
+function evidence(extra: AnalyticalEvidence[] = [], clustered = false): DatasetEvidence {
   return createDatasetEvidence({
     schemaVersion: DATASET_EVIDENCE_SCHEMA_VERSION,
     datasetFingerprint: FP,
@@ -73,11 +73,10 @@ function evidence(extra: AnalyticalEvidence[] = [], densityVariation = 0): Datas
         heuristicSparseByRowCount: false,
       }),
       item('cluster:global', 'cluster', {
-        heuristicEstimatedCount: densityVariation > 0 ? 2 : 1,
-        heuristicPartitionDetected: densityVariation > 0,
-        heuristicSeparationScore: densityVariation > 0 ? 0.7 : 0,
-        heuristicDensityVariation: densityVariation,
-        legacySilhouetteDerivedScore: densityVariation > 0 ? 0.7 : 0,
+        heuristicEstimatedCount: clustered ? 2 : 1,
+        heuristicPartitionDetected: clustered,
+        heuristicSeparationScore: clustered ? 0.7 : 0,
+        legacySilhouetteDerivedScore: clustered ? 0.7 : 0,
       }),
       item('anomaly:global', 'anomaly', {
         totalAnomalies: 0,
@@ -121,17 +120,25 @@ describe('Evidence-backed Moneta boundary', () => {
   });
 
   it('builds decision-relevant signature values directly from Rust evidence', () => {
-    const sourceEvidence = evidence([], 0.8);
+    const sourceEvidence = evidence([], true);
     const authoritative = datasetEvidenceToSignature(sourceEvidence);
     const provided = structuredClone(authoritative);
 
     const result = new EvidenceBackedMoneta().arbitrate(sourceEvidence, provided);
 
-    expect(authoritative.clusterStructure.densityVariation).toBe(0.8);
     expect(authoritative.clusterStructure.separationScore).toBe(0.7);
     expect(authoritative.clusterStructure.hasClusters).toBe(true);
-    expect(result.decision.datasetSignature.clusterStructure.densityVariation).toBe(0.8);
+    expect(authoritative.clusterStructure.estimatedCount).toBe(2);
     expect(result.decision.datasetSignature.clusterStructure.separationScore).toBe(0.7);
+    // Canonical Rust cluster evidence no longer carries a density-variation
+    // fact (the two-valued proxy is retired), so the signature must leave the
+    // compatibility field unset with an unknown epistemic source instead of
+    // manufacturing one from cluster evidence.
+    expect(authoritative.clusterStructure.densityVariation).toBeUndefined();
+    expect(
+      authoritative.epistemic?.facts['clusterStructure.densityVariation'].source
+    ).toBe('unknown');
+    expect(result.decision.datasetSignature.clusterStructure.densityVariation).toBeUndefined();
   });
 
   it('preserves physical-unit spectral frequencies in the Moneta signature', () => {
@@ -201,12 +208,23 @@ describe('Evidence-backed Moneta boundary', () => {
     expect(() => assertEvidenceBacksSignature(evidence(), source)).toThrow(/row count/i);
   });
 
-  it('rejects FitnessModel-relevant density drift instead of scoring caller placeholders', () => {
-    const sourceEvidence = evidence([], 0.8);
+  it('tolerates a legacy densityVariation in the caller signature without letting it drive the decision', () => {
+    // Historical signatures may legitimately carry `clusterStructure.densityVariation`
+    // (it was persisted in pre-TEC2 decisions and the field remains a
+    // compatibility surface), and the canonical gate no longer compares it
+    // because Rust evidence no longer emits it. The value must therefore pass
+    // the boundary — but the FitnessModel consumes only the signature
+    // reconstructed from Rust evidence, so the caller's value cannot leak into
+    // the decision.
+    const sourceEvidence = evidence([], true);
     const source = datasetEvidenceToSignature(sourceEvidence);
     source.clusterStructure.densityVariation = 0.2;
 
-    expect(() => assertEvidenceBacksSignature(sourceEvidence, source)).toThrow(/density variation/i);
+    const result = new EvidenceBackedMoneta().arbitrate(sourceEvidence, source);
+
+    expect(result.decision.datasetSignature.clusterStructure.densityVariation).toBeUndefined();
+    expect(source.clusterStructure.densityVariation).toBe(0.2);
+    expect(source.epistemic?.facts['clusterStructure.densityVariation'].source).toBe('unknown');
   });
 
   it('rejects fingerprint drift between evidence and signature', () => {

@@ -210,7 +210,7 @@ Compatibility alias: **not required.** No consumer reads the key.
   - `src/moneta/representation/FitnessModel.ts:367-381` (`scoreDensityHandling`) — `knownDensityVariation = hasAuthoritativeDensityEvidence && signature.clusterStructure.densityVariation > 0` (`:377-380`), and `densityRelevant = (densityRequirement?.importance ?? 0) > 0 || knownDensityVariation` (`:381`). When `densityRelevant` is false the method returns 1 (`:385`); otherwise the candidate is scored 1 / 0.75 / 0 / 0.25 (`:387-409`), which feeds the composite fitness.
   - `src/moneta/representation/DatasetEvidenceSignature.ts:513` — the decision-relevance equality gate includes `clusterStructure.densityVariation` and throws on mismatch.
 
-  Since `ClusterProfile.density_variation` is a two-valued constant conditional on `has_clusters`, this ranking input carries no more information than `hasClusters` while appearing as a continuous quantity. This is outside the six listed fields but is the same class of defect and is the one instance in this inventory where a *density* heuristic reaches a ranking path.
+  Since `ClusterProfile.density_variation` is a two-valued constant conditional on `has_clusters`, this ranking input carries no more information than `hasClusters` while appearing as a continuous quantity. This is outside the six listed fields but is the same class of defect and is the one instance in this inventory where a *density* heuristic reaches a ranking path. **(Resolved 2026-09-25 — see the `ClusterProfile.density_variation` closure record at the end of this document.)**
 
 ### 5.4 Persisted / serialized consumers
 - None for `localDensityVariation`. Absent from `src/data/evidence/EvidenceReceipt.ts` and from all `tests/fixtures/**` JSON.
@@ -372,7 +372,7 @@ No algorithm changed; every computation site is numerically untouched apart from
 
 ### Deferred, with reasons
 
-- **`ClusterProfile.density_variation`** is *not* renamed. Unlike the six above it is behaviour-bearing: it reaches `FitnessModel.scoreDensityHandling` and a throwing equality gate in `DatasetEvidenceSignature.ts`. Renaming it changes behaviour, not just names, and needs its own contract.
+- **`ClusterProfile.density_variation`** is *not* renamed. Unlike the six above it is behaviour-bearing: it reaches `FitnessModel.scoreDensityHandling` and a throwing equality gate in `DatasetEvidenceSignature.ts`. Renaming it changes behaviour, not just names, and needs its own contract. **(Resolved 2026-09-25 by removal under its own contract — see the closure record at the end of this document.)**
 - **`EvidenceWeightedScorer`** keeps its `20.0` scale and its `(sampleCountWeight || 1.0)` zero-weight inversion, which diverge from Rust's `30.0`; only the local was renamed. The scorer still has no production caller.
 - **`wasm/src/moneta/evidence.rs`** is unreachable — only the `draco` twin is exported through `draco_adjust_evidence`. Kept byte-identical to its twin as a convention; separate cleanup.
 
@@ -403,3 +403,35 @@ During RFC 0008 review (`docs/rfcs/0008-historical-dataset-signature-persistence
 5. **Closure record** — the "no persistence, export, replay or external consumer" warrant is narrowed to the profile/envelope it was actually verified against.
 
 Claims that stand and are deliberately unchanged: every wire-name/transport claim (`DatasetStructureProfile` and its camelCase wire keys are not persisted, replayed, or encoded into any fixture, receipt or envelope), the Rust ABI-contract observations, the decision-bearing analysis (§1.3, §2.3, §3.3, §4.3, §5.x, §6.x), the verification addendum, and the post-implementation review record. The forward rule that grew out of this correction is RFC 0008: historical persisted decisions are restored verbatim as legitimate history, and any future stripping/normalizing of these persisted keys is an explicit, versioned format migration.
+
+---
+
+## `ClusterProfile.density_variation` closure record (2026-09-25)
+
+This slice removes the behaviour-bearing density proxy deferred by the 2026-09-21 closure record above. It is a removal under an explicit contract, not a rename, and it does **not** close TEC2: inventory-confirmed residuals remain.
+
+Branch: `feat/tec2-cluster-density-variation-contract`.
+
+### What was removed, and where
+
+| Surface | Change |
+| --- | --- |
+| `wasm/src/data/profile.rs` | `ClusterProfile.density_variation` deleted from the struct, the empty-profile constructor, and the bounded estimator; the constant `if has_clusters { 0.25 } else { 0.0 }` is gone. All unrelated clustering numerics (silhouette, separation, sampling, provenance manifest) are untouched |
+| `src/data/evidence/RustStructureProfile.ts` | `RustClusterProfile.densityVariation` deleted from the transport mirror, with a tombstone comment recording why removal (not rename) is the remedy |
+| `src/data/evidence/StructureProfileEvidenceAdapter.ts` | `heuristicDensityVariation` deleted from the canonical `cluster:global` evidence payload |
+| `src/moneta/representation/DatasetEvidenceSignature.ts` | `datasetEvidenceToSignature` no longer reconstructs `clusterStructure.densityVariation` from cluster evidence and no longer marks the fact path `heuristic`; the path stays at its `unknown` default. `assertDecisionRelevantSignatureMatchesEvidence` no longer compares the field, because canonical evidence no longer emits a value to compare against |
+| `src/atlas/MonetaEvidenceAuthority.ts` | `requireRetiredFieldAbsent(clusters, 'clusters', 'densityVariation')` — the live-payload one-way ratchet extends to the retired key, so a stale kernel build or `#[serde(alias)]` fails closed instead of silently re-publishing the bogus density quantity |
+
+### What was deliberately preserved
+
+- **`DatasetSignature.clusterStructure.densityVariation` stays an optional field with its fact path.** Unlike `dependence.significantPairsCount` and `spectralStructure.periodicityConfidence` it was never a retired *name* at the signature level; it is a compatibility surface for historical persisted decisions (which may carry the key under RFC 0008's verbatim-restore contract) and for future explicitly measured/derived density evidence. No historical persisted signature is rewritten.
+- **`FitnessModel.scoreDensityHandling` is unchanged.** Its epistemic gate (`measured`/`derived` only) already ignored the heuristic value the canonical path used to manufacture; genuinely explicit measured/derived `densityVariation` continues to make density handling relevant. The removal therefore changes canonical behaviour (the proxy can no longer reach the ranking path at all) without touching the legitimate explicit-evidence semantics.
+- **RFC 0008 replay is untouched.** The v2 falsifier (`tests/rfc0008-historical-dataset-signature-replay.test.ts`) runs verbatim against this change.
+
+### Governance judgment
+
+No new RFC is required. The Rust transport removal is the same class as the 2026-09-21 slice's material-ABI judgment: `DatasetStructureProfile` remains internal, non-persisted, non-replayed transport, and the falsifier recorded there (any persisted/exported/replayed *profile* flips the judgment) still has not fired. The signature-level surface that *is* persisted is preserved, not mutated, so no digest-changing format migration is triggered and RFC 0008's decision 2 is not engaged.
+
+### Verification performed
+
+Real-WASM round trip asserting the live `clusters` record no longer carries `densityVariation` and that no transported evidence key matches the retired terminology; boundary-validator negative case proving a payload re-introducing `clusters.densityVariation` throws; Rust unit test proving the serialized clustered profile JSON omits the key while still detecting a partition; canonical-signature assertions that `clusterStructure.densityVariation` is undefined with an `unknown` epistemic source on both the adapter path and the Atlas production path; an evidence-backed boundary case proving a legacy caller value is tolerated but not consumed; FitnessModel falsifiers proving heuristic/unknown-marked values cannot make density relevant while measured- and derived-marked values still can; and the RFC 0008 historical replay falsifier — run verbatim for the original two keys, plus a companion falsifier (`tests/rfc0008-cluster-density-variation-replay.test.ts`) proving a historical decision carrying the retired `clusterStructure.densityVariation` with its `heuristic` epistemic fact replays byte-verbatim, is digest-bearing, and fails closed on the manifest digest if the key is deleted or its value mutated. The original RFC 0008 suite file is untouched.

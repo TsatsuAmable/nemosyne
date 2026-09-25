@@ -62,12 +62,18 @@ export interface RustClusterProfile {
   estimatedCount: number;
   hasClusters: boolean;
   separationScore: number;
-  densityVariation: number;
   /**
    * Affine rescale of a single silhouette score. Named for its provenance
    * because `separationScore` sits adjacent; it is not a stability confidence.
    */
   heuristicSilhouettePartitionScore: number;
+  /**
+   * `densityVariation` was removed rather than renamed: it was the two-valued
+   * constant `hasClusters ? 0.25 : 0` with no estimand behind it, so it carried
+   * no more information than `hasClusters` while appearing as a continuous
+   * density quantity. A genuine density-variation estimand must arrive under a
+   * new name with its own contract.
+   */
   method: string;
   eligibleObservationCount: number;
   sampleCount: number;

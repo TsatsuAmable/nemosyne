@@ -26,7 +26,6 @@ function runAtScale(rows: number): ScaleOutcome {
     clusterCount: 4,
     hasClusters: true,
     separationScore: 0.78,
-    densityVariation: 0.42,
   });
 
   // This bridge exposes only compact Rust-owned profile metadata. There is no

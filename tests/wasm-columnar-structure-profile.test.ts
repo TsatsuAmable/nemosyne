@@ -13,7 +13,7 @@ import * as bridge from '../src/wasm/RuntimeBridge.ts';
  * and every one of these renames degrades to a silent `undefined` rather than a
  * thrown error on the adapter path, so this walk is the only loud check.
  */
-const RETIRED_TERMINOLOGY = /significant|confidence|localDensityVariation/i;
+const RETIRED_TERMINOLOGY = /significant|confidence|densityVariation/i;
 
 function collectTransportDefects(
   node: unknown,
@@ -182,6 +182,12 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
       // call is what proves the strictest new requirements do not reject a valid
       // profile. A false rejection here is an outage at the evidence boundary.
       assertRustDatasetStructureProfile(profile as unknown as RustDatasetStructureProfile);
+      // The live Rust producer must no longer emit the retired two-valued
+      // cluster density-variation proxy at all; the validator above would throw
+      // on a stale kernel build, and this assertion pins the removal directly.
+      expect((profile as unknown as { clusters?: Record<string, unknown> }).clusters).not.toHaveProperty(
+        'densityVariation'
+      );
       const evidence = structureProfileToDatasetEvidence(
         profile as unknown as RustDatasetStructureProfile
       );

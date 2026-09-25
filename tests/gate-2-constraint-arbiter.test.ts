@@ -85,7 +85,6 @@ describe('Gate 2 (Represent): AtlasCore composition', () => {
       clusterCount: 3,
       hasClusters: true,
       separationScore: 0.8,
-      densityVariation: 0.6,
     });
 
     const atlas = new AtlasCore({ kernel: createMonetaKernelFixture(profile) });
