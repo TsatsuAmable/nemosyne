@@ -33,6 +33,15 @@ pub fn adjust_candidate_cost_with_evidence(
 mod tests {
     use super::*;
 
+    // TEC2 authority pinning tests: `moneta::evidence` is the single compiled
+    // implementation of the sample-count cost adjustment (`draco` is a `pub
+    // use` alias of `moneta` in `lib.rs`, so the wasm export
+    // `draco_adjust_evidence` reaches this code). These tests pin the exact
+    // current numerics — including the zero/absent-evidence semantics — so any
+    // drift in scale, saturation, or the zero-sample fail-closed path fails
+    // here before it can reach the ABI. Sample count is a bounded support
+    // multiplier, not statistical confidence; no rename may say otherwise.
+
     #[test]
     fn adjust_cost_reduces_penalty_for_positive_utility() {
         let ev = EmpiricalUtilityEvidence {
@@ -42,5 +51,74 @@ mod tests {
         let (adjusted, delta) = adjust_candidate_cost_with_evidence(50.0, Some(&ev));
         assert!(adjusted < 50.0);
         assert_eq!(delta, -9.0);
+    }
+
+    #[test]
+    fn absent_evidence_leaves_cost_unchanged() {
+        let (adjusted, delta) = adjust_candidate_cost_with_evidence(50.0, None);
+        assert_eq!(adjusted, 50.0);
+        assert_eq!(delta, 0.0);
+    }
+
+    #[test]
+    fn zero_sample_count_leaves_cost_unchanged() {
+        // Zero observations carry no empirical support: the adjustment must
+        // fail closed to the base cost, never to a neutral-utility shift.
+        let ev = EmpiricalUtilityEvidence {
+            sample_count: 0,
+            composite_utility: 0.9,
+        };
+        let (adjusted, delta) = adjust_candidate_cost_with_evidence(50.0, Some(&ev));
+        assert_eq!(adjusted, 50.0);
+        assert_eq!(delta, 0.0);
+    }
+
+    #[test]
+    fn sample_count_scales_linearly_below_saturation() {
+        // N=5 is exactly half the N=10 saturation point, so the utility delta
+        // is half of the saturated value: (0.8 - 0.5) * 30.0 * 0.5 = 4.5.
+        // The reported delta is (-4.5).round(): f64::round rounds half away
+        // from zero, so it is -5.0, not -4.5.
+        let ev = EmpiricalUtilityEvidence {
+            sample_count: 5,
+            composite_utility: 0.8,
+        };
+        let (adjusted, delta) = adjust_candidate_cost_with_evidence(50.0, Some(&ev));
+        assert_eq!(adjusted, 46.0);
+        assert_eq!(delta, -5.0);
+    }
+
+    #[test]
+    fn sample_count_saturates_at_ten() {
+        let ev = EmpiricalUtilityEvidence {
+            sample_count: 100,
+            composite_utility: 0.8,
+        };
+        let (adjusted, delta) = adjust_candidate_cost_with_evidence(50.0, Some(&ev));
+        // Identical to the N=10 case: the weight is capped at 1.0.
+        assert_eq!(adjusted, 41.0);
+        assert_eq!(delta, -9.0);
+    }
+
+    #[test]
+    fn below_neutral_utility_increases_cost() {
+        let ev = EmpiricalUtilityEvidence {
+            sample_count: 10,
+            composite_utility: 0.2,
+        };
+        let (adjusted, delta) = adjust_candidate_cost_with_evidence(50.0, Some(&ev));
+        assert_eq!(adjusted, 59.0);
+        assert_eq!(delta, 9.0);
+    }
+
+    #[test]
+    fn adjusted_cost_never_drops_below_zero() {
+        let ev = EmpiricalUtilityEvidence {
+            sample_count: 10,
+            composite_utility: 1.0,
+        };
+        let (adjusted, delta) = adjust_candidate_cost_with_evidence(5.0, Some(&ev));
+        assert_eq!(adjusted, 0.0);
+        assert_eq!(delta, -15.0);
     }
 }
