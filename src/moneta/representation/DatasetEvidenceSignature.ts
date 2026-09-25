@@ -264,12 +264,18 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
       'clusterStructure.estimatedCount',
       'clusterStructure.hasClusters',
       'clusterStructure.separationScore',
-      'clusterStructure.densityVariation',
     ],
     'heuristic',
     clustersItem,
     'Bounded Rust clustering profile; heuristic terminology is preserved',
   );
+  // `clusterStructure.densityVariation` is deliberately NOT marked here. The
+  // Rust ClusterProfile no longer emits a density-variation value (TEC2
+  // removed the two-valued proxy), so canonical cluster evidence carries no
+  // such fact and the path stays at its `unknown` default. The fact path and
+  // the optional signature field remain for historical signatures and for
+  // future explicit measured/derived density evidence, which must carry its
+  // own epistemic source before FitnessModel may treat it as known.
 
   const topologyEvidence = graphItem ?? hierarchyItem ?? temporalItem ?? spatialItem;
   if (topologyEvidence) {
@@ -452,10 +458,10 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
         clusters.heuristicSeparationScore,
         'clusters.heuristicSeparationScore',
       ),
-      densityVariation: finiteNumber(
-        clusters.heuristicDensityVariation,
-        'clusters.heuristicDensityVariation',
-      ),
+      // `clusterStructure.densityVariation` is intentionally absent: canonical
+      // Rust cluster evidence no longer carries a density-variation value, so
+      // nothing is manufactured here. The optional field survives for
+      // historical signatures and explicit measured/derived evidence.
     },
     topologicalStructure: {
       topology,
@@ -481,6 +487,12 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
 /**
  * Ensure a caller-provided signature does not disagree with the authoritative
  * evidence-derived signature on any field used by the current FitnessModel.
+ *
+ * `clusterStructure.densityVariation` is the one field the FitnessModel can
+ * consume that is deliberately NOT compared here: canonical evidence no longer
+ * emits it, so there is no authoritative value to compare against, and its
+ * influence on ranking is decided solely by the FitnessModel's epistemic gate
+ * (measured/derived only). See the comment at the densityVariation row below.
  */
 export function assertDecisionRelevantSignatureMatchesEvidence(
   provided: DatasetSignature,
@@ -499,7 +511,12 @@ export function assertDecisionRelevantSignatureMatchesEvidence(
     [provided.distribution.hasOutliers, authoritative.distribution.hasOutliers, 'outlier presence'],
     [provided.distribution.highVariance, authoritative.distribution.highVariance, 'high variance'],
     [provided.clusterStructure.hasClusters, authoritative.clusterStructure.hasClusters, 'cluster presence'],
-    [provided.clusterStructure.densityVariation, authoritative.clusterStructure.densityVariation, 'density variation'],
+    // `clusterStructure.densityVariation` is deliberately not compared here:
+    // canonical DatasetEvidence no longer emits it, so the authoritative
+    // signature never carries a value to compare against. Re-checking it
+    // would reject every historical or explicitly evidenced signature that
+    // legitimately carries one. The FitnessModel's own epistemic gate still
+    // decides whether a supplied value may influence density ranking.
     [provided.topologicalStructure.topology, authoritative.topologicalStructure.topology, 'topology'],
     [provided.temporalStructure.isTimeSeries, authoritative.temporalStructure.isTimeSeries, 'time-series structure'],
     [provided.spectralStructure?.hasPeriodicity ?? false, authoritative.spectralStructure?.hasPeriodicity ?? false, 'spectral periodicity'],

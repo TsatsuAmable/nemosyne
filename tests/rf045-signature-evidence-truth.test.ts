@@ -139,7 +139,6 @@ describe('RF-045 truthful DatasetSignature evidence contract', () => {
       clusterCount: 3,
       hasClusters: true,
       separationScore: 0.81,
-      densityVariation: 0.47,
     });
     profile.categorical.meanEntropy = 0.72;
     profile.graph = {
@@ -154,6 +153,10 @@ describe('RF-045 truthful DatasetSignature evidence contract', () => {
 
     expect(signature.topologicalStructure).toEqual({ topology: 'GRAPH', hasCycles: false });
     expect(signature.clusterStructure.separationScore).toBe(0.81);
+    expect(signature.clusterStructure.densityVariation).toBeUndefined();
+    expect(
+      signature.epistemic?.facts['clusterStructure.densityVariation'].source
+    ).toBe('unknown');
     expect(signature.distribution.meanEntropy).toBe(0.72);
     expect(signature.epistemic?.facts['topologicalStructure.hasCycles'].source).toBe('derived');
     expect(signature.epistemic?.facts['topologicalStructure.hasCycles'].evidenceId).toBe('topology:graph');

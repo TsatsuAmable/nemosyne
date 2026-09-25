@@ -77,9 +77,13 @@ pub struct ClusterProfile {
     pub estimated_count: usize,
     pub has_clusters: bool,
     pub separation_score: f64,
-    pub density_variation: f64,
     /// Deterministic affine rescale of the best silhouette score. Named for its
     /// provenance: this is not a resampling-derived stability confidence.
+    ///
+    /// TEC2 removed `density_variation` rather than renaming it: it was the
+    /// two-valued constant `has_clusters ? 0.25 : 0.0` with no estimand behind
+    /// it, so it carried no more information than `has_clusters` while
+    /// appearing as a continuous density quantity.
     pub heuristic_silhouette_partition_score: f64,
     pub method: String,
     pub eligible_observation_count: usize,
@@ -292,7 +296,6 @@ fn empty_cluster_profile(
         estimated_count: 1,
         has_clusters: false,
         separation_score: 0.0,
-        density_variation: 0.0,
         heuristic_silhouette_partition_score: 0.0,
         method: method.to_string(),
         eligible_observation_count,
@@ -556,7 +559,6 @@ fn evaluate_clusters_from_accessor(
         } else {
             0.0
         },
-        density_variation: if has_clusters { 0.25 } else { 0.0 },
         heuristic_silhouette_partition_score: if has_clusters {
             (best_silhouette * 0.9).clamp(0.1, 1.0)
         } else {
@@ -1498,5 +1500,40 @@ mod tests {
             Some(value(row_count - row - 1, dimension))
         });
         assert_eq!(forward, reversed);
+    }
+
+    #[test]
+    fn clustered_profile_transports_no_density_variation_proxy() {
+        // TEC2 removed `ClusterProfile.density_variation`, a two-valued constant
+        // with no estimand behind it. This asserts the removal against the
+        // serialized wire form while proving the fixture is not vacuous: the
+        // clusters record must still report a detected partition.
+        let rows: Vec<HashMap<String, Value>> = (0..64)
+            .map(|index| {
+                let cluster = if index % 2 == 0 { 0.0 } else { 10.0 };
+                HashMap::from([
+                    ("x".to_string(), Value::Number(cluster)),
+                    ("y".to_string(), Value::Number(cluster + (index % 7) as f64 * 0.01)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "clustered-density-proxy-control",
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(
+            profile.clusters.has_clusters,
+            "control fixture must actually detect a partition for this test to falsify anything"
+        );
+        let json = serde_json::to_string(&profile).expect("profile serialization");
+        assert!(
+            !json.contains("densityVariation") && !json.contains("density_variation"),
+            "retired two-valued density_variation proxy must not be transported: {json}"
+        );
     }
 }

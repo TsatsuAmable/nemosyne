@@ -42,7 +42,6 @@ describe('Moneta migration exit end-to-end authority', () => {
       clusterCount: 4,
       hasClusters: true,
       separationScore: 0.84,
-      densityVariation: 0.57,
     });
     const atlas = new AtlasCore({
       sessionId: 'migration-exit-session',
@@ -66,8 +65,10 @@ describe('Moneta migration exit end-to-end authority', () => {
       estimatedCount: 4,
       hasClusters: true,
       separationScore: 0.84,
-      densityVariation: 0.57,
     });
+    // The retired cluster density-variation proxy must not be reconstructed
+    // into the decision signature anywhere on the production path.
+    expect(decision.datasetSignature.clusterStructure.densityVariation).toBeUndefined();
     expect(strategy.provenance.datasetFingerprint).toBe(fingerprint);
     expect(strategy.score).toBe(decision.utilityScore);
     expect('confidence' in strategy).toBe(false);

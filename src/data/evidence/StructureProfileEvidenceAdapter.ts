@@ -80,7 +80,11 @@ function item(
  * `...MagnitudeThreshold`), so no field is renamed on the way through. The
  * `global_density` value is now narrowed on both sides, and
  * `local_density_variation` was removed rather than renamed — it was a
- * two-valued constant with no estimand behind it.
+ * two-valued constant with no estimand behind it. The same is true of
+ * `ClusterProfile.density_variation` (removed 2026-09-25): the canonical
+ * cluster payload therefore carries no density-variation key at all, and
+ * `datasetEvidenceToSignature` leaves `clusterStructure.densityVariation`
+ * unset unless explicit measured/derived evidence provides one.
  */
 export function structureProfileToDatasetEvidence(
   profile: RustDatasetStructureProfile
@@ -158,7 +162,6 @@ export function structureProfileToDatasetEvidence(
         heuristicEstimatedCount: profile.clusters.estimatedCount,
         heuristicPartitionDetected: profile.clusters.hasClusters,
         heuristicSeparationScore: profile.clusters.separationScore,
-        heuristicDensityVariation: profile.clusters.densityVariation,
         legacySilhouetteDerivedScore: profile.clusters.heuristicSilhouettePartitionScore,
         method: profile.clusters.method,
         eligibleObservationCount: profile.clusters.eligibleObservationCount,

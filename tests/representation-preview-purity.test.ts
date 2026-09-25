@@ -65,7 +65,6 @@ function evidence(): DatasetEvidence {
         heuristicEstimatedCount: 1,
         heuristicPartitionDetected: false,
         heuristicSeparationScore: 0,
-        heuristicDensityVariation: 0,
         legacySilhouetteDerivedScore: 0,
       }),
       item('anomaly:global', 'anomaly', {

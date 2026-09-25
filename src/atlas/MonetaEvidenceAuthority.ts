@@ -152,6 +152,11 @@ export function assertRustDatasetStructureProfile(
   requireFiniteNumber(clusters, 'clusters', 'heuristicSilhouettePartitionScore');
   requireBoolean(clusters, 'clusters', 'hasClusters');
   requireRetiredFieldAbsent(clusters, 'clusters', 'stabilityConfidence');
+  // TEC2 removed the cluster density-variation proxy (a two-valued constant
+  // with no estimand behind it) from the Rust producer. Accepting the retired
+  // key would let a stale kernel build or a `#[serde(alias)]` re-publish the
+  // bogus density quantity at the transport silently.
+  requireRetiredFieldAbsent(clusters, 'clusters', 'densityVariation');
 
   const density = value.density as Record<string, unknown>;
   requireFiniteNumber(density, 'density', 'heuristicScaleDensityProxy');

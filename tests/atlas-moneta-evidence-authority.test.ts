@@ -36,7 +36,6 @@ function profile(): RustDatasetStructureProfile {
       estimatedCount: 4,
       hasClusters: true,
       separationScore: 0.8,
-      densityVariation: 0.61,
       heuristicSilhouettePartitionScore: 0.72,
       method: 'full-complete-row-kmeans',
       eligibleObservationCount: 128,
@@ -258,6 +257,19 @@ describe('Atlas → Moneta evidence authority boundary', () => {
         7
       )
     ).toThrow(/confidence/);
+
+    // `ClusterProfile.density_variation` was removed rather than renamed (TEC2):
+    // it was a two-valued proxy with no estimand, so re-accepting the key from a
+    // stale kernel build would silently republish a bogus density quantity.
+    const retiredClusterDensity = mutatedProfile((raw) => {
+      (raw.clusters as Record<string, unknown>).densityVariation = 0.25;
+    });
+    expect(() =>
+      datasetEvidenceFromKernelProfile(
+        { computeDatasetStructureProfile: () => retiredClusterDensity },
+        7
+      )
+    ).toThrow(/densityVariation/);
   });
 
   it('lets RepresentationState rank only the signature reconstructed from Rust evidence', () => {
@@ -277,8 +289,12 @@ describe('Atlas → Moneta evidence authority boundary', () => {
       estimatedCount: 4,
       hasClusters: true,
       separationScore: 0.8,
-      densityVariation: 0.61,
     });
+    // Canonical cluster evidence carries no density-variation fact: the
+    // two-valued Rust proxy is retired, so the signature must leave the
+    // compatibility field unset rather than manufacturing a value.
+    expect(state.activeSignature?.clusterStructure.densityVariation).toBeUndefined();
+    expect(state.activeSignature?.epistemic?.facts['clusterStructure.densityVariation'].source).toBe('unknown');
     expect(state.activeDecision).toBe(decision);
     expect(state.activeStrategy).toBe(decision.embodiment.spatialStrategy);
   });
@@ -294,8 +310,8 @@ describe('Atlas → Moneta evidence authority boundary', () => {
       estimatedCount: 4,
       hasClusters: true,
       separationScore: 0.8,
-      densityVariation: 0.61,
     });
+    expect(atlas.activeDatasetSignature?.clusterStructure.densityVariation).toBeUndefined();
     expect(atlas.activeRepresentationDecision).toBe(decision);
   });
 

@@ -52,7 +52,6 @@ function profile(): RustDatasetStructureProfile {
       estimatedCount: 1,
       hasClusters: false,
       separationScore: 0,
-      densityVariation: 0.1,
       heuristicSilhouettePartitionScore: 0,
       method: 'full-complete-row-kmeans',
       eligibleObservationCount: 3,
@@ -159,6 +158,11 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
       })
     );
     expect(JSON.stringify(cluster?.value)).not.toMatch(/confidence/i);
+    // The retired two-valued density-variation proxy must not survive under any
+    // spelling in the canonical cluster payload.
+    expect(cluster?.value).not.toHaveProperty('heuristicDensityVariation');
+    expect(cluster?.value).not.toHaveProperty('densityVariation');
+    expect(JSON.stringify(cluster?.value)).not.toMatch(/densityVariation/i);
     expect(cluster?.provenance.parameters).toMatchObject({
       estimator: 'full-complete-row-kmeans',
       eligibleObservationCount: 3,
