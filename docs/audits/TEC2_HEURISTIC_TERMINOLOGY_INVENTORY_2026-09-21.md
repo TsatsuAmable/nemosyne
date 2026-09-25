@@ -374,7 +374,7 @@ No algorithm changed; every computation site is numerically untouched apart from
 
 - **`ClusterProfile.density_variation`** is *not* renamed. Unlike the six above it is behaviour-bearing: it reaches `FitnessModel.scoreDensityHandling` and a throwing equality gate in `DatasetEvidenceSignature.ts`. Renaming it changes behaviour, not just names, and needs its own contract. **(Resolved 2026-09-25 by removal under its own contract — see the closure record at the end of this document.)**
 - **`EvidenceWeightedScorer`** keeps its `20.0` scale and its `(sampleCountWeight || 1.0)` zero-weight inversion, which diverge from Rust's `30.0`; only the local was renamed. The scorer still has no production caller.
-- **`wasm/src/moneta/evidence.rs`** is unreachable — only the `draco` twin is exported through `draco_adjust_evidence`. Kept byte-identical to its twin as a convention; separate cleanup.
+- **`wasm/src/moneta/evidence.rs`** is unreachable — only the `draco` twin is exported through `draco_adjust_evidence`. Kept byte-identical to its twin as a convention; separate cleanup. **(Corrected 2026-09-25 — this is backwards; see the evidence-scorer authority closure record at the end.** `lib.rs` declares no `mod draco;`, so `draco::evidence` in the export resolves through `pub use moneta as draco` to `crate::moneta::evidence` — the *moneta* file is the one compiled implementation, and the whole `wasm/src/draco/` directory was never compiled. It was removed in the 2026-09-25 slice.**)
 
 ### Post-implementation adversarial review
 
@@ -435,3 +435,42 @@ No new RFC is required. The Rust transport removal is the same class as the 2026
 ### Verification performed
 
 Real-WASM round trip asserting the live `clusters` record no longer carries `densityVariation` and that no transported evidence key matches the retired terminology; boundary-validator negative case proving a payload re-introducing `clusters.densityVariation` throws; Rust unit test proving the serialized clustered profile JSON omits the key while still detecting a partition; canonical-signature assertions that `clusterStructure.densityVariation` is undefined with an `unknown` epistemic source on both the adapter path and the Atlas production path; an evidence-backed boundary case proving a legacy caller value is tolerated but not consumed; FitnessModel falsifiers proving heuristic/unknown-marked values cannot make density relevant while measured- and derived-marked values still can; and the RFC 0008 historical replay falsifier — run verbatim for the original two keys, plus a companion falsifier (`tests/rfc0008-cluster-density-variation-replay.test.ts`) proving a historical decision carrying the retired `clusterStructure.densityVariation` with its `heuristic` epistemic fact replays byte-verbatim, is digest-bearing, and fails closed on the manifest digest if the key is deleted or its value mutated. The original RFC 0008 suite file is untouched.
+
+---
+
+## Evidence-scorer authority closure record (2026-09-25)
+
+This slice closes the sample-count scorer residual deferred by the 2026-09-21 closure record above: the TypeScript `EvidenceWeightedScorer` shadow ranking implementation, and the `wasm/src/draco/` stale twin directory. It does **not** close TEC2: inventory-confirmed residuals remain.
+
+Branch: `feat/tec2-evidence-scorer-authority`. Base: `main@2c5aff4ebfd86e8f6e69e98cc07e62428590fc21`.
+
+### Reachability re-proved at this head (not assumed from this inventory)
+
+- `EvidenceWeightedScorer` had **no production caller**. Repo-wide grep at the base found only its own file, the barrel re-export (`src/moneta/evidence/index.ts:3`), and `tests/evidence-draco.test.ts`. Nothing under `src/vr/**`, `src/app/**`, `src/atlas/**`, `src/moneta/**` (outside its own directory) imported it; the `src/moneta/index.ts` barrel's only external consumers of the evidence barrel were the direct-file `PerceptualFitnessEvidence` imports, which do not touch the scorer. No persisted, serialized, replayed or fixture surface referenced it (§6.4 stands).
+- `adjustMonetaEvidence` / `adjustDracoEvidence` also had no production caller, but they are thin transports that bind the single WASM export `draco_adjust_evidence` and contain **no TypeScript formula** — they are the sole path to the Rust authority, asserted by `tests/runtime-bridge-module-boundaries.test.ts` (export names + alias identity) and `tests/wasm-runtime.test.ts` (non-finite refusal). They were therefore **retained**: deleting the export would change the wasm ABI surface (generated `wasm/pkg` bindings) for a dormant-but-authoritative path, which this slice does not attempt.
+- **The 2026-09-21 "Deferred" note about `wasm/src/moneta/evidence.rs` being unreachable was wrong and is corrected here.** `wasm/src/lib.rs` declares `pub mod moneta;` and `pub use moneta as draco;` and declares no `mod draco;` anywhere. Every `draco::*` path in `lib.rs` — including `draco_adjust_evidence` — resolves to `crate::moneta::*`. `wasm/src/moneta/evidence.rs` was therefore the one **compiled and exported** implementation, and the entire `wasm/src/draco/` directory (constraints.rs, evidence.rs, mod.rs, solver.rs, types.rs) was **never compiled**: no module declaration, no Cargo `[lib] path` attribute, no `#[path]` include anywhere in the crate. Its evidence twin was byte-identical; its constraints/solver/types twins had silently drifted from the compiled moneta versions.
+
+### What was removed
+
+| Surface | Change |
+| --- | --- |
+| `src/moneta/evidence/EvidenceWeightedScorer.ts` | Deleted. The 30.0 path, the divergent 20.0 path with `(sampleCountWeight \|\| 1.0)` (which inverted the kernel's fail-closed zero-observation semantics into a full-weight shift), and `reRankCandidates`'s evidence-adjusted candidate ordering are gone. Removal, not harmonisation: aligning the TS formula to Rust would have preserved a second ranking authority on the exact defect TEC2 names. |
+| `src/moneta/evidence/index.ts` | Barrel export line removed. The barrel's remaining exports (`types`, `EvidenceStore`, `MonetaEmpiricalTuner`) are untouched; `src/draco/index.ts` compatibility facade re-exports the same barrel unchanged. |
+| `wasm/src/draco/` (all five files) | Deleted as never-compiled dead source. This is behaviour-preserving by construction (nothing compiled it) and removes a stale source of truth a future reader could have "fixed" independently of the compiled moneta twin — the precise shadow-authority hazard this tranche closes. |
+
+### What was deliberately preserved
+
+- **`wasm/src/moneta/evidence.rs` numerics are untouched**: the 30.0 scale, the 0.5 neutral-utility baseline, the N=10 saturation, the `.max(0.0).round()` clamps, the zero-sample fail-closed path and the honest `sample_count_weight` naming (renamed by the 2026-09-21 slice) all stand. The only additions are `#[cfg(test)]` unit tests pinning these exact values.
+- **`EvidenceStore`** is retained: it aggregates investigator study outcomes into the empirical input (`sampleCount`, `compositeUtility`) that the Rust authority consumes — TypeScript-owned interaction/orchestration data per `AGENTS.md` boundary 3, not a Rust duplicate. Its two surviving tests in `tests/evidence-draco.test.ts` cover this aggregation; the two scorer tests were removed with the scorer.
+- **`MonetaEmpiricalTuner` and `EvidenceInformedRecommender`** are retained untouched. They remain dormant with no production caller (open question Q2 remains a product decision), but they are distinct study-outcome weight adjusters, not reimplementations of the Rust cost adjustment, and removing them is out of this slice's contract.
+- **`EmpiricalOutcome.confidenceRating`** is retained: it is a participant's self-reported rating — a genuinely measured human response, not a manufactured statistical confidence.
+
+### Falsifiers added
+
+- `tests/moneta-evidence-scorer-authority.test.ts` (fast lane): fails if a TypeScript file reappears that recomputes the sample-count saturation weight (`sampleCount / 10`), uses `sampleCountWeight`, multiplies by the kernel cost-adjustment scales (`* 30 *` / `* 20 *`, with or without the `.0`), computes a utility delta from the 0.5 neutral baseline, or exports the removed ranking symbols; fails if `wasm/src/draco/` reappears or `lib.rs` stops routing `draco_adjust_evidence` through `draco::evidence::adjust_candidate_cost_with_evidence`; fails if the bridge alias stops mapping to the single WASM export; fails if sample-count weighting is relabelled confidence in the kernel or in `src/moneta/evidence/**`. Comments are stripped before scanning, so explanatory prose cannot trip the falsifier, and reintroduction of the deleted formula verbatim was verified to fail the suite (then pass again on removal).
+- `wasm/src/moneta/evidence.rs` unit tests: absent evidence, zero sample count (fail closed to base cost), N=5 sub-saturation (delta `(-4.5).round() = -5`, documenting the half-away-from-zero rounding), N=100 saturation cap, below-neutral utility, and the zero floor.
+- `tests/wasm-runtime.test.ts` real-WASM bridge test: exact adjustedCost/delta values through `bridge.adjustMonetaEvidence` and the alias for the same cases, including zero-sample and `null`-evidence fail-closed behaviour — production-path evidence that the sole authority path enforces the pinned semantics.
+
+### Residual risk
+
+The bridge and WASM export remain dormant (no production caller); their liveness is question Q2, unchanged by this slice. The Rust unit tests and a fresh `wasm:dev` build were not runnable in the authoring environment (no MSVC host linker locally; the pre-existing `wasm/pkg` is behaviour-identical because the kernel diff is test-only plus never-compiled deletions); both run in CI, whose result governs promotion.

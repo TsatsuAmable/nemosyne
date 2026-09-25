@@ -422,6 +422,47 @@ describe('RuntimeBridge integration', () => {
     }
   });
 
+  it('applies the sole Rust sample-count cost adjustment through the bridge', () => {
+    // TEC2 authority pinning: `draco_adjust_evidence` is the only
+    // implementation of the empirical cost adjustment (the TypeScript
+    // EvidenceWeightedScorer re-ranking twin was deleted). These exact values
+    // pin the kernel formula — delta relative to the 0.5 neutral utility,
+    // 30.0 scale, sample-count weight saturating at N=10 — and the fail-closed
+    // zero-observation path, which must leave the base cost untouched rather
+    // than shifting it. Sample count is bounded support, not confidence.
+    expect(bridge.adjustMonetaEvidence(50, { sampleCount: 10, compositeUtility: 0.8 })).toEqual({
+      adjustedCost: 41,
+      delta: -9,
+    });
+    // Below saturation the weight scales linearly: N=5 halves the utility
+    // delta (4.5); the reported delta is rounded half-away-from-zero to -5.
+    expect(bridge.adjustMonetaEvidence(50, { sampleCount: 5, compositeUtility: 0.8 })).toEqual({
+      adjustedCost: 46,
+      delta: -5,
+    });
+    // Above saturation the weight is capped at 1.0.
+    expect(bridge.adjustMonetaEvidence(50, { sampleCount: 100, compositeUtility: 0.8 })).toEqual({
+      adjustedCost: 41,
+      delta: -9,
+    });
+    // Below-neutral utility increases cost.
+    expect(bridge.adjustMonetaEvidence(50, { sampleCount: 10, compositeUtility: 0.2 })).toEqual({
+      adjustedCost: 59,
+      delta: 9,
+    });
+    // Zero observations fail closed: no adjustment, no fabricated support.
+    expect(bridge.adjustMonetaEvidence(50, { sampleCount: 0, compositeUtility: 0.9 })).toEqual({
+      adjustedCost: 50,
+      delta: 0,
+    });
+    expect(bridge.adjustMonetaEvidence(50, null)).toEqual({ adjustedCost: 50, delta: 0 });
+    // The retained compatibility alias resolves to the same single authority.
+    expect(bridge.adjustDracoEvidence(50, { sampleCount: 10, compositeUtility: 0.8 })).toEqual({
+      adjustedCost: 41,
+      delta: -9,
+    });
+  });
+
   it('refuses non-finite JSON contract inputs before they cross into Rust', () => {
     const allocationsBefore = bridge.hostBufferAllocationCount();
 

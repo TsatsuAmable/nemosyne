@@ -1,12 +1,20 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EvidenceStore, EvidenceWeightedScorer } from '../src/moneta/evidence/index.ts';
-import type { DracoSpec, SolverResult } from '../src/moneta/types.ts';
+import { EvidenceStore } from '../src/moneta/evidence/index.ts';
+import type { DracoSpec } from '../src/moneta/types.ts';
 import type { StudySessionExport } from '../src/study/types.ts';
+
+// The EvidenceWeightedScorer TypeScript re-ranking implementation was removed
+// (TEC2): the sample-count cost adjustment is owned solely by the Rust kernel
+// (`draco_adjust_evidence`), reached through the RuntimeBridge. The tests here
+// cover EvidenceStore itself, which aggregates investigator study outcomes into
+// the empirical input (`sampleCount`, `compositeUtility`) that the Rust
+// authority consumes. No TypeScript cost-adjustment or candidate-ranking
+// formula may be reintroduced; `tests/moneta-evidence-scorer-authority.test.ts`
+// fails if one reappears.
 
 describe('Evidence-Informed Draco Recommender Loop', () => {
   let store: EvidenceStore;
-  let scorer: EvidenceWeightedScorer;
 
   const mockSpecA: DracoSpec = {
     layout: 'FORCE_DIRECTED_3D',
@@ -15,16 +23,8 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
     interaction: 'INSPECT_CELL',
   };
 
-  const mockSpecB: DracoSpec = {
-    layout: 'GRID_3D',
-    geometry: 'CUBE_MATRIX',
-    behavior: 'STATIC',
-    interaction: 'INSPECT_CELL',
-  };
-
   beforeEach(() => {
     store = new EvidenceStore();
-    scorer = new EvidenceWeightedScorer(store);
   });
 
   it('records individual empirical outcomes and computes composite utility', () => {
@@ -51,6 +51,9 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
     expect(score?.meanAccuracy).toBe(1.0);
     expect(score?.meanF1).toBe(1.0);
     expect(score?.compositeUtility).toBeGreaterThan(0.8);
+    // Sample count is carried as bounded support for the empirical input; it is
+    // never labelled or treated as statistical confidence.
+    expect(score?.sampleCount).toBe(1);
   });
 
   it('ingests a full StudySessionExport bundle', () => {
@@ -97,70 +100,5 @@ describe('Evidence-Informed Draco Recommender Loop', () => {
     expect(condScore).toBeDefined();
     expect(condScore?.meanF1).toBe(1.0);
     expect(condScore?.meanNasaTlx).toBe(20);
-  });
-
-  it('adjusts Draco candidate scores based on empirical evidence', () => {
-    for (let i = 0; i < 10; i++) {
-      store.recordOutcome({
-        trialId: `t-${i}`,
-        datasetFingerprint: 'fp-1',
-        condition: 'vr_experimental',
-        taskType: 'anomaly_identification',
-        spec: mockSpecA,
-        accuracy: 1.0,
-        precision: 1.0,
-        recall: 1.0,
-        f1: 1.0,
-        durationMs: 10_000,
-        nasaTlxAverage: 15,
-        timestamp: Date.now(),
-      });
-    }
-
-    const { adjustedCost, empiricalDelta } = scorer.adjustCandidateScore(mockSpecA, 50);
-
-    expect(adjustedCost).toBeLessThan(50);
-    expect(empiricalDelta).toBeLessThan(0);
-  });
-
-  it('re-ranks candidates placing empirically superior specs first', () => {
-    for (let i = 0; i < 10; i++) {
-      store.recordOutcome({
-        trialId: `t-a-${i}`,
-        datasetFingerprint: 'fp-1',
-        condition: 'vr_experimental',
-        taskType: 'anomaly',
-        spec: mockSpecA,
-        accuracy: 1.0,
-        precision: 1.0,
-        recall: 1.0,
-        f1: 1.0,
-        durationMs: 10_000,
-        nasaTlxAverage: 10,
-        timestamp: Date.now(),
-      });
-      store.recordOutcome({
-        trialId: `t-b-${i}`,
-        datasetFingerprint: 'fp-1',
-        condition: '2d_control',
-        taskType: 'anomaly',
-        spec: mockSpecB,
-        accuracy: 0.2,
-        precision: 0.2,
-        recall: 0.2,
-        f1: 0.2,
-        durationMs: 100_000,
-        nasaTlxAverage: 90,
-        timestamp: Date.now(),
-      });
-    }
-
-    const candidates: SolverResult[] = [
-      { spec: mockSpecB, cost: 20, facts: {} as any },
-      { spec: mockSpecA, cost: 25, facts: {} as any },
-    ];
-
-    const reRanked = scorer.reRankCandidates(candidates);
-    expect(reRanked[0].spec).toEqual(mockSpecA);
   });
 });

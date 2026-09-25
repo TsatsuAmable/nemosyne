@@ -5,6 +5,7 @@ export const FAST_NODE_TESTS = [
   'tests/draco-production-import-boundary.test.ts',
   'tests/hygiene-audit.test.ts',
   'tests/moneta-gate0-authority.test.ts',
+  'tests/moneta-evidence-scorer-authority.test.ts',
   'tests/moneta-layout-authority.test.ts',
   'tests/moneta-scoring-ownership.test.ts',
   'tests/p1w1-collaboration-invite.test.ts',
