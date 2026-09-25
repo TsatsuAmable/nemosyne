@@ -29,8 +29,11 @@ const SRC_ROOT = path.resolve(root, 'src');
 function stripComments(source: string): string {
   // Naive but sufficient for this scan: an explanatory comment mentioning a
   // scanned shape must not trip the falsifier, while the shapes themselves
-  // never legitimately appear in string literals in src/.
+  // never legitimately appear in string literals in src/. String literals are
+  // replaced with placeholders FIRST so `//` or `/*` inside a literal cannot
+  // be used to mask executable code from the comment strip.
   return source
+    .replace(/`[^`]*`|'[^'\n]*'|"[^"\n]*"/g, '""')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|\s)\/\/.*$/gm, (_match, leading: string) => leading);
 }
