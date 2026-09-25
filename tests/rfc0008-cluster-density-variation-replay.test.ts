@@ -45,8 +45,10 @@ const RETIRED_DENSITY_VARIATION = 0.25;
 
 // Historical signature content as exported before the 2026-09-25 slice removed
 // the value from the canonical signature reconstruction. Built with the real
-// epistemic helpers so the fact path reproduces exactly what the pre-slice
-// canonical builder emitted: the value was marked `heuristic` because it came
+// epistemic helpers so the fact path carries the same `heuristic` source the
+// pre-slice canonical builder emitted for the cluster fact (its facts also
+// carried evidenceId/method metadata that verbatim replay never rescores, so
+// they are omitted here): the value was marked `heuristic` because it came
 // from the retired proxy, not from a measured/derived density estimand.
 // Must be built fresh per call: a shared constant would let one test's
 // delete/mutation leak into the next test's exported manifest digest and
