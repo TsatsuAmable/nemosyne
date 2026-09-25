@@ -26,10 +26,19 @@ function walk(dir: string): string[] {
 
 const SRC_ROOT = path.resolve(root, 'src');
 
+function stripComments(source: string): string {
+  // Naive but sufficient for this scan: an explanatory comment mentioning a
+  // scanned shape must not trip the falsifier, while the shapes themselves
+  // never legitimately appear in string literals in src/.
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|\s)\/\/.*$/gm, (_match, leading: string) => leading);
+}
+
 function scanSrc(pattern: RegExp): string[] {
   const offenders: string[] = [];
   for (const file of walk(SRC_ROOT)) {
-    if (pattern.test(fs.readFileSync(file, 'utf8'))) {
+    if (pattern.test(stripComments(fs.readFileSync(file, 'utf8')))) {
       offenders.push(path.relative(SRC_ROOT, file).replaceAll(path.sep, '/'));
     }
   }
@@ -56,8 +65,12 @@ describe('Moneta empirical-evidence scorer authority', () => {
       'sample-count weighting must live only in the Rust kernel'
     ).toEqual([]);
     expect(
-      scanSrc(/\*\s*(?:30\.0|20\.0)\s*\*/),
+      scanSrc(/\*\s*(?:30|20)(?:\.0)?\s*\*/),
       'TypeScript must not multiply a utility delta by the kernel cost-adjustment scales'
+    ).toEqual([]);
+    expect(
+      scanSrc(/utility[\w$]*\s*-\s*0\.5\s*\)\s*\*\s*\d|0\.5\s*-\s*[\w$]*utility/i),
+      'TypeScript must not own a utility-delta-from-neutral-baseline cost adjustment'
     ).toEqual([]);
     expect(
       scanSrc(/\b(?:reRankCandidates|adjustCandidateScore|scoreCandidateWithEvidence)\b/),

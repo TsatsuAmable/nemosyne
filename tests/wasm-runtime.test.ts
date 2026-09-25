@@ -182,10 +182,7 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('aggregates with the legacy sum-all-numeric default', () => {
-    const result = bridge.executeOperation(peopleDataset, {
-      op: 'aggregate',
-      group_by: 'team',
-    } as OperationSpec);
+    const result = bridge.executeOperation(peopleDataset, { op: 'aggregate', group_by: 'team' } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.rows.length).toBe(2);
     const a = result!.rows.find((r) => r.team === 'A')!;
@@ -227,10 +224,7 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('detects anomalies with the anomaly_iqr op name', () => {
-    const result = bridge.executeOperation(peopleDataset, {
-      op: 'anomaly_iqr',
-      column: 'age',
-    } as OperationSpec);
+    const result = bridge.executeOperation(peopleDataset, { op: 'anomaly_iqr', column: 'age' } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.columns.some((c) => c.name === '_anomaly')).toBe(true);
   });
@@ -257,9 +251,7 @@ describe('RuntimeBridge integration', () => {
       expect(facts!.rowCount).toBe(4);
       const x = facts!.numeric.find((c) => c.name === 'x')!;
       expect(x.mean).toBeCloseTo(2.5, 6);
-      const xy = facts!.correlation.find(
-        (p) => (p.a === 'x' && p.b === 'y') || (p.a === 'y' && p.b === 'x')
-      )!;
+      const xy = facts!.correlation.find((p) => (p.a === 'x' && p.b === 'y') || (p.a === 'y' && p.b === 'x'))!;
       expect(xy.value).toBeCloseTo(1, 6);
       const g = facts!.categorical.find((c) => c.name === 'g')!;
       expect(g.cardinality).toBe(2);
@@ -363,11 +355,7 @@ describe('RuntimeBridge integration', () => {
   it('records a provenance envelope on an analytical result', () => {
     const handle = bridge.loadDatasetJson(peopleDataset);
     expect(handle).toBeGreaterThan(0);
-    const outHandle = bridge.runOperation(handle, {
-      op: 'sort',
-      column: 'age',
-      ascending: true,
-    } as OperationSpec);
+    const outHandle = bridge.runOperation(handle, { op: 'sort', column: 'age', ascending: true } as OperationSpec);
     expect(outHandle).toBeGreaterThan(0);
     try {
       const prov = bridge.kernelProvenance();
