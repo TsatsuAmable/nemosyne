@@ -68,15 +68,18 @@ function evidence(extra: AnalyticalEvidence[] = [], clustered = false): DatasetE
         maxSkewness: 0,
       }),
       item('density:global', 'density', {
-        heuristicScaleDensityProxy: 1,
-        heuristicModeCount: 1,
-        heuristicSparseByRowCount: false,
+        // 10 rows -> the producer's below-20 branch, and sparse by the
+        // row-count threshold (wasm/src/data/profile.rs); 1 was unreachable.
+        heuristicScaleDensityProxy: 0.15,
+        heuristicModeCount: clustered ? 2 : 1,
+        heuristicSparseByRowCount: true,
       }),
       item('cluster:global', 'cluster', {
         heuristicEstimatedCount: clustered ? 2 : 1,
         heuristicPartitionDetected: clustered,
         heuristicSeparationScore: clustered ? 0.7 : 0,
-        legacySilhouetteDerivedScore: clustered ? 0.7 : 0,
+        // Producer relation: silhouette-derived score = separation * 0.9.
+        legacySilhouetteDerivedScore: clustered ? 0.63 : 0,
       }),
       item('anomaly:global', 'anomaly', {
         totalAnomalies: 0,

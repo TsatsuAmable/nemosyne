@@ -28,6 +28,13 @@ export function createMonetaStructureProfile(
   const clusterCount = options.clusterCount ?? 1;
   const hasClusters = options.hasClusters ?? clusterCount > 1;
   const fingerprint = options.fingerprint ?? `sha256:test:${options.datasetName}`;
+  const separationScore = options.separationScore ?? (hasClusters ? 0.8 : 0);
+  // Mirrors the Rust producer's bounded bottom-k sampling contract
+  // (wasm/src/data/profile.rs): above MAX_CLUSTER_SAMPLE_ROWS (65,536) the
+  // estimator switches to the fixed-seed bottom-k method and reports the
+  // sampled count and per-sample source ratio instead of the full population.
+  const sampleCount = Math.min(options.rowCount, 65_536);
+  const isBoundedSampling = options.rowCount > 65_536;
 
   return {
     datasetName: options.datasetName,
@@ -57,22 +64,34 @@ export function createMonetaStructureProfile(
     clusters: {
       estimatedCount: clusterCount,
       hasClusters,
-      separationScore: options.separationScore ?? (hasClusters ? 0.8 : 0),
-      heuristicSilhouettePartitionScore: hasClusters ? 0.8 : 1,
-      method: 'full-complete-row-kmeans',
+      separationScore,
+      // Mirrors the Rust producer (wasm/src/data/profile.rs): the partition
+      // score is 0.0 whenever no partition is detected, and otherwise the
+      // affine silhouette rescaling (best_silhouette * 0.9) clamped to
+      // [0.1, 1.0]. The previous literal inverted the no-clusters case to 1.
+      heuristicSilhouettePartitionScore: hasClusters
+        ? Math.min(1, Math.max(0.1, separationScore * 0.9))
+        : 0,
+      method: isBoundedSampling
+        ? 'fixed-seed-bottom-k-complete-row-kmeans'
+        : 'full-complete-row-kmeans',
       eligibleObservationCount: options.rowCount,
-      sampleCount: options.rowCount,
-      samplingSeed: null,
-      sourceObservationsPerSample: 1,
+      sampleCount,
+      samplingSeed: isBoundedSampling ? 0x4e4d5359 : null,
+      sourceObservationsPerSample: sampleCount > 0 ? options.rowCount / sampleCount : 0,
       normalization: 'per-dimension-min-max-over-all-complete-rows',
       maximumCandidateClusters: 3,
       iterations: 5,
-      silhouetteSampleCount: Math.min(options.rowCount, 50),
+      silhouetteSampleCount: Math.min(sampleCount, 50),
     },
     density: {
-      heuristicScaleDensityProxy: 0.5,
+      // Mirrors the Rust producer's row-count thresholds (wasm/src/data/
+      // profile.rs): >= 50 rows -> 0.7, >= 20 -> 0.4, else 0.15. The previous
+      // literal 0.5 is not a value the kernel can emit.
+      heuristicScaleDensityProxy: options.rowCount >= 50 ? 0.7 : options.rowCount >= 20 ? 0.4 : 0.15,
       modeCount: clusterCount,
-      heuristicSparseByRowCount: false,
+      // Mirrors the Rust producer: sparse is a row-count threshold (< 15).
+      heuristicSparseByRowCount: options.rowCount < 15,
     },
     temporal: null,
     graph: null,
