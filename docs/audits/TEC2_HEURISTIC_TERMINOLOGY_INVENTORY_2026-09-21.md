@@ -526,3 +526,50 @@ All other fixture fields (including `heuristicSeparationScore`, `heuristicEstima
 ### Verification performed
 
 Every fast-lane and integration-lane file touched by or consuming this change passes at this head, including every consumer of the shared helper and `tests/helpers/kernelMock.ts`, and the real-WASM `wasm-columnar-structure-profile` suite passes. `typecheck`, `lint` (0 errors; the 260 warnings are pre-existing and none are in touched files) and `docs:check` pass. The full fast and integration lanes additionally show pre-existing environment-specific failures in the `pt4b-*`, `pt6c-*`, `pt6d-*` and `pt8-*` governance planes on this Windows host; they reproduce identically on clean `main@02627e1a` (verified by stashing this slice) and are unrelated to it. CI governs those lanes. The Rust/host `cargo test` lane could not run locally (no MSVC host linker); no Rust source changed in this slice, so CI's Rust lane is unaffected beyond re-running.
+
+---
+
+## Topology-absence epistemic honesty closure record (2026-09-26)
+
+This slice closes the absence-as-`derived` epistemic mislabel inventoried in `docs/audits/TEC3_FALSIFIER_COVERAGE_INVENTORY_2026-09-21.md` §4.2 (Collapse 1) and its open question 2, which that inventory's verification addendum classified as TEC2/TEC3 remediation debt ("a fixture and a label fix") and named "the single most load-bearing line" of the no-structure/insufficient-information collapse. It is a label fix on the canonical epistemic map: **no analytical value, wire key, ABI, kernel numerics or persisted historical format changes.** It does **not** close TEC2; Q2, Q3 and Q6 remain open, and any further inventory-confirmed residuals remain open.
+
+Branch: `feat/tec2-topology-absence-epistemic`. Base: `main@61073bc44ccdf84bd50a31c5b181efee428d2bc1` (#818).
+
+### The defect
+
+`datasetEvidenceToSignature` (`src/moneta/representation/DatasetEvidenceSignature.ts`) recorded the epistemic fact `topologicalStructure.topology` with source `derived` — an established classification — whenever no structured-topology evidence item existed, with a note asserting that the "canonical structure profile classifies the dataset as TABULAR". Neither claim held:
+
+- the Rust producer's non-emission of a topology record conflates not-applicable, fail-closed (e.g. a spectral sampling gap) and not-declared states across the four topology families (TEC3 inventory, Collapse 3), so it is not a topology classification;
+- the `TABULAR` value comes from that module's own `inferTopology` fall-through, not from the kernel — a TypeScript-side classification manufactured over absence, the exact second-authority hazard this tranche closes.
+
+The identical class of absence was already recorded honestly one branch below as `unknown` (`topologicalStructure.hasCycles`, "Rust graph profile did not include cycle analysis"), making the two branches mutually inconsistent.
+
+### What changed
+
+| Surface | Change |
+| --- | --- |
+| `src/moneta/representation/DatasetEvidenceSignature.ts` | The topology-absence branch now records source `unknown` (was `derived`) with an honest note stating the TABULAR value is a compatibility default, "not a measured or derived classification"; the stable `structure-profile/topology-absence` method identifier is retained |
+
+### What was deliberately preserved
+
+- **The `TABULAR` compatibility value and `inferTopology` are unchanged.** The TEC3 addendum established that no production code reads the epistemic source of `topologicalStructure.topology`, and the value is used only to *grant* boosts, never to deny them — the absent-structure case "simply fails to earn a boost". The mislabel was a latent integrity defect, not a demonstrated decision error, so a value or decision-behavior change was not warranted by evidence.
+- **The presence branch is unchanged**: a topology evidence item still marks the fact `derived` with that item's evidenceId/method.
+- **`cardinality.edgeCount` graph-absence marking is not the same defect and is unchanged.** `analyze_graph` (`wasm/src/data/profile.rs:610-613`) returns `None` iff the dataset's declared edges are empty — exactly one meaning — so `edgeCount: 0` marked `derived` is a true statement about the declared schema. The topology absence, by contrast, spans four families whose `None` has multiple meanings.
+- **`FitnessModel`, the decision-relevance equality gate and RFC 0008 replay are untouched.** Verified at this head that the only production readers of epistemic sources are `FitnessModel.ts` (`clusterStructure.hasClusters`, `distribution.highVariance`, `cardinality.depth`, `clusterStructure.densityVariation`); none reads topology's source, so no ranking or gating behavior changes. The equality gate compares topology *values*, not sources. Historical persisted decisions carrying the old `derived` fact replay verbatim per RFC 0008.
+
+### Falsifiers added (`tests/rf045-signature-evidence-truth.test.ts`)
+
+- **Topology-absence case:** canonical signature from a profile with no graph/hierarchy/temporal/spatial records asserts `topologicalStructure.topology === 'TABULAR'` (value compatibility unchanged) with epistemic source `unknown`, method `structure-profile/topology-absence`, and a note that matches /not a measured or derived classification/.
+- **Presence regression guard:** the graph-present case now additionally asserts `topologicalStructure.topology` is `derived` with evidenceId `topology:graph`, so over-correcting the presence branch fails the suite.
+
+Reintroducing `derived` on the absence branch fails the first falsifier; over-correcting the presence branch fails the second; changing the compatibility value fails the first plus the existing FitnessModel/equality-gate suites.
+
+### Verification performed
+
+Integration-lane suites covering every consumer of the canonical signature path pass at this head: `rf045-signature-evidence-truth`, `evidence-backed-moneta`, `representation-signature`, `dataset-evidence-wiring`, `atlas-moneta-evidence-authority`, `moneta-scale-exit`, `signature-epistemic-maxCorrelation`, `moneta-stability-certificate`, `atlas-graph-lineage-wasm`; real-WASM lane: `frequency-field`, `moneta-known-structure-campaign-wasm`, `wasm-columnar-structure-profile` (no Rust source changed, so no WASM rebuild is involved). `typecheck` passes and `eslint` reports no issues on both touched files. CI governs the full lanes.
+
+### Residual reconciliation at this head
+
+- **Q2** — re-verified: `MonetaEmpiricalTuner` and `EvidenceInformedRecommender` still have no production caller (their own modules, the barrel re-exports, and `tests/draco-empirical-tuner.test.ts` / `tests/research-position-draco-hardware.test.ts` only); the durable disposition recorded in the Q4/Q5 closure record above stands unchanged. This slice does not touch them.
+- **Q3** — `EvidenceReceiptStabilityV1` remains honest-null; populating it requires a real resampling stability implementation that does not exist (implementation-sequence step 8 in `docs/STATISTICAL_FOUNDATIONS.md`; promotable stability remains governed by RFC 0006). Not populated by this slice.
+- **Q6** — re-verified negative: no investigator-visible label surfaces any inventoried field. A full `src/**` scan at this head finds remaining `confidence`/`significance` tokens only where honest: researcher self-reported judgement vocabulary (`DiscoveryEpisode`, `EpistemicObject`, `Finding.confidence: 'preliminary'|'validated'|'definitive'`), interaction-layer intent-parse match scores (`IntentCompiler`, TypeScript-owned orchestration per boundary 3, not analytical evidence), hardware gesture-recognition confidence, and `PromotionGate`'s `GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT`, which is backed by an actual one-sided exact sign-test p-value over independent groups — an explicit testing procedure, satisfying the governing principle 8.

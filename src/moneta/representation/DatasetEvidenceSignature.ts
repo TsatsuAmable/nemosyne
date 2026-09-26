@@ -287,9 +287,16 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
       'Topology is derived from authoritative Rust structure-profile evidence',
     );
   } else {
-    markDatasetSignatureFact(epistemic, 'topologicalStructure.topology', 'derived', {
+    // The Rust profile's non-emission of a topology record is not a topology
+    // classification: across the four families it conflates not-applicable,
+    // fail-closed (e.g. a spectral sampling gap) and not-declared states, so no
+    // derivation exists to claim. The 'TABULAR' value below comes from this
+    // module's own inferTopology fall-through and is kept for decision-path
+    // compatibility only; its epistemic source must stay 'unknown', exactly
+    // like the sibling hasCycles absence.
+    markDatasetSignatureFact(epistemic, 'topologicalStructure.topology', 'unknown', {
       method: 'structure-profile/topology-absence',
-      note: 'No structured topology profile was emitted; canonical structure profile classifies the dataset as TABULAR',
+      note: 'No structured topology evidence item was emitted; the TABULAR value is a compatibility default, not a measured or derived classification',
     });
   }
 
