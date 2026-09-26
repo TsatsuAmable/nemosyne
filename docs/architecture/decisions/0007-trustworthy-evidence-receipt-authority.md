@@ -37,7 +37,7 @@ A parsed serialized receipt bundle is evidence data, not a live resolver capabil
 
 Receipt presence is not equivalent to scientific admissibility, stability, significance or representation fitness. This decision introduces no universal evidence-strength score and no TypeScript-side scientific threshold.
 
-RFC 0007's downstream authority-owned requirement profiles and typed policy refusals are implemented at the live resolver (2026-09-26): requirement profiles are a closed registry minted only inside the evidence contract layer, and `resolveAgainst` returns the immutable receipt or a typed governed refusal (`RECEIPT_NOT_FOUND`, `MISSING_REQUIRED_AXIS`, `VIOLATED_ASSUMPTION`, `UNRESOLVED_ASSUMPTION`), with `DATASET_MISMATCH`/`KERNEL_MISMATCH` reserved for the governed replay resolver. The governed replay resolver, DatasetEvidence identity migration, and MCR2+ evidence-reference enforcement remain required before TEC1 can reach its finite exit. This ADR fixes the durable authority boundary; `docs/ROADMAP.md` remains the implementation-status authority.
+RFC 0007's downstream authority-owned requirement profiles and typed policy refusals are implemented at the live resolver (2026-09-26): requirement profiles are a closed registry minted only inside the evidence contract layer, and `resolveAgainst` returns the immutable receipt or a typed governed refusal (`RECEIPT_NOT_FOUND`, `MISSING_REQUIRED_AXIS`, `VIOLATED_ASSUMPTION`, `UNRESOLVED_ASSUMPTION`). The governed replay resolver is implemented in the evidence contract layer (2026-09-26): `governedReplayEvidenceReceiptAuthority` mints the replay resolution capability only from a structurally validated persisted `EvidenceReceiptBundleV1` plus an explicit, well-formed replay-context identity, exposes only governed profile-bound resolution (no ungoverned lookup), and fails closed with the typed refusals `DATASET_MISMATCH`, `KERNEL_MISMATCH` or `UNKNOWN_REQUIREMENT_PROFILE` when the persisted bundle identity disagrees with the replay context or the named requirement-profile identity is not minted by the closed registry — historical evidence is never silently re-judged under a current default policy. No persisted/public format currently carries receipt bundles or profile identities, so persisted-format replay integration, DatasetEvidence identity migration, and MCR2+ evidence-reference enforcement remain required before TEC1 can reach its finite exit. This ADR fixes the durable authority boundary; `docs/ROADMAP.md` remains the implementation-status authority.
 
 ## Consequences
 
@@ -49,7 +49,7 @@ RFC 0007's downstream authority-owned requirement profiles and typed policy refu
 6. Columnar-only or invalid handles do not trigger compatibility row materialisation merely to produce statistics receipts.
 7. Existing `DatasetEvidence` consumers remain source-compatible while receipt migration proceeds family by family.
 8. The statistics family is a transport proof, not a claim that its unresolved assumptions have become admissible.
-9. Persisted/replay use must not deserialize a receipt and thereby recreate live authority. A governed replay loader remains future TEC1 work.
+9. Persisted/replay use must not deserialize a receipt and thereby recreate live authority. The governed replay loader in the evidence contract layer is the only replay mint: parsed bundle data alone cannot construct it, and it resolves only under the governing identities RFC 0007 requires.
 
 ## Evidence
 

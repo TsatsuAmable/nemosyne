@@ -56,6 +56,14 @@ const EVIDENCE_REQUIREMENT_PROFILE_BRAND = Symbol('EvidenceRequirementProfileV1'
 const mintedProfiles = new WeakSet<object>();
 
 /**
+ * Minted profiles keyed by their stable `profileId`. This is the lookup the
+ * governed replay resolver uses to bind a persisted requirement-profile
+ * identity to the profile this build still mints; an identity absent from
+ * this registry is unresolvable historical governance and must fail closed.
+ */
+const mintedProfilesById = new Map<string, EvidenceRequirementProfileV1>();
+
+/**
  * Authority-owned requirement profile. The nominal brand keeps TypeScript
  * callers on the closed registry; the runtime guarantee is the module-private
  * identity registry above. A candidate, UI caller or learned model cannot
@@ -145,11 +153,36 @@ function createEvidenceRequirementProfileV1(
     assumptionRequirement: freeze({ ...assumptionRequirement }),
     [EVIDENCE_REQUIREMENT_PROFILE_BRAND]: true,
   }) as EvidenceRequirementProfileV1;
+  if (mintedProfilesById.has(profileId)) {
+    throw new Error(
+      `[EvidenceRequirementProfile] duplicate requirement profile identity '${profileId}'`,
+    );
+  }
   mintedProfiles.add(candidate);
+  mintedProfilesById.set(profileId, candidate);
   if (!isEvidenceRequirementProfileV1(candidate)) {
     throw new Error('[EvidenceRequirementProfile] invalid requirement profile construction');
   }
   return candidate;
+}
+
+/**
+ * Resolve a requirement-profile identity against the closed authority
+ * registry. Returns the minted profile carrying exactly this identity, or
+ * `null` when no such profile is minted by this build — for example a
+ * retired, tampered or misspelled historical identity.
+ *
+ * Replay governance must fail closed on `null`: substituting a current
+ * default profile would silently re-judge historical evidence under today's
+ * policy, which is exactly the drift RFC 0007's replay contract forbids.
+ * This lookup cannot forge governance — it can only return objects already
+ * minted inside this module.
+ */
+export function evidenceRequirementProfileByIdV1(
+  profileId: string,
+): EvidenceRequirementProfileV1 | null {
+  if (typeof profileId !== 'string' || profileId.length === 0) return null;
+  return mintedProfilesById.get(profileId) ?? null;
 }
 
 /**
@@ -193,11 +226,14 @@ export const INFERENTIAL_CLAIM_REQUIREMENT_PROFILE_V1: EvidenceRequirementProfil
  * `RESOLVED`, `RECEIPT_NOT_FOUND`, `MISSING_REQUIRED_AXIS`,
  * `VIOLATED_ASSUMPTION` and `UNRESOLVED_ASSUMPTION`; a stale or replaced
  * dataset handle revokes the capability by throwing, as pinned by ADR-0007.
- * `DATASET_MISMATCH` and `KERNEL_MISMATCH` complete the RFC 0007 refusal
- * vocabulary and are reserved for the governed replay resolver, which must
- * compare persisted bundle identity against replay context; defining them
- * here keeps the replay slice on one refusal contract instead of a parallel
- * one.
+ * The governed replay resolver completes the RFC 0007 refusal vocabulary:
+ * it compares the persisted bundle identity against the replay context
+ * (`DATASET_MISMATCH`, `KERNEL_MISMATCH`) and binds resolution to an
+ * explicit requirement-profile identity resolved against the closed
+ * registry (`UNKNOWN_REQUIREMENT_PROFILE` when that identity is not minted
+ * by this build, so historical governance can never silently fall back to a
+ * current default profile). Defining the full vocabulary here keeps the
+ * replay slice on one refusal contract instead of a parallel one.
  */
 export type EvidenceReceiptResolutionV1 =
   | { readonly status: 'RESOLVED'; readonly receipt: EvidenceReceiptV1 }
@@ -228,6 +264,11 @@ export type EvidenceReceiptResolutionV1 =
       readonly receiptId: string;
       readonly expectedKernelVersion: string;
       readonly observedKernelVersion: string;
+    }
+  | {
+      readonly status: 'UNKNOWN_REQUIREMENT_PROFILE';
+      readonly receiptId: string;
+      readonly profileId: string;
     };
 
 function axisSatisfied(axis: EvidenceRequirementAxisV1, receipt: EvidenceReceiptV1): boolean {
