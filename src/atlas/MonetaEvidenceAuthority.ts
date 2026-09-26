@@ -1,8 +1,12 @@
 import {
+  evaluateEvidenceReceiptAgainstProfileV1,
+  isEvidenceRequirementProfileV1,
   parseEvidenceReceiptBundleV1,
   structureProfileToDatasetEvidence,
   type DatasetEvidence,
+  type EvidenceReceiptResolutionV1,
   type EvidenceReceiptV1,
+  type EvidenceRequirementProfileV1,
   type RustDatasetStructureProfile,
 } from '../data/evidence/index.ts';
 import {
@@ -228,6 +232,20 @@ export interface LiveEvidenceReceiptAuthorityV1 {
   readonly kernelVersion: string;
   readonly receiptIds: readonly string[];
   resolve(receiptId: string): EvidenceReceiptV1 | null;
+  /**
+   * Resolve a receipt against an authority-owned requirement profile
+   * (RFC 0007 section 3). Returns the immutable receipt only when every
+   * requirement of the profile is met; otherwise returns a typed governed
+   * refusal naming the unmet requirement. A stale or replaced dataset handle
+   * still revokes the capability by throwing, exactly like `resolve`.
+   * Callers may not author profiles: only the frozen registry minted in the
+   * evidence contract layer is accepted, so a candidate, UI caller or
+   * learned model cannot weaken an operation's evidence requirements.
+   */
+  resolveAgainst(
+    profile: EvidenceRequirementProfileV1,
+    receiptId: string,
+  ): EvidenceReceiptResolutionV1;
 }
 
 /**
@@ -276,14 +294,32 @@ export function statisticsEvidenceReceiptAuthority(
 
   const byId = new Map(bundle.receipts.map((receipt) => [receipt.receiptId, receipt] as const));
   const receiptIds = Object.freeze([...byId.keys()]);
+  const lookup = (receiptId: string): EvidenceReceiptV1 | null => {
+    assertLiveIdentity();
+    if (typeof receiptId !== 'string' || receiptId.length === 0) return null;
+    return byId.get(receiptId) ?? null;
+  };
   return Object.freeze({
     datasetFingerprint,
     kernelVersion,
     receiptIds,
     resolve(receiptId: string): EvidenceReceiptV1 | null {
-      assertLiveIdentity();
-      if (typeof receiptId !== 'string' || receiptId.length === 0) return null;
-      return byId.get(receiptId) ?? null;
+      return lookup(receiptId);
+    },
+    resolveAgainst(
+      profile: EvidenceRequirementProfileV1,
+      receiptId: string,
+    ): EvidenceReceiptResolutionV1 {
+      // Live identity first, so a revoked capability reports its revocation
+      // exactly like `resolve` and revocation telemetry stays primary.
+      const receipt = lookup(receiptId);
+      if (!isEvidenceRequirementProfileV1(profile)) {
+        throw new Error(
+          '[AtlasCore] EvidenceReceipt requirement profile is not authority-owned; ' +
+            'caller-supplied profiles cannot weaken evidence requirements',
+        );
+      }
+      return evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt);
     },
   });
 }

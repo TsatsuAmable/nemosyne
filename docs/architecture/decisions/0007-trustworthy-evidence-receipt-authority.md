@@ -37,7 +37,7 @@ A parsed serialized receipt bundle is evidence data, not a live resolver capabil
 
 Receipt presence is not equivalent to scientific admissibility, stability, significance or representation fitness. This decision introduces no universal evidence-strength score and no TypeScript-side scientific threshold.
 
-RFC 0007's downstream authority-owned requirement profiles, typed policy refusals, replay resolver, DatasetEvidence identity migration, and MCR2+ evidence-reference enforcement remain required before TEC1 can reach its finite exit. This ADR fixes the durable authority boundary; `docs/ROADMAP.md` remains the implementation-status authority.
+RFC 0007's downstream authority-owned requirement profiles and typed policy refusals are implemented at the live resolver (2026-09-26): requirement profiles are a closed registry minted only inside the evidence contract layer, and `resolveAgainst` returns the immutable receipt or a typed governed refusal (`RECEIPT_NOT_FOUND`, `MISSING_REQUIRED_AXIS`, `VIOLATED_ASSUMPTION`, `UNRESOLVED_ASSUMPTION`), with `DATASET_MISMATCH`/`KERNEL_MISMATCH` reserved for the governed replay resolver. The governed replay resolver, DatasetEvidence identity migration, and MCR2+ evidence-reference enforcement remain required before TEC1 can reach its finite exit. This ADR fixes the durable authority boundary; `docs/ROADMAP.md` remains the implementation-status authority.
 
 ## Consequences
 

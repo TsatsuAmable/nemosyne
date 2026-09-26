@@ -3,6 +3,7 @@ export const FAST_NODE_TESTS = [
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
   'tests/draco-production-import-boundary.test.ts',
+  'tests/evidence-requirement-profile.test.ts',
   'tests/hygiene-audit.test.ts',
   'tests/moneta-gate0-authority.test.ts',
   'tests/moneta-evidence-scorer-authority.test.ts',
