@@ -310,13 +310,16 @@ export function statisticsEvidenceReceiptAuthority(
       profile: EvidenceRequirementProfileV1,
       receiptId: string,
     ): EvidenceReceiptResolutionV1 {
+      // Live identity first, so a revoked capability reports its revocation
+      // exactly like `resolve` and revocation telemetry stays primary.
+      const receipt = lookup(receiptId);
       if (!isEvidenceRequirementProfileV1(profile)) {
         throw new Error(
           '[AtlasCore] EvidenceReceipt requirement profile is not authority-owned; ' +
             'caller-supplied profiles cannot weaken evidence requirements',
         );
       }
-      return evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, lookup(receiptId));
+      return evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt);
     },
   });
 }

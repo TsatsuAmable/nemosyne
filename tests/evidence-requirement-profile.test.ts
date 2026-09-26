@@ -102,14 +102,51 @@ describe('TEC1 authority-owned requirement profiles', () => {
       assumptionRequirement: { refuseViolated: false, refuseUnresolved: false },
     };
     expect(isEvidenceRequirementProfileV1(forged)).toBe(false);
-    // Structural look-alikes copied from a real profile also fail: the brand
-    // symbol is not reachable outside the minting module and JSON cannot
-    // carry it.
+    // JSON round-trips drop symbol keys, so clones fail.
     const cloned = JSON.parse(JSON.stringify(DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1));
     expect(isEvidenceRequirementProfileV1(cloned)).toBe(false);
+
+    // Object spread copies enumerable own symbol keys (including the brand),
+    // so it carries the nominal shape — but ownership is checked by identity
+    // membership in the module-private mint registry, and a spread clone is
+    // a different object. A weaker spread forgery must be rejected even
+    // though it structurally resembles a governed profile.
+    const spreadWeaker = {
+      ...DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
+      profileId: 'spread-forged/v1',
+      requiredAxes: [],
+      assumptionRequirement: { refuseViolated: false, refuseUnresolved: false },
+    };
+    expect(isEvidenceRequirementProfileV1(spreadWeaker)).toBe(false);
+
+    // Stealing the brand symbol through reflection does not help either:
+    // a hand-built object that carries the real symbol is still not the
+    // minted object.
+    const brand = Object.getOwnPropertySymbols(DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1)[0];
+    const symbolForged = {
+      profileId: 'symbol-forged/v1',
+      requiredAxes: [],
+      assumptionRequirement: { refuseViolated: false, refuseUnresolved: false },
+      [brand]: true,
+    };
+    expect(isEvidenceRequirementProfileV1(symbolForged)).toBe(false);
+
+    // Prototype-chain inheritance passes property reads, including the
+    // brand, but the inheritor is not the minted object either.
+    const inherited = Object.create(DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1) as object;
+    Object.defineProperties(inherited, {
+      profileId: { value: 'inherited-forged/v1', enumerable: true },
+      requiredAxes: { value: [], enumerable: true },
+      assumptionRequirement: {
+        value: { refuseViolated: false, refuseUnresolved: false },
+        enumerable: true,
+      },
+    });
+    expect(isEvidenceRequirementProfileV1(inherited)).toBe(false);
+
     expect(() =>
       evaluateEvidenceReceiptAgainstProfileV1(
-        forged as unknown as typeof DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
+        spreadWeaker as unknown as typeof DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
         'descriptive:x',
         null
       )
@@ -208,6 +245,45 @@ describe('TEC1 authority-owned requirement profiles', () => {
       axis: 'uncertainty',
     });
     expect(Object.isFrozen(uncertaintyRefusal)).toBe(true);
+  });
+
+  it('never lets an explicit Rust-issued admission rejection satisfy the context axis', () => {
+    const [rejectedAdmission] = parse([
+      receipt({
+        receiptId: 'rejected:x',
+        claimId: 'rejected:x',
+        measurementContext: {
+          status: 'ESTABLISHED',
+          records: [
+            {
+              model: {
+                column: 'x',
+                scale: 'identifier',
+                observationStructure: 'iid',
+                compositionalGroup: null,
+              },
+              status: 'confirmed',
+              basis: [{ source: 'manifest', rationale: 'declared domain semantics' }],
+            },
+          ],
+          semanticAdmissionPolicy: 'allowInferred',
+          analyticalAdmission: {
+            status: 'rejected',
+            issues: [{ column: 'x', reason: 'identifier-scale column is not analytically admissible' }],
+          },
+        },
+      }),
+    ]);
+    const outcome = evaluateEvidenceReceiptAgainstProfileV1(
+      INFERENTIAL_CLAIM_REQUIREMENT_PROFILE_V1,
+      'rejected:x',
+      rejectedAdmission
+    );
+    expect(outcome).toEqual({
+      status: 'MISSING_REQUIRED_AXIS',
+      receiptId: 'rejected:x',
+      axis: 'measurementContextEstablished',
+    });
   });
 
   it('returns a typed violated-assumption refusal', () => {

@@ -45,11 +45,23 @@ export interface EvidenceRequirementProfileContractV1 {
 const EVIDENCE_REQUIREMENT_PROFILE_BRAND = Symbol('EvidenceRequirementProfileV1');
 
 /**
- * Authority-owned requirement profile. The brand symbol is deliberately not
- * exported, so only this module can construct a profile. A candidate, UI
- * caller or learned model cannot weaken an operation's requirements by
- * requesting fewer axes: it can only reference one of the frozen profiles
- * minted here, and the live resolver rejects anything else at runtime.
+ * Identity registry of profiles minted by this module. Membership is checked
+ * by object identity, which cannot be forged: object spread copies symbol
+ * keys, `Object.getOwnPropertySymbols` exposes the brand, and prototype
+ * inheritance passes property reads, but none of those produce an object
+ * that is a member of this set. Only a reference to a genuinely minted
+ * profile can satisfy the check, and holding such a reference is exactly
+ * the governed case.
+ */
+const mintedProfiles = new WeakSet<object>();
+
+/**
+ * Authority-owned requirement profile. The nominal brand keeps TypeScript
+ * callers on the closed registry; the runtime guarantee is the module-private
+ * identity registry above. A candidate, UI caller or learned model cannot
+ * weaken an operation's requirements by requesting fewer axes: it can only
+ * reference one of the frozen profiles minted here, and the live resolver
+ * rejects anything else at runtime.
  */
 export interface EvidenceRequirementProfileV1 extends EvidenceRequirementProfileContractV1 {
   readonly [EVIDENCE_REQUIREMENT_PROFILE_BRAND]: true;
@@ -77,16 +89,21 @@ function isAssumptionRequirement(value: unknown): value is EvidenceAssumptionReq
 }
 
 /**
- * Runtime guard for the nominal profile brand plus full structural
- * re-validation. TypeScript's brand already rejects forged profiles at compile
- * time; this guard also fails closed when untyped input reaches the live
- * resolver (for example through `any` at a boundary).
+ * Runtime guard for authority ownership. The primary check is identity
+ * membership in the module-private mint registry, which object spread,
+ * symbol theft and prototype inheritance cannot satisfy; structural
+ * re-validation is retained as a secondary check against corruption of a
+ * minted object. TypeScript's nominal brand already rejects look-alikes at
+ * compile time; this guard also fails closed when untyped input reaches the
+ * live resolver (for example through `any` at a boundary).
  */
 export function isEvidenceRequirementProfileV1(
   value: unknown
 ): value is EvidenceRequirementProfileV1 {
+  if (!isRecord(value) || !mintedProfiles.has(value)) {
+    return false;
+  }
   if (
-    !isRecord(value) ||
     value[EVIDENCE_REQUIREMENT_PROFILE_BRAND] !== true ||
     typeof value.profileId !== 'string' ||
     value.profileId.length === 0 ||
@@ -128,6 +145,7 @@ function createEvidenceRequirementProfileV1(
     assumptionRequirement: freeze({ ...assumptionRequirement }),
     [EVIDENCE_REQUIREMENT_PROFILE_BRAND]: true,
   }) as EvidenceRequirementProfileV1;
+  mintedProfiles.add(candidate);
   if (!isEvidenceRequirementProfileV1(candidate)) {
     throw new Error('[EvidenceRequirementProfile] invalid requirement profile construction');
   }
@@ -215,7 +233,17 @@ export type EvidenceReceiptResolutionV1 =
 function axisSatisfied(axis: EvidenceRequirementAxisV1, receipt: EvidenceReceiptV1): boolean {
   switch (axis) {
     case 'measurementContextEstablished':
-      return receipt.measurementContext.status === 'ESTABLISHED';
+      // Established measurement semantics satisfy this axis unless the
+      // governing Rust-issued analytical admission result explicitly rejects
+      // the analytical use: a rejection is negative evidence and must never
+      // be flattened into a satisfied requirement. An absent admission result
+      // is not a rejection; profiles that need the admission result itself
+      // remain a separate, deliberate policy addition.
+      if (receipt.measurementContext.status !== 'ESTABLISHED') return false;
+      return (
+        receipt.measurementContext.analyticalAdmission === null ||
+        receipt.measurementContext.analyticalAdmission.status === 'admitted'
+      );
     case 'geometry':
       return receipt.geometry !== null;
     case 'uncertainty':
