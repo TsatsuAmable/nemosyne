@@ -269,7 +269,9 @@ describe('TEC1 authority-owned requirement profiles', () => {
           semanticAdmissionPolicy: 'allowInferred',
           analyticalAdmission: {
             status: 'rejected',
-            issues: [{ column: 'x', reason: 'identifier-scale column is not analytically admissible' }],
+            issues: [
+              { column: 'x', reason: 'identifier-scale column is not analytically admissible' },
+            ],
           },
         },
       }),
@@ -283,6 +285,46 @@ describe('TEC1 authority-owned requirement profiles', () => {
       status: 'MISSING_REQUIRED_AXIS',
       receiptId: 'rejected:x',
       axis: 'measurementContextEstablished',
+    });
+  });
+
+  it('pins that an absent admission result is not a rejection', () => {
+    // Established measurement semantics without an analytical-admission
+    // result still satisfy the context axis: absence is not negative
+    // evidence. Requiring the admission result itself would be a separate,
+    // deliberate policy profile.
+    const [absentAdmission] = parse([
+      receipt({
+        receiptId: 'absent-admission:x',
+        claimId: 'absent-admission:x',
+        measurementContext: {
+          status: 'ESTABLISHED',
+          records: [
+            {
+              model: {
+                column: 'x',
+                scale: 'ratio',
+                observationStructure: 'iid',
+                compositionalGroup: null,
+              },
+              status: 'confirmed',
+              basis: [{ source: 'manifest', rationale: 'declared domain semantics' }],
+            },
+          ],
+          semanticAdmissionPolicy: 'requireConfirmed',
+          analyticalAdmission: null,
+        },
+      }),
+    ]);
+    const outcome = evaluateEvidenceReceiptAgainstProfileV1(
+      INFERENTIAL_CLAIM_REQUIREMENT_PROFILE_V1,
+      'absent-admission:x',
+      absentAdmission
+    );
+    expect(outcome).toEqual({
+      status: 'MISSING_REQUIRED_AXIS',
+      receiptId: 'absent-admission:x',
+      axis: 'uncertainty',
     });
   });
 
