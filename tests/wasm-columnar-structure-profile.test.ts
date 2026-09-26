@@ -59,8 +59,10 @@ function pushString(parts: Uint8Array[], value: string): void {
   parts.push(bytes);
 }
 
-function typedPayload(options: { correlatedNumericColumns?: boolean } = {}): Uint8Array {
-  const rows = 8;
+function typedPayload(
+  options: { correlatedNumericColumns?: boolean; rows?: number; twoBlobs?: boolean } = {}
+): Uint8Array {
+  const rows = options.rows ?? 8;
   const parts: Uint8Array[] = [encoder.encode('NTC1')];
   pushU32(parts, rows);
   // `value_mirror` is an exact copy of `value`, so the kernel emits one
@@ -83,7 +85,14 @@ function typedPayload(options: { correlatedNumericColumns?: boolean } = {}): Uin
     pushString(parts, name);
     const values = new Uint8Array(rows * 8);
     const view = new DataView(values.buffer);
-    for (let row = 0; row < rows; row += 1) view.setFloat64(row * 8, row * scale, true);
+    for (let row = 0; row < rows; row += 1) {
+      // `twoBlobs` builds two tight, well-separated 1-D blobs so the
+      // deterministic estimator must detect a partition with a high silhouette.
+      const value = options.twoBlobs
+        ? (row % 2 === 0 ? 0 : 100) + row * 0.001
+        : row * scale;
+      view.setFloat64(row * 8, value, true);
+    }
     parts.push(values, new Uint8Array(rows).fill(1));
   }
 
@@ -301,6 +310,84 @@ describe('columnar DatasetStructureProfile real-WASM boundary', () => {
       mutatedRetired.temporal.periodicities[0].confidence = 0.5;
       expect(() => assertRustDatasetStructureProfile(mutatedRetired as unknown as RustDatasetStructureProfile)).toThrow(
         /confidence/,
+      );
+    } finally {
+      bridge.call('typed_dataset_destroy', handle);
+    }
+  });
+
+  it('pins the producer value semantics the TypeScript fixtures must mirror (TEC2 Q4/Q5)', () => {
+    // The scale/density proxy and the sparse flag are pure row-count
+    // thresholds in the Rust producer (wasm/src/data/profile.rs), so their
+    // exact values are determined by N alone. The pre-TEC2-fixture-closure
+    // TypeScript fixtures invented values the kernel cannot emit (0.5, 1) and
+    // reported `sparse: false` for small datasets; this pin is the falsifier
+    // that would have caught those invented values and would catch any future
+    // producer drift the fixtures silently absorb.
+    const rowCases: readonly { rows: number; proxy: number; sparse: boolean }[] = [
+      { rows: 3, proxy: 0.15, sparse: true },
+      { rows: 14, proxy: 0.15, sparse: true },
+      { rows: 19, proxy: 0.15, sparse: false },
+      { rows: 20, proxy: 0.4, sparse: false },
+      { rows: 49, proxy: 0.4, sparse: false },
+      { rows: 50, proxy: 0.7, sparse: false },
+    ];
+
+    for (const { rows, proxy, sparse } of rowCases) {
+      const payload = typedPayload({ rows });
+      const allocation = bridge.allocBytes(payload);
+      const handle = Number(bridge.call('data_load_typed_columns', allocation.ptr, allocation.len));
+      bridge.deallocBytes(allocation.ptr, allocation.len);
+      expect(handle).toBeGreaterThan(0);
+      try {
+        const profile = bridge.computeDatasetStructureProfile(handle) as unknown as
+          | RustDatasetStructureProfile
+          | null;
+        expect(profile).not.toBeNull();
+        expect(profile?.rowCount).toBe(rows);
+        expect(profile?.density.heuristicScaleDensityProxy).toBe(proxy);
+        expect(profile?.density.heuristicSparseByRowCount).toBe(sparse);
+        if (rows === 3) {
+          // Fewer than six complete rows take the producer's empty-cluster
+          // path: no partition detected, a 0.0 partition score (never a
+          // positive sentinel), and a single estimated cluster — the exact
+          // fail-closed semantics the old shared fixture inverted to 1.
+          expect(profile?.clusters.hasClusters).toBe(false);
+          expect(profile?.clusters.heuristicSilhouettePartitionScore).toBe(0);
+          expect(profile?.clusters.separationScore).toBe(0);
+          expect(profile?.clusters.estimatedCount).toBe(1);
+          // mode_count mirrors estimated_count in the producer.
+          expect(profile?.density.modeCount).toBe(1);
+        }
+      } finally {
+        bridge.call('typed_dataset_destroy', handle);
+      }
+    }
+  });
+
+  it('pins the clustered silhouette/separation relation on the real kernel (TEC2 Q4/Q5)', () => {
+    // The affine rescale (partition score = (best_silhouette * 0.9) clamped to
+    // [0.1, 1.0], separation = best_silhouette clamped to [0, 1]) is the one
+    // fixture-mirrored relation the row-count pins above cannot anchor: both
+    // transported numbers come from the same best_silhouette, so their exact
+    // relation on a live clustered payload is what pins the 0.9 factor. The
+    // `hasClusters` precondition keeps this from passing vacuously if the
+    // estimator ever stops detecting the two-blob partition.
+    const payload = typedPayload({ twoBlobs: true });
+    const allocation = bridge.allocBytes(payload);
+    const handle = Number(bridge.call('data_load_typed_columns', allocation.ptr, allocation.len));
+    bridge.deallocBytes(allocation.ptr, allocation.len);
+    expect(handle).toBeGreaterThan(0);
+    try {
+      const profile = bridge.computeDatasetStructureProfile(handle) as unknown as
+        | RustDatasetStructureProfile
+        | null;
+      expect(profile).not.toBeNull();
+      const clusters = profile?.clusters;
+      expect(clusters?.hasClusters).toBe(true);
+      expect(clusters?.separationScore).toBeGreaterThan(0.35);
+      expect(clusters?.heuristicSilhouettePartitionScore).toBe(
+        Math.min(1, Math.max(0.1, (clusters?.separationScore ?? 0) * 0.9))
       );
     } finally {
       bridge.call('typed_dataset_destroy', handle);

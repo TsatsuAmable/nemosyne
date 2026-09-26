@@ -57,9 +57,11 @@ function evidence(): DatasetEvidence {
         maxSkewness: 0,
       }),
       item('density:global', 'density', {
-        heuristicScaleDensityProxy: 1,
+        // 10 rows -> the producer's below-20 branch, and sparse by the
+        // row-count threshold (wasm/src/data/profile.rs); 1 was unreachable.
+        heuristicScaleDensityProxy: 0.15,
         heuristicModeCount: 1,
-        heuristicSparseByRowCount: false,
+        heuristicSparseByRowCount: true,
       }),
       item('cluster:global', 'cluster', {
         heuristicEstimatedCount: 1,

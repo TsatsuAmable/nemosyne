@@ -48,7 +48,8 @@ function profile(): RustDatasetStructureProfile {
       silhouetteSampleCount: 50,
     },
     density: {
-      heuristicScaleDensityProxy: 0.4,
+      // 128 rows -> the producer's >= 50 branch (wasm/src/data/profile.rs).
+      heuristicScaleDensityProxy: 0.7,
       modeCount: 4,
       heuristicSparseByRowCount: false,
     },

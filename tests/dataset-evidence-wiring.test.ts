@@ -64,7 +64,8 @@ function profile(): RustDatasetStructureProfile {
       silhouetteSampleCount: 3,
     },
     density: {
-      heuristicScaleDensityProxy: 0.5,
+      // 42 rows -> the producer's >= 20 branch (wasm/src/data/profile.rs).
+      heuristicScaleDensityProxy: 0.4,
       modeCount: 1,
       heuristicSparseByRowCount: false,
     },
@@ -139,7 +140,7 @@ describe('Rust structure profile → DatasetEvidence wiring', () => {
     expect(JSON.stringify(dependency?.value)).not.toMatch(/significant/i);
     expect(density?.value).toEqual(
       expect.objectContaining({
-        heuristicScaleDensityProxy: 0.5,
+        heuristicScaleDensityProxy: 0.4,
         heuristicModeCount: 1,
         heuristicSparseByRowCount: false,
       })
