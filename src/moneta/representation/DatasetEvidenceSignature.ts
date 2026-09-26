@@ -288,12 +288,13 @@ export function datasetEvidenceToSignature(evidence: DatasetEvidence): DatasetSi
     );
   } else {
     // The Rust profile's non-emission of a topology record is not a topology
-    // classification: across the four families it conflates not-applicable,
-    // fail-closed (e.g. a spectral sampling gap) and not-declared states, so no
-    // derivation exists to claim. The 'TABULAR' value below comes from this
-    // module's own inferTopology fall-through and is kept for decision-path
-    // compatibility only; its epistemic source must stay 'unknown', exactly
-    // like the sibling hasCycles absence.
+    // classification: across the four families it conflates not-applicable
+    // (no temporal statistics entry, no coordinate pair) and not-declared or
+    // intentionally-absent states (hierarchy is unconditionally None, edges are
+    // None or empty), so no derivation exists to claim. The 'TABULAR' value
+    // below comes from this module's own inferTopology fall-through and is
+    // kept for decision-path compatibility only; its epistemic source must
+    // stay 'unknown', exactly like the sibling hasCycles absence.
     markDatasetSignatureFact(epistemic, 'topologicalStructure.topology', 'unknown', {
       method: 'structure-profile/topology-absence',
       note: 'No structured topology evidence item was emitted; the TABULAR value is a compatibility default, not a measured or derived classification',
