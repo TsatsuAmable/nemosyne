@@ -5,7 +5,10 @@ import {
   evidenceRequirementProfileByIdV1,
 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
 import { parseEvidenceReceiptBundleV1 } from '../src/data/evidence/EvidenceReceipt.ts';
-import { governedReplayEvidenceReceiptAuthority } from '../src/data/evidence/ReplayEvidenceAuthority.ts';
+import {
+  governedReplayEvidenceReceiptAuthority,
+  isGovernedReplayEvidenceReceiptAuthorityV1,
+} from '../src/data/evidence/ReplayEvidenceAuthority.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
 
 /**
@@ -101,6 +104,29 @@ describe('TEC1 governed replay resolution', () => {
     expect(evidenceRequirementProfileByIdV1('DESCRIPTIVE-SUMMARY/V1')).toBeNull();
     expect(evidenceRequirementProfileByIdV1('')).toBeNull();
     expect(evidenceRequirementProfileByIdV1(null as unknown as string)).toBeNull();
+    expect(evidenceRequirementProfileByIdV1(9 as unknown as string)).toBeNull();
+  });
+
+  it('pins the exact minted profile content so identity/content drift is not silent', () => {
+    // A profile identity is the persisted governance handle for historical
+    // replay. If a future build changes the *content* minted under one of
+    // these identities, every historical receipt replayed under that
+    // identity is silently re-judged under the new policy — the exact
+    // drift this slice forbids. This pin forces such a change to confront
+    // the contract explicitly (version the identity or justify the drift).
+    expect(DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.requiredAxes).toEqual([]);
+    expect(DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.assumptionRequirement).toEqual({
+      refuseViolated: true,
+      refuseUnresolved: false,
+    });
+    expect(INFERENTIAL_CLAIM_REQUIREMENT_PROFILE_V1.requiredAxes).toEqual([
+      'measurementContextEstablished',
+      'uncertainty',
+    ]);
+    expect(INFERENTIAL_CLAIM_REQUIREMENT_PROFILE_V1.assumptionRequirement).toEqual({
+      refuseViolated: true,
+      refuseUnresolved: true,
+    });
   });
 
   it('resolves a historical receipt under its governing identity and never upgrades values', () => {
@@ -197,6 +223,91 @@ describe('TEC1 governed replay resolution', () => {
       // identity still resolves, so the refusal came from identity
       // resolution, not from the receipt.
       expect(authority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('RESOLVED');
+    }
+  });
+
+  it('reports refusals in the documented deterministic order', () => {
+    const authority = mint();
+    // Profile-identity resolution precedes receipt existence: an unknown
+    // governing identity refuses even for a receipt that does not exist.
+    expect(authority.resolveAgainst('retired/v1', 'no-such-receipt').status).toBe(
+      'UNKNOWN_REQUIREMENT_PROFILE'
+    );
+    // Governing identity precedes profile-identity resolution: a bundle
+    // that does not govern the replay context refuses before any profile
+    // question is even considered.
+    const skew = governedReplayEvidenceReceiptAuthority(bundle([pearsonReceipt()]), {
+      datasetFingerprint: 'another-dataset-fingerprint',
+      kernelVersion: GOVERNING_KERNEL_VERSION,
+    });
+    expect(skew.resolveAgainst('retired/v1', 'pearson:x:y').status).toBe('DATASET_MISMATCH');
+  });
+
+  it('stays bound to the replay identity observed at minting, not to a mutable caller context', () => {
+    // The caller's context object is snapshotted into frozen primitives at
+    // mint: later mutation must neither enable resolution nor make the
+    // exposed metadata lie about what resolution enforces.
+    const context = {
+      datasetFingerprint: 'wrong-dataset-at-mint',
+      kernelVersion: GOVERNING_KERNEL_VERSION,
+    };
+    const authority = governedReplayEvidenceReceiptAuthority(bundle([pearsonReceipt()]), context);
+    expect(authority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('DATASET_MISMATCH');
+    context.datasetFingerprint = GOVERNING_DATASET_FINGERPRINT;
+    expect(authority.replayDatasetFingerprint).toBe('wrong-dataset-at-mint');
+    expect(authority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('DATASET_MISMATCH');
+
+    const honest = { datasetFingerprint: GOVERNING_DATASET_FINGERPRINT, kernelVersion: GOVERNING_KERNEL_VERSION };
+    const honestAuthority = governedReplayEvidenceReceiptAuthority(bundle([pearsonReceipt()]), honest);
+    expect(honestAuthority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('RESOLVED');
+    honest.datasetFingerprint = 'mutated-after-mint';
+    expect(honestAuthority.replayDatasetFingerprint).toBe(GOVERNING_DATASET_FINGERPRINT);
+    expect(honestAuthority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('RESOLVED');
+  });
+
+  it('identity-brands minted capabilities so fabricated look-alikes fail the guard', () => {
+    const authority = mint();
+    expect(isGovernedReplayEvidenceReceiptAuthorityV1(authority)).toBe(true);
+    expect(isGovernedReplayEvidenceReceiptAuthorityV1(null)).toBe(false);
+    expect(isGovernedReplayEvidenceReceiptAuthorityV1('authority')).toBe(false);
+    // A structurally identical fabrication is not a capability: only the
+    // mint registers into the module-private identity registry.
+    const fabricated = {
+      governingDatasetFingerprint: GOVERNING_DATASET_FINGERPRINT,
+      governingKernelVersion: GOVERNING_KERNEL_VERSION,
+      replayDatasetFingerprint: GOVERNING_DATASET_FINGERPRINT,
+      replayKernelVersion: GOVERNING_KERNEL_VERSION,
+      receiptIds: ['pearson:x:y'],
+      resolveAgainst: () => ({ status: 'RESOLVED', receipt: null }),
+    };
+    expect(isGovernedReplayEvidenceReceiptAuthorityV1(fabricated)).toBe(false);
+  });
+
+  it('returns typed refusals — never thrown caller errors — for degenerate identity inputs', () => {
+    const authority = mint();
+    // A profile/receipt identity whose string coercion throws (toxic
+    // toString, symbol) must still produce the typed refusal, and every
+    // refusal field must be a string so downstream telemetry cannot be
+    // crashed or polluted by untrusted structure.
+    const toxic = {
+      toString(): string {
+        throw new Error('caller-controlled toString');
+      },
+    };
+    const refusal = authority.resolveAgainst(
+      toxic as unknown as string,
+      Symbol('receipt') as unknown as string
+    );
+    expect(refusal.status).toBe('UNKNOWN_REQUIREMENT_PROFILE');
+    if (refusal.status === 'UNKNOWN_REQUIREMENT_PROFILE') {
+      expect(typeof refusal.profileId).toBe('string');
+      expect(typeof refusal.receiptId).toBe('string');
+    }
+    const notFound = authority.resolveAgainst(DESCRIPTIVE_ID, { evil: true } as unknown as string);
+    expect(notFound.status).toBe('RECEIPT_NOT_FOUND');
+    if (notFound.status === 'RECEIPT_NOT_FOUND') {
+      expect(typeof notFound.receiptId).toBe('string');
+      expect(notFound.receiptId).not.toBe({ evil: true });
     }
   });
 

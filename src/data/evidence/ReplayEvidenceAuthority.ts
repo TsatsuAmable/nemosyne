@@ -15,8 +15,10 @@
  * structural integrity validation, the module-private requirement-profile
  * registry for governance, and `evaluateEvidenceReceiptAgainstProfileV1`
  * for policy evaluation — rather than inventing a parallel framework. The
- * mint below is the only way to obtain this capability, and it fails closed
- * on malformed persisted evidence.
+ * mint below is the only way to obtain this capability, it fails closed on
+ * malformed persisted evidence, and minted capabilities are identity-branded
+ * so `isGovernedReplayEvidenceReceiptAuthorityV1` can reject fabricated
+ * look-alikes at untyped boundaries.
  */
 import {
   evidenceRequirementProfileByIdV1,
@@ -69,6 +71,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Identity registry of minted replay authorities. Membership is checked by
+ * object identity, exactly like the requirement-profile registry: a
+ * structurally identical look-alike crossing an untyped boundary is not a
+ * capability. Consumers receiving a replay authority from elsewhere can
+ * authenticate it with `isGovernedReplayEvidenceReceiptAuthorityV1` before
+ * trusting its resolutions.
+ */
+const mintedReplayAuthorities = new WeakSet<object>();
+
+/**
+ * Runtime guard for replay-authority ownership. Returns true only for
+ * capabilities actually minted by `governedReplayEvidenceReceiptAuthority`;
+ * a fabricated `{ resolveAgainst: ... }` look-alike fails it.
+ */
+export function isGovernedReplayEvidenceReceiptAuthorityV1(
+  value: unknown,
+): value is GovernedReplayEvidenceReceiptAuthorityV1 {
+  return isRecord(value) && mintedReplayAuthorities.has(value);
+}
+
+/**
+ * Render a caller-supplied identity argument as a bounded string for typed
+ * refusals. Typed refusal fields are declared `string`; embedding a raw
+ * caller object, symbol or BigInt would leak untrusted structure into
+ * telemetry, and a value whose coercion throws must still produce the
+ * typed refusal rather than propagating a caller exception.
+ */
+function callerIdentity(value: unknown): string {
+  if (typeof value === 'string') return value;
+  try {
+    return String(value);
+  } catch {
+    return '[unstringifiable]';
+  }
+}
+
 function parseReplayContext(value: unknown): GovernedReplayEvidenceContextV1 {
   if (!isRecord(value)) {
     throw new Error('[ReplayEvidenceAuthority] replay context must be an object');
@@ -84,7 +123,15 @@ function parseReplayContext(value: unknown): GovernedReplayEvidenceContextV1 {
       throw new Error(`[ReplayEvidenceAuthority] replay context '${key}' must be a non-empty string`);
     }
   }
-  return value as unknown as GovernedReplayEvidenceContextV1;
+  // Snapshot into frozen primitives: the minted capability stays bound to
+  // the identity observed at minting, exactly like the live resolver. A
+  // caller who later mutates (or proxied) the context object cannot make
+  // the capability re-read a different identity, and the exposed metadata
+  // cannot diverge from what resolution actually enforces.
+  return Object.freeze({
+    datasetFingerprint: value.datasetFingerprint as string,
+    kernelVersion: value.kernelVersion as string,
+  });
 }
 
 /**
@@ -110,20 +157,23 @@ export function governedReplayEvidenceReceiptAuthority(
   const byId = new Map(bundle.receipts.map((receipt) => [receipt.receiptId, receipt] as const));
   const receiptIds = Object.freeze([...byId.keys()]);
 
-  return Object.freeze({
+  const authority: GovernedReplayEvidenceReceiptAuthorityV1 = {
     governingDatasetFingerprint: bundle.datasetFingerprint,
     governingKernelVersion: bundle.kernelVersion,
     replayDatasetFingerprint: context.datasetFingerprint,
     replayKernelVersion: context.kernelVersion,
     receiptIds,
     resolveAgainst(profileId: string, receiptId: string): EvidenceReceiptResolutionV1 {
+      // Refusal fields are typed strings; never embed raw caller values.
+      const requestedProfileId = callerIdentity(profileId);
+      const requestedReceiptId = callerIdentity(receiptId);
       // Governing identity first, mirroring the live resolver's identity-
       // first ordering: a bundle that does not govern this replay context
       // cannot resolve anything, under any profile.
       if (bundle.datasetFingerprint !== context.datasetFingerprint) {
         return Object.freeze({
           status: 'DATASET_MISMATCH',
-          receiptId,
+          receiptId: requestedReceiptId,
           expectedDatasetFingerprint: bundle.datasetFingerprint,
           observedDatasetFingerprint: context.datasetFingerprint,
         });
@@ -131,7 +181,7 @@ export function governedReplayEvidenceReceiptAuthority(
       if (bundle.kernelVersion !== context.kernelVersion) {
         return Object.freeze({
           status: 'KERNEL_MISMATCH',
-          receiptId,
+          receiptId: requestedReceiptId,
           expectedKernelVersion: bundle.kernelVersion,
           observedKernelVersion: context.kernelVersion,
         });
@@ -139,21 +189,21 @@ export function governedReplayEvidenceReceiptAuthority(
       // Profile governance: the identity must resolve in the closed
       // registry. Anything else — retired, tampered, misspelled, or a
       // caller hoping today's default applies — fails closed here.
-      const profile = evidenceRequirementProfileByIdV1(profileId);
+      const profile = evidenceRequirementProfileByIdV1(requestedProfileId);
       if (!profile) {
         return Object.freeze({
           status: 'UNKNOWN_REQUIREMENT_PROFILE',
-          receiptId,
-          profileId: typeof profileId === 'string' ? profileId : String(profileId),
+          receiptId: requestedReceiptId,
+          profileId: requestedProfileId,
         });
       }
       const receipt: EvidenceReceiptV1 | null =
-        typeof receiptId === 'string' && receiptId.length > 0
-          ? (byId.get(receiptId) ?? null)
-          : null;
+        requestedReceiptId.length > 0 ? (byId.get(requestedReceiptId) ?? null) : null;
       // Single evaluation authority: existence, assumptions and axes are
       // judged by the same evaluator the live resolver uses.
-      return evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt);
+      return evaluateEvidenceReceiptAgainstProfileV1(profile, requestedReceiptId, receipt);
     },
-  });
+  };
+  mintedReplayAuthorities.add(authority);
+  return Object.freeze(authority);
 }

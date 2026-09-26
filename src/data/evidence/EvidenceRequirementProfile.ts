@@ -153,16 +153,20 @@ function createEvidenceRequirementProfileV1(
     assumptionRequirement: freeze({ ...assumptionRequirement }),
     [EVIDENCE_REQUIREMENT_PROFILE_BRAND]: true,
   }) as EvidenceRequirementProfileV1;
+  // The identity-mint guard requires WeakSet membership, so register there
+  // first, but keep the by-id registry insert strictly after validation: a
+  // candidate that fails construction must never become resolvable by
+  // identity (or poison a later retry under the same identity).
+  mintedProfiles.add(candidate);
+  if (!isEvidenceRequirementProfileV1(candidate)) {
+    throw new Error('[EvidenceRequirementProfile] invalid requirement profile construction');
+  }
   if (mintedProfilesById.has(profileId)) {
     throw new Error(
       `[EvidenceRequirementProfile] duplicate requirement profile identity '${profileId}'`,
     );
   }
-  mintedProfiles.add(candidate);
   mintedProfilesById.set(profileId, candidate);
-  if (!isEvidenceRequirementProfileV1(candidate)) {
-    throw new Error('[EvidenceRequirementProfile] invalid requirement profile construction');
-  }
   return candidate;
 }
 
