@@ -158,6 +158,8 @@ describe('RF-045 truthful DatasetSignature evidence contract', () => {
       signature.epistemic?.facts['clusterStructure.densityVariation'].source
     ).toBe('unknown');
     expect(signature.distribution.meanEntropy).toBe(0.72);
+    expect(signature.epistemic?.facts['topologicalStructure.topology'].source).toBe('derived');
+    expect(signature.epistemic?.facts['topologicalStructure.topology'].evidenceId).toBe('topology:graph');
     expect(signature.epistemic?.facts['topologicalStructure.hasCycles'].source).toBe('derived');
     expect(signature.epistemic?.facts['topologicalStructure.hasCycles'].evidenceId).toBe('topology:graph');
     expect(signature.epistemic?.facts['clusterStructure.separationScore'].source).toBe('heuristic');
@@ -269,6 +271,32 @@ describe('RF-045 adversarial falsification tests', () => {
 
     // hasCycles must be undefined when Rust didn't provide graph analysis
     expect(sig.topologicalStructure.hasCycles).toBeUndefined();
+    expect(sig.epistemic?.facts['topologicalStructure.hasCycles'].source).toBe('unknown');
+  });
+
+  it('records topology absence as unknown, not as a derived TABULAR classification', () => {
+    // No graph, hierarchy, temporal or spatial record is emitted. The Rust
+    // producer's non-emission conflates not-applicable, fail-closed and
+    // not-declared states, so it is not a topology classification, and the
+    // 'TABULAR' value is only the adapter's compatibility fall-through.
+    const profile = createMonetaStructureProfile({
+      datasetName: 'topology-absence-unknown-source',
+      rowCount: 50,
+      columnCount: 2,
+      numericColumns: 1,
+      categoricalColumns: 1,
+    });
+
+    const sig = datasetEvidenceToSignature(structureProfileToDatasetEvidence(profile));
+
+    // The value keeps its decision-path compatibility contract; only its
+    // epistemic status changes. It must not be presented as a derivation.
+    expect(sig.topologicalStructure.topology).toBe('TABULAR');
+    expect(sig.topologicalStructure.hasCycles).toBeUndefined();
+    const topologyFact = sig.epistemic?.facts['topologicalStructure.topology'];
+    expect(topologyFact?.source).toBe('unknown');
+    expect(topologyFact?.method).toBe('structure-profile/topology-absence');
+    expect(topologyFact?.note).toMatch(/not a measured or derived classification/i);
     expect(sig.epistemic?.facts['topologicalStructure.hasCycles'].source).toBe('unknown');
   });
 
