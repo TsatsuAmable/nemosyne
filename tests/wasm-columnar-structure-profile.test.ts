@@ -86,11 +86,15 @@ function typedPayload(
     const values = new Uint8Array(rows * 8);
     const view = new DataView(values.buffer);
     for (let row = 0; row < rows; row += 1) {
-      // `twoBlobs` builds two tight, well-separated 1-D blobs so the
-      // deterministic estimator must detect a partition with a high silhouette.
-      const value = options.twoBlobs
-        ? (row % 2 === 0 ? 0 : 100) + row * 0.001
-        : row * scale;
+      // `twoBlobs` builds two tight, well-separated blobs in the numeric
+      // column(s) so the deterministic estimator must detect a partition with
+      // a high silhouette. Only type-1 (numeric) columns get the blob
+      // pattern; the temporal column keeps its monotonic ramp so the
+      // payload's spectral/temporal classification is unchanged.
+      const value =
+        options.twoBlobs && type === 1
+          ? (row % 2 === 0 ? 0 : 100) + row * 0.001
+          : row * scale;
       view.setFloat64(row * 8, value, true);
     }
     parts.push(values, new Uint8Array(rows).fill(1));
