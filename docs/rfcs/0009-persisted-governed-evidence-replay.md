@@ -1,8 +1,8 @@
 # RFC 0009 — Persisted governed evidence and replay integrity
 
-**Status:** proposed  
+**Status:** accepted
 **Date:** 2026-09-28  
-**Scope:** next TEC1 persistence contract; no implementation or checkpoint completion is claimed.
+**Scope:** accepted TEC1 persistence contract; the first package/digest slice is implemented, while production replay integration and checkpoint completion remain open.
 
 ## Context
 
@@ -18,9 +18,9 @@ so that older readers ignore evidence which newer readers treat as authoritative
 
 ## Decision requested
 
-Approve an explicit package format V3 and `sha256-canonical-investigation-v3` digest for
+Adopt an explicit package format V3 and `sha256-canonical-investigation-v3` digest for
 receipt-bearing investigations, while retaining the existing V1/V2 read contracts unchanged.
-This proposal does not authorize implementation until accepted. The live roadmap still
+Accepted on 2026-09-28. The live roadmap still
 controls sequencing and the independent gates for TEC1, PT9 and MCR2+.
 
 ### Persisted state and commitment
@@ -151,5 +151,6 @@ Use the real export → pack → clean-room replay entry points with real Rust-i
 
 ## Resulting ADR
 
-None yet. Following acceptance and production implementation, record the durable format
-choice in a new ADR. RFC 0007, ADR-0007 and RFC 0008 remain governing dependencies.
+[ADR-0008](../architecture/decisions/0008-receipt-bearing-package-and-digest.md) records the
+implemented package/digest boundary only. Capture/export, governed replay and consumer-policy
+integration remain subsequent tranches. RFC 0007, ADR-0007 and RFC 0008 remain governing dependencies.

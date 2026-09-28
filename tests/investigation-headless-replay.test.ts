@@ -143,6 +143,18 @@ function buildInvestigationPackage() {
 }
 
 describe('Gate 5 InvestigationReplayRunner', () => {
+  it('preserves legacy V1 replay with an empty digest-algorithm label', async () => {
+    const { packageBytes } = buildInvestigationPackage();
+    const payload = NemosynePackageManager.unpack(packageBytes);
+    payload.manifest.investigationDigestAlgorithm = '';
+    const archive = NemosynePackageManager.pack(payload);
+    const result = await new InvestigationReplayRunner(createMockBridge()).replayArchive(archive);
+    expect(result.discrepancies).toEqual([]);
+    expect(result.success).toBe(true);
+    expect(result.commandsReplayed).toBe(2);
+    expect(result.provenanceEventsVerified).toBe(2);
+  });
+
   it('packs an investigation, replays headlessly, and verifies analytical provenance and evidence state', async () => {
     const { atlas, initialDataset, packageBytes } = buildInvestigationPackage();
 
