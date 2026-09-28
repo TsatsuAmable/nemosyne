@@ -26,6 +26,10 @@ import type {
 } from '../data/types.ts';
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { DatasetSpace, fnv1aHex } from './DatasetSpace.ts';
+import {
+  captureGovernedEvidenceReceiptSnapshot,
+  type GovernedEvidenceReceiptSnapshotV1,
+} from './MonetaEvidenceAuthority.ts';
 import type { DatasetSpaceNormalization } from './DatasetSpace.ts';
 import type {
   AnalysisResult,
@@ -326,6 +330,18 @@ export class AtlasCore {
 
   kernelVersion(): string | null {
     return this._analytics.kernelVersion();
+  }
+
+  /**
+   * RFC 0009 tranche 2: capture the Rust-issued statistics evidence receipt
+   * bundle for the current live analytical dataset. Returns null when no live
+   * kernel or dataset handle exists; bundle/live-identity drift throws instead
+   * of returning a stale capture.
+   */
+  captureGovernedEvidenceReceiptSnapshot(): GovernedEvidenceReceiptSnapshotV1 | null {
+    const handle = this._aggregate.analytical.currentHandle;
+    if (!handle || !this.kernelVersion()) return null;
+    return captureGovernedEvidenceReceiptSnapshot(handle);
   }
 
   lastProvenance(): Provenance | null {

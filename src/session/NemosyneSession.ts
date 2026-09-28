@@ -13,6 +13,7 @@ import {
 import { AtlasCore } from '../atlas/AtlasCore.ts';
 import type { AnalysisSpec, AtlasCoreState, ResearchContext } from '../atlas/types.ts';
 import {
+  GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
   INVESTIGATION_DIGEST_ALGORITHM,
   NoFeasibleRepresentationStore,
   type NoFeasibleRepresentationRecord,
@@ -20,9 +21,12 @@ import {
 } from '../investigation/index.ts';
 import {
   NEMOSYNE_PACKAGE_FORMAT_VERSION,
+  GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
   type NemosynePackageManifest,
 } from './NemosynePackage.ts';
+import { sha256Hex } from '../security/CryptoHash.ts';
+import { parsePersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
 import { strToU8 } from 'fflate';
 
 export interface PresentationState {
@@ -65,6 +69,53 @@ export interface NemosyneSessionJSON extends AtlasCoreState {
   analysisSpecs: AnalysisSpec[];
   presentation: PresentationState;
   nilOutcomes?: NoFeasibleRepresentationStoreSnapshot;
+  /**
+   * RFC 0009 tranche 2: base64 of the exact closed persisted evidence-receipt
+   * envelope bytes captured from the Rust kernel for the analytical dataset
+   * this snapshot commits. Optional and additive; presence alone establishes
+   * preservation, not consumer-policy enforcement, and malformed carriers are
+   * rejected at load instead of silently dropped.
+   */
+  evidenceReceiptSnapshot?: string;
+}
+
+export interface GovernedPortableExportOptions {
+  /**
+   * RFC 0009 tranche 2: when true, the export must produce a governed V3
+   * package from a Rust-issued receipt bundle, or throw. Identity incoherence
+   * never silently downgrades to V2.
+   */
+  governedEvidence?: boolean;
+}
+
+function base64Encode(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64Decode(encoded: string): Uint8Array {
+  if (typeof encoded !== 'string') {
+    throw new Error('[NemosyneSession] evidence receipt snapshot must be a base64 string');
+  }
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+/** Decodes and structurally validates a persisted evidence-receipt carrier. */
+function decodePersistedEvidenceReceiptSnapshot(encoded: string): Uint8Array {
+  const bytes = base64Decode(encoded);
+  parsePersistedEvidenceReceiptsV1(
+    JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+  );
+  return bytes;
 }
 
 export class NemosyneSession {
@@ -73,6 +124,7 @@ export class NemosyneSession {
   private _presentation: PresentationState;
   private _researchContext: ResearchContext;
   private _nilOutcomes = new NoFeasibleRepresentationStore();
+  private _evidenceReceiptBytes: Uint8Array | null = null;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
@@ -118,6 +170,7 @@ export class NemosyneSession {
 
   serialize(): NemosyneSessionJSON {
     const core = this._atlas.toState();
+    const evidenceReceiptSnapshot = this._governedEvidenceSnapshotBase64();
     return {
       schemaVersion: 2,
       savedAt: (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0,
@@ -144,12 +197,42 @@ export class NemosyneSession {
       nilOutcomes: this._nilOutcomes.toJSON(),
       researchContext: this._researchContext,
       presentation: this._presentation,
+      ...(evidenceReceiptSnapshot === null
+        ? {}
+        : { evidenceReceiptSnapshot }),
     };
+  }
+
+  /**
+   * Snapshot the Rust-issued receipt bundle for the current analytical state,
+   * falling back to a restored carrier when no live kernel is available. A
+   * failed live capture keeps any restored carrier (never regresses to
+   * un-governed); governed exports re-validate identity against the
+   * committed analytical state before emitting a package.
+   */
+  private _governedEvidenceSnapshotBase64(): string | null {
+    let bytes = this._evidenceReceiptBytes;
+    try {
+      bytes = this._atlas.captureGovernedEvidenceReceiptSnapshot()?.bytes ?? bytes;
+    } catch {
+      // Preserve the restored carrier, if any; identity is re-checked at export.
+    }
+    return bytes === null ? null : base64Encode(bytes);
+  }
+
+  private _restoreEvidenceReceiptSnapshot(json: NemosyneSessionJSON): void {
+    const encoded = json.evidenceReceiptSnapshot;
+    if (encoded === undefined) {
+      this._evidenceReceiptBytes = null;
+      return;
+    }
+    this._evidenceReceiptBytes = decodePersistedEvidenceReceiptSnapshot(encoded);
   }
 
   async exportPortablePackage(
     environment: PortablePackageEnvironment = {},
-    kernelVersionOverride?: string
+    kernelVersionOverride?: string,
+    governedOptions?: GovernedPortableExportOptions,
   ): Promise<Uint8Array> {
     const core = this._atlas.toState();
     if (!core.originalDataset) {
@@ -166,10 +249,64 @@ export class NemosyneSession {
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
     const kernelVersion = kernelVersionOverride ?? this._atlas.kernelVersion() ?? 'unknown';
-    const investigationDigest = await this._atlas.aggregate.computeDigest(kernelVersion, {
-      nilOutcomes: nilOutcomes.outcomes,
-      researchContext: this._researchContext,
-    });
+
+    // RFC 0009 tranche 2: governed export is fail-closed. The declared
+    // analytical identity is the captured Rust bundle identity, and the
+    // receipt bytes must be coherent with the semantic state this package
+    // commits; any mismatch refuses instead of silently downgrading to V2.
+    let evidenceReceiptBytes: Uint8Array | undefined;
+    let governedBundleIdentity: { datasetFingerprint: string; kernelVersion: string } | null = null;
+    if (
+      governedOptions !== undefined &&
+      governedOptions.governedEvidence !== undefined &&
+      typeof governedOptions.governedEvidence !== 'boolean'
+    ) {
+      // A truthy non-boolean must not silently downgrade the export to V2.
+      throw new Error('Governed evidence export requires a boolean governedEvidence option');
+    }
+    if (governedOptions?.governedEvidence === true) {
+      evidenceReceiptBytes = this._requireGovernedEvidenceBytes();
+      const envelope = parsePersistedEvidenceReceiptsV1(
+        JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(evidenceReceiptBytes))
+      );
+      if (envelope.uses.length !== 0) {
+        // Until consumer-policy binding lands (RFC 0009 tranche 3), this
+        // build is the only legitimate writer and mints empty uses only.
+        throw new Error(
+          'Governed evidence export refuses a receipt envelope carrying consumer-use assertions that no production path authored'
+        );
+      }
+      if (
+        kernelVersionOverride !== undefined &&
+        kernelVersionOverride !== envelope.bundle.kernelVersion
+      ) {
+        throw new Error(
+          'Governed evidence export refuses a kernel-version override that differs from the captured receipt bundle identity'
+        );
+      }
+      const currentAnalyticalFingerprint =
+        core.datasetFingerprint ?? canonicalDatasetIdentityHex(core.originalDataset);
+      if (envelope.bundle.datasetFingerprint !== currentAnalyticalFingerprint) {
+        throw new Error(
+          'Governed evidence export refuses a receipt bundle captured from a different analytical dataset state'
+        );
+      }
+      governedBundleIdentity = {
+        datasetFingerprint: envelope.bundle.datasetFingerprint,
+        kernelVersion: envelope.bundle.kernelVersion,
+      };
+    }
+
+    const investigationDigest = await this._atlas.aggregate.computeDigest(
+      governedBundleIdentity ? governedBundleIdentity.kernelVersion : kernelVersion,
+      {
+        nilOutcomes: nilOutcomes.outcomes,
+        researchContext: this._researchContext,
+        ...(evidenceReceiptBytes === undefined
+          ? {}
+          : { evidenceReceiptBytes }),
+      },
+    );
     const includeBrowserIdentity = environment.includePrivacySensitiveBrowserIdentity === true;
     const portableEnvironment: NemosynePackageManifest['environment'] = {
       userAgent: includeBrowserIdentity ? environment.userAgent ?? null : null,
@@ -178,25 +315,34 @@ export class NemosyneSession {
     };
 
     const manifest: NemosynePackageManifest = {
-      formatVersion: NEMOSYNE_PACKAGE_FORMAT_VERSION,
+      formatVersion: governedBundleIdentity
+        ? GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION
+        : NEMOSYNE_PACKAGE_FORMAT_VERSION,
       sessionId: this._sessionId,
       datasetFingerprint: originalDatasetFingerprint,
       datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
-      analyticalDatasetFingerprint:
-        representationDecision?.datasetFingerprint ??
-        nilProvenance?.datasetFingerprint ??
-        core.datasetFingerprint ??
-        originalDatasetFingerprint,
+      analyticalDatasetFingerprint: governedBundleIdentity
+        ? governedBundleIdentity.datasetFingerprint
+        : (representationDecision?.datasetFingerprint ??
+          nilProvenance?.datasetFingerprint ??
+          core.datasetFingerprint ??
+          originalDatasetFingerprint),
       datasetName: originalDataset.name,
       kernelVersion,
-      analyticalKernelVersion:
-        representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion,
+      analyticalKernelVersion: governedBundleIdentity
+        ? governedBundleIdentity.kernelVersion
+        : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion),
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
       nilOutcomeCount: nilOutcomes.outcomes.length,
       investigationDigest,
-      investigationDigestAlgorithm: INVESTIGATION_DIGEST_ALGORITHM,
+      investigationDigestAlgorithm: governedBundleIdentity
+        ? GOVERNED_INVESTIGATION_DIGEST_ALGORITHM
+        : INVESTIGATION_DIGEST_ALGORITHM,
+      ...(evidenceReceiptBytes !== undefined
+        ? { evidenceReceiptDigest: sha256Hex(evidenceReceiptBytes) }
+        : {}),
       researchContext: this._researchContext,
       representationModel:
         representationDecision && fitnessModelVersion
@@ -229,7 +375,34 @@ export class NemosyneSession {
           : undefined,
       nilOutcomesBytes:
         nilOutcomes.outcomes.length > 0 ? strToU8(JSON.stringify(nilOutcomes)) : undefined,
+      ...(evidenceReceiptBytes === undefined
+        ? {}
+        : { evidenceReceiptBytes }),
     });
+  }
+
+  /**
+   * Governed export requires Rust-issued receipt bytes: prefer a fresh live
+   * capture for the current analytical state, fall back to the restored
+   * carrier, and refuse rather than emitting a package without governed
+   * evidence when an explicit governed export was requested.
+   */
+  private _requireGovernedEvidenceBytes(): Uint8Array {
+    let bytes: Uint8Array | null = null;
+    try {
+      bytes = this._atlas.captureGovernedEvidenceReceiptSnapshot()?.bytes ?? null;
+    } catch {
+      // A drifted live capture does not silently satisfy the governed request
+      // with unvalidated bytes: the identity coherence checks below reject any
+      // carrier (restored or captured) that disagrees with the committed state.
+    }
+    const resolved = bytes ?? this._evidenceReceiptBytes;
+    if (!resolved) {
+      throw new Error(
+        'Governed evidence export requires a Rust-issued statistics evidence receipt bundle; none is available for this session'
+      );
+    }
+    return resolved;
   }
 
   /** Export a persisted snapshot in isolation from the mutable live Atlas/session. */
@@ -237,6 +410,7 @@ export class NemosyneSession {
     json: NemosyneSessionJSON,
     environment: PortablePackageEnvironment = {},
     replayKernelVersionOverride?: string,
+    governedOptions?: GovernedPortableExportOptions,
   ): Promise<Uint8Array> {
     const atlas = new AtlasCore({ kernel: null });
     const session = NemosyneSession.deserialize(json, atlas);
@@ -249,10 +423,12 @@ export class NemosyneSession {
     return session.exportPortablePackage(
       environment,
       replayKernelVersionOverride ?? archivedKernelVersion,
+      governedOptions,
     );
   }
 
   loadFromJSON(json: NemosyneSessionJSON): void {
+    this._restoreEvidenceReceiptSnapshot(json);
     this._atlas.restoreState(json);
     if (typeof json.sessionId === 'string' && json.sessionId.length > 0) {
       this._sessionId = json.sessionId;
@@ -278,6 +454,7 @@ export class NemosyneSession {
       ? json.sessionId
       : undefined;
     const session = new NemosyneSession({ atlas, sessionId });
+    session._restoreEvidenceReceiptSnapshot(json);
     if (json.nilOutcomes) session._nilOutcomes.restore(json.nilOutcomes);
     session._presentation = {
       camera: json.presentation?.camera ?? { position: [0, 0, 0], rotationY: 0 },

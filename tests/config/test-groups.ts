@@ -1,5 +1,6 @@
 export const FAST_NODE_TESTS = [
   'tests/tec1-v3-package.test.ts',
+  'tests/tec1-governed-export.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
@@ -52,6 +53,7 @@ export const UI_ONLY_TESTS = [
 
 export const WASM_TESTS = [
   'tests/tec1-v3-package-wasm.test.ts',
+  'tests/tec1-governed-export-wasm.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',
