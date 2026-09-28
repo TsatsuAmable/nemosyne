@@ -68,6 +68,12 @@
       "owner": "architecture"
     },
     {
+      "path": "docs/rfcs/0009-persisted-governed-evidence-replay.md",
+      "status": "active",
+      "authority": "proposed-persisted-evidence-contract",
+      "owner": "architecture"
+    },
+    {
       "path": "docs/rfcs/0003-production-data-lifecycle-and-event-boundary.md",
       "status": "active",
       "authority": "accepted-production-data-contract",
