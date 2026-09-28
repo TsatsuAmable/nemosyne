@@ -182,7 +182,7 @@ export class WebXRSimulatorAdapter {
   }
 
   supportsFeature(feature: string): boolean {
-    return this.device.supportedFeatures.includes(feature);
+    return this.supportedFeatures().includes(feature);
   }
 
   /**
