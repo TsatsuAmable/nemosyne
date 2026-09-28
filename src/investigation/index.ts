@@ -5,6 +5,10 @@
 export {
   computeInvestigationDigest,
   computeSemanticInvestigationDigest,
+  computeGovernedInvestigationDigest,
+  buildCanonicalInvestigationInputV3,
+  GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
+  type CanonicalInvestigationInputV3,
   computeSha256Hex,
   canonicalJsonStringify,
   buildCanonicalInvestigationInputV2,

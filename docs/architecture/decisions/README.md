@@ -29,3 +29,5 @@ Each ADR contains:
 - [ADR-0005: Production persistence authorities](0005-production-persistence-authorities.md)
 - [ADR-0006: Moneta stability-certificate authority and scientific abstention](0006-moneta-stability-certificate-authority-and-abstention.md)
 - [ADR-0007: Rust-issued trustworthy evidence receipts and live resolution authority](0007-trustworthy-evidence-receipt-authority.md)
+
+- [ADR-0008: Explicit receipt-bearing package and investigation digest](0008-receipt-bearing-package-and-digest.md) — bounded RFC 0009 package/digest infrastructure; governed replay remains unavailable.

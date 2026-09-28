@@ -12,7 +12,9 @@
 import * as v from 'valibot';
 import { zipSync, strToU8, strFromU8, Unzip, UnzipInflate, type UnzipFile } from 'fflate';
 import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../data/DatasetIdentity.ts';
-import { INVESTIGATION_DIGEST_ALGORITHM } from '../investigation/InvestigationDigest.ts';
+import { parsePersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
+import { sha256Hex } from '../security/CryptoHash.ts';
+import { GOVERNED_INVESTIGATION_DIGEST_ALGORITHM, INVESTIGATION_DIGEST_ALGORITHM } from '../investigation/InvestigationDigest.ts';
 
 export const MAX_ARCHIVE_SIZE = 100 * 1024 * 1024;
 export const MAX_TOTAL_UNCOMPRESSED = 250 * 1024 * 1024;
@@ -30,6 +32,8 @@ export const MAX_ENTRY_COUNT = 1000;
  * must verify the legacy schema-v1 digest instead of silently reinterpreting it.
  */
 export const NEMOSYNE_PACKAGE_FORMAT_VERSION = 2 as const;
+export const GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION = 3 as const;
+export const EVIDENCE_RECEIPTS_ENTRY = 'investigation/evidence-receipts.json' as const;
 export const LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION = 1 as const;
 
 export interface NemosynePackageReadLimits {
@@ -54,6 +58,7 @@ export const NemosyneManifestSchema = v.object({
   discoveryCount: v.nullish(v.number()),
   nilOutcomeCount: v.nullish(v.number()),
   investigationDigest: v.nullish(v.string()),
+  evidenceReceiptDigest: v.nullish(v.string()),
   /** RF-046: absent means the historical schema-v1 digest contract. */
   investigationDigestAlgorithm: v.nullish(v.string()),
   /** Portable research semantics committed by the RF-046 v2 digest. */
@@ -100,6 +105,7 @@ export interface NemosynePackagePayload {
   representationDecisionBytes?: Uint8Array;
   discoveryEpisodesBytes?: Uint8Array;
   nilOutcomesBytes?: Uint8Array;
+  evidenceReceiptBytes?: Uint8Array;
   extraFiles?: Record<string, Uint8Array>;
 }
 
@@ -110,7 +116,8 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
     }
     return;
   }
-  if (manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+  const governed = manifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION;
+  if (!governed && manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) {
     throw new Error(`Unsupported .nemosyne formatVersion ${manifest.formatVersion}`);
   }
   if (manifest.datasetIdentityAlgorithm !== CANONICAL_DATASET_IDENTITY_ALGORITHM) {
@@ -121,6 +128,20 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
   if (!/^[0-9a-f]{64}$/.test(manifest.datasetFingerprint)) {
     throw new Error('Format-v2 package datasetFingerprint must be a lowercase SHA-256 hex digest');
   }
+  if (governed) {
+    for (const field of ['analyticalDatasetFingerprint', 'investigationDigest', 'evidenceReceiptDigest'] as const) {
+      if (typeof manifest[field] !== 'string' || !/^[0-9a-f]{64}$/.test(manifest[field])) {
+        throw new Error(`Format-v3 package requires ${field} as a lowercase SHA-256 digest`);
+      }
+    }
+    if (!manifest.analyticalKernelVersion || !manifest.kernelVersion) {
+      throw new Error('Format-v3 package requires explicit kernel identities');
+    }
+    if (manifest.investigationDigestAlgorithm !== GOVERNED_INVESTIGATION_DIGEST_ALGORITHM) {
+      throw new Error('Format-v3 package requires its investigation digest algorithm');
+    }
+    return;
+  }
   if (
     manifest.investigationDigestAlgorithm != null &&
     manifest.investigationDigestAlgorithm !== INVESTIGATION_DIGEST_ALGORITHM
@@ -128,6 +149,32 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
     throw new Error(
       `Unsupported investigationDigestAlgorithm '${manifest.investigationDigestAlgorithm}'`,
     );
+  }
+}
+
+/** Legacy readers historically ignored unknown metadata; only V3 owns this field. */
+function manifestInput(value: unknown): unknown {
+  if (value !== null && typeof value === 'object' &&
+      (value as Record<string, unknown>).formatVersion !== GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+    const { evidenceReceiptDigest: _ignored, ...legacy } = value as Record<string, unknown>;
+    return legacy;
+  }
+  return value;
+}
+
+/** Checks transport integrity and declared identity only, never reconstructed identity. */
+function assertEvidenceContract(manifest: NemosynePackageManifest, bytes?: Uint8Array): void {
+  if (manifest.formatVersion !== GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+    return;
+  }
+  if (!bytes) throw new Error('Format-v3 package is missing evidence receipts');
+  if (sha256Hex(bytes) !== manifest.evidenceReceiptDigest) {
+    throw new Error('Evidence receipt entry digest mismatch');
+  }
+  const envelope = parsePersistedEvidenceReceiptsV1(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
+  if (envelope.bundle.datasetFingerprint !== manifest.analyticalDatasetFingerprint ||
+      envelope.bundle.kernelVersion !== manifest.analyticalKernelVersion) {
+    throw new Error('Evidence receipt bundle identity does not match analytical manifest identity');
   }
 }
 
@@ -185,13 +232,20 @@ export function sanitizeEntryPath(rawPath: string): string {
 
 export class NemosynePackageManager {
   static pack(payload: NemosynePackagePayload): Uint8Array {
-    const validatedManifest = v.parse(NemosyneManifestSchema, payload.manifest);
+    const validatedManifest = v.parse(NemosyneManifestSchema, manifestInput(payload.manifest));
     assertSupportedManifestIdentityContract(validatedManifest);
+    const evidenceSource = validatedManifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION
+      ? payload.evidenceReceiptBytes : undefined;
+    // Caller-owned buffers/getters must not change the bytes after validation.
+    const evidenceReceiptBytes = evidenceSource === undefined ? undefined : new Uint8Array(evidenceSource);
+    assertEvidenceContract(validatedManifest, evidenceReceiptBytes);
     const zipFiles: Record<string, Uint8Array> = {
       'manifest.json': strToU8(JSON.stringify(validatedManifest, null, 2)),
       'data/dataset.raw': payload.datasetBytes,
       'investigation/commands.log': payload.commandLogBytes,
     };
+
+    if (evidenceReceiptBytes) zipFiles[EVIDENCE_RECEIPTS_ENTRY] = evidenceReceiptBytes;
 
     if (payload.representationDecisionBytes) {
       zipFiles['investigation/representation.json'] = payload.representationDecisionBytes;
@@ -301,7 +355,7 @@ export class NemosynePackageManager {
     const manifestFile = finalFiles['manifest.json'];
     if (!manifestFile) throw new Error('Invalid .nemosyne package: missing manifest.json');
     const manifestJson = JSON.parse(strFromU8(manifestFile));
-    const manifestResult = v.safeParse(NemosyneManifestSchema, manifestJson);
+    const manifestResult = v.safeParse(NemosyneManifestSchema, manifestInput(manifestJson));
     if (!manifestResult.success) {
       const errorMsg = manifestResult.issues
         .map((i) => `${i.message} at ${i.path?.map((p) => p.key).join('.')}`)
@@ -309,6 +363,10 @@ export class NemosynePackageManager {
       throw new Error(`Invalid .nemosyne manifest schema: ${errorMsg}`);
     }
     assertSupportedManifestIdentityContract(manifestResult.output);
+
+    const evidenceReceiptBytes = manifestResult.output.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION
+      ? finalFiles[EVIDENCE_RECEIPTS_ENTRY] : undefined;
+    assertEvidenceContract(manifestResult.output, evidenceReceiptBytes);
 
     const datasetBytes = finalFiles['data/dataset.raw'];
     if (!datasetBytes || datasetBytes.byteLength === 0) {
@@ -347,6 +405,7 @@ export class NemosynePackageManager {
 
     return {
       manifest: manifestResult.output,
+      evidenceReceiptBytes,
       datasetBytes,
       commandLogBytes,
       representationDecisionBytes,
