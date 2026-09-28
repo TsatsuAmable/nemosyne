@@ -118,8 +118,12 @@ function parseReplayContext(value: unknown): GovernedReplayEvidenceContextV1 {
       "[ReplayEvidenceAuthority] replay context must have exactly 'datasetFingerprint' and 'kernelVersion'",
     );
   }
+  const snapshot = {
+    datasetFingerprint: value.datasetFingerprint,
+    kernelVersion: value.kernelVersion,
+  };
   for (const key of ['datasetFingerprint', 'kernelVersion'] as const) {
-    if (typeof value[key] !== 'string' || (value[key] as string).length === 0) {
+    if (typeof snapshot[key] !== 'string' || snapshot[key].length === 0) {
       throw new Error(`[ReplayEvidenceAuthority] replay context '${key}' must be a non-empty string`);
     }
   }
@@ -129,8 +133,8 @@ function parseReplayContext(value: unknown): GovernedReplayEvidenceContextV1 {
   // the capability re-read a different identity, and the exposed metadata
   // cannot diverge from what resolution actually enforces.
   return Object.freeze({
-    datasetFingerprint: value.datasetFingerprint as string,
-    kernelVersion: value.kernelVersion as string,
+    datasetFingerprint: snapshot.datasetFingerprint as string,
+    kernelVersion: snapshot.kernelVersion as string,
   });
 }
 
@@ -189,7 +193,10 @@ export function governedReplayEvidenceReceiptAuthority(
       // Profile governance: the identity must resolve in the closed
       // registry. Anything else — retired, tampered, misspelled, or a
       // caller hoping today's default applies — fails closed here.
-      const profile = evidenceRequirementProfileByIdV1(requestedProfileId);
+      // Diagnostic coercion must never turn a non-string caller value into
+      // a governed lookup identity.
+      const profile =
+        typeof profileId === 'string' ? evidenceRequirementProfileByIdV1(profileId) : null;
       if (!profile) {
         return Object.freeze({
           status: 'UNKNOWN_REQUIREMENT_PROFILE',
@@ -198,7 +205,9 @@ export function governedReplayEvidenceReceiptAuthority(
         });
       }
       const receipt: EvidenceReceiptV1 | null =
-        requestedReceiptId.length > 0 ? (byId.get(requestedReceiptId) ?? null) : null;
+        typeof receiptId === 'string' && receiptId.length > 0
+          ? (byId.get(receiptId) ?? null)
+          : null;
       // Single evaluation authority: existence, assumptions and axes are
       // judged by the same evaluator the live resolver uses.
       return evaluateEvidenceReceiptAgainstProfileV1(profile, requestedReceiptId, receipt);

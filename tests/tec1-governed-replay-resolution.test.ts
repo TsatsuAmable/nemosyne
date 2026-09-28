@@ -283,6 +283,56 @@ describe('TEC1 governed replay resolution', () => {
     expect(isGovernedReplayEvidenceReceiptAuthorityV1(fabricated)).toBe(false);
   });
 
+  it('refuses coercible non-string profile and receipt identities', () => {
+    const authority = mint();
+    for (const wrap of [
+      (value: string) => ({ toString: () => value }),
+      (value: string) => [value],
+      (value: string) => Object(value),
+    ]) {
+      expect(authority.resolveAgainst(wrap(DESCRIPTIVE_ID) as string, 'pearson:x:y').status).toBe(
+        'UNKNOWN_REQUIREMENT_PROFILE'
+      );
+      expect(authority.resolveAgainst(DESCRIPTIVE_ID, wrap('pearson:x:y') as string).status).toBe(
+        'RECEIPT_NOT_FOUND'
+      );
+    }
+    expect(authority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('RESOLVED');
+  });
+
+  it('validates and freezes the same single snapshot of replay-context accessors', () => {
+    for (const key of ['datasetFingerprint', 'kernelVersion'] as const) {
+      for (const validReads of [1, 2]) {
+        let reads = 0;
+        const context = {
+          ...MATCHING_CONTEXT,
+          get [key]() {
+            reads += 1;
+            return reads <= validReads ? MATCHING_CONTEXT[key] : '';
+          },
+        };
+        const authority = governedReplayEvidenceReceiptAuthority(
+          bundle([pearsonReceipt()]),
+          context
+        );
+        expect(reads).toBe(1);
+        expect(authority.replayDatasetFingerprint).toBe(GOVERNING_DATASET_FINGERPRINT);
+        expect(authority.replayKernelVersion).toBe(GOVERNING_KERNEL_VERSION);
+        expect(authority.resolveAgainst(DESCRIPTIVE_ID, 'pearson:x:y').status).toBe('RESOLVED');
+      }
+
+      const invalidContext = {
+        ...MATCHING_CONTEXT,
+        get [key]() {
+          return '';
+        },
+      };
+      expect(() =>
+        governedReplayEvidenceReceiptAuthority(bundle([pearsonReceipt()]), invalidContext)
+      ).toThrow('must be a non-empty string');
+    }
+  });
+
   it('returns typed refusals — never thrown caller errors — for degenerate identity inputs', () => {
     const authority = mint();
     // A profile/receipt identity whose string coercion throws (toxic
