@@ -30,7 +30,7 @@ const pageByAuthority = new Map([
   ['accepted-production-data-contract', 'Production-Data-Lifecycle-RFC'],
   ['accepted-governed-data-plane-contract', 'Governed-Data-Plane-RFC'],
   ['accepted-persistence-architecture', 'Persistence-Architecture-RFC'],
-  ['proposed-persisted-evidence-contract', 'Proposed-Persisted-Evidence-Replay-RFC'],
+  ['accepted-persisted-evidence-contract', 'Persisted-Evidence-Replay-RFC'],
   ['architecture-decisions-index', 'Architecture-Decisions'],
   ['implementation-sequencing-reference', 'Implementation-Plan'],
   ['implementation-quality-policy', 'Implementation-Quality'],

@@ -4,6 +4,7 @@
 
 import {
   LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION,
+  NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
   type NemosynePackagePayload,
 } from './NemosynePackage.ts';
@@ -340,6 +341,17 @@ export class InvestigationReplayRunner {
       discoveryEpisodesBytes,
       nilOutcomesBytes,
     } = payload;
+    // V3 transport validation does not implement governed replay. Refuse before
+    // parsing datasets, constructing Atlas, or executing any kernel operation.
+    if ((manifest.formatVersion !== LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
+         manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) ||
+        (manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION
+          ? Boolean(manifest.investigationDigestAlgorithm)
+          : manifest.investigationDigestAlgorithm != null &&
+            manifest.investigationDigestAlgorithm !== INVESTIGATION_DIGEST_ALGORITHM)) {
+      return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint,
+        ['Unsupported replay package/digest contract; governed V3 replay is not yet available']);
+    }
     const isLegacyV1Identity =
       manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
       !manifest.datasetIdentityAlgorithm &&

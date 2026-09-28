@@ -70,7 +70,7 @@
     {
       "path": "docs/rfcs/0009-persisted-governed-evidence-replay.md",
       "status": "active",
-      "authority": "proposed-persisted-evidence-contract",
+      "authority": "accepted-persisted-evidence-contract",
       "owner": "architecture"
     },
     {

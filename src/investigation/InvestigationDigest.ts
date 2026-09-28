@@ -16,12 +16,14 @@
  */
 
 import { canonicalJsonStringify, sha256Hex } from '../security/CryptoHash.ts';
+import { parsePersistedEvidenceReceiptsV1, type PersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
 import type { DiscoveryEpisode } from './DiscoveryEpisode.ts';
 
 export { canonicalJsonStringify } from '../security/CryptoHash.ts';
 
 export const LEGACY_INVESTIGATION_DIGEST_SCHEMA_VERSION = 1 as const;
 export const INVESTIGATION_DIGEST_SCHEMA_VERSION = 2 as const;
+export const GOVERNED_INVESTIGATION_DIGEST_ALGORITHM = 'sha256-canonical-investigation-v3' as const;
 export const INVESTIGATION_DIGEST_ALGORITHM = 'sha256-canonical-investigation-v2' as const;
 
 /** Retained for API compatibility with earlier capability-based implementations. */
@@ -266,4 +268,37 @@ export async function computeSemanticInvestigationDigest(
   state: SemanticInvestigationState,
 ): Promise<string> {
   return computeInvestigationDigest(buildCanonicalInvestigationInputV2(state));
+}
+
+/** The complete envelope is committed verbatim, outside V2 capture-key normalization. */
+export interface CanonicalInvestigationInputV3 extends Omit<CanonicalInvestigationInputV2, 'schemaVersion' | 'algorithm'> {
+  schemaVersion: 3;
+  algorithm: typeof GOVERNED_INVESTIGATION_DIGEST_ALGORITHM;
+  governedEvidence: { envelope: PersistedEvidenceReceiptsV1; memberDigest: string };
+}
+
+export function buildCanonicalInvestigationInputV3(
+  state: SemanticInvestigationState,
+  evidenceReceiptBytes: Uint8Array,
+): CanonicalInvestigationInputV3 {
+  // Parse and commit one owned snapshot before accessing caller-provided state.
+  const receiptSnapshot = new Uint8Array(evidenceReceiptBytes);
+  const envelope = parsePersistedEvidenceReceiptsV1(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(receiptSnapshot)));
+  if (envelope.bundle.datasetFingerprint !== state.analyticalState.datasetFingerprint ||
+      envelope.bundle.kernelVersion !== state.kernelVersion) {
+    throw new Error('Governed evidence identity does not match semantic investigation state');
+  }
+  return {
+    ...buildCanonicalInvestigationInputV2(state), schemaVersion: 3,
+    algorithm: GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
+    governedEvidence: { envelope, memberDigest: sha256Hex(receiptSnapshot) },
+  };
+}
+
+/** Derives the byte commitment itself; callers cannot supply a stale companion hash. */
+export async function computeGovernedInvestigationDigest(
+  state: SemanticInvestigationState,
+  evidenceReceiptBytes: Uint8Array,
+): Promise<string> {
+  return sha256Hex(canonicalJsonStringify(buildCanonicalInvestigationInputV3(state, evidenceReceiptBytes)));
 }
