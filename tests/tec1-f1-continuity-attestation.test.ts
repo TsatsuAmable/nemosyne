@@ -141,22 +141,36 @@ describe('F1 falsifier 13: the continuity surface reports governed standing', ()
 });
 
 /**
- * BOUNDARY, NOT DESIRED BEHAVIOUR — this falsifier pins a limitation that F1
- * makes reachable and that the next tranche has to remove.
+ * BOUNDARY, NOT DESIRED BEHAVIOUR — this pins a limitation that F1 makes
+ * reachable and that the next tranche has to remove.
  *
  * Before F1 a governed V3 package was refused at replay, so this path was
  * unreachable. Now that such a package loads, one that also carries resumable
  * workspace state reaches `verifyEmbeddedSnapshot`, whose investigation-digest
- * comparison recomputes the digest *without* the evidence envelope bytes
- * (`investigationDigestForSnapshot`). That can never equal a V3 manifest digest,
- * which is committed over those very bytes, so the open throws unconditionally.
+ * comparison recomputes a digest from the snapshot alone
+ * (`investigationDigestForSnapshot`). A V3 manifest digest is committed over the
+ * evidence envelope bytes, which that composition never receives, so the
+ * comparison cannot be satisfied. It fails closed — an exception, no state
+ * mutated, no overclaim rendered — so this is not an integrity hole. It is a
+ * functional dead end.
  *
- * It fails closed — an exception, no state mutated, no overclaim rendered — so
- * this is not an integrity hole. It is a functional dead end, and the fix
- * belongs to the tranche that owns governed continuity export: the governed
- * resumable-workspace digest contract is a design decision the RFC has not made,
- * and inventing a refusal code for it here would pre-empt that design. When that
- * tranche lands, this test should fail, and that failure is the point of it.
+ * WHAT THIS TEST ACTUALLY PROVES, stated narrowly because the first version of
+ * it overclaimed: that the path is reachable, that the guard which fires is the
+ * digest comparison (asserted by its message, which no earlier guard in that
+ * method shares), and that the failure is contained. The mechanism above is an
+ * argument from the composition, not something this test demonstrates — the
+ * digest function is module-private, and the snapshot embedded here is a minimal
+ * one that would not reproduce the replayed state even under a snapshot-derived
+ * composition. So a *green* run here does not mean the comparison is unreachable
+ * in principle for a faithful snapshot.
+ *
+ * It is therefore a marker, not a specification. It does not come with a
+ * promise that it will fail the day any fix lands, and it must not be read as
+ * the boundary being acceptable: the governed resumable-workspace digest
+ * contract is a design decision RFC 0009 has not made, inventing a refusal code
+ * for it here would pre-empt that design, and the tranche that owns governed
+ * continuity export should replace this test with one pinning the contract it
+ * defines.
  */
 describe('F1 boundary: governed packages cannot yet carry resumable workspace state', () => {
   it('refuses rather than reopening, with no state mutated', async () => {
@@ -186,6 +200,11 @@ describe('F1 boundary: governed packages cannot yet carry resumable workspace st
 
     // The governed replay itself succeeds — that is what makes this reachable.
     expect((await runner().replayArchive(withWorkspace)).success).toBe(true);
+
+    // The manifest must actually carry a digest, or the guard below is never
+    // reached and this test would be asserting nothing.
+    expect(NemosynePackageManager.unpack(withWorkspace).manifest.investigationDigest)
+      .toMatch(/^[0-9a-f]{64}$/);
 
     await expect(controller().openPortable(withWorkspace)).rejects.toThrow(
       /resumable workspace investigation digest does not match/i,

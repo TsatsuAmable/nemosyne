@@ -54,6 +54,10 @@ const REFUSAL_CLAIM: Record<ReplayEvidenceRefusalCode, string> = {
  * Only the `uses` refusal leaves `discrepancies` empty; it is a build-capability
  * limit with nothing to compare, and it is the one refusal that must not be
  * conflated with malformed input.
+ *
+ * A verified envelope with *no* refusal is also a real shape — a damaged dataset
+ * or command-log entry fails with `integrity: 'verified'` and a discrepancy — so
+ * the absence of a refusal is not treated as the absence of a reason.
  */
 export function replayFailureDetail(result: ReplayVerificationResult): string {
   const refusal =

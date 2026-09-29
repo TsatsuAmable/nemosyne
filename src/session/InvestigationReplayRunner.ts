@@ -35,8 +35,10 @@ import { strFromU8 } from 'fflate';
 
 /**
  * RFC 0009: typed refusal for a well-formed package whose governed evidence this
- * replay run cannot resolve. Distinct from malformed input, which rejects under
- * `integrity: 'not-established'`.
+ * replay run cannot resolve. Distinct from a malformed *manifest or envelope*,
+ * which rejects under `integrity: 'not-established'`, and distinct again from a
+ * damaged *payload* (unparseable dataset or command-log bytes), which fails with
+ * a verified envelope and a discrepancy naming the damaged part.
  *
  * These are the two answers an analyst acts on differently, which is why they
  * are separate codes rather than one. `uses-not-governable-by-this-build` is a
@@ -65,8 +67,13 @@ export type ReplayEvidenceRefusalCode =
  * that the replay reproduced the committed investigation — that is reported by
  * `refusal` (plus `success: false`), because a reconstruction disagreement needs
  * a different remediation from a corrupt archive and the two must stay
- * distinguishable. Reading `integrity` alone as "this archive is sound" is
- * therefore wrong in the presence of a `refusal`.
+ * distinguishable. It is also not a claim that the payload is otherwise intact:
+ * a damaged dataset or command-log entry reaches a failure with a verified
+ * envelope and a discrepancy naming the damaged part.
+ *
+ * So `integrity` must be read together with `success` — reading it alone as
+ * "this archive is sound" is wrong whenever `success` is false, whether the
+ * reason appears as a `refusal` or only as a discrepancy.
  *
  * `envelope` and `integrity` are independent axes so `enforcement` can never
  * contradict the tag. `enforcement` is deliberately single-valued in this
@@ -470,6 +477,18 @@ export class InvestigationReplayRunner {
       return this._failedResult(manifest,
         ['Governed format-v3 package is missing its investigation digest'],
         { envelope: 'present', integrity: 'not-established' });
+    } else if (!/^[0-9a-f]{64}$/.test(manifest.investigationDigest)) {
+      // ...and a digest that is present must be well-formed. Shape is checked
+      // here, not left to the step-4 comparison, because comparison can only
+      // ever disagree with a malformed digest: `'x'` or a 64-char non-hex string
+      // would be reported as `INVESTIGATION_DIGEST_MISMATCH`, telling an analyst
+      // their investigation was substituted when the manifest simply is not
+      // valid V3 input. `pack` rejects exactly this shape (NemosynePackage), and
+      // the whole point of re-checking here is the payload that never passed
+      // transport — which covers malformed digests, not only absent ones.
+      return this._failedResult(manifest,
+        ['Governed format-v3 package requires its investigation digest as a lowercase SHA-256 digest'],
+        { envelope: 'present', integrity: 'not-established' });
     }
 
     // RFC 0009 step 2: verify the reserved entry's byte digest and parse the
@@ -547,12 +566,18 @@ export class InvestigationReplayRunner {
     // disturbing either V2 case.
     const usesSemanticDigest =
       manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM || isV3;
-    // A V3 package that fails after step 2 still has a present envelope whose
-    // governed replay integrity was never established. Reporting `absent` here
-    // would erase the difference between "legacy archive, nothing to enforce"
-    // and "V3 archive you should be alarmed about".
-    const unestablishedEvidence: ReplayEvidenceAttestation = isV3
-      ? { envelope: 'present', integrity: 'not-established' }
+    // Past step 2 the envelope question is already settled: for V3 it verified,
+    // and for anything else there is none to verify. A later failure is a
+    // *damaged payload* — unparseable dataset bytes, a command log that is not
+    // an array — which is a discrepancy about the replay, not a claim that the
+    // evidence envelope was never established. Reporting `not-established` here
+    // would give `integrity` a second meaning ("the run got as far as step 2")
+    // and classify a perfectly verified envelope as corrupt, which is precisely
+    // the misreading the axis exists to prevent. Legacy/V2 still report `absent`
+    // so the difference between "nothing to enforce" and "governed evidence
+    // verified" survives.
+    const postEnvelopeEvidence: ReplayEvidenceAttestation = isV3
+      ? verifiedEvidence()
       : { envelope: 'absent' };
 
     let dataset: Dataset;
@@ -560,7 +585,7 @@ export class InvestigationReplayRunner {
       dataset = Dataset.fromJSON(JSON.parse(strFromU8(datasetBytes)));
     } catch (e) {
       discrepancies.push(`Failed to parse dataset from package: ${(e as Error).message}`);
-      return this._failedResult(manifest, discrepancies, unestablishedEvidence);
+      return this._failedResult(manifest, discrepancies, postEnvelopeEvidence);
     }
     const computedPackageFingerprint = isLegacyV1Identity ? String(dataset.seedHash) : dataset.fingerprint;
     if (computedPackageFingerprint !== String(manifest.datasetFingerprint)) {
@@ -572,12 +597,12 @@ export class InvestigationReplayRunner {
       const parsed: unknown = JSON.parse(strFromU8(commandLogBytes));
       if (!Array.isArray(parsed)) {
         discrepancies.push('Failed to parse command log: top-level value must be an array');
-        return this._failedResult(manifest, discrepancies, unestablishedEvidence);
+        return this._failedResult(manifest, discrepancies, postEnvelopeEvidence);
       }
       loggedEvents = parsed as (AnalysisSpec | ResearchEvent)[];
     } catch (e) {
       discrepancies.push(`Failed to parse command log: ${(e as Error).message}`);
-      return this._failedResult(manifest, discrepancies, unestablishedEvidence);
+      return this._failedResult(manifest, discrepancies, postEnvelopeEvidence);
     }
     if (usesSemanticDigest && loggedEvents.length !== manifest.commandCount) {
       discrepancies.push(`Semantic-v2 command count mismatch: manifest expected ${manifest.commandCount}, log contains ${loggedEvents.length}`);
@@ -589,7 +614,7 @@ export class InvestigationReplayRunner {
         representationDecision = parseRepresentationDecision(representationDecisionBytes);
       } catch (e) {
         discrepancies.push(`Failed to parse representation state from package: ${(e as Error).message}`);
-        return this._failedResult(manifest, discrepancies, unestablishedEvidence);
+        return this._failedResult(manifest, discrepancies, postEnvelopeEvidence);
       }
     } else if (manifest.representationModel) {
       discrepancies.push('Manifest declares representation model provenance but no persisted representation decision was provided');

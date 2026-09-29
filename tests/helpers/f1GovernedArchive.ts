@@ -112,6 +112,14 @@ export function governedPayload(options: {
   const identity = options.identity ?? DEFAULT_IDENTITY;
   const receiptBytes =
     options.bytes ?? governedEnvelope(options.uses ?? [], identity).bytes;
+  // This manifest is deliberately narrower than `exportPortableSnapshot`'s: it
+  // omits `researchContext`, `evidenceSummary`, `discoveryCount`,
+  // `nilOutcomeCount` and simplifies `environment`. Every omission is inert for
+  // these falsifiers — canonical serialization drops undefined-valued keys, and
+  // a fully exporter-shaped manifest (all five added, with nulled environment
+  // fields) reaches the same pinned digest — but it does mean the
+  // `evidenceSummary` count checks and the `researchContext` digest branch are
+  // exercised elsewhere, not here.
   return {
     manifest: {
       formatVersion: GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,

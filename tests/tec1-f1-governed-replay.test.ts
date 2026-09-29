@@ -48,8 +48,9 @@ describe('F1 falsifier 2: version/algorithm cross-product dispatch', () => {
     const result = await runner().replayPayload(payload);
 
     expect(result.success).toBe(false);
-    // The envelope is present but its governed replay integrity was never
-    // established — this must not read as "no envelope exists".
+    // Step 1 refuses before the envelope is ever checked, so its integrity was
+    // never established — but it *is* present, and this must not read as
+    // "no envelope exists".
     expect(result.evidence).toEqual({ envelope: 'present', integrity: 'not-established' });
   });
 
@@ -210,15 +211,27 @@ describe('F1 falsifier 4a: non-empty uses are typed unavailable, not corruption'
 
 describe('F1: an empty uses array is preserved, never read as enforcement', () => {
   it('never raises the uses refusal when there are no uses to govern', async () => {
-    const result = await runner().replayPayload(governedPayload({ uses: [] }));
+    // The identity must reproduce and the digest must be pinned for this to test
+    // anything: on the unreproducible default identity step 3 refuses with
+    // `DATASET_MISMATCH`, and "no `uses` refusal" then holds because the run
+    // failed for an unrelated reason. Asserting the whole attestation instead of
+    // only the absence of one code is what makes that impossible to confuse.
+    const identity = await reproducibleIdentity();
+    const probe = await runner().replayPayload(governedPayload({ identity, uses: [] }));
+    const result = await runner().replayPayload(governedPayload({
+      identity,
+      uses: [],
+      manifestOverrides: { investigationDigest: probe.investigationDigest },
+    }));
 
-    expect(result.evidence.envelope).toBe('present');
-    if (result.evidence.envelope === 'present' && result.evidence.integrity === 'verified') {
-      // Preservation only: this build enforces nothing, and the *capability*
-      // refusal is reserved for archives that actually claim a use.
-      expect(result.evidence.enforcement).toBe('none');
-      expect(result.evidence.refusal?.code).not.toBe('uses-not-governable-by-this-build');
-    }
+    expect(result.success).toBe(true);
+    // Preservation only: this build enforces nothing, and the *capability*
+    // refusal is reserved for archives that actually claim a use.
+    expect(result.evidence).toEqual({
+      envelope: 'present',
+      integrity: 'verified',
+      enforcement: 'none',
+    });
   });
 
   it('does not let a bare success flag stand in for an attestation', () => {
@@ -306,10 +319,20 @@ describe('F1 falsifier 12: the governed happy path is reachable and commits the 
 });
 
 describe('F1 falsifier 14: a governed package that commits to nothing cannot succeed', () => {
+  // The identity must reproduce, and it is load-bearing: on the unreproducible
+  // default identity step 1's guard never gets to run, because step 3 refuses
+  // with `DATASET_MISMATCH` first. These cases then "pass" against the buggy
+  // loader for a reason that has nothing to do with the digest — they would be
+  // green before the fix. With a reproducing identity the run reaches the
+  // missing-digest state, which is exactly the shape that returned `success:
+  // true` before it.
   for (const digest of [undefined, null, '']) {
     it(`refuses a V3 payload whose investigationDigest is ${JSON.stringify(digest)}`, async () => {
       const result = await runner().replayPayload(
-        governedPayload({ manifestOverrides: { investigationDigest: digest } }),
+        governedPayload({
+          identity: await reproducibleIdentity(),
+          manifestOverrides: { investigationDigest: digest },
+        }),
       );
 
       // `pack`/`unpack` require a 64-hex digest for V3, so an archive cannot
@@ -323,6 +346,25 @@ describe('F1 falsifier 14: a governed package that commits to nothing cannot suc
       expect(result.evidence).toEqual({ envelope: 'present', integrity: 'not-established' });
     });
   }
+
+  it('refuses a digest that is present but not a SHA-256 shape', async () => {
+    // Presence is not well-formedness. Comparison can only ever disagree with a
+    // malformed digest, so without a shape check this reports as a
+    // reconstruction disagreement — telling the analyst their investigation was
+    // substituted when the manifest is simply not valid V3 input.
+    for (const digest of ['x', 'not-a-digest', 'A'.repeat(64)]) {
+      const result = await runner().replayPayload(
+        governedPayload({
+          identity: await reproducibleIdentity(),
+          manifestOverrides: { investigationDigest: digest },
+        }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.evidence).toEqual({ envelope: 'present', integrity: 'not-established' });
+      expect(result.discrepancies.join(' ')).toContain('lowercase SHA-256');
+    }
+  });
 
   it('never reports success for a V3 run whose commitment was not established', async () => {
     // The invariant the dispatch check restores, stated once so it holds for
@@ -339,6 +381,11 @@ describe('F1 falsifier 14: a governed package that commits to nothing cannot suc
         uses: [{ consumerId: 'c', receiptId: 'r', requirementProfileId: 'p' }],
       }),
       governedPayload({ identity }),
+      // The one case that distinguishes this invariant from the buggy loader:
+      // reproducing identity, so step 3 does not refuse first, and a falsy
+      // digest, so the step-4 comparison is skipped. Pre-fix this returned
+      // `success: true` and `succeeded` reached 2.
+      governedPayload({ identity, manifestOverrides: { investigationDigest: '' } }),
       governedPayload({
         identity,
         manifestOverrides: { investigationDigest: probe.investigationDigest },
@@ -359,7 +406,9 @@ describe('F1 falsifier 14: a governed package that commits to nothing cannot suc
     }
 
     // Without this the loop could pass by never taking its own branch, which is
-    // the failure mode this whole falsifier exists to rule out.
+    // the failure mode this whole falsifier exists to rule out — and it is a
+    // real falsifier only while at least one listed payload reaches success
+    // *after* another one was refused for the commitment being absent.
     expect(succeeded).toBe(1);
   });
 });
