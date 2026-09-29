@@ -47,6 +47,22 @@ The ladder explicitly restores product ideas that remain part of Nemosyne's iden
 
 Each increment ends with a **STOP / CONTINUE / REVISE** product assessment in addition to its normal software/scientific promotion evidence.
 
+
+### Feature placement by capability increment
+
+The recovered product ideas and legacy-code decisions are now scheduled rather than held as an undifferentiated backlog. The detailed authority is `roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`.
+
+- **FM0:** TechnoCore provenance + Evidence Vault replay/recovery; `FM0-CLEAN` retires safe Draco/serializer/share-link/misleading-alias debt.
+- **FM1:** question-aware Memory Palace + branch/revisit + bounded voice-to-NIL experiment; `FM1-MEM` replaces/removes the unsafe dormant Memory Palace authoring controller.
+- **FM2:** Road Not Taken, ghost/paired alternatives, Farcaster branch navigation, visible refutation and collaboration/peer-challenge pilot; `FM2-COLLAB-CLEAN` removes superseded collaboration-state/annotation code.
+- **FM3:** compositional spatial epistemology, composed Challenge, sonification/haptics experiments and only semantically justified live-stream/River-Tethys treatment; `FM3-PERCEPT` resolves palette/CVD and spatial-audio prototypes.
+- **FM4:** stickman ↔ Mona Lisa semantic resolution, progressive crystallisation and cross-hardware spatial-memory continuity; `FM4-UI-CLEAN` retires remaining legacy `MovablePanel` substrate where safe. Rust scene-command-buffer work remains evidence-triggered only.
+- **FM5:** System-1 proposal assistance plus governed voice/gaze/gesture multimodality through NIL; `FM5-PERCEPTION` replaces or archives the heuristic multimodal-perception prototype.
+- **FM6:** human-refined learning, outcome lineage, cross-investigation recurrence/resonance and more mature collaboration/convergence views.
+- **FM7:** bounded representation search, true search/evolutionary Road Not Taken lineage and inspectable trade-offs; larger generative models and autonomous agents remain laboratory-only unless bounded search is shown insufficient.
+- **FM8:** integrated product coherence plus `FM8-CLEAN`, a final removal/archive pass for any executable prototype or compatibility surface without a declared product owner and evidence basis.
+- **Post-FM:** Gaussian splatting, biosignal salience, federated learning, richer literary metaphors, larger generative representation models and autonomous research/representation agents are evidence-triggered research candidates, not default roadmap commitments.
+
 ## Historical status snapshot - 16 September 2026
 
 **Current integration base for this planning update:** `main@8adb2c7899d749be5c2676551ed0f5b8a757168e` (#754). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. PT0-PT8 remain landed at their bounded exits. P1-UXR remains the active pre-PT9 product-development programme: UXR0's bounded software contract and UXR1's canonical UI migration plus purpose/comprehension treatment-v3 fix-forward are landed. #745 remains open because software, browser and simulator evidence cannot establish the required physical human comprehension outcome. The forward engineering frontier is again the UXR2 resource lifecycle governor at its UXR3 bounded-semantic-working-set seam, followed by UXR4/UXR5 evidence, while the #745 Quest retest runs when physical-human evidence is available. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream. Experimental Full-Moneta work may be preserved off the integration path but may not jump those prerequisites.
