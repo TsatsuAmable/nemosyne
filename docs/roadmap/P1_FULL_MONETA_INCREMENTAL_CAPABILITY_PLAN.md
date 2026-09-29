@@ -410,3 +410,54 @@ The programme should repeatedly ask:
 > Did this increment make Nemosyne better at helping a researcher notice, question, challenge, understand, validate, remember or communicate something meaningful about their data?
 
 Green CI, elegant architecture, lower latency, richer geometry and more sophisticated models are supporting evidence. None is the product outcome by itself.
+
+
+## 11. Legacy, dormant and post-Full-Moneta disposition register
+
+Full Moneta development must not accumulate a second hidden architecture from prototypes, compatibility shims and superseded experiments. The following register records current disposition candidates. These are planning classifications, not proof that deletion is safe; removal requires a fresh import/reachability/test audit.
+
+### 11.1 Prefer deletion after bounded reachability confirmation
+
+| Surface | Current evidence | Planned disposition |
+|---|---|---|
+| `src/draco/**` compatibility facade | Production imports are already forbidden and `docs/DRACO_COMPAT_INVENTORY.md` records no production consumers. | Migrate the remaining intentional compatibility tests/callers, retain at most one compatibility-contract test for the declared window, then delete the Draco facade under an explicit breaking-change decision. |
+| `src/network/CollaborativeStateSync.ts` | Production-capability registry explicitly marks it superseded by `NetworkManager` + `CollaborationCoordinator`. | Delete after legacy-test migration. Do not allow it to become a second collaboration-state authority. |
+| `src/network/SharedAnnotationManager.ts` | Registry marks the network copy superseded by the live VR interaction annotation authority. | Delete the superseded network implementation after callers/tests are migrated; preserve only the canonical annotation authority. |
+| `src/session/ShareableSessionURL.ts` | Registry marks it a legacy lightweight URL prototype; governed `.nemosyne` packaging is the portable-investigation path. | Delete unless a new, explicitly scoped “lightweight view link” product requirement is approved with clear non-authoritative semantics. |
+| `src/data/serializers/FlatBuffersSerializer.ts` | It is not FlatBuffers interoperability; it is a hand-rolled row buffer and is development-only. | Prefer deletion. If a real bounded binary dataset/message format is later needed, name and specify it truthfully or adopt the actual standard. |
+| deprecated representation/hash aliases | `FAMILY_TO_LAYOUTS`, `LAYOUT_TO_FAMILY`, `RepresentationDecision.confidence/confidenceScore`, `fnv1aHex`, `datasetContentHashHex` remain migration aliases. | Retire before FM1/FM3/F6 code can accidentally build new semantics on misleading names. Preserve persisted-format compatibility at the boundary rather than preserving ambiguous internal vocabulary indefinitely. |
+
+### 11.2 Re-evaluate before either deletion or promotion
+
+| Surface | Why it matters | Re-evaluation point |
+|---|---|---|
+| `MemoryPalaceController` | The current authoring controller is not a production consumer and uses placeholder/random IDs, default provenance and heuristic `confidence/relevance`. The bounded production Memory Palace projection is separate and valid. | **FM1-FM2:** do not reactivate this controller as-is. Either delete it and author directly through Investigation/NIL/Discovery authorities, or replace it with a thin authority-preserving controller. |
+| `MovablePanel` legacy canvas substrate | UXR1 moved the normal analyst path to UIKit/SpatialPanel, but the legacy base, tests and compatibility vocabulary remain. | Run one fresh reachability/inheritance audit after current physical-validation dependencies settle. Delete the substrate if no unique supported/diagnostic surface still requires it; retain only deliberately isolated diagnostic use if necessary. |
+| `ColorPaletteEngine` | Standalone unused experiment, but colour/CVD accessibility is genuinely relevant to representation semantics and user testing. | **FM3-FM4:** extract any valuable perceptual/accessibility tests or algorithms into the canonical encoding/representation path, then delete the standalone engine unless it becomes that authority. |
+| `SpatialAudioSynthesizer` | Implemented and tested but not production-composed. Sonification has renewed product relevance as a possible representation channel. | **FM3+ product experiment:** evaluate a small number of analytically justified sonification mappings. Promote through RepresentationGraph/SpatialEmbodimentPlan or archive/delete if user evidence is weak. |
+| `MultimodalPerceptionEngine` | Explicitly development-only; its gaze + gesture + voice fusion maps directly to future multimodal/NIL ambitions. | **FM5 or earlier UX experiment:** preserve as a laboratory specimen, but do not promote its current heuristic confidence thresholds as calibrated truth. Replace with governed perception contracts if evidence supports multimodal fusion. |
+| live-stream / River-Tethys-style experience | Live ingest is experimental-production, while the richer spatial-stream metaphor largely faded from the product foreground. | Re-evaluate after core question-aware/compositional investigation is useful. A live stream should earn a semantic representation rather than become ambient spectacle. |
+| collaboration substrate | Network/signalling code is substantial and experimental-production, but full peer-challenge experience is not yet product-qualified. | **FM2+ / private preview:** preserve the secure transport, but test whether shared focus, branch comparison and peer challenge provide enough research value to justify the operational surface. |
+
+### 11.3 Park explicitly for post-Full-Moneta or evidence-triggered reconsideration
+
+| Surface / idea | Disposition |
+|---|---|
+| Rust scene command buffer (`CommandApplier` + `wasm/src/command_buffer.rs`) | Dormant provisional renderer-control ABI. Keep development-only or archive it until measured headset/runtime evidence shows that Rust-owned scene command production solves a real bottleneck. It must not create a second representation/spatial authority merely for performance. |
+| richer “River Tethys”, “Zones of Thought”, ICE and other literary world metaphors | Treat as a design-idea library. Reintroduce only when a metaphor carries a tested semantic/navigation function. Do not restore them as scenery. |
+| Gaussian splatting, biosignal salience, federated cross-investigation learning and similar speculative representation/learning ideas | Post-Full-Moneta research candidates unless a nearer capability increment produces a concrete requirement. They must not distract from establishing a useful reference representation algorithm and human discovery evidence. |
+| generative/neural representation model beyond qualified System-1 proposal assistance | Post-FM7 candidate. Require evidence that bounded transparent composition/search is insufficient before introducing a harder-to-inspect generative authority. |
+| autonomous representation/research sub-agents | Laboratory/post-FM candidate. Agents may generate hypotheses/falsifiers/search proposals, but no consensus or autonomy may substitute for evidence authority or attributable researcher judgement. |
+
+### 11.4 Cleanup cadence
+
+At every FM increment STOP review:
+
+1. inventory code newly made obsolete by the increment;
+2. identify compatibility shims whose declared window has expired;
+3. remove duplicated/superseded authorities rather than leaving them dormant on the import surface;
+4. archive useful historical design material instead of keeping executable prototypes merely as memory;
+5. keep future experiments behind explicit development/laboratory capability classifications;
+6. promote a dormant idea only through the same evidence and product-value process as a new feature.
+
+The goal is not maximal deletion. It is a repository in which **live code means live intent, archived code means historical intent, and future experiments cannot be mistaken for product authority**.
