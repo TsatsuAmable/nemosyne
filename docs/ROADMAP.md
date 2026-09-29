@@ -4,9 +4,48 @@
 
 ## Status snapshot - 29 September 2026
 
-**Current integration base:** `main@e73ea37b8bb023f1179b4b43e6dd7ae11df78c0e` (#833). UXR0-UXR3 remain at their bounded software exits; UXR4/UXR5 physical qualification remains open and runs only when attributable headset/human evidence is available, without blocking unrelated software work. P1-TEC has advanced materially: #820 established authority-owned requirement profiles, #821 landed governed replay resolution with typed dataset/kernel/profile refusals, #823 hardened replay identity capture against coercion/substitution, #824 accepted the governed receipt replay-format design, #829 landed the opt-in V3 receipt package/digest contract while preserving historical V1/V2 replay compatibility, #831 added governed V3 capture/export under explicit opt-in, and #833 added governed V3 package loading/replay attestation through the current tranche boundary. A 29 September authority audit identified one remaining tranche-2 blocker in #834: governed evidence capture still reaches module-global `RuntimeBridge` functions through `MonetaEvidenceAuthority` rather than the injected analytical execution port, which can diverge from the Worker-owned production Rust instance. TEC1 and TEC2 therefore remain open checkpoints, not completed gates. #834 is the next bounded TEC1 fix-forward and must close the single-authority capture path before RFC 0009 consumer-policy binding begins. #825, #826, #827 and #828 are dependency maintenance only and do not promote a scientific, product or physical-evidence checkpoint. Bounded non-colliding P1-TEC work may continue concurrently; P1-WP, P1-WQ and finite P1-TEC closure remain prerequisites for PT9, and P1-MCR/evolutionary synthesis may not bypass trustworthy-evidence closure.
+**Current integration base:** `main@4b5562e04f10a248ac55fe343ec323881a2444df` (#835). UXR0-UXR3 remain at their bounded software exits; UXR4/UXR5 physical qualification remains open and runs only when attributable headset/human evidence is available, without blocking unrelated software work. P1-TEC has advanced materially: #820 established authority-owned requirement profiles, #821 landed governed replay resolution with typed dataset/kernel/profile refusals, #823 hardened replay identity capture against coercion/substitution, #824 accepted the governed receipt replay-format design, #829 landed the opt-in V3 receipt package/digest contract while preserving historical V1/V2 replay compatibility, #831 added governed V3 capture/export under explicit opt-in, and #833 added governed V3 package loading/replay attestation through the current tranche boundary. A 29 September authority audit identified one remaining tranche-2 blocker in #834: governed evidence capture still reaches module-global `RuntimeBridge` functions through `MonetaEvidenceAuthority` rather than the injected analytical execution port, which can diverge from the Worker-owned production Rust instance. TEC1 and TEC2 therefore remain open checkpoints, not completed gates. #834 is the next bounded TEC1 fix-forward and must close the single-authority capture path before RFC 0009 consumer-policy binding begins. #825, #826, #827 and #828 are dependency maintenance only and do not promote a scientific, product or physical-evidence checkpoint. Bounded non-colliding P1-TEC work may continue concurrently; P1-WP, P1-WQ and finite P1-TEC closure remain prerequisites for PT9, and P1-MCR/evolutionary synthesis may not bypass trustworthy-evidence closure.
 
 **R1 transfer closure:** Mapper, persistence intervals, Betti-0, statistics, dataset JSON, the five semantic embodiment builders, semantic detail and direct spectral facts use Rust-owned prepare/read/destroy result transfer through the production bridge. #790 closes the duplicate-authoritative-computation finding with production-path evidence for one substantive computation/materialisation and explicit result lifetime handling. #791 separately removes redundant fresh-load copies at the Atlas handoff. These changes do not by themselves establish measured latency, physical-memory improvement or total semantic-memory bounds; those remain evidence claims for the relevant UXR4/UXR5 envelopes.
+
+## Full Moneta incremental capability ladder — product/intelligence integration spine
+
+The canonical integration plan for the path from bootstrap Moneta to Full Moneta is now [`roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md).
+
+The programme is organised around **researcher-visible capability increments**, not a long architecture-first chain. Each increment must add a bounded form of representation intelligence **and** an experience that can be exercised, falsified and assessed before the next increment is promoted.
+
+| Increment | Product capability | Main specialist work consumed |
+| --- | --- | --- |
+| **FM0 — Trustworthy Moneta** | Provenance-complete, replayable decisions from one analytical authority. | P1-TEC / RFC 0009; **ACTIVE now**, with #834 next. |
+| **FM1 — Question-Aware Moneta** | Research question, hypothesis, task and variables-of-interest can legitimately shape representation decisions. | InvestigationIntent/ResearchContext integration + provenance/replay. |
+| **FM2 — Alternative-Aware Moneta / Road Not Taken** | Inspect, compare, challenge, reject and branch from meaningful alternatives. | Existing alternative metadata, NIL/judgement, Memory Palace, TechnoCore. |
+| **FM3 — Compositional Moneta** | Several governed semantic phenomena coexist in one representation. | P1-MCR MCR2-MCR4 + product interaction qualification. |
+| **FM4 — Resolution-Adaptive Moneta** | Same semantic investigation supports hardware-dependent “stickman ↔ Mona Lisa” richness without changing analytical truth. | P1-MCR + UXR lifecycle/resource work + semantic-resolution contracts. |
+| **FM5 — Intuitive / System-1-assisted Moneta** | A small fast model may propose typed representation/composition decisions without becoming analytical authority. | Pinned proposal/provenance contract + device qualification. |
+| **FM6 — Human-Refined Moneta** | Governed researcher judgement and validated discovery outcomes improve future priors. | PT9 learning evidence/model promotion; PT10/private-preview evidence where available. |
+| **FM7 — Searching Moneta** | Bounded RepresentationGraph grammar/search produces new inspectable representation hypotheses beyond the fixed catalogue. | Representation objective/search work + MCR7 handoff + evolutionary/adversarial laboratory evidence. |
+| **FM8 — Full Moneta** | Evidence, intent, context, learned priors, search and hardware budget jointly drive controlled adaptive representation intelligence. | Integrated qualification and human/device evidence. |
+
+This capability ladder **replaces the old planning assumption that all PT9/PT10 learning must complete before any production compositional capability can be experienced**. Scientific admissibility and trustworthy-evidence closure remain hard gates, but deterministic/reference composition may be promoted at FM3 once its own prerequisites are met. PT9 enters at FM6, where learning actually becomes part of the product capability.
+
+### Product-experience recovery
+
+The ladder explicitly restores product ideas that remain part of Nemosyne's identity but have become quieter during architecture/evidence work. They are not exempt from evidence: they should be implemented in bounded form, tested with users, retained when they create value and removed/revised when they do not.
+
+- **Memory Palace** remains the spatial embodiment of investigation history/reasoning. Its bounded projection is already landed; future increments add question/representation lineage, branches, alternatives, outcomes and eventually search lineage.
+- **Road Not Taken** becomes a first-class FM2 capability: inspect and inhabit alternative representation hypotheses while preserving semantic correspondence and provenance.
+- **Challenge / falsification** remains a first-class interaction: perturb, seek counterexamples, compare representations, run analytical tests and record support/refutation/inconclusive outcomes.
+- **TechnoCore** progressively becomes the instrument for asking how Nemosyne is seeing the dataset: provenance at FM0, intent at FM1, alternatives at FM2, composition at FM3, learned/search reasoning later.
+- **Evidence Vault / Ice Vault** owns reproducible checkpoints, frozen investigation states and return.
+- **Farcaster portals** are reserved for meaningful context travel: branches, saved/related investigations, detail levels and collaborator frames.
+- **Spatial epistemology** returns as an explicit representation-design question at FM3+: spatial relations may encode meaning only when the mapping is governed, inspectable and understood by users.
+- **Branching, visible refutation and revisit** remain durable product semantics; disproven paths are history, not garbage.
+- **Collaboration / peer challenge** may expose shared focus, counter-hypotheses and independent convergence without treating consensus as scientific authority.
+- **Sonification, haptics and voice** remain candidate multimodal representation/interaction channels through versioned mappings and NIL, not decorative effects or parallel semantic authorities.
+- **Cross-investigation recurrence/resonance** becomes eligible once enough governed discovery history exists; recurrence must remain visually and semantically distinct from validation.
+- **Sparse cyberspace / Datum Plane identity** remains the visual doctrine: the dataset and evidence are protagonist, and every persistent spatial object must earn its volume.
+
+Each increment ends with a **STOP / CONTINUE / REVISE** product assessment in addition to its normal software/scientific promotion evidence.
 
 ## Historical status snapshot - 16 September 2026
 
@@ -87,7 +126,7 @@ Committee work is evidence-producing work, not ceremony. Run the F1 architecture
 
 The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeded as one forward stream; the integration policy was relaxed on 29 September 2026 to permit provably disjoint parallel tranches (see **Integration policy** below). From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` remains the strategic tranche specification. Issue #620 is a historical execution checklist whose unchecked items and ordering are stale after PT0-PT8 and the P1-UXR activation; it is not current status authority. This file alone governs live status and next-work sequencing.
 
-Current order:
+Current order / promotion spine:
 
 ```text
 Stream A STOP
@@ -99,13 +138,17 @@ Stream A STOP
             -> UXR5 physical Quest qualification + P1-UXR STOP
               -> P1-WP web productionization + internet deployment
                 -> P1-WQ web investigator qualification
-                  -> P1-TEC trustworthy-evidence closure
-                    -> PT9 Moneta learning-evidence pipeline
-                      -> PT10 private-preview product/discovery learning loop
-                        -> P1-MCR compositional RepresentationGraph / SemanticEmbodiment / SpatialEmbodiment expansion
-                           (evolutionary synthesis/search remains a separate laboratory workstream)
+                  -> FM0 / P1-TEC trustworthy-evidence closure
+                    -> FM1 question-aware Moneta
+                      -> FM2 alternative-aware Moneta / Road Not Taken
+                        -> FM3 compositional Moneta (P1-MCR MCR2-MCR4)
+                          -> FM4 resolution-adaptive Moneta
+                            -> FM5 qualified System-1-assisted proposals
+                              -> FM6 human-refined Moneta (PT9; PT10/private-preview evidence loop)
+                                -> FM7 bounded representation search / synthesis handoff
+                                  -> FM8 controlled Full Moneta
 
-Physical Quest/human evidence gates run when their claims require them; they do not block unrelated software work.
+Preparatory contract, UX prototype, research and laboratory work may run earlier when non-colliding, but production promotion follows the capability/evidence prerequisites above. Physical Quest/human evidence gates run when their claims require them; they do not block unrelated software work.
 ```
 
 ### Integration policy (relaxed 29 September 2026)
@@ -195,6 +238,7 @@ Planning/audit work for TEC0 may be performed earlier when it does not collide w
 | **B - Source-Authoritative Structural Representations** | Add truthful graph/hierarchy/temporal/geospatial/spectral dataset structures without presentation-side inference. | Relationship Graph B4 STOP / #612 | **VERIFIED COMPLETE / STOP FOR FIRST SELECTED FAMILY** | Source-authoritative Relationship Graph V1 is verified complete; selecting another B family requires an explicit fresh-main choice. |
 | **C - Visible Investigator Product Convergence** | Turn the landed substrate and semantic representations into the sparse, task-first Nemosyne experience. | C4 visible journeys / #616 | **IMPLEMENTATION LANDED / REVIEW ACTIVE** | Canonical journeys visibly converge on desktop and simulator-testable XR; physical-input/comfort fitness remains later device evidence. |
 | **P1-TEC - Trustworthy Evidence Closure** | Close propagation, terminology, falsification and production handoff gaps in the existing evidence architecture before learned/compositional Moneta consumes it. | TEC0 landed; TEC1 receipts/profiles/governed V3 persistence and replay loading landed through #833; **#834 analytical-port authority fix-forward NEXT**, then consumer-policy/profile-identity binding and MCR closure | **ACTIVE WHERE NON-COLLIDING / FINITE CLOSURE BEFORE PT9** | Evidence axes needed for admissibility survive Rust/WASM -> Moneta/semantic representation with honest terminology, a single injected analytical authority, fail-closed loss handling, adversarial fixtures and replayable provenance. |
+| **P1-FM - Incremental Full Moneta Capability Ladder** | Integrate scientific, representation and product work as observable capability gains with STOP / CONTINUE / REVISE assessment after each increment. | **FM0 ACTIVE** through P1-TEC/#834; FM1 contract/pre-work may proceed where non-colliding. | **NEW PRODUCT/INTELLIGENCE PROMOTION SPINE** | FM0-FM8 are either promoted with capability-specific evidence or explicitly revised/stopped; recovered product experiences are evaluated rather than silently deferred. |
 | **P1-PT - Product Transition & Evolutionary Improvement** | Turn the research system into a usable, maintainable, operable product while improving learning velocity without weakening scientific authority. | PT8 governed gesture-model update loop / #667 | **PT0-PT8 LANDED; PT9-PT10 DOWNSTREAM OF P1-UXR -> P1-WP -> P1-WQ -> P1-TEC** | PT0-PT10 are completed or explicitly re-scoped with product, production, data, learning and private-preview evidence correctly classified. |
 | **P1-UXR - Semantic-Efficiency UX, Runtime Simplification & Verification** | Make semantic spatial investigation cheaper, more natural and more stable while preserving analytical truth and provenance. | UXR3 bounded semantic working set | **ACTIVE / UXR0-UXR2 BOUNDED SOFTWARE LANDED; UXR3-UXR4 PARTIAL; UXR5 OPEN** | UXR0-UXR5 reach bounded STOP, with physical claims closed only by attributable device evidence; then PT9/PT10 resume. |
 | **D / assurance legacy boundary** | Preserve attributable validation, live-path security/privacy assurance and clean-production/device qualification contracts needed by the selected preview scope. | QV4 adjudication/custody landed (#668/#669); QV5/QV7 and selected physical/security residuals open | **CONSUMED BY P1-PT/P1-UXR / ACTIVE WHEN CLAIM-REQUIRED** | Required assurance gates for the selected private-preview scope are satisfied; no browser/simulator evidence is promoted into physical proof. |
