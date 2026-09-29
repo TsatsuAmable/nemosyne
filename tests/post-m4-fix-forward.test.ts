@@ -14,6 +14,7 @@ import {
   setSemanticEmbodimentPresentationStatus,
 } from '../src/moneta/embodiment/SemanticEmbodimentStatus.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';
+import { replayResultDouble } from './helpers/replayResult.ts';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -125,11 +126,7 @@ describe('post-M4 independent fix-forward', () => {
       assessRepresentation: (() => ({ kind: 'nil' })) as never,
       analysisResultCount: () => 0,
       markMoment: () => 'observation-1',
-      replayPortableInvestigation: async () => ({
-        success: true,
-        discrepancies: [],
-        eventsMatched: 0,
-      }),
+      replayPortableInvestigation: async () => replayResultDouble(),
       exportPortableInvestigation: async () => new Uint8Array(),
     });
 

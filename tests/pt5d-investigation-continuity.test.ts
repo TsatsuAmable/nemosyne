@@ -10,6 +10,7 @@ import type { ReplayVerificationResult } from '../src/session/InvestigationRepla
 import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { NemosyneSession, type NemosyneSessionJSON } from '../src/session/NemosyneSession.ts';
 import type { ArchiveEntry } from '../src/session/VaultArchiveStore.ts';
+import { replayResultDouble } from './helpers/replayResult.ts';
 
 function makeSnapshot(sessionId: string, theme: string): NemosyneSessionJSON {
   const dataset = Dataset.fromJSON({
@@ -35,24 +36,16 @@ function makeSnapshot(sessionId: string, theme: string): NemosyneSessionJSON {
 
 function replaySuccess(bytes: Uint8Array): ReplayVerificationResult {
   const payload = NemosynePackageManager.unpack(bytes);
-  return {
-    success: true,
+  return replayResultDouble({
     sessionId: payload.manifest.sessionId,
     datasetName: payload.manifest.datasetName,
     datasetFingerprint: payload.manifest.datasetFingerprint,
-    commandsReplayed: 0,
     eventsMatched: payload.manifest.commandCount,
-    provenanceEventsVerified: 0,
-    representationProvenanceVerified: false,
     discoveryProvenanceVerified: payload.manifest.discoveryCount ?? 0,
     nilProvenanceVerified: payload.manifest.nilOutcomeCount ?? 0,
-    remediationEventsVerified: 0,
-    refusalEventsVerified: 0,
     finalOutputHash: payload.manifest.datasetFingerprint,
     investigationDigest: payload.manifest.investigationDigest ?? '',
-    evidenceCount: { observations: 0, findings: 0, annotations: 0 },
-    discrepancies: [],
-  };
+  });
 }
 
 function fixture(initial = makeSnapshot('session-a', 'theme-a')): {
@@ -202,7 +195,14 @@ describe('PT5D investigation continuity', () => {
     expect(result.verification.success).toBe(true);
     expect(result.resumable).toBe(false);
     expect(result.reopened).toBe(false);
-    expect(result.message).toMatch(/older package|does not contain resumable/i);
+    // Exact, and deliberately so: a legacy package carries no governed envelope,
+    // so there is no caveat to make and inventing one would train readers to
+    // ignore the caveat where it does matter. The wording no longer claims the
+    // package is "older" — the newest format reaches this branch too.
+    expect(result.message).toBe(
+      `Replay verified (${result.verification.eventsMatched} events). ` +
+        'This package carries no resumable workspace state.',
+    );
     expect(f.current().sessionId).toBe('current-session');
     expect(f.restoreSnapshot).not.toHaveBeenCalled();
   });

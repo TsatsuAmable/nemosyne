@@ -251,7 +251,7 @@ test('P1-UV0 baseline: canonical states captured with state assertions', async (
     await expect(continuityFeedback).toContainText('Verification failed', { timeout: 15_000 });
     s5Outcome = 'kernel-unavailable: portable reopen not baselined in this environment';
   } else {
-    await expect(continuityFeedback).toContainText('Investigation opened and verified', {
+    await expect(continuityFeedback).toContainText('Investigation opened and resumable', {
       timeout: 15_000,
     });
     s5Outcome = 'portable-reopen-verified';

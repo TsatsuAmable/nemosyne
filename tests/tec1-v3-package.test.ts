@@ -168,7 +168,20 @@ describe('V3 closed data and digest commitment', () => {
     for (const result of [await runner.replayPayload(payload), await runner.replayArchive(NemosynePackageManager.pack(payload))]) {
       expect(result.success).toBe(false);
       expect(result.commandsReplayed).toBe(0);
-      expect(result.discrepancies.join(' ')).toMatch(/governed V3 replay is not yet available/);
+      // This fixture declares a historical requirement profile ID, which this
+      // build cannot resolve. The refusal is therefore a typed capability
+      // refusal rather than corruption — and, crucially, it is reached without
+      // reading the envelope's claimed *meaning* against any kernel. The
+      // assertion below is the load-bearing one: an archive must not be able to
+      // select its own governing contract, so a use this build cannot resolve
+      // stops the replay before the runtime is asked for anything at all.
+      expect(result.evidence).toEqual({
+        envelope: 'present',
+        integrity: 'verified',
+        enforcement: 'none',
+        refusal: { code: 'uses-not-governable-by-this-build' },
+      });
+      expect(result.discrepancies).toEqual([]);
     }
     expect(touched).toBe(false);
     payload.manifest.formatVersion = 2;
