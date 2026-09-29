@@ -142,7 +142,7 @@ Committee work is evidence-producing work, not ceremony. Run the F1 architecture
 
 The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeded as one forward stream; the integration policy was relaxed on 29 September 2026 to permit provably disjoint parallel tranches (see **Integration policy** below). From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` remains the strategic tranche specification. Issue #620 is a historical execution checklist whose unchecked items and ordering are stale after PT0-PT8 and the P1-UXR activation; it is not current status authority. This file alone governs live status and next-work sequencing.
 
-Current order / promotion spine:
+Current order:
 
 ```text
 Stream A STOP
