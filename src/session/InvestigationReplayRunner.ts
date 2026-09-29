@@ -3,9 +3,11 @@
  */
 
 import {
+  GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
   LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
+  type NemosynePackageManifest,
   type NemosynePackagePayload,
 } from './NemosynePackage.ts';
 import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts';
@@ -16,17 +18,84 @@ import type { AnalysisResult, AnalysisSpec, ResearchEvent } from '../atlas/types
 import type { RepresentationDecision } from '../moneta/representation/RepresentationDecision.ts';
 import {
   DiscoveryEpisodeStore,
+  GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
   INVESTIGATION_DIGEST_ALGORITHM,
   NoFeasibleRepresentationStore,
   canonicalJsonStringify,
   type DiscoveryEpisodeStoreSnapshot,
   type NoFeasibleRepresentationStoreSnapshot,
 } from '../investigation/index.ts';
+import {
+  parsePersistedEvidenceReceiptsV1,
+  type PersistedEvidenceReceiptsV1,
+} from '../data/evidence/PersistedEvidenceReceipts.ts';
+import { sha256Hex } from '../security/CryptoHash.ts';
 import { fnv1aHex } from '../atlas/DatasetSpace.ts';
 import { strFromU8 } from 'fflate';
 
+/**
+ * RFC 0009: typed refusal for a well-formed package whose governed evidence this
+ * replay run cannot resolve. Distinct from malformed input, which rejects under
+ * `integrity: 'not-established'`.
+ */
+export type ReplayEvidenceRefusalCode =
+  | 'uses-not-governable-by-this-build'
+  | 'DATASET_MISMATCH'
+  | 'KERNEL_MISMATCH';
+
+/**
+ * RFC 0009: what persisted governed evidence this replay run actually stands on.
+ *
+ * This exists because an empty `uses` array — the only shape this build can mint
+ * — makes "a governed envelope was present, structurally verified, and enforces
+ * nothing" indistinguishable from "no envelope exists at all" under a bare
+ * `success: true`. Callers that render "verified" must read this, not `success`.
+ *
+ * `envelope` and `integrity` are independent axes so `enforcement` can never
+ * contradict the tag. `enforcement` is deliberately single-valued in this
+ * tranche: consumer-policy binding (RFC 0009 tranche 3) does not exist yet, so a
+ * later widening is a breaking union change that forces every consumer to
+ * reconsider — rather than a variant that already looks handled and silently
+ * changes meaning the day it becomes reachable.
+ */
+export type ReplayEvidenceAttestation =
+  | { readonly envelope: 'absent' }
+  | {
+      readonly envelope: 'present';
+      readonly integrity: 'verified';
+      readonly enforcement: 'none';
+      readonly refusal?: { readonly code: ReplayEvidenceRefusalCode };
+    }
+  | { readonly envelope: 'present'; readonly integrity: 'not-established' };
+
+/**
+ * RFC 0009: the only governed-integrity attestation this build may report.
+ *
+ * A named constructor rather than an inline literal at each site, because the
+ * `enforcement` value is the single claim in this tranche that is a statement
+ * about *this build* rather than about the archive. The day consumer binding
+ * lands, exactly one place has to start telling the truth.
+ */
+function verifiedEvidence(
+  refusal?: ReplayEvidenceRefusalCode,
+): ReplayEvidenceAttestation {
+  return {
+    envelope: 'present',
+    integrity: 'verified',
+    enforcement: 'none',
+    ...(refusal === undefined ? {} : { refusal: { code: refusal } }),
+  };
+}
+
 export interface ReplayVerificationResult {
   success: boolean;
+  /**
+   * RFC 0009: required, never optional. An optional member would make "not
+   * populated" and "no envelope exists" the same observable — reproducing at
+   * this level the absence-reads-as-legacy encoding that already lets a V3
+   * package which lost its envelope pass for a V2 one.
+   */
+  evidence: ReplayEvidenceAttestation;
   sessionId: string;
   datasetName: string;
   datasetFingerprint: string;
@@ -340,30 +409,122 @@ export class InvestigationReplayRunner {
       representationDecisionBytes,
       discoveryEpisodesBytes,
       nilOutcomesBytes,
+      evidenceReceiptBytes,
     } = payload;
-    // V3 transport validation does not implement governed replay. Refuse before
+    const isLegacyV1 = manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION;
+    const isV2 = manifest.formatVersion === NEMOSYNE_PACKAGE_FORMAT_VERSION;
+    const isV3 = manifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION;
+
+    // RFC 0009 step 1: dispatch on the exact package/digest version before
     // parsing datasets, constructing Atlas, or executing any kernel operation.
-    if ((manifest.formatVersion !== LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
-         manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) ||
-        (manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION
-          ? Boolean(manifest.investigationDigestAlgorithm)
-          : manifest.investigationDigestAlgorithm != null &&
-            manifest.investigationDigestAlgorithm !== INVESTIGATION_DIGEST_ALGORITHM)) {
-      return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint,
-        ['Unsupported replay package/digest contract; governed V3 replay is not yet available']);
+    // A package that never declared V3 carries no governed envelope, so its
+    // failures attest `absent` rather than `not-established`.
+    if (!isLegacyV1 && !isV2 && !isV3) {
+      return this._failedResult(manifest,
+        [`Unsupported replay package formatVersion '${String(manifest.formatVersion)}'`],
+        { envelope: 'absent' });
     }
+    if (isLegacyV1) {
+      if (manifest.investigationDigestAlgorithm) {
+        return this._failedResult(manifest,
+          ['Format-v1 package cannot declare an investigation digest algorithm'],
+          { envelope: 'absent' });
+      }
+    } else if (isV2) {
+      if (manifest.investigationDigestAlgorithm != null &&
+          manifest.investigationDigestAlgorithm !== INVESTIGATION_DIGEST_ALGORITHM) {
+        return this._failedResult(manifest,
+          ['Unsupported investigation digest algorithm for a format-v2 package'],
+          { envelope: 'absent' });
+      }
+    } else if (manifest.investigationDigestAlgorithm !== GOVERNED_INVESTIGATION_DIGEST_ALGORITHM) {
+      // A V3 declaration without the V3 digest contract is malformed V3 input.
+      return this._failedResult(manifest,
+        ['Governed format-v3 package requires its investigation digest algorithm'],
+        { envelope: 'present', integrity: 'not-established' });
+    }
+
+    // RFC 0009 step 2: verify the reserved entry's byte digest and parse the
+    // closed envelope. `replayPayload` is public and may be handed a payload
+    // that never passed through `unpack`, so the loader re-runs this itself
+    // instead of assuming transport validation already happened.
+    let envelope: PersistedEvidenceReceiptsV1 | null = null;
+    let receiptSnapshot: Uint8Array | null = null;
+    if (isV3) {
+      if (!evidenceReceiptBytes) {
+        return this._failedResult(manifest,
+          ['Format-v3 package is missing evidence receipts'],
+          { envelope: 'present', integrity: 'not-established' });
+      }
+      // One owned copy of the verbatim bytes: the commitment below is over
+      // these bytes, never over a re-serialization of the parsed envelope.
+      receiptSnapshot = new Uint8Array(evidenceReceiptBytes);
+      try {
+        if (sha256Hex(receiptSnapshot) !== manifest.evidenceReceiptDigest) {
+          throw new Error('Evidence receipt entry digest mismatch');
+        }
+        envelope = parsePersistedEvidenceReceiptsV1(
+          JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(receiptSnapshot)));
+        if (envelope.bundle.datasetFingerprint !== manifest.analyticalDatasetFingerprint ||
+            envelope.bundle.kernelVersion !== manifest.analyticalKernelVersion) {
+          throw new Error('Evidence receipt bundle identity does not match analytical manifest identity');
+        }
+      } catch (e) {
+        return this._failedResult(manifest,
+          [`Governed evidence integrity failure: ${(e as Error).message}`],
+          { envelope: 'present', integrity: 'not-established' });
+      }
+      if (envelope.uses.length > 0) {
+        // RFC 0009 tranche 3 owns consumer-policy binding. No consumer registry
+        // exists in this build, so accepting a use would forge consumer policy:
+        // the archive would be selecting its own governing contract, which is
+        // exactly what "an archive cannot select a weaker profile" forbids.
+        // This is a capability limit, not an archive defect, so it reports as
+        // typed *unavailable* carrying the verbatim envelope's verified
+        // integrity. Folding it into `discrepancies` would make it
+        // indistinguishable from a corrupt package, and — more importantly —
+        // would hide the day binding lands and this same archive silently
+        // becomes openable with nobody re-examining the classification.
+        return this._failedResult(
+          manifest,
+          [],
+          verifiedEvidence('uses-not-governable-by-this-build'),
+        );
+      }
+    }
+
     const isLegacyV1Identity =
-      manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
+      isLegacyV1 &&
       !manifest.datasetIdentityAlgorithm &&
       /^\d+$/.test(manifest.datasetFingerprint);
-    const usesSemanticDigestV2 = manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM;
+    // V3 commits the semantic digest; V2 commits it only when the package
+    // actually declares the V2 algorithm. The guard is deliberately keyed on the
+    // *declared algorithm* rather than on the format version, because
+    // pre-RF-046 format-v2 packages carry no algorithm label and were digested
+    // with the legacy schema-v1 contract — routing them through the semantic
+    // digest breaks every historical package that still opens today.
+    //
+    // The previous expression tested only the V2 algorithm, so a V3 package fell
+    // to the legacy path: no command-count check, legacy analysis-spec
+    // extraction, re-executed mutating operations and no ledger restore — a
+    // silent downgrade to weaker verification. Adding `isV3` fixes that without
+    // disturbing either V2 case.
+    const usesSemanticDigest =
+      manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM || isV3;
+    // A V3 package that fails after step 2 still has a present envelope whose
+    // governed replay integrity was never established. Reporting `absent` here
+    // would erase the difference between "legacy archive, nothing to enforce"
+    // and "V3 archive you should be alarmed about".
+    const unestablishedEvidence: ReplayEvidenceAttestation = isV3
+      ? { envelope: 'present', integrity: 'not-established' }
+      : { envelope: 'absent' };
 
     let dataset: Dataset;
     try {
       dataset = Dataset.fromJSON(JSON.parse(strFromU8(datasetBytes)));
     } catch (e) {
       discrepancies.push(`Failed to parse dataset from package: ${(e as Error).message}`);
-      return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+      return this._failedResult(manifest, discrepancies, unestablishedEvidence);
     }
     const computedPackageFingerprint = isLegacyV1Identity ? String(dataset.seedHash) : dataset.fingerprint;
     if (computedPackageFingerprint !== String(manifest.datasetFingerprint)) {
@@ -375,14 +536,14 @@ export class InvestigationReplayRunner {
       const parsed: unknown = JSON.parse(strFromU8(commandLogBytes));
       if (!Array.isArray(parsed)) {
         discrepancies.push('Failed to parse command log: top-level value must be an array');
-        return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+        return this._failedResult(manifest, discrepancies, unestablishedEvidence);
       }
       loggedEvents = parsed as (AnalysisSpec | ResearchEvent)[];
     } catch (e) {
       discrepancies.push(`Failed to parse command log: ${(e as Error).message}`);
-      return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+      return this._failedResult(manifest, discrepancies, unestablishedEvidence);
     }
-    if (usesSemanticDigestV2 && loggedEvents.length !== manifest.commandCount) {
+    if (usesSemanticDigest && loggedEvents.length !== manifest.commandCount) {
       discrepancies.push(`Semantic-v2 command count mismatch: manifest expected ${manifest.commandCount}, log contains ${loggedEvents.length}`);
     }
 
@@ -392,7 +553,7 @@ export class InvestigationReplayRunner {
         representationDecision = parseRepresentationDecision(representationDecisionBytes);
       } catch (e) {
         discrepancies.push(`Failed to parse representation state from package: ${(e as Error).message}`);
-        return this._failedResult(manifest.sessionId, manifest.datasetName, manifest.datasetFingerprint, discrepancies);
+        return this._failedResult(manifest, discrepancies, unestablishedEvidence);
       }
     } else if (manifest.representationModel) {
       discrepancies.push('Manifest declares representation model provenance but no persisted representation decision was provided');
@@ -436,6 +597,36 @@ export class InvestigationReplayRunner {
       discrepancies.push(`Kernel version mismatch: package manifest has '${manifest.kernelVersion}', replay kernel is '${replayKernelVersion}'`);
     }
 
+    // RFC 0009 step 3: compare the persisted bundle identity against the state
+    // this replay actually reconstructed, never against the manifest strings
+    // that transport validation already compared. Sourcing these from the
+    // manifest would make the two refusals below unreachable dead code. The
+    // reconstructable identity is the *transformed analytical* fingerprint, so
+    // it is deliberately not the manifest's portable datasetFingerprint.
+    if (envelope) {
+      const reconstructedAnalyticalFingerprint = atlas.datasetFingerprint;
+      if (envelope.bundle.datasetFingerprint !== reconstructedAnalyticalFingerprint) {
+        discrepancies.push(
+          'Governed evidence dataset identity does not match the reconstructed analytical dataset: ' +
+          `bundle claims '${envelope.bundle.datasetFingerprint}', replay reconstructed '${String(reconstructedAnalyticalFingerprint)}'`);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          verifiedEvidence('DATASET_MISMATCH'),
+        );
+      }
+      if (envelope.bundle.kernelVersion !== replayKernelVersion) {
+        discrepancies.push(
+          'Governed evidence kernel identity does not match the replay kernel: ' +
+          `bundle claims '${envelope.bundle.kernelVersion}', replay kernel is '${String(replayKernelVersion)}'`);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          verifiedEvidence('KERNEL_MISMATCH'),
+        );
+      }
+    }
+
     let commandsReplayed = 0;
     let eventsMatched = 0;
     let provenanceEventsVerified = 0;
@@ -453,13 +644,13 @@ export class InvestigationReplayRunner {
             break;
           case 'analysis': {
             if (!event.result) {
-              if (usesSemanticDigestV2) {
+              if (usesSemanticDigest) {
                 if (typeof event.intervention === 'string' && event.intervention.length > 0) eventsMatched += 1;
                 else discrepancies.push(`Malformed semantic-v2 analysis event at #${i}: missing result and intervention`);
                 break;
               }
             }
-            const spec = usesSemanticDigestV2 ? eventAnalysisSpec(event) : (event.command as AnalysisSpec);
+            const spec = usesSemanticDigest ? eventAnalysisSpec(event) : (event.command as AnalysisSpec);
             if (!spec) {
               discrepancies.push(`Malformed analysis event at #${i}: missing executable AnalysisSpec`);
               break;
@@ -469,7 +660,7 @@ export class InvestigationReplayRunner {
               commandsReplayed += 1;
               let eventMatches = true;
               if (event.result) {
-                if (usesSemanticDigestV2) {
+                if (usesSemanticDigest) {
                   const resultDiscrepancies = compareAnalysisResult(event.result, res);
                   if (resultDiscrepancies.length === 0 && event.result.provenance) provenanceEventsVerified += 1;
                   if (resultDiscrepancies.length > 0) {
@@ -503,31 +694,31 @@ export class InvestigationReplayRunner {
           }
           case 'observation':
             if (event.observationEntity) {
-              if (!usesSemanticDigestV2) atlas.recordObservation(event.observationEntity);
+              if (!usesSemanticDigest) atlas.recordObservation(event.observationEntity);
               eventsMatched += 1;
             } else discrepancies.push(`Malformed observation event at #${i}: missing observationEntity`);
             break;
           case 'finding':
             if (event.findingEntity) {
-              if (!usesSemanticDigestV2) atlas.recordFinding(event.findingEntity);
+              if (!usesSemanticDigest) atlas.recordFinding(event.findingEntity);
               eventsMatched += 1;
             } else discrepancies.push(`Malformed finding event at #${i}: missing findingEntity`);
             break;
           case 'annotation':
             if (event.annotationEntity) {
-              if (!usesSemanticDigestV2) atlas.recordAnnotation(event.annotationEntity);
+              if (!usesSemanticDigest) atlas.recordAnnotation(event.annotationEntity);
               eventsMatched += 1;
             } else discrepancies.push(`Malformed annotation event at #${i}: missing annotationEntity`);
             break;
           case 'structure':
             if (event.structureSet) {
-              if (!usesSemanticDigestV2) atlas.evidenceLedger.recordStructure(event.structureSet, manifest.sessionId, event.timestamp);
+              if (!usesSemanticDigest) atlas.evidenceLedger.recordStructure(event.structureSet, manifest.sessionId, event.timestamp);
               eventsMatched += 1;
             } else discrepancies.push(`Malformed structure event at #${i}: missing structureSet`);
             break;
           case 'recommendation':
             if (event.recommendationDecision) {
-              if (!usesSemanticDigestV2) {
+              if (!usesSemanticDigest) {
                 const { eventId: _eventId, sessionId: _sessionId, ...replayEvent } = event;
                 atlas.evidenceLedger.appendEvent(replayEvent, manifest.sessionId);
               }
@@ -536,7 +727,7 @@ export class InvestigationReplayRunner {
             break;
           case 'embodiment':
             if (event.embodimentCommand) {
-              if (!usesSemanticDigestV2) atlas.recordEmbodimentCommand(event.embodimentCommand);
+              if (!usesSemanticDigest) atlas.recordEmbodimentCommand(event.embodimentCommand);
               eventsMatched += 1;
             } else discrepancies.push(`Malformed embodiment event at #${i}: missing embodimentCommand`);
             break;
@@ -561,19 +752,19 @@ export class InvestigationReplayRunner {
             eventsMatched += 1;
             break;
           case 'remediation':
-            if (usesSemanticDigestV2 && !event.remediationEvent) {
+            if (usesSemanticDigest && !event.remediationEvent) {
               discrepancies.push(`Malformed remediation event at #${i}: missing remediationEvent`);
             } else eventsMatched += 1;
             break;
           case 'refusal':
-            if (usesSemanticDigestV2 && !event.refusalEvent) {
+            if (usesSemanticDigest && !event.refusalEvent) {
               discrepancies.push(`Malformed refusal event at #${i}: missing refusalEvent`);
             } else eventsMatched += 1;
             break;
           default:
             discrepancies.push(`Unsupported or unrecognized event kind at #${i}: '${String(event.kind)}'`);
         }
-      } else if (usesSemanticDigestV2) {
+      } else if (usesSemanticDigest) {
         discrepancies.push(`Semantic-v2 command log entry #${i} is missing a research-event kind`);
       } else if (!isObjectRecord(item)) {
         discrepancies.push(`Legacy command log entry #${i} must be an object`);
@@ -588,7 +779,7 @@ export class InvestigationReplayRunner {
       }
     }
 
-    if (usesSemanticDigestV2) {
+    if (usesSemanticDigest) {
       // RF-047: after authoritative mutating operations have been independently
       // re-executed and verified, the persisted semantic ledger is the authority
       // for durable IDs, attribution and non-mutating provenance. Restore it
@@ -669,7 +860,7 @@ export class InvestigationReplayRunner {
 
     const finalOutputHash = atlas.datasetSpace?.fingerprint ?? atlas.datasetFingerprint ?? '';
     let investigationDigest: string;
-    if (usesSemanticDigestV2) {
+    if (usesSemanticDigest) {
       const context = manifest.researchContext
         ? {
             studyId: manifest.researchContext.studyId ?? undefined,
@@ -680,10 +871,22 @@ export class InvestigationReplayRunner {
             observerMode: manifest.researchContext.observerMode ?? undefined,
           }
         : undefined;
-      investigationDigest = await atlas.aggregate.computeDigest(manifest.kernelVersion || 'unknown', {
+      const digestOptions = {
         nilOutcomes: nilOutcomes?.outcomes ?? [],
         researchContext: context,
-      });
+      };
+      // RFC 0009 step 4: recompute the V3 investigation digest over the restored
+      // semantic state *and* the exact evidence envelope bytes — a member
+      // checksum alone is not investigation integrity. The kernel identity is
+      // the persisted bundle's own, which step 3 has already proven equal to the
+      // reconstructed replay kernel. Committing the verbatim snapshot (never a
+      // re-serialization) is what binds the digest to the delivered bytes.
+      investigationDigest = envelope && receiptSnapshot
+        ? await atlas.aggregate.computeDigest(envelope.bundle.kernelVersion, {
+            ...digestOptions,
+            evidenceReceiptBytes: receiptSnapshot,
+          })
+        : await atlas.aggregate.computeDigest(manifest.kernelVersion || 'unknown', digestOptions);
     } else {
       investigationDigest = await atlas.aggregate.computeDigest(
         replayKernelVersion ?? manifest.kernelVersion ?? 'unknown',
@@ -703,8 +906,22 @@ export class InvestigationReplayRunner {
       if (atlas.evidenceLedger.annotations.length !== manifest.evidenceSummary.annotationsCount) discrepancies.push(`Annotations count mismatch: manifest expected ${manifest.evidenceSummary.annotationsCount}, replay produced ${atlas.evidenceLedger.annotations.length}`);
     }
 
+    // RFC 0009: the attestation must not overclaim. `verified` asserts that the
+    // governed evidence commitment was *established* — entry byte digest, closed
+    // envelope parse, bundle identity against the reconstructed state, and the
+    // V3 investigation digest recomputed over that state. A digest mismatch means
+    // the restored investigation is not the committed one, so integrity is not
+    // established even though every envelope-level check passed. Reporting
+    // `verified` there would let a non-reproducing V3 archive read as intact.
+    const resultEvidence: ReplayEvidenceAttestation = !isV3
+      ? { envelope: 'absent' }
+      : manifest.investigationDigest === investigationDigest
+        ? verifiedEvidence()
+        : { envelope: 'present', integrity: 'not-established' };
+
     return {
       success: discrepancies.length === 0,
+      evidence: resultEvidence,
       sessionId: manifest.sessionId,
       datasetName: manifest.datasetName,
       datasetFingerprint: manifest.datasetFingerprint,
@@ -728,16 +945,16 @@ export class InvestigationReplayRunner {
   }
 
   private _failedResult(
-    sessionId: string,
-    datasetName: string,
-    datasetFingerprint: string,
+    manifest: NemosynePackageManifest,
     discrepancies: string[],
+    evidence: ReplayEvidenceAttestation,
   ): ReplayVerificationResult {
     return {
       success: false,
-      sessionId,
-      datasetName,
-      datasetFingerprint,
+      evidence,
+      sessionId: manifest.sessionId,
+      datasetName: manifest.datasetName,
+      datasetFingerprint: manifest.datasetFingerprint,
       commandsReplayed: 0,
       eventsMatched: 0,
       provenanceEventsVerified: 0,
