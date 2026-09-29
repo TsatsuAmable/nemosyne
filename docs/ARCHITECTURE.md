@@ -1,7 +1,7 @@
 # Nemosyne architecture
 
 **Status:** current technical reference
-**Updated:** 20 September 2026
+**Updated:** 29 September 2026
 **Governing specification:** [Nemosyne Definitive Vision and Roadmap V3.1](Nemosyne_Definitive_Vision_and_Roadmap.md)
 
 ## Authority model
@@ -99,6 +99,30 @@ introduce a duplicate genome contract before the laboratory interface is version
 `src/moneta/`. The Rust ABI retains some `draco_*` export names for compatibility; names do not confer
 independent authority.
 
+## Planned FM5 System-1 / System-2 boundary
+
+FM5 introduces learned **advice**, not a new truth authority. The governing design is
+[`MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md`](architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md).
+
+The planned split is:
+
+```text
+physical input
+  -> System-1 perception cues
+    -> deterministic InteractionIntent resolver
+      -> NIL
+
+governed evidence + investigation intent + representation features
+  -> System-1 representation proposal
+    -> Moneta System-2 hard constraints / evidence / reasoning / search
+      -> RepresentationDecision
+```
+
+System-1 perception must not emit domain commands directly. System-1 representation models must not
+traverse raw datasets or bypass hard constraints/evidence admission. System-2 remains explicit Moneta
+reasoning/search and has no ONNX requirement. ONNX is a qualified deployment format for small learned
+specialists where it demonstrates value; transparent deterministic or linear baselines remain valid
+implementations. Exact model/runtime/feature identity is pinned for research treatment and replay.
 ## Investigation and persistence
 
 Investigation state records analytical operations, observations, findings, annotations, decisions,
