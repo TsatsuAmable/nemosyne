@@ -19,6 +19,7 @@ import { DecisionHistory } from './DecisionHistory.ts';
 import { ResearchContext, type ResearchContextOptions } from './ResearchContext.ts';
 import { InvestigationGraph } from './InvestigationGraph.ts';
 import {
+  computeGovernedInvestigationDigest,
   computeInvestigationDigest,
   computeSemanticInvestigationDigest,
   DiscoveryEpisodeStore,
@@ -42,6 +43,13 @@ export interface InvestigationDigestIdentityOptions {
   nilOutcomes?: readonly NoFeasibleRepresentationRecord[];
   /** Session-owned research context overrides the aggregate-local compatibility view. */
   researchContext?: import('../types.ts').ResearchContext;
+  /**
+   * RFC 0009 tranche 2: exact persisted evidence-receipt envelope bytes. When
+   * present, the digest switches from the V2 semantic projection to the
+   * governed V3 composition over the identical state; the kernelVersion
+   * argument must equal the captured bundle identity or the digest throws.
+   */
+  evidenceReceiptBytes?: Uint8Array;
 }
 
 /**
@@ -293,6 +301,14 @@ export class InvestigationAggregate {
     kernelVersion = 'unknown',
     identityOptions: InvestigationDigestIdentityOptions = {},
   ): Promise<string> {
+    if (
+      identityOptions.evidenceReceiptBytes !== undefined &&
+      identityOptions.legacyDigestSchemaV1
+    ) {
+      throw new Error(
+        'Governed evidence digests cannot be composed with the legacy schema-v1 lossy projection'
+      );
+    }
     const fp = this.analytical.getFingerprint() ?? '';
     const originalDataset = this.analytical.originalNullable;
     const originalFp = originalDataset
@@ -392,7 +408,9 @@ export class InvestigationAggregate {
       hypothesis: this.context.hypothesis,
     };
 
-    return computeSemanticInvestigationDigest({
+    // RFC 0009: the governed V3 composition must commit exactly the semantic
+    // state the V2 projection commits, plus the verbatim evidence envelope.
+    const semanticState = {
       datasetFingerprint: fp,
       immutableDatasetFingerprint: originalFp,
       kernelVersion,
@@ -415,7 +433,12 @@ export class InvestigationAggregate {
       discoveryEpisodes: this.discoveries.all(),
       nilOutcomes: identityOptions.nilOutcomes,
       researchContext,
-    });
+    };
+
+    if (identityOptions.evidenceReceiptBytes !== undefined) {
+      return computeGovernedInvestigationDigest(semanticState, identityOptions.evidenceReceiptBytes);
+    }
+    return computeSemanticInvestigationDigest(semanticState);
   }
 
   /** Clean up transient resources. */

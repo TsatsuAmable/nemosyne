@@ -14,6 +14,8 @@ import {
   kernelVersion as liveKernelVersion,
   statisticsEvidenceReceiptBundle,
 } from '../wasm/RuntimeBridge.ts';
+import { canonicalJsonStringify } from '../security/CryptoHash.ts';
+import { parsePersistedEvidenceReceiptsV1, type PersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
 
 /** Narrow kernel contract for the Moneta evidence composition boundary. */
 export interface DatasetStructureProfileKernel {
@@ -322,4 +324,59 @@ export function statisticsEvidenceReceiptAuthority(
       return evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt);
     },
   });
+}
+
+/**
+ * RFC 0009 tranche 2: authoritative capture of the Rust-issued statistics
+ * evidence receipt bundle for the current live analytical dataset.
+ *
+ * The bytes are the one owned serialization of a closed v1 envelope holding
+ * exactly the bundle the Rust kernel produced; no TypeScript code derives or
+ * re-ranks receipt content. An identity drift between the bundle and the live
+ * kernel state throws instead of returning a stale capture.
+ */
+export interface GovernedEvidenceReceiptSnapshotV1 {
+  readonly bytes: Uint8Array;
+  readonly envelope: PersistedEvidenceReceiptsV1;
+}
+
+export function captureGovernedEvidenceReceiptSnapshot(
+  handle: number,
+): GovernedEvidenceReceiptSnapshotV1 {
+  if (!Number.isInteger(handle) || handle <= 0) {
+    throw new Error('[AtlasCore] Governed evidence capture requires a valid Rust dataset handle');
+  }
+
+  const datasetFingerprint = liveDatasetFingerprint(handle);
+  const kernelVersion = liveKernelVersion();
+  if (!datasetFingerprint || !kernelVersion) {
+    throw new Error('[AtlasCore] Governed evidence capture cannot establish live kernel identity');
+  }
+
+  const rawBundle = statisticsEvidenceReceiptBundle(handle);
+  if (!rawBundle) {
+    throw new Error('[AtlasCore] Rust statistics evidence receipts unavailable for current dataset');
+  }
+  const bundle = parseEvidenceReceiptBundleV1(rawBundle);
+  if (
+    bundle.datasetFingerprint !== datasetFingerprint ||
+    bundle.kernelVersion !== kernelVersion
+  ) {
+    throw new Error(
+      '[AtlasCore] Governed evidence capture bundle identity drift: ' +
+        `bundle=${bundle.datasetFingerprint}@${bundle.kernelVersion}, ` +
+        `kernel=${datasetFingerprint}@${kernelVersion}`,
+    );
+  }
+
+  // RFC 0009: a captured bundle is persisted under the closed v1 envelope with
+  // no authored uses; consumer-policy binding belongs to the replay loader, and
+  // empty uses establish preservation without enforcement.
+  const envelope = parsePersistedEvidenceReceiptsV1({
+    schemaVersion: '1',
+    bundle,
+    uses: [],
+  });
+  const bytes = new TextEncoder().encode(canonicalJsonStringify(envelope));
+  return Object.freeze({ bytes, envelope });
 }
