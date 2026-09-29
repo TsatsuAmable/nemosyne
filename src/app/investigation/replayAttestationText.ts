@@ -1,11 +1,18 @@
 /**
  * RFC 0009: presentation of a governed replay outcome.
  *
- * Both analyst surfaces used to derive their status line from `success` and
+ * Three analyst surfaces used to derive their status line from `success` and
  * `discrepancies` alone. That cannot distinguish a legacy package from a V3
  * package whose evidence envelope was verified, and cannot distinguish a
- * build-capability refusal from archive corruption. Centralised here so the two
+ * build-capability refusal from archive corruption. Centralised here so the
  * surfaces cannot drift into claiming different things about the same run.
+ *
+ * The third of those surfaces is why this file exists in the shape it does.
+ * `InvestigationContinuityController` already imported the real
+ * `ReplayVerificationResult` type, so widening it made the compiler check that
+ * surface and it *still* ignored `evidence`: a type can force a producer to
+ * populate a field, never a consumer to read one. Type-widening is not the
+ * enforcement mechanism for this property — mounting the surface is.
  */
 import type {
   ReplayEvidenceRefusalCode,
@@ -28,21 +35,35 @@ const REFUSAL_CLAIM: Record<ReplayEvidenceRefusalCode, string> = {
     'the reconstructed dataset is not the dataset the governed evidence commits to',
   KERNEL_MISMATCH:
     'the replay kernel is not the kernel the governed evidence commits to',
+  INVESTIGATION_DIGEST_MISMATCH:
+    'the restored investigation is not the investigation the governed evidence commits to',
 };
 
 /**
- * The reason text for a failed replay, preferring the typed refusal over the
- * discrepancy list. A typed refusal is a statement about this build or about
- * identity agreement, and it is the only detail a refusal carries — the loader
- * deliberately leaves `discrepancies` empty so the two cannot be conflated.
+ * The reason text for a failed replay: the typed refusal, then any discrepancy
+ * the loader recorded alongside it.
+ *
+ * The refusal is preferred because it is the *classification* the loader
+ * reached, and the generic "integrity mismatch" wording it used to fall through
+ * to would send an analyst looking for damaged bytes that the loader had already
+ * ruled out. The discrepancy text is appended rather than dropped because for a
+ * reconstruction disagreement it carries the two concrete values that disagree —
+ * the declared identity and the reconstructed one — which is what an analyst
+ * actually needs in order to tell which side is wrong.
+ *
+ * Only the `uses` refusal leaves `discrepancies` empty; it is a build-capability
+ * limit with nothing to compare, and it is the one refusal that must not be
+ * conflated with malformed input.
  */
 export function replayFailureDetail(result: ReplayVerificationResult): string {
   const refusal =
     result.evidence.envelope === 'present' && result.evidence.integrity === 'verified'
       ? result.evidence.refusal?.code
       : undefined;
-  if (refusal !== undefined) return REFUSAL_CLAIM[refusal];
-  return result.discrepancies.join('; ');
+  const detail = result.discrepancies.join('; ');
+  if (refusal === undefined) return detail;
+  const claim = REFUSAL_CLAIM[refusal];
+  return detail === '' ? claim : `${claim} (${detail})`;
 }
 
 /**

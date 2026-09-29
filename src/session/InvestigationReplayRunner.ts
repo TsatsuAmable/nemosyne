@@ -37,11 +37,19 @@ import { strFromU8 } from 'fflate';
  * RFC 0009: typed refusal for a well-formed package whose governed evidence this
  * replay run cannot resolve. Distinct from malformed input, which rejects under
  * `integrity: 'not-established'`.
+ *
+ * These are the two answers an analyst acts on differently, which is why they
+ * are separate codes rather than one. `uses-not-governable-by-this-build` is a
+ * limit of the build and will lift on its own. The three `*_MISMATCH` codes are
+ * disagreements between the archive's commitment and what the replay
+ * reconstructed, and no future tranche resolves them — the archive or the
+ * runtime has to be corrected.
  */
 export type ReplayEvidenceRefusalCode =
   | 'uses-not-governable-by-this-build'
   | 'DATASET_MISMATCH'
-  | 'KERNEL_MISMATCH';
+  | 'KERNEL_MISMATCH'
+  | 'INVESTIGATION_DIGEST_MISMATCH';
 
 /**
  * RFC 0009: what persisted governed evidence this replay run actually stands on.
@@ -50,6 +58,15 @@ export type ReplayEvidenceRefusalCode =
  * — makes "a governed envelope was present, structurally verified, and enforces
  * nothing" indistinguishable from "no envelope exists at all" under a bare
  * `success: true`. Callers that render "verified" must read this, not `success`.
+ *
+ * `integrity` is an *envelope-level* claim, and it means one thing: the reserved
+ * entry's byte digest matched, the closed envelope parsed, and its bundle
+ * identity agreed with the analytical manifest. It is deliberately *not* a claim
+ * that the replay reproduced the committed investigation — that is reported by
+ * `refusal` (plus `success: false`), because a reconstruction disagreement needs
+ * a different remediation from a corrupt archive and the two must stay
+ * distinguishable. Reading `integrity` alone as "this archive is sound" is
+ * therefore wrong in the presence of a `refusal`.
  *
  * `envelope` and `integrity` are independent axes so `enforcement` can never
  * contradict the tag. `enforcement` is deliberately single-valued in this
@@ -442,12 +459,31 @@ export class InvestigationReplayRunner {
       return this._failedResult(manifest,
         ['Governed format-v3 package requires its investigation digest algorithm'],
         { envelope: 'present', integrity: 'not-established' });
+    } else if (typeof manifest.investigationDigest !== 'string' || manifest.investigationDigest === '') {
+      // ...and it must actually commit to a digest. `pack`/`unpack` require a
+      // 64-hex digest for V3, but the loader does not assume transport ran: a
+      // payload arriving through `replayPayload` with no declared digest skips
+      // the step-4 comparison below and would otherwise reach `success: true`
+      // carrying `not-established` — a V3 archive reporting success while
+      // committing to nothing, which is the fail-open the typed attestation
+      // exists to make impossible.
+      return this._failedResult(manifest,
+        ['Governed format-v3 package is missing its investigation digest'],
+        { envelope: 'present', integrity: 'not-established' });
     }
 
     // RFC 0009 step 2: verify the reserved entry's byte digest and parse the
     // closed envelope. `replayPayload` is public and may be handed a payload
     // that never passed through `unpack`, so the loader re-runs this itself
     // instead of assuming transport validation already happened.
+    //
+    // This deliberately restates the checks in `assertEvidenceContract`
+    // (NemosynePackage.ts) rather than calling it. Sharing one helper would make
+    // the loader's check a function of the transport's, so a change made for
+    // transport reasons would silently alter what the loader accepts — the
+    // opposite of the independent re-check the RFC asks for. The cost is that
+    // the two can drift apart; the guard on that is the falsifiers below, which
+    // drive the loader directly with payloads that never passed transport.
     let envelope: PersistedEvidenceReceiptsV1 | null = null;
     let receiptSnapshot: Uint8Array | null = null;
     if (isV3) {
@@ -906,21 +942,37 @@ export class InvestigationReplayRunner {
       if (atlas.evidenceLedger.annotations.length !== manifest.evidenceSummary.annotationsCount) discrepancies.push(`Annotations count mismatch: manifest expected ${manifest.evidenceSummary.annotationsCount}, replay produced ${atlas.evidenceLedger.annotations.length}`);
     }
 
-    // RFC 0009: the attestation must not overclaim. `verified` asserts that the
-    // governed evidence commitment was *established* — entry byte digest, closed
-    // envelope parse, bundle identity against the reconstructed state, and the
-    // V3 investigation digest recomputed over that state. A digest mismatch means
-    // the restored investigation is not the committed one, so integrity is not
-    // established even though every envelope-level check passed. Reporting
-    // `verified` there would let a non-reproducing V3 archive read as intact.
+    // RFC 0009: the attestation must not overclaim. `integrity` is an
+    // *envelope-level* property, and it means exactly one thing — the reserved
+    // entry's byte digest matched, the closed envelope parsed, and its bundle
+    // identity agreed with the analytical manifest. It does not, by itself,
+    // assert that the replay reproduced the committed investigation: a
+    // reconstruction disagreement is reported by a typed refusal code (with
+    // `success: false`), because the envelope genuinely is intact and the
+    // remediation is different from that of a corrupt archive. Keeping the two
+    // channels distinct is the point; collapsing a reconstruction disagreement
+    // into `not-established` would blame the archive's bytes for it.
+    //
+    // A digest disagreement is one of those reconstruction disagreements, so it
+    // reports as a typed refusal rather than as a broken envelope.
+    const governedCommitmentEstablished =
+      !isV3 || manifest.investigationDigest === investigationDigest;
     const resultEvidence: ReplayEvidenceAttestation = !isV3
       ? { envelope: 'absent' }
-      : manifest.investigationDigest === investigationDigest
+      : governedCommitmentEstablished
         ? verifiedEvidence()
-        : { envelope: 'present', integrity: 'not-established' };
+        : verifiedEvidence('INVESTIGATION_DIGEST_MISMATCH');
 
     return {
-      success: discrepancies.length === 0,
+      // `success` is the field every pre-existing caller branches on, so a V3
+      // run may only report it when its governed commitment was actually
+      // established. This is defence in depth rather than a live fix: the
+      // mismatch above also records a discrepancy, so `success` would be false
+      // anyway. It is stated here because "V3 success implies a verified
+      // commitment" is the invariant the attestation stands on, and leaving it
+      // to the agreement of two separate guards is what let the missing-digest
+      // case report success in the first place.
+      success: discrepancies.length === 0 && governedCommitmentEstablished,
       evidence: resultEvidence,
       sessionId: manifest.sessionId,
       datasetName: manifest.datasetName,

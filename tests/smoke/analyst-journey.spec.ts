@@ -64,7 +64,7 @@ test('desktop investigation shell completes the visible evidence and export/reop
 
   await openPortableCommand(page, validPackage);
   await expect(continuityFeedback).toContainText(
-    /Investigation opened and verified|Verification failed/,
+    /Investigation opened and resumable|Verification failed/,
     { timeout: 15_000 },
   );
 

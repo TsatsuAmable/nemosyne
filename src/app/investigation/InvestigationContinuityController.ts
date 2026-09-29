@@ -3,6 +3,7 @@ import { AtlasCore } from '../../atlas/AtlasCore.ts';
 import { canonicalDatasetIdentityHex } from '../../data/DatasetIdentity.ts';
 import { canonicalJsonStringify } from '../../investigation/index.ts';
 import type { ReplayVerificationResult } from '../../session/InvestigationReplayRunner.ts';
+import { replayFailureDetail, replayVerifiedMessage } from './replayAttestationText.ts';
 import { NemosynePackageManager, type NemosynePackageManifest } from '../../session/NemosynePackage.ts';
 import {
   NemosyneSession,
@@ -234,7 +235,7 @@ export class InvestigationContinuityController {
         verification,
         reopened: false,
         resumable: false,
-        message: `Verification failed: ${verification.discrepancies.join('; ') || 'investigation evidence did not replay exactly'}`,
+        message: `Verification failed: ${replayFailureDetail(verification) || 'investigation evidence did not replay exactly'}`,
       };
     }
 
@@ -245,7 +246,11 @@ export class InvestigationContinuityController {
         verification,
         reopened: false,
         resumable: false,
-        message: 'Investigation verified. This older package can be replayed but does not contain resumable workspace state.',
+        // Was a bare "Investigation verified" for every format, which for a V3
+        // archive read as a claim about its governed standing that nothing on
+        // this path had checked. The word "older" is also gone: the newest
+        // format reaches this branch, and calling it older was simply wrong.
+        message: `${replayVerifiedMessage(verification)}. This package carries no resumable workspace state.`,
       };
     }
 
@@ -260,7 +265,9 @@ export class InvestigationContinuityController {
       verification,
       reopened: true,
       resumable: true,
-      message: `Investigation opened and verified (${verification.eventsMatched} evidence events).`,
+      // This branch mutates local state, so the standing it reports matters
+      // more here than anywhere else on the surface.
+      message: `${replayVerifiedMessage(verification)}. Investigation opened and resumable.`,
     };
   }
 

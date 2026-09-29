@@ -13,137 +13,32 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
   type NemosynePackagePayload,
 } from '../src/session/NemosynePackage.ts';
-import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
+import {
+  type ReplayVerificationResult,
+} from '../src/session/InvestigationReplayRunner.ts';
 import {
   GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
   INVESTIGATION_DIGEST_ALGORITHM,
 } from '../src/investigation/index.ts';
-import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../src/data/DatasetIdentity.ts';
 import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
 import { sha256Hex } from '../src/security/CryptoHash.ts';
-import { makeKernelMockBridge } from './helpers/kernelMock.ts';
-
-/** Deliberately not the fingerprint this build reconstructs — see falsifier 3. */
-const UNREPRODUCIBLE_FINGERPRINT = 'a'.repeat(64);
-const DECLARED_KERNEL = 'f1-kernel-1.0.0';
-const DIGEST = 'b'.repeat(64);
-
-interface PersistedUse {
-  consumerId: string;
-  receiptId: string;
-  requirementProfileId: string;
-}
-
-interface FixtureIdentity {
-  analyticalFingerprint: string;
-  kernelVersion: string;
-}
-
-const DEFAULT_IDENTITY: FixtureIdentity = {
-  analyticalFingerprint: UNREPRODUCIBLE_FINGERPRINT,
-  kernelVersion: DECLARED_KERNEL,
-};
-
-/**
- * A structurally valid closed v1 envelope. `receipts: []` is deliberate: it is
- * the only envelope shape this build can mint, and it keeps these falsifiers
- * independent of the Rust producer so they can run in the non-wasm suite.
- */
-function governedEnvelope(
-  uses: readonly PersistedUse[],
-  identity: FixtureIdentity,
-): { bytes: Uint8Array } {
-  const envelope = {
-    schemaVersion: '1',
-    bundle: {
-      schemaVersion: '1',
-      datasetFingerprint: identity.analyticalFingerprint,
-      kernelVersion: identity.kernelVersion,
-      receipts: [],
-    },
-    uses,
-  };
-  return { bytes: new TextEncoder().encode(JSON.stringify(envelope)) };
-}
-
-/**
- * Build a V3 payload directly, without `pack`/`unpack`. `replayPayload` is a
- * public entry point, so the loader must be safe against a payload that never
- * passed through transport validation — that is one of the properties under
- * falsification here.
- *
- * `evidenceReceiptDigest` is always computed over the bytes actually handed
- * over. An earlier draft pinned it to a *different* envelope's bytes, which made
- * the malformed-envelope case pass via the digest check instead of the
- * structural parse it was supposed to isolate. Digest mismatches are now
- * requested explicitly through `manifestOverrides`.
- */
-function governedPayload(options: {
-  uses?: readonly PersistedUse[];
-  bytes?: Uint8Array;
-  identity?: FixtureIdentity;
-  manifestOverrides?: Record<string, unknown>;
-} = {}): NemosynePackagePayload {
-  const identity = options.identity ?? DEFAULT_IDENTITY;
-  const receiptBytes =
-    options.bytes ?? governedEnvelope(options.uses ?? [], identity).bytes;
-  const dataset = {
-    name: 'f1-dataset',
-    columns: [{ name: 'x', type: 'NUMERIC' as const }],
-    rows: [{ x: 1 }, { x: 2 }],
-  };
-  return {
-    manifest: {
-      formatVersion: GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
-      sessionId: 'f1-session',
-      datasetFingerprint: identity.analyticalFingerprint,
-      datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
-      analyticalDatasetFingerprint: identity.analyticalFingerprint,
-      analyticalKernelVersion: identity.kernelVersion,
-      datasetName: dataset.name,
-      kernelVersion: identity.kernelVersion,
-      createdAt: 0,
-      commandCount: 0,
-      investigationDigestAlgorithm: GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
-      investigationDigest: DIGEST,
-      evidenceReceiptDigest: sha256Hex(receiptBytes),
-      environment: {},
-      ...options.manifestOverrides,
-    } as NemosynePackagePayload['manifest'],
-    datasetBytes: new TextEncoder().encode(JSON.stringify(dataset)),
-    commandLogBytes: new TextEncoder().encode('[]'),
-    evidenceReceiptBytes: receiptBytes,
-  };
-}
-
-function runner(): InvestigationReplayRunner {
-  return new InvestigationReplayRunner(makeKernelMockBridge());
-}
-
-/**
- * The analytical fingerprint this build's replay path actually reconstructs for
- * the fixture dataset, read out of a probe refusal rather than hardcoded.
- *
- * If the reconstruction ever stops diverging from the declared identity, the
- * probe stops matching and this throws — so the step-3 kernel falsifier below
- * cannot quietly degrade into a test of an unreachable branch.
- */
-async function reconstructedAnalyticalFingerprint(): Promise<string> {
-  const probe = await runner().replayPayload(governedPayload());
-  const match = /replay reconstructed '([^']+)'/.exec(probe.discrepancies.join(' '));
-  if (!match) {
-    throw new Error(
-      'F1 fixture could not derive the reconstructed analytical fingerprint; ' +
-        `probe discrepancies were ${JSON.stringify(probe.discrepancies)}`,
-    );
-  }
-  return match[1];
-}
+import {
+  DIGEST,
+  FIXTURE_DATASET,
+  FIXTURE_DATASET_FINGERPRINT,
+  DEFAULT_IDENTITY,
+  governedArchive,
+  governedEnvelope,
+  governedPayload,
+  reconstructedAnalyticalFingerprint,
+  reproducibleIdentity,
+  runner,
+  v2Archive,
+} from './helpers/f1GovernedArchive.ts';
 
 describe('F1 falsifier 2: version/algorithm cross-product dispatch', () => {
   it('refuses a V3 declaration that does not carry the governed digest algorithm', async () => {
@@ -326,13 +221,146 @@ describe('F1: an empty uses array is preserved, never read as enforcement', () =
     }
   });
 
-  it('does not let a bare success flag stand in for an attestation', async () => {
-    const result = await runner().replayPayload(governedPayload({ uses: [] }));
+  it('does not let a bare success flag stand in for an attestation', () => {
+    // Type-level, because that is where the property lives: the attestation is a
+    // *required* member. An optional one would let the whole build compile while
+    // any consumer could ignore it, which is the absence-reads-as-legacy
+    // encoding F1 exists to close.
+    // @ts-expect-error `evidence` is required; omitting it must not compile.
+    const withoutAttestation: ReplayVerificationResult = {
+      success: true,
+      sessionId: 'f1-session',
+      datasetName: FIXTURE_DATASET.name,
+      datasetFingerprint: FIXTURE_DATASET_FINGERPRINT,
+      commandsReplayed: 0,
+      eventsMatched: 0,
+      provenanceEventsVerified: 0,
+      representationProvenanceVerified: false,
+      discoveryProvenanceVerified: 0,
+      nilProvenanceVerified: 0,
+      remediationEventsVerified: 0,
+      refusalEventsVerified: 0,
+      finalOutputHash: '',
+      investigationDigest: '',
+      evidenceCount: { observations: 0, findings: 0, annotations: 0 },
+      discrepancies: [],
+    };
+    expect(withoutAttestation.success).toBe(true);
+  });
+});
 
-    // The property F1 exists to establish: the result always carries a typed
-    // attestation, so no caller can infer governed standing from `success`.
-    expect(result).toHaveProperty('evidence');
-    expect(['absent', 'present']).toContain(result.evidence.envelope);
+describe('F1 falsifier 12: the governed happy path is reachable and commits the envelope', () => {
+  it('replays a governed V3 archive against its recomputed investigation digest', async () => {
+    const identity = await reproducibleIdentity();
+
+    // Pass 1: a fixture cannot know the replay digest in advance, so read the
+    // one the loader actually recomputed and pin it in, exactly as the producer
+    // that minted the package would have. Without this pass the suite below
+    // would only ever assert refusals, and a step-4 regression that made every
+    // governed archive unopenable would leave all of them passing.
+    const probe = await runner().replayArchive(governedArchive(identity, DIGEST));
+    expect(probe.investigationDigest).toMatch(/^[0-9a-f]{64}$/);
+
+    // Pass 2: nothing is left to disagree, so this must be a clean success.
+    const result = await runner().replayArchive(
+      governedArchive(identity, probe.investigationDigest),
+    );
+
+    expect(result.discrepancies).toEqual([]);
+    expect(result.success).toBe(true);
+    expect(result.evidence).toEqual({
+      envelope: 'present',
+      integrity: 'verified',
+      enforcement: 'none',
+    });
+  });
+
+  it('commits the envelope bytes, so it is not the legacy digest composition', async () => {
+    const identity = await reproducibleIdentity();
+    const v3 = await runner().replayArchive(governedArchive(identity, DIGEST));
+    const committed = v3.investigationDigest;
+
+    // Identical semantic state and identical kernel, declared as v2. The only
+    // digest input that differs is the evidence envelope, so a match here would
+    // mean the V3 composition silently fell back to the v2 one — the archive
+    // would then not be committed to its own receipts.
+    const v2 = await runner().replayArchive(v2Archive(committed, identity.kernelVersion));
+
+    expect(v2.discrepancies.join(' ')).toMatch(/Investigation digest mismatch/);
+
+    // ...and the converse, so a single-direction mismatch cannot pass for an
+    // unrelated reason (a differing kernel input, say). If the V3 arm ignored
+    // the envelope bytes the two digests would be interchangeable and the
+    // second assertion below would fail.
+    expect(v2.investigationDigest).not.toBe(committed);
+    const v3AgainstLegacyDigest = await runner().replayArchive(
+      governedArchive(identity, v2.investigationDigest),
+    );
+    expect(v3AgainstLegacyDigest.discrepancies.join(' ')).toMatch(
+      /Investigation digest mismatch/,
+    );
+    expect(v3AgainstLegacyDigest.evidence).toMatchObject({
+      refusal: { code: 'INVESTIGATION_DIGEST_MISMATCH' },
+    });
+  });
+});
+
+describe('F1 falsifier 14: a governed package that commits to nothing cannot succeed', () => {
+  for (const digest of [undefined, null, '']) {
+    it(`refuses a V3 payload whose investigationDigest is ${JSON.stringify(digest)}`, async () => {
+      const result = await runner().replayPayload(
+        governedPayload({ manifestOverrides: { investigationDigest: digest } }),
+      );
+
+      // `pack`/`unpack` require a 64-hex digest for V3, so an archive cannot
+      // reach this state — but `replayPayload` is public and the contract makes
+      // this loader the gate owner rather than transport. Without the dispatch
+      // check the step-4 comparison is skipped entirely (`if
+      // (manifest.investigationDigest && ...)`) and this returned `success:
+      // true` with `not-established`: a V3 archive reporting success while
+      // committing to nothing.
+      expect(result.success).toBe(false);
+      expect(result.evidence).toEqual({ envelope: 'present', integrity: 'not-established' });
+    });
+  }
+
+  it('never reports success for a V3 run whose commitment was not established', async () => {
+    // The invariant the dispatch check restores, stated once so it holds for
+    // every governed path rather than only the one case above.
+    const identity = await reproducibleIdentity();
+    const probe = await runner().replayPayload(governedPayload({ identity }));
+    const governedPayloads = [
+      governedPayload(),
+      governedPayload({ uses: [] }),
+      governedPayload({ manifestOverrides: { investigationDigest: '' } }),
+      governedPayload({ manifestOverrides: { investigationDigestAlgorithm: INVESTIGATION_DIGEST_ALGORITHM } }),
+      governedPayload({ manifestOverrides: { formatVersion: 99 } }),
+      governedPayload({
+        uses: [{ consumerId: 'c', receiptId: 'r', requirementProfileId: 'p' }],
+      }),
+      governedPayload({ identity }),
+      governedPayload({
+        identity,
+        manifestOverrides: { investigationDigest: probe.investigationDigest },
+      }),
+    ];
+
+    let succeeded = 0;
+    for (const payload of governedPayloads) {
+      const result = await runner().replayPayload(payload);
+      if (result.success) {
+        succeeded += 1;
+        expect(result.evidence).toEqual({
+          envelope: 'present',
+          integrity: 'verified',
+          enforcement: 'none',
+        });
+      }
+    }
+
+    // Without this the loop could pass by never taking its own branch, which is
+    // the failure mode this whole falsifier exists to rule out.
+    expect(succeeded).toBe(1);
   });
 });
 
@@ -374,32 +402,12 @@ describe('F1 falsifier 11: historical V2 routing is keyed on the declared algori
 
 describe('F1: receipt entry obeys the archive decompression budget', () => {
   it('rejects a pack whose receipt entry exceeds the total uncompressed budget', () => {
-    const bytes = governedEnvelope([], DEFAULT_IDENTITY).bytes;
-    const dataset = {
-      name: 'f1-budget',
-      columns: [{ name: 'x', type: 'NUMERIC' as const }],
-      rows: [{ x: 1 }],
-    };
+    const payload = governedPayload();
     const archive = NemosynePackageManager.pack({
-      manifest: {
-        formatVersion: GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
-        sessionId: 'f1-budget',
-        datasetFingerprint: DEFAULT_IDENTITY.analyticalFingerprint,
-        datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
-        analyticalDatasetFingerprint: DEFAULT_IDENTITY.analyticalFingerprint,
-        analyticalKernelVersion: DEFAULT_IDENTITY.kernelVersion,
-        datasetName: dataset.name,
-        kernelVersion: DEFAULT_IDENTITY.kernelVersion,
-        createdAt: 0,
-        commandCount: 0,
-        investigationDigestAlgorithm: GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
-        investigationDigest: DIGEST,
-        evidenceReceiptDigest: sha256Hex(bytes),
-        environment: {},
-      },
-      datasetBytes: new TextEncoder().encode(JSON.stringify(dataset)),
-      commandLogBytes: new TextEncoder().encode('[]'),
-      evidenceReceiptBytes: bytes,
+      manifest: payload.manifest,
+      datasetBytes: payload.datasetBytes,
+      commandLogBytes: payload.commandLogBytes,
+      evidenceReceiptBytes: payload.evidenceReceiptBytes,
     });
 
     // The reserved entry is not exempt from the existing budget. A limit below

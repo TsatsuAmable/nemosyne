@@ -3,6 +3,7 @@ export const FAST_NODE_TESTS = [
   'tests/tec1-governed-export.test.ts',
   'tests/tec1-f1-governed-replay.test.ts',
   'tests/tec1-f1-replay-attestation-text.test.ts',
+  'tests/tec1-f1-continuity-attestation.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',

@@ -195,7 +195,14 @@ describe('PT5D investigation continuity', () => {
     expect(result.verification.success).toBe(true);
     expect(result.resumable).toBe(false);
     expect(result.reopened).toBe(false);
-    expect(result.message).toMatch(/older package|does not contain resumable/i);
+    // Exact, and deliberately so: a legacy package carries no governed envelope,
+    // so there is no caveat to make and inventing one would train readers to
+    // ignore the caveat where it does matter. The wording no longer claims the
+    // package is "older" — the newest format reaches this branch too.
+    expect(result.message).toBe(
+      `Replay verified (${result.verification.eventsMatched} events). ` +
+        'This package carries no resumable workspace state.',
+    );
     expect(f.current().sessionId).toBe('current-session');
     expect(f.restoreSnapshot).not.toHaveBeenCalled();
   });
