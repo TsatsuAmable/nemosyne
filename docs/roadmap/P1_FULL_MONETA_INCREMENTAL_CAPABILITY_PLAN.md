@@ -212,31 +212,37 @@ Memory Palace / world behaviour:
 
 ### FM5 — Intuitive Moneta / System-1 Decision Driver
 
-**Product promise:** “Nemosyne can form fast, context-sensitive representation proposals without waiting for heavyweight deliberation.”
+**Product promise:** “Nemosyne can form fast, context-sensitive representation proposals and infer bounded interaction intent without waiting for heavyweight deliberation.”
+
+**Architecture decision:** [MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md](../architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md) defines the FM5 authority split, ONNX scope, runtime contract, training/evaluation requirements and implementation tranches.
 
 Required implementation:
 
-- define a provider-neutral typed System-1 proposal interface;
-- inputs are governed evidence references, investigation intent, researcher context, ontology/version and available budgets;
-- outputs are structured proposal distributions, candidate/composition suggestions, escalation and ABSTAIN, not free-form authority;
-- pin model artifact/runtime/tokenizer/prompt-template/input hashes and decoding configuration;
-- persist the exact proposal used by Moneta;
-- replay uses the recorded proposal rather than rerunning inference;
-- fresh inference is an audit/alternative-generation action;
-- qualify small downloadable/local models where possible;
-- test Quest-resident model footprint/latency alongside Nemosyne.
+- define one provider-neutral, typed System-1 model/artifact contract with explicit feature schema, calibration state, ABSTAIN, runtime provider and content-addressed provenance;
+- implement two independently promotable specialist lanes rather than one fused model:
+  - **object-centric perception**, producing typed physical interaction cues that a deterministic resolver converts to `InteractionIntent -> NIL`;
+  - **representation proposal**, producing bounded candidate/composition advice from governed Moneta features and intent;
+- keep named symbolic gesture recognition experimental rather than a core command vocabulary;
+- retain the current transparent learned ranker as the representation baseline; require ONNX only when a nonlinear candidate demonstrates bounded benefit;
+- keep System-2 Moneta explicit: hard constraints, evidence admission, alternatives, challenge, search and final `RepresentationDecision` remain outside ONNX authority;
+- persist the exact System-1 result consumed by the product; replay uses the recorded result rather than silently rerunning mutable inference;
+- qualify ONNX Runtime Web WASM as the baseline small-model execution path, with WebGPU used only after feature detection and target-device measurement;
+- keep inference off the XR render critical path and reject stale results;
+- generalize useful PT7/PT8 lineage, evaluation, promotion and rollback machinery without coupling all System-1 artifacts to the gesture or FitnessModel schemas;
+- freeze exact System-1 model/runtime/feature identities in Research Mode;
+- test Quest/browser and desktop latency, memory, thermal and failure envelopes.
 
 Researcher-visible experience:
 
-- representation suggestions react quickly to natural-language/task intent;
-- TechnoCore exposes that a proposal came from a System-1 driver and shows its status as advice, not analytical evidence;
-- “why?” and “show alternatives” remain available;
-- if the model is unavailable, Nemosyne falls back to declared deterministic/reference behaviour or abstains according to the contract.
+- representation suggestions react quickly to typed task/intent context;
+- direct manipulation remains primary, while object/context-aware perception may reduce targeting/commit friction without requiring memorized gestures;
+- TechnoCore exposes when a proposal came from System-1 and presents it as advice rather than analytical evidence;
+- “why?”, “show alternatives”, deterministic fallback and explicit ABSTAIN remain available;
+- if a learned perception or representation model fails its qualification, the corresponding deterministic/reference path remains usable.
 
-**Exit:** the System-1 driver measurably improves proposal latency, useful candidate coverage or task alignment on a bounded evaluation without weakening replay, provenance or evidence gates.
+**Exit:** at least one bounded System-1 lane demonstrates measurable value over its deterministic/reference baseline on held-out and target-device evaluation, while the other lane has an explicit CONTINUE/REVISE/STOP disposition; replay, provenance, NIL semantics and Moneta hard/evidence constraints remain intact.
 
-**STOP/REVISE question:** Does this model provide real decision value over deterministic Moneta, especially on-device, or is it complexity without benefit?
-
+**STOP/REVISE question:** Do small learned reflexes reduce interaction/search cost enough to justify their runtime, data and governance complexity, or should Nemosyne remain deterministic at that seam?
 ### FM6 — Human-Refined Moneta
 
 **Product promise:** “Nemosyne learns from what researchers actually found useful and defensible, not merely from what they clicked.”
@@ -355,7 +361,7 @@ Recovered product ideas and dormant/legacy code are assigned to the increment wh
 | **FM2 — Alternative-Aware** | Full Road Not Taken flow; ghost/side-by-side alternatives; synchronized semantic selection; representation branching; Farcaster navigation between branches/saved states; visible refutation; first collaboration/peer-challenge pilot. | **FM2-COLLAB-CLEAN:** delete superseded `CollaborativeStateSync` and network `SharedAnnotationManager` after test/caller migration; preserve only NetworkManager/CollaborationCoordinator and canonical annotation authority. | Are alternatives and branches cognitively useful rather than decorative, and does collaboration add genuine challenge/comparison value? |
 | **FM3 — Compositional** | Spatial epistemology becomes explicit and testable; composed Challenge flow; sonification/haptics experiments as versioned representation channels; optional live-stream/River-Tethys prototype only where a governed live semantic structure exists. | **FM3-PERCEPT:** re-evaluate `ColorPaletteEngine`; absorb useful CVD/perceptual logic into the canonical representation/encoding path or delete it. Re-evaluate `SpatialAudioSynthesizer`; promote through RepresentationGraph/SpatialEmbodimentPlan or archive/delete. | Do multiple simultaneous semantic structures and multimodal encodings improve understanding without inventing relationships or overwhelming the user? |
 | **FM4 — Resolution-Adaptive** | Stickman ↔ Mona Lisa semantic resolution; progressive crystallisation; preserved spatial memory across eviction/reconstruction; explicit information-loss inspection; sparse cyberspace visual identity across hardware classes. | **FM4-UI-CLEAN:** audit and retire the remaining `MovablePanel` canvas substrate once physical/diagnostic dependencies permit. **Rust scene command buffer remains dormant** unless measured device evidence shows a real bottleneck that the existing renderer cannot solve. | Does hardware adaptation alter richness rather than meaning, and can the user retain orientation and comprehension across resolution changes? |
-| **FM5 — System-1 / Intuitive** | Qualified System-1 proposal driver; natural-language/task steering; governed voice/gaze/gesture multimodal acceleration through NIL; fast “why / alternatives / simplify” interactions. | **FM5-PERCEPTION:** use the existing `MultimodalPerceptionEngine` only as a laboratory specimen. Replace it with governed perception contracts or archive/delete it; its heuristic confidence thresholds are not promotable evidence. | Do fast model/perception proposals improve responsiveness and task alignment enough to justify their complexity while preserving replay and explicit authority boundaries? |
+| **FM5 — System-1 / Intuitive** | Qualified representation proposal reflex plus object-centric interaction cues; voice/gaze remain modality inputs through NIL; named gestures are experimental; fast “why / alternatives / simplify” interactions. | **FM5-PERCEPTION:** replace the `MultimodalPerceptionEngine` string-action/heuristic-confidence prototype with typed cue contracts or archive it. Follow the [System-1/System-2 ONNX architecture](../architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md). | Do small learned reflexes improve responsiveness, targeting or candidate coverage enough to justify their complexity while preserving replay and explicit authority boundaries? |
 | **FM6 — Human-Refined** | Researcher preference + validated discovery outcome learning; Memory Palace shows outcome/learning lineage; cross-investigation recurrence/resonance prototype; collaboration matures toward independent-convergence views without consensus-as-truth. | Keep learning/study infrastructure development-only until promoted artifacts and evidence contracts justify runtime composition. Do **not** promote federated learning merely because multiple investigations now exist. | Is learning improving discovery support rather than reinforcing popularity, salience or researcher-specific habits? |
 | **FM7 — Searching** | Generated representation hypotheses; true Road Not Taken search siblings/ancestors; inspectable Pareto trade-offs; Memory Palace search lineage where useful; evolutionary/adversarial improvement through the governed MCR7 handoff. | Reassess whether a larger generative/neural representation model is needed. Prefer transparent bounded search unless evidence shows it is insufficient. Autonomous representation agents remain laboratory-only. | Is search producing useful new representation hypotheses rather than combinatorial novelty, and can researchers understand why they exist? |
 | **FM8 — Integrated Full Moneta** | Coherent end-to-end product experience: Memory Palace, TechnoCore, Vault, Farcasters, challenge, alternatives, adaptive resolution, qualified multimodality, collaboration and recurrence operate as one instrument rather than separate demos. | Final compatibility/prototype purge. Any live experimental surface must have a declared production owner, evidence basis and user journey, otherwise archive/remove it. | Does the integrated instrument improve meaningful investigation under scoped human evidence, and which features deserve to survive as permanent product identity? |
