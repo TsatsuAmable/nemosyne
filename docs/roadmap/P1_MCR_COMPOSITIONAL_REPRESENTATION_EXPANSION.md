@@ -1,12 +1,13 @@
 # P1-MCR — Moneta Compositional Representation Expansion
 
-**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1 CONTRACT VALIDATION LANDED (#801); MCR2-MCR7 PRODUCTION PROMOTION REMAINS DOWNSTREAM OF P1-TEC -> PT9/PT10<br>
+**Status:** MCR0 AUTHORITY/SCHEMA BOUNDS LANDED (#800); MCR1 CONTRACT VALIDATION LANDED (#801); MCR2-MCR4 ARE THE FM3 COMPOSITIONAL-MONETA CAPABILITY PACKAGE AFTER FM0-FM2 PREREQUISITES; MCR5-MCR7 FOLLOW EVIDENCE FROM EARLIER CAPABILITY INCREMENTS<br>
 **Established:** 20 September 2026  
 **Audit baseline:** `main@7fbd99e628f7eeafc29703ef32a19940a55f0c84` (#800)<br>
 **Live status authority:** `docs/ROADMAP.md`  
 **Governing vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`  
 **Dataset-first design:** `docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`  
-**Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`
+**Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`  
+**Capability integration plan:** `docs/roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`
 
 ## 1. Mission
 
@@ -173,12 +174,12 @@ The historical A-Frame Datasphere prototype remains visual-reference material on
 
 ## 5. Sequencing
 
-Planning and contract work may proceed while the current product stream continues. Production implementation remains downstream of the live roadmap unless that authority is explicitly changed.
+Planning and contract work may proceed while the current product stream continues. Production implementation follows the live roadmap and the incremental Full Moneta capability ladder. MCR is no longer treated as one monolithic post-PT9/post-PT10 programme: MCR2-MCR4 form the bounded **FM3 Compositional Moneta** product increment after trustworthy evidence and the earlier question/alternative-aware capabilities are ready; MCR5-MCR7 mature composition, replay/qualification and synthesis handoff using evidence from subsequent increments.
 
 
 ### Trustworthy-evidence dependency
 
-P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` now defines P1-TEC as the finite gate between P1-WQ and PT9. Before MCR2 creates the production semantic-to-spatial compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
+P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` defines **FM0 / P1-TEC trustworthy-evidence closure** as the hard scientific prerequisite for promoting FM3 composition. PT9 learning is **not** a universal prerequisite for deterministic/reference composition. Before MCR2 creates the production semantic-to-spatial compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
 
 - semantic/measurement admissibility and analytical geometry are not discarded before representation binding;
 - assumptions, sample support, uncertainty, stability, sensitivity and limitations remain distinguishable where the representation claim depends on them;

@@ -652,32 +652,39 @@ Before learned Moneta materially changes production ranking require:
 
 Passing offline metrics must not automatically activate a model.
 
-## 8.4 Post-PT9 vision continuation: compositional Moneta
+## 8.4 Full Moneta continuation is now capability-incremental
 
-PT9 validates learned priors over the bounded current representation system. It is not the end state.
+The current integration authority is `docs/ROADMAP.md`, with the capability plan in `docs/roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`.
 
-Once product evidence, ontology maturity and safety justify it, the governing-vision continuation is:
+The previous planning assumption that PT9 must complete before all compositional representation work is superseded. PT9 still owns governed learning evidence and promoted learned priors, but **deterministic/reference compositional Moneta is a product capability in its own right** and may be promoted earlier once trustworthy-evidence and its capability-specific prerequisites are satisfied.
+
+The current product progression is:
 
 ```text
-validated learned priors
-  -> mature versioned RepresentationOntology
-    -> RepresentationGraph grammar
-      -> bounded composition/search
-        -> compositional Moneta evaluation
-          -> controlled adaptive Nemosyne
+FM0 trustworthy evidence
+  -> FM1 question-aware representation
+    -> FM2 inspectable alternatives / Road Not Taken
+      -> FM3 deterministic compositional Moneta
+        -> FM4 hardware-adaptive semantic resolution
+          -> FM5 qualified System-1 proposal assistance
+            -> FM6 human-refined Moneta (PT9)
+              -> FM7 bounded representation search/synthesis
+                -> FM8 controlled adaptive Full Moneta
 ```
 
-Entry conditions should include:
+PT10/private-preview work supplies real product/discovery evidence as the product becomes ready; it is not a reason to postpone every representation capability until learning is complete.
+
+Across all increments:
 
 - no duplicate representation authority;
-- representation primitives are versioned/extensible rather than a permanent closed enum;
-- search space is bounded and inspectable;
+- representation primitives remain versioned/extensible rather than a permanent closed enum;
 - generated compositions preserve analytical semantics/provenance;
 - explanations and rejected alternatives remain inspectable;
-- known-answer/metamorphic/abstention evidence covers new composition behavior;
-- Research Mode can freeze the relevant ontology/search/model versions.
+- known-answer/metamorphic/abstention evidence covers promoted behavior;
+- Research Mode can freeze the relevant ontology/search/model versions;
+- opaque generative representation models are not introduced merely because model-training infrastructure exists.
 
-Do not introduce an opaque generative representation model merely because infrastructure for model training exists.
+The product-experience threads in the capability plan, including Memory Palace, Road Not Taken, Challenge/Falsification, TechnoCore, Evidence Vault, Farcasters, spatial epistemology and qualified multimodality, are evaluated alongside the intelligence increments rather than deferred to an end-stage UX pass.
 
 ---
 
