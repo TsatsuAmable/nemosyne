@@ -6,6 +6,7 @@ import type { InvestigationContinuityController } from '../src/app/investigation
 import { mountDesktopInvestigationContinuity } from '../src/app/investigation/DesktopInvestigationContinuity.ts';
 import { InvestigationContinuityPanel } from '../src/vr/ui/InvestigationContinuityPanel.ts';
 import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
+import { replayResultDouble } from './helpers/replayResult.ts';
 
 function controller(overrides: Partial<Record<keyof InvestigationContinuityController, unknown>> = {}): InvestigationContinuityController {
   return {
@@ -34,7 +35,11 @@ function controller(overrides: Partial<Record<keyof InvestigationContinuityContr
     recoverAutosave: vi.fn(async () => true),
     exportCurrent: vi.fn(async () => new Uint8Array([1, 2, 3])),
     openPortable: vi.fn(async () => ({
-      verification: { success: true, eventsMatched: 2, discrepancies: [] },
+      // A real attestation, not a structural fragment. The `as unknown as` on
+      // this fixture previously let the verification object omit `evidence`
+      // entirely, so the presentation was never exercised against the field
+      // that decides what a surfaced "verified" may claim.
+      verification: replayResultDouble({ eventsMatched: 2 }),
       reopened: true,
       resumable: true,
       message: 'Investigation opened and verified (2 evidence events).',

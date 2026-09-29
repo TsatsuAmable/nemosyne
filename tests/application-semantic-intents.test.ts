@@ -6,6 +6,7 @@ import {
 } from '../src/app/intents/ApplicationIntent.ts';
 import { bindInputCallbacksToApplicationIntents } from '../src/app/intents/InputIntentBindings.ts';
 import { mountAnalystJourneyControls } from '../src/app/AnalystJourneyControls.ts';
+import { replayResultDouble } from './helpers/replayResult.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -135,11 +136,7 @@ describe('RF-062B application intent boundary', () => {
       }),
       analysisResultCount: () => 1,
       markMoment: () => 'observation-1',
-      replayPortableInvestigation: async () => ({
-        success: true,
-        discrepancies: [],
-        eventsMatched: 0,
-      }),
+      replayPortableInvestigation: async () => replayResultDouble(),
       exportPortableInvestigation: async () => new Uint8Array(),
     });
 

@@ -1,5 +1,10 @@
 import type { AnalystRepresentationOutcome } from './AnalystRepresentationAssessment.ts';
 import type { ApplicationIntentDispatcher } from './intents/ApplicationIntent.ts';
+import type { ReplayVerificationResult } from '../session/InvestigationReplayRunner.ts';
+import {
+  replayFailureDetail,
+  replayVerifiedMessage,
+} from './investigation/replayAttestationText.ts';
 
 export interface AnalystJourneyControlsHandle {
   dispose(): void;
@@ -13,11 +18,11 @@ export interface AnalystJourneyActions {
   assessRepresentation(maxRenderedElements?: number): AnalystRepresentationOutcome;
   analysisResultCount(): number;
   markMoment(note: string): string;
-  replayPortableInvestigation(bytes: Uint8Array): Promise<{
-    success: boolean;
-    discrepancies: string[];
-    eventsMatched: number;
-  }>;
+  // The full result, not a structural subset. A narrower inline shape compiles
+  // fine against a wider producer, which is exactly how both surfaces came to
+  // report governed standing from `success` alone without ever seeing the
+  // attestation they would have needed to report it truthfully.
+  replayPortableInvestigation(bytes: Uint8Array): Promise<ReplayVerificationResult>;
   exportPortableInvestigation(): Promise<Uint8Array>;
   setDatasetPickerVisible?(visible: boolean): void;
   isDatasetPickerVisible?(): boolean;
@@ -297,10 +302,10 @@ export function mountAnalystJourneyControls(
       .replayPortableInvestigation(lastExport)
       .then((result) => {
         if (!result.success) {
-          setStatus(replayFailureMessage(result.discrepancies.join('; ')), 'error');
+          setStatus(replayFailureMessage(replayFailureDetail(result)), 'error');
           return;
         }
-        setStatus(`Replay verified (${result.eventsMatched} events)`, 'success');
+        setStatus(replayVerifiedMessage(result), 'success');
       })
       .catch((error: unknown) => {
         setStatus(

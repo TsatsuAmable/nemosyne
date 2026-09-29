@@ -6,6 +6,11 @@ import type {
 } from './intents/ApplicationIntent.ts';
 import { injectCssVariables } from '../vr/ui-system/tokens.ts';
 import { type CommandPaletteCommand } from '../ui/components/index.ts';
+import type { ReplayVerificationResult } from '../session/InvestigationReplayRunner.ts';
+import {
+  replayFailureDetail,
+  replayVerifiedMessage,
+} from './investigation/replayAttestationText.ts';
 
 interface HTMLNemosyneModalElement extends HTMLElement {
   show(): void;
@@ -29,11 +34,8 @@ export interface InvestigationActions {
   assessRepresentation(maxRenderedElements?: number): AnalystRepresentationOutcome;
   analysisResultCount(): number;
   markMoment(note: string): string;
-  replayPortableInvestigation(bytes: Uint8Array): Promise<{
-    success: boolean;
-    discrepancies: string[];
-    eventsMatched: number;
-  }>;
+  // The full result, not a structural subset — see AnalystJourneyActions.
+  replayPortableInvestigation(bytes: Uint8Array): Promise<ReplayVerificationResult>;
   exportPortableInvestigation(): Promise<Uint8Array>;
 }
 
@@ -511,11 +513,11 @@ export function mountInvestigationShell(actions: InvestigationActions): Investig
     void actions.replayPortableInvestigation(lastExport)
       .then((result) => {
         if (!result.success) {
-          replayStatus.textContent = replayFailureMessage(result.discrepancies.join('; '));
+          replayStatus.textContent = replayFailureMessage(replayFailureDetail(result));
           replayStatus.style.color = 'var(--nms-color-danger-destructive)';
           return;
         }
-        replayStatus.textContent = `Replay verified (${result.eventsMatched} events)`;
+        replayStatus.textContent = replayVerifiedMessage(result);
         replayStatus.style.color = 'var(--nms-color-interaction-commit)';
       })
       .catch((error: unknown) => {
