@@ -27,7 +27,7 @@ import type {
 import { WorldEventBus } from '../utils/EventBus.ts';
 import { DatasetSpace, fnv1aHex } from './DatasetSpace.ts';
 import {
-  captureGovernedEvidenceReceiptSnapshot,
+  composeGovernedEvidenceReceiptSnapshot,
   type GovernedEvidenceReceiptSnapshotV1,
 } from './MonetaEvidenceAuthority.ts';
 import type { DatasetSpaceNormalization } from './DatasetSpace.ts';
@@ -70,7 +70,7 @@ import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
-import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload } from './ports/AnalyticalExecutionPort.ts';
+import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload, GovernedEvidenceCaptureV1 } from './ports/AnalyticalExecutionPort.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 
 export { KernelUnavailableError };
@@ -333,15 +333,110 @@ export class AtlasCore {
   }
 
   /**
-   * RFC 0009 tranche 2: capture the Rust-issued statistics evidence receipt
-   * bundle for the current live analytical dataset. Returns null when no live
-   * kernel or dataset handle exists; bundle/live-identity drift throws instead
-   * of returning a stale capture.
+   * RFC 0009 tranche 2 / issue #834: capture the Rust-issued statistics
+   * evidence receipt bundle for the current live analytical dataset.
+   *
+   * Acquisition is routed through the analytical execution port that is
+   * installed *right now*, so evidence always describes the authority this
+   * session is actually running analyses on: for inline execution the port
+   * reads its injected kernel instance, for Worker execution the Worker-owned
+   * runtime produces it. There is no module-global fallback — replacing,
+   * disposing or de-capability-ing the port refuses capture (null) instead of
+   * silently succeeding through a singleton the caller never injected.
+   *
+   * Returns null when no port can attest governed evidence for the current
+   * identity (no port, no capability, no dataset, stale fence, or the identity
+   * moved across the await). Bundle/live-identity drift throws instead of
+   * returning a stale capture.
    */
-  captureGovernedEvidenceReceiptSnapshot(): GovernedEvidenceReceiptSnapshotV1 | null {
+  async captureGovernedEvidenceReceipt(): Promise<GovernedEvidenceReceiptSnapshotV1 | null> {
+    const port = this._executionPort;
+    if (!port?.captureGovernedEvidenceReceipt) return null;
+
+    const fingerprint = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const generation = this._generation;
     const handle = this._aggregate.analytical.currentHandle;
-    if (!handle || !this.kernelVersion()) return null;
-    return captureGovernedEvidenceReceiptSnapshot(handle);
+
+    // Mirrors the async analytical path: an asynchronous port must already hold
+    // this dataset before it can attest anything about it.
+    if (port.isAsync) {
+      if (!fingerprint) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, version))) return null;
+    } else if (!handle || !this.kernelVersion()) {
+      return null;
+    }
+
+    const capture = await port.captureGovernedEvidenceReceipt({
+      requestId: `acap-${++this._requestSeq}`,
+      dataset: { fingerprint, version },
+      generation,
+      ...(port.isAsync ? {} : { handle }),
+    });
+    if (!capture) return null;
+
+    return this._composeGovernedEvidence(capture, { generation, version, fingerprint });
+  }
+
+  /**
+   * Synchronous governed-evidence capture, for the one caller that cannot
+   * await: ordinary session serialization. It is not a second authority path —
+   * it is the same read through the same installed port, narrowed to ports that
+   * can answer on this thread.
+   *
+   * A port that owns a separate runtime cannot: `WorkerAnalyticalPort` omits the
+   * sync narrowing, `isAsync` refuses here, and the outcome is the carrier the
+   * session already holds rather than evidence that could not be synchronously
+   * attested. Reaching a module global to "fill the gap" is exactly the
+   * pre-#834 defect, so a refusal stays a refusal.
+   */
+  captureGovernedEvidenceReceiptSync(): GovernedEvidenceReceiptSnapshotV1 | null {
+    const port = this._executionPort;
+    if (!port || port.isAsync || !port.captureGovernedEvidenceReceiptSync) return null;
+
+    const fingerprint = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const generation = this._generation;
+    const handle = this._aggregate.analytical.currentHandle;
+    if (!fingerprint || !handle || !this.kernelVersion()) return null;
+
+    const capture = port.captureGovernedEvidenceReceiptSync({
+      requestId: `scap-${++this._requestSeq}`,
+      dataset: { fingerprint, version },
+      generation,
+      handle,
+    });
+    if (!capture) return null;
+
+    return this._composeGovernedEvidence(capture, { generation, version, fingerprint });
+  }
+
+  /**
+   * Admit a port readout only when it still describes the state it was
+   * requested against. Shared by the sync and async forms so neither can drift
+   * into a weaker admission rule; a stale or substituted readout refuses rather
+   * than composing evidence for a state this Atlas is no longer in.
+   */
+  private _composeGovernedEvidence(
+    capture: GovernedEvidenceCaptureV1,
+    expected: { generation: number; version: number; fingerprint: string },
+  ): GovernedEvidenceReceiptSnapshotV1 | null {
+    if (
+      expected.generation !== this._generation ||
+      capture.generation !== expected.generation ||
+      capture.datasetVersion !== expected.version ||
+      expected.version !== this.datasetVersion ||
+      capture.datasetFingerprint !== expected.fingerprint ||
+      expected.fingerprint !== (this.datasetFingerprint ?? '')
+    ) {
+      return null;
+    }
+
+    return composeGovernedEvidenceReceiptSnapshot({
+      rawBundle: capture.rawBundle,
+      datasetFingerprint: capture.datasetFingerprint,
+      kernelVersion: capture.kernelVersion,
+    });
   }
 
   lastProvenance(): Provenance | null {

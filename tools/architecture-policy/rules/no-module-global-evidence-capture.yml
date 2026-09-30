@@ -1,0 +1,20 @@
+id: no-module-global-evidence-capture
+language: TypeScript
+severity: error
+message: >-
+  Issue #834: governed evidence capture must be acquired through the injected
+  analytical execution port, never from a module-global producer. Importing the
+  RuntimeBridge producer binding re-creates the singleton path that let a
+  governed export succeed through authority the caller never injected — and that
+  path is invisible to callers, because the runtime it reaches is decided by the
+  module graph rather than by the port installed on the caller. Read the producer
+  from the injected kernel contract instead (AnalyticalKernelPort), which the
+  inline port satisfies with its own kernel instance and the analytical Worker
+  satisfies with its own runtime.
+files:
+  - src/**/*.ts
+ignores:
+  - src/wasm/**/*.ts
+rule:
+  kind: import_specifier
+  regex: statisticsEvidenceReceiptBundle

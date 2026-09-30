@@ -205,15 +205,25 @@ export class NemosyneSession {
 
   /**
    * Snapshot the Rust-issued receipt bundle for the current analytical state,
-   * falling back to a restored carrier when no live kernel is available. A
-   * failed live capture keeps any restored carrier (never regresses to
-   * un-governed); governed exports re-validate identity against the
-   * committed analytical state before emitting a package.
+   * falling back to a restored carrier when no port can attest one. A failed
+   * live capture keeps any restored carrier (never regresses to un-governed);
+   * governed exports re-validate identity against the committed analytical
+   * state before emitting a package.
+   *
+   * Issue #834: acquisition is routed through the analytical execution port
+   * installed on Atlas right now, narrowed to its synchronous form because
+   * serialization is synchronous by contract. Only an inline port can satisfy
+   * that narrowing — it reads its own injected kernel instance. A port that owns
+   * a separate runtime (the production Worker) cannot answer synchronously and
+   * omits it, so such a session carries the carrier it already holds instead of
+   * acquiring evidence it could not synchronously attest. There is deliberately
+   * no module-global fallback: a refusal keeps the carrier rather than resolving
+   * through whatever runtime happened to be importable.
    */
   private _governedEvidenceSnapshotBase64(): string | null {
     let bytes = this._evidenceReceiptBytes;
     try {
-      bytes = this._atlas.captureGovernedEvidenceReceiptSnapshot()?.bytes ?? bytes;
+      bytes = this._atlas.captureGovernedEvidenceReceiptSync()?.bytes ?? bytes;
     } catch {
       // Preserve the restored carrier, if any; identity is re-checked at export.
     }
@@ -265,7 +275,7 @@ export class NemosyneSession {
       throw new Error('Governed evidence export requires a boolean governedEvidence option');
     }
     if (governedOptions?.governedEvidence === true) {
-      evidenceReceiptBytes = this._requireGovernedEvidenceBytes();
+      evidenceReceiptBytes = await this._requireGovernedEvidenceBytes();
       const envelope = parsePersistedEvidenceReceiptsV1(
         JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(evidenceReceiptBytes))
       );
@@ -382,15 +392,18 @@ export class NemosyneSession {
   }
 
   /**
-   * Governed export requires Rust-issued receipt bytes: prefer a fresh live
-   * capture for the current analytical state, fall back to the restored
-   * carrier, and refuse rather than emitting a package without governed
-   * evidence when an explicit governed export was requested.
+   * Governed export requires Rust-issued receipt bytes, acquired by awaiting
+   * the analytical execution port (issue #834). A restored carrier may still
+   * satisfy the request when no port can attest evidence for this state — the
+   * clean-room replay case, where no live kernel holds the archived dataset —
+   * and the resolved bytes are always re-validated against the committed
+   * analytical state by the caller, so a carrier that disagrees with this
+   * package's dataset refuses instead of exporting.
    */
-  private _requireGovernedEvidenceBytes(): Uint8Array {
+  private async _requireGovernedEvidenceBytes(): Promise<Uint8Array> {
     let bytes: Uint8Array | null = null;
     try {
-      bytes = this._atlas.captureGovernedEvidenceReceiptSnapshot()?.bytes ?? null;
+      bytes = (await this._atlas.captureGovernedEvidenceReceipt())?.bytes ?? null;
     } catch {
       // A drifted live capture does not silently satisfy the governed request
       // with unvalidated bytes: the identity coherence checks below reject any
@@ -401,6 +414,11 @@ export class NemosyneSession {
       throw new Error(
         'Governed evidence export requires a Rust-issued statistics evidence receipt bundle; none is available for this session'
       );
+    }
+    if (bytes) {
+      // Remember the authoritative capture so ordinary serialization can carry
+      // it later without acquiring anything itself.
+      this._evidenceReceiptBytes = bytes;
     }
     return resolved;
   }

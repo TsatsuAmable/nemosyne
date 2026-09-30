@@ -3,6 +3,8 @@ import type {
   AnalyticalExecutionPort,
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
+  GovernedEvidenceCaptureRequest,
+  GovernedEvidenceCaptureV1,
 } from './AnalyticalExecutionPort.ts';
 import type {
   DatasetJSON,
@@ -27,6 +29,88 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
   supersede(fence: { generation?: number; datasetVersion?: number }): void {
     if (fence.generation !== undefined) this._fence.generation = fence.generation;
     if (fence.datasetVersion !== undefined) this._fence.datasetVersion = fence.datasetVersion;
+  }
+
+  private _isStale(generation: number, datasetVersion: number): boolean {
+    return (
+      (this._fence.generation !== undefined && generation < this._fence.generation) ||
+      (this._fence.datasetVersion !== undefined && datasetVersion < this._fence.datasetVersion)
+    );
+  }
+
+  /**
+   * Issue #834: governed-evidence capture reads the RFC 0009 statistics
+   * evidence receipt producer from *this port's* injected kernel instance —
+   * never from an importable module-global bridge. A kernel that cannot attest
+   * the producer, hold the dataset handle, or agree on dataset identity yields
+   * null, which refuses governed export instead of degrading to un-governed
+   * bytes. Envelope composition stays in the authority layer: this port returns
+   * the producer's raw payload and the live identity it was read under.
+   */
+  async captureGovernedEvidenceReceipt(
+    req: GovernedEvidenceCaptureRequest
+  ): Promise<GovernedEvidenceCaptureV1 | null> {
+    return this._readGovernedEvidenceReceipt(req);
+  }
+
+  /**
+   * Synchronous narrowing required by session serialization (see
+   * {@link AnalyticalExecutionPort.captureGovernedEvidenceReceiptSync}). An
+   * inline port shares the caller's kernel instance and thread, so the same read
+   * that satisfies the async form also satisfies this one — there is no second
+   * acquisition path and no module-global fallback.
+   */
+  captureGovernedEvidenceReceiptSync(
+    req: GovernedEvidenceCaptureRequest
+  ): GovernedEvidenceCaptureV1 | null {
+    return this._readGovernedEvidenceReceipt(req);
+  }
+
+  /**
+   * The single governed-evidence read, shared by both public forms so the sync
+   * and async paths cannot drift into different authority or refusal semantics.
+   */
+  private _readGovernedEvidenceReceipt(
+    req: GovernedEvidenceCaptureRequest
+  ): GovernedEvidenceCaptureV1 | null {
+    if (this._isStale(req.generation, req.dataset.version)) return null;
+
+    const handle = req.handle ?? this._handleMap.get(req.dataset.fingerprint);
+    if (!handle) return null;
+
+    const produceReceiptBundle = this._kernel.statisticsEvidenceReceiptBundle;
+    const readDatasetFingerprint = this._kernel.datasetFingerprint;
+    const readKernelVersion = this._kernel.kernelVersion;
+    if (
+      typeof produceReceiptBundle !== 'function' ||
+      typeof readDatasetFingerprint !== 'function' ||
+      typeof readKernelVersion !== 'function'
+    ) {
+      return null;
+    }
+
+    const datasetFingerprint = readDatasetFingerprint.call(this._kernel, handle);
+    const kernelVersion = readKernelVersion.call(this._kernel);
+    if (!datasetFingerprint || !kernelVersion) return null;
+    // The handle must still hold the identity the caller asked about; a
+    // mismatch means this port's kernel state moved under the caller.
+    if (datasetFingerprint !== req.dataset.fingerprint) return null;
+
+    const rawBundle = produceReceiptBundle.call(this._kernel, handle);
+    if (!rawBundle) return null;
+
+    // Re-check after the producer call: a supersession that raced this capture
+    // must not be reported as evidence for the current generation.
+    if (this._isStale(req.generation, req.dataset.version)) return null;
+
+    return {
+      requestId: req.requestId,
+      generation: req.generation,
+      datasetVersion: req.dataset.version,
+      datasetFingerprint,
+      kernelVersion,
+      rawBundle,
+    };
   }
 
   async execute<T>(req: AnalyticalExecutionRequest): Promise<AnalyticalExecutionResult<T>> {

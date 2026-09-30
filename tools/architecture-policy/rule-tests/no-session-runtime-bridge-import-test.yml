@@ -1,0 +1,8 @@
+id: no-session-runtime-bridge-import
+valid:
+  - "import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts'"
+  - "const bytes = await this._atlas.captureGovernedEvidenceReceipt()"
+invalid:
+  - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
+  - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
+  - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
