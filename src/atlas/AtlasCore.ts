@@ -379,43 +379,18 @@ export class AtlasCore {
   }
 
   /**
-   * Synchronous governed-evidence capture, for the one caller that cannot
-   * await: ordinary session serialization. It is not a second authority path —
-   * it is the same read through the same installed port, narrowed to ports that
-   * can answer on this thread.
-   *
-   * A port that owns a separate runtime cannot: `WorkerAnalyticalPort` omits the
-   * sync narrowing, `isAsync` refuses here, and the outcome is the carrier the
-   * session already holds rather than evidence that could not be synchronously
-   * attested. Reaching a module global to "fill the gap" is exactly the
-   * pre-#834 defect, so a refusal stays a refusal.
-   */
-  captureGovernedEvidenceReceiptSync(): GovernedEvidenceReceiptSnapshotV1 | null {
-    const port = this._executionPort;
-    if (!port || port.isAsync || !port.captureGovernedEvidenceReceiptSync) return null;
-
-    const fingerprint = this.datasetFingerprint ?? '';
-    const version = this.datasetVersion;
-    const generation = this._generation;
-    const handle = this._aggregate.analytical.currentHandle;
-    if (!fingerprint || !handle || !this.kernelVersion()) return null;
-
-    const capture = port.captureGovernedEvidenceReceiptSync({
-      requestId: `scap-${++this._requestSeq}`,
-      dataset: { fingerprint, version },
-      generation,
-      handle,
-    });
-    if (!capture) return null;
-
-    return this._composeGovernedEvidence(capture, { generation, version, fingerprint });
-  }
-
-  /**
    * Admit a port readout only when it still describes the state it was
-   * requested against. Shared by the sync and async forms so neither can drift
-   * into a weaker admission rule; a stale or substituted readout refuses rather
-   * than composing evidence for a state this Atlas is no longer in.
+   * requested against. A stale or substituted readout refuses rather than
+   * composing evidence for a state this Atlas is no longer in.
+   *
+   * This is the sole *composition* rule: every governed readout reaches an
+   * envelope through here, so there is no second, weaker admission rule to
+   * drift from. Acquisition itself is the injected port's job and is initiated
+   * only by {@link captureGovernedEvidenceReceipt}, which the session calls from
+   * its asynchronous governed export (the #834 record in `docs/ROADMAP.md`,
+   * items (3) and (4): fresh acquisition is asynchronous and lives in
+   * `exportPortablePackage`; ordinary `serialize()` preserves a carrier and
+   * acquires nothing).
    */
   private _composeGovernedEvidence(
     capture: GovernedEvidenceCaptureV1,

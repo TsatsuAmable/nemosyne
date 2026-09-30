@@ -9,7 +9,45 @@ message: >-
 files:
   - src/session/**/*.ts
 rule:
-  kind: import_statement
-  has:
-    kind: string
-    regex: wasm/RuntimeBridge
+  any:
+    # `import … from '…/wasm/RuntimeBridge…'`.
+    #
+    # The alternation also matches the production barrel `src/wasm/index.ts`,
+    # which republishes `kernelVersion` and `datasetFingerprint` from the bridge.
+    # Keying on the literal `RuntimeBridge` alone left that barrel an unguarded
+    # alias: a session file could read the same module-global identity authority
+    # through it and the scan stayed clean (reproduced by adversarial review with
+    # a probe tree). The barrel is a republishing surface for this module, so it is
+    # the same route with one hop added.
+    #
+    # The leading `/` anchors the `wasm` segment. Without an anchor the
+    # alternation also matched any sibling directory merely *containing* `wasm/`
+    # (`'../xwasm/index.ts'`), which is an over-block rather than a route. The
+    # node text always begins with its opening quote, so an alternative anchored
+    # at text start could never fire: `/` is the whole anchor.
+    #
+    # `((/\.)*/)+` accepts the separator variants a resolver treats as the same
+    # path (`'../../wasm//index.ts'`, `'../../wasm/./index.ts'`). Spelling it as
+    # `wasm[/.]+` would instead match a module merely *named* `wasm.index.ts`, and
+    # `wasm/(RuntimeBridge|index)?\b` would over-match every other module under
+    # `wasm/` (`'../wasm/TypedColumnsCodec.ts'`, pinned as a valid form).
+    #
+    # The second alternative covers the bare-directory spelling — `'../../wasm'`,
+    # `'../../wasm/'`, `'../../wasm/.'` — which `moduleResolution: "bundler"`
+    # resolves to the same barrel `index.ts`. `\b` cannot express it, because
+    # there is no following path segment for it to bind to. Neither alternative
+    # normalizes *interior* traversal (`'../../wasm/x/../index.ts'`); the #834
+    # record states that limit rather than implying the guard resolves paths.
+    - kind: import_statement
+      has:
+        kind: string
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
+    # `export … from '…'` hands the same authority to every importer of this
+    # module, so it is the import route with one more hop. Named re-exports
+    # (`export { datasetFingerprint } from …`) and star re-exports
+    # (`export * from …`) both parse as an export_statement carrying the source
+    # string, and neither was covered before.
+    - kind: export_statement
+      has:
+        kind: string
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"

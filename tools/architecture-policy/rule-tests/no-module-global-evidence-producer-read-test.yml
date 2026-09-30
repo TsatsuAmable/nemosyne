@@ -1,0 +1,22 @@
+id: no-module-global-evidence-producer-read
+valid:
+  # Acquisition through the port is the required form.
+  - "const capture = await port.captureGovernedEvidenceReceipt(req)"
+  - "const snapshot = await this._atlas.captureGovernedEvidenceReceipt()"
+  # Reading some *other* kernel member is untouched.
+  - "const kernelVersion = kernel.kernelVersion()"
+  - "const fingerprint = bridge.datasetFingerprint(handle)"
+  # The injected-kernel contract *declaration* names the producer as a type
+  # member, not as a property read, so it must stay valid — a rule that rejected
+  # this would forbid the very contract the fix-forward introduces.
+  - "interface StatisticsEvidenceReceiptKernel { statisticsEvidenceReceiptBundle(handle: number): unknown | null }"
+  # A differently-named member is not the producer.
+  - "const produce = bridge.statisticsEvidenceReceiptAuthority(handle)"
+invalid:
+  # The property-read form: a module object whose runtime the graph decided.
+  - "export const produce = bridge.statisticsEvidenceReceiptBundle"
+  # A namespace alias of a star barrel is the same read one hop away.
+  - "import * as h from './runtimeReexport.ts'\nexport const produce = h.statisticsEvidenceReceiptBundle"
+  # Computed and reflective forms name the property without a member access.
+  - "export const produce = module['statisticsEvidenceReceiptBundle']"
+  - "export const produce = Reflect.get(module, 'statisticsEvidenceReceiptBundle')"
