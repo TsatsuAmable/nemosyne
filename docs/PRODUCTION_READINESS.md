@@ -21,7 +21,7 @@
 
 ### governance-service
 
-Product-intended PostgreSQL/OIDC governance substrate for authenticated, consent-aware ingestion, durable storage, export and erasure. The browser client exists, but the repository still lacks a runnable service entry point and end-to-end service evidence.
+Product-intended PostgreSQL/OIDC governance substrate for authenticated, consent-aware ingestion, durable storage, export and erasure. The browser client exists, and the repository owns a runnable service entry point (src/governance-service/server-entry.ts) with fail-closed configuration, health/readiness, and authenticated lifecycle coverage (tests/p1w-governance-service-runtime.test.ts, tests/p1w-governance-service-lifecycle.test.ts) exercised through a real process boundary. Deployed-service evidence remains RDO-003.
 
 **Sources:** `src/governance-service`
 
@@ -63,8 +63,8 @@ PT6/PT7 provide governed user-disjoint snapshots, held-out evaluation artifacts,
 
 | ID | Service | Kind | State | Evidence / expected evidence | Closure contract |
 | --- | --- | --- | --- | --- | --- |
-| RDO-001 | governance-service | AUTOMATED | MISSING | expected: `tests/p1w-governance-service-runtime.test.ts` | Add a runnable repository service entry point with fail-closed configuration plus health/readiness coverage exercised through a real process boundary. |
-| RDO-002 | governance-service | AUTOMATED | MISSING | expected: `tests/p1w-governance-service-lifecycle.test.ts` | Exercise authenticated consent-aware ingestion, durable storage, export, revoke-future-collection and applicable erasure through the runnable service boundary. |
+| RDO-001 | governance-service | AUTOMATED | GREEN | `tests/p1w-governance-service-runtime.test.ts` | Add a runnable repository service entry point with fail-closed configuration plus health/readiness coverage exercised through a real process boundary. |
+| RDO-002 | governance-service | AUTOMATED | GREEN | `tests/p1w-governance-service-lifecycle.test.ts` | Exercise authenticated consent-aware ingestion, durable storage, export, revoke-future-collection and applicable erasure through the runnable service boundary. |
 | RDO-003 | governance-service | EXTERNAL_SERVICE | DEFERRED_BY_POLICY | — | Against an actually deployed service, run the clean production browser journey and verify authentication, consent, ingestion, export and erasure without upgrading local or repository evidence into deployment proof. |
 | RDO-004 | collaboration-signalling-service | AUTOMATED | GREEN | `tests/p1w1-signalling-service-runtime.test.ts` | Keep real service startup, health/readiness, signed-ticket admission and bounded failure semantics green. |
 | RDO-005 | collaboration-signalling-service | AUTOMATED | GREEN | `tests/p1w1-collaboration-invite.test.ts`, `tests/signalling-reconnect-ticket.test.ts` | Keep operator-issued invite consumption, server-bound peer identity and consumed-ticket replay rejection green. |
