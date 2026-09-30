@@ -6,6 +6,8 @@ import type {
   AnalyticalExecutionResult,
   AnalyticalWorkerDiagnostic,
   AnalyticalWorkerOutcome,
+  GovernedEvidenceCaptureRequest,
+  GovernedEvidenceCaptureV1,
 } from './AnalyticalExecutionPort.ts';
 import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
 
@@ -30,9 +32,16 @@ interface PendingRegistration {
   key: string;
 }
 
+interface PendingGovernedCapture {
+  resolve: (capture: GovernedEvidenceCaptureV1 | null) => void;
+  reject: (err: Error) => void;
+  req: GovernedEvidenceCaptureRequest;
+}
+
 const MAX_DIAGNOSTIC_SAMPLES = 32;
 export const DEFAULT_MAX_PENDING_WORKER_EXECUTIONS = 32;
 export const DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS = 4;
+export const DEFAULT_MAX_PENDING_WORKER_GOVERNED_CAPTURES = 4;
 const WORKER_PAYLOAD_MEASUREMENT_BASIS =
   'utf8-json-estimate+exact-binary-byte-length' as const;
 const UTF8_ENCODER = new TextEncoder();
@@ -94,6 +103,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _createReplacementWorker?: (() => WorkerTransport | null) | null;
   private readonly _pending = new Map<string, PendingExecution>();
   private readonly _pendingRegistrations = new Map<string, PendingRegistration>();
+  private readonly _pendingGovernedCaptures = new Map<string, PendingGovernedCapture>();
   private readonly _registrationPromises = new Map<string, Promise<void>>();
   private readonly _registered = new Set<string>();
   private readonly _diagnostics: AnalyticalWorkerDiagnostic[] = [];
@@ -111,12 +121,13 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
   private _disposed = false;
   private readonly _maxPendingExecutions: number;
   private readonly _maxPendingRegistrations: number;
+  private readonly _maxPendingGovernedCaptures: number;
 
   constructor(
     worker: WorkerTransport,
     onKernelFailure?: ((err: Error) => void) | null,
     onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null,
-    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number } = {},
+    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number; maxPendingGovernedCaptures?: number } = {},
     createReplacementWorker?: (() => WorkerTransport | null) | null
   ) {
     this._worker = worker;
@@ -125,6 +136,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     this._onKernelRefusal = onKernelRefusal ?? null;
     this._maxPendingExecutions = Math.max(1, Math.floor(limits.maxPendingExecutions ?? DEFAULT_MAX_PENDING_WORKER_EXECUTIONS));
     this._maxPendingRegistrations = Math.max(1, Math.floor(limits.maxPendingRegistrations ?? DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS));
+    this._maxPendingGovernedCaptures = Math.max(1, Math.floor(limits.maxPendingGovernedCaptures ?? DEFAULT_MAX_PENDING_WORKER_GOVERNED_CAPTURES));
     this._worker.onmessage = this._handleMessage.bind(this);
     this._worker.onerror = this._handleError.bind(this);
     if ('onmessageerror' in this._worker) {
@@ -324,6 +336,22 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         pending.resolve();
       }
     }
+
+    // A superseded governed capture must never resolve as evidence for the new
+    // state: it resolves null (refusal) instead of the superseded generation's
+    // bytes, even if the Worker answers it later.
+    for (const [id, pending] of this._pendingGovernedCaptures.entries()) {
+      if (
+        this._isStale(
+          pending.req.generation,
+          pending.req.dataset.version,
+          pending.req.dataset.fingerprint
+        )
+      ) {
+        this._pendingGovernedCaptures.delete(id);
+        pending.resolve(null);
+      }
+    }
   }
 
   hasRegisteredDataset(generation: number, fingerprint: string): boolean {
@@ -422,6 +450,61 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     });
   }
 
+  /**
+   * Issue #834: governed-evidence capture over the Worker transport. The
+   * Worker-owned Rust instance produces the bundle for the dataset it holds for
+   * this fingerprint; the main thread never sends a handle index across the
+   * boundary, so this port cannot return evidence minted by the main-thread
+   * runtime. Null (not a throw) means this port cannot attest governed evidence
+   * for the requested identity — stale fence, absent resident dataset, or a
+   * producer the Worker could not satisfy — which the caller treats as refusal.
+   */
+  captureGovernedEvidenceReceipt(
+    req: GovernedEvidenceCaptureRequest
+  ): Promise<GovernedEvidenceCaptureV1 | null> {
+    if (this._disposed) {
+      return Promise.reject(new KernelUnavailableError('Analytical worker port is disposed'));
+    }
+    if (this._isStale(req.generation, req.dataset.version, req.dataset.fingerprint)) {
+      return Promise.resolve(null);
+    }
+    if (this._pendingGovernedCaptures.size >= this._maxPendingGovernedCaptures) {
+      return Promise.reject(
+        new KernelUnavailableError(
+          'Analytical worker governed-evidence capture admission saturated: ' +
+            this._pendingGovernedCaptures.size +
+            '/' +
+            this._maxPendingGovernedCaptures
+        )
+      );
+    }
+
+    return new Promise<GovernedEvidenceCaptureV1 | null>((resolve, reject) => {
+      this._pendingGovernedCaptures.set(req.requestId, { resolve, reject, req });
+      try {
+        // Issue #834: only analytical identity crosses the boundary. A
+        // caller-supplied main-thread handle index would name a dataset in a
+        // different runtime, so it is never transported; the Worker resolves
+        // its own resident handle from its registration map.
+        this._worker.postMessage({
+          type: 'CAPTURE_GOVERNED_EVIDENCE',
+          captureRequest: {
+            requestId: req.requestId,
+            dataset: { fingerprint: req.dataset.fingerprint, version: req.dataset.version },
+            generation: req.generation,
+          },
+        });
+      } catch (err: unknown) {
+        this._pendingGovernedCaptures.delete(req.requestId);
+        const error = new KernelUnavailableError(
+          `Worker transport postMessage failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+        this._onKernelFailure?.(error);
+        reject(error);
+      }
+    });
+  }
+
   dispose(): void {
     if (this._disposed) return;
     this._disposeWithError(new KernelUnavailableError('Analytical worker port disposed'), false);
@@ -434,8 +517,10 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     for (const pending of this._pending.values()) pending.reject(error);
     for (const pending of this._pendingRegistrations.values()) pending.reject(error);
+    for (const pending of this._pendingGovernedCaptures.values()) pending.reject(error);
     this._pending.clear();
     this._pendingRegistrations.clear();
+    this._pendingGovernedCaptures.clear();
     this._registrationPromises.clear();
     this._registered.clear();
     this._diagnostics.length = 0;
@@ -461,6 +546,8 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       datasetFingerprint?: string;
       error?: string;
       diagnostic?: AnalyticalWorkerDiagnostic;
+      requestId?: string;
+      capture?: GovernedEvidenceCaptureV1 | null;
     };
     if (!data || this._disposed) return;
 
@@ -499,6 +586,44 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       );
       if (!stale) this._registered.add(pending.key);
       pending.resolve();
+      return;
+    }
+
+    if (data.type === 'GOVERNED_EVIDENCE' && data.requestId) {
+      const pending = this._pendingGovernedCaptures.get(data.requestId);
+      if (!pending) return;
+      this._pendingGovernedCaptures.delete(data.requestId);
+
+      // Absent capture is a refusal by the Worker-owned authority (no resident
+      // dataset, producer unavailable), so the caller sees null.
+      if (!data.capture) {
+        pending.resolve(null);
+        return;
+      }
+
+      // Present capture is re-fenced here rather than trusted: a Worker that
+      // answers with another generation's or dataset's bundle has produced
+      // evidence this port must not transport, which is a defect signal.
+      if (
+        this._isStale(
+          pending.req.generation,
+          pending.req.dataset.version,
+          pending.req.dataset.fingerprint
+        ) ||
+        data.capture.requestId !== pending.req.requestId ||
+        data.capture.generation !== pending.req.generation ||
+        data.capture.datasetVersion !== pending.req.dataset.version ||
+        data.capture.datasetFingerprint !== pending.req.dataset.fingerprint
+      ) {
+        const error = new KernelUnavailableError(
+          `Worker governed-evidence capture identity mismatch for ${pending.req.requestId}`
+        );
+        this._onKernelFailure?.(error);
+        pending.reject(error);
+        return;
+      }
+
+      pending.resolve(data.capture);
       return;
     }
 

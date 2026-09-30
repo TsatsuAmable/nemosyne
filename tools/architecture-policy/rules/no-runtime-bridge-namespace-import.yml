@@ -1,0 +1,27 @@
+id: no-runtime-bridge-namespace-import
+language: TypeScript
+severity: error
+message: >-
+  Issue #834: a namespace import of the whole runtime module is how a caller
+  reaches a module-global analytical producer without ever naming it, so it
+  would route around the import-level guard in no-module-global-evidence-capture.
+  Analytical authority reaches callers through the injected kernel contract and
+  the analytical execution port; the analytical Worker is the one legitimate
+  namespace consumer, because it is the file that owns that runtime instance.
+files:
+  - src/**/*.ts
+ignores:
+  - src/wasm/**/*.ts
+  - src/atlas/ports/analytical.worker.ts
+rule:
+  kind: import_statement
+  all:
+    # `stopBy: end` is required: ast-grep's `has` stops at immediate children by
+    # default, and `namespace_import` sits two levels down (import_clause →
+    # namespace_import), so the default form silently matches nothing.
+    - has:
+        kind: namespace_import
+        stopBy: end
+    - has:
+        kind: string
+        regex: RuntimeBridge

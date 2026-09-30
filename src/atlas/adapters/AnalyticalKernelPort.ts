@@ -37,6 +37,14 @@ export interface AnalyticalKernelPort {
   kernelVersion?(): string | null;
   kernelProvenance?(): Provenance | null;
   datasetFingerprint?(handle: number): string | null;
+  /**
+   * Issue #834: the Rust producer for RFC 0009 statistics evidence receipts.
+   * Exposed on the injected kernel contract so governed capture reads the
+   * producer from whichever runtime instance fronts this port — the
+   * main-thread kernel for inline execution, the Worker-owned runtime behind a
+   * transport port — instead of a module-global singleton.
+   */
+  statisticsEvidenceReceiptBundle?(handle: number): unknown | null;
   inferSchema?(handle: number): unknown;
   computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals?(

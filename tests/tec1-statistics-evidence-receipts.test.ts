@@ -56,7 +56,7 @@ describe('TEC1 statistics evidence receipt transport', () => {
   it('mints an immutable live resolver and preserves unresolved assumptions', () => {
     const handle = fixture();
     try {
-      const authority = statisticsEvidenceReceiptAuthority(handle);
+      const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
       expect(Object.isFrozen(authority)).toBe(true);
       expect(Object.isFrozen(authority.receiptIds)).toBe(true);
       const pearsonId = authority.receiptIds.find((id) => id.startsWith('pearson:x:y'));
@@ -76,7 +76,7 @@ describe('TEC1 statistics evidence receipt transport', () => {
 
   it('revokes resolution when the originating dataset handle is destroyed', () => {
     const handle = fixture();
-    const authority = statisticsEvidenceReceiptAuthority(handle);
+    const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
     const receiptId = authority.receiptIds[0];
     expect(authority.resolve(receiptId)).not.toBeNull();
     bridge.destroyDataset(handle);
@@ -86,7 +86,7 @@ describe('TEC1 statistics evidence receipt transport', () => {
   it('returns typed governed refusals for unmet requirement profiles on live receipts', () => {
     const handle = fixture();
     try {
-      const authority = statisticsEvidenceReceiptAuthority(handle);
+      const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
       const pearsonId = authority.receiptIds.find((id) => id.startsWith('pearson:x:y'));
       const descriptiveId = authority.receiptIds.find((id) => id.startsWith('descriptive:x'));
       expect(pearsonId).toBeTruthy();
@@ -155,7 +155,7 @@ describe('TEC1 statistics evidence receipt transport', () => {
   it('rejects caller-forged requirement profiles at the live authority', () => {
     const handle = fixture();
     try {
-      const authority = statisticsEvidenceReceiptAuthority(handle);
+      const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
       const receiptId = authority.receiptIds[0];
       const forged = {
         profileId: 'caller-forged/v1',
@@ -180,7 +180,7 @@ describe('TEC1 statistics evidence receipt transport', () => {
 
   it('revokes requirement-profile resolution when the dataset handle is destroyed', () => {
     const handle = fixture();
-    const authority = statisticsEvidenceReceiptAuthority(handle);
+    const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
     const receiptId = authority.receiptIds[0];
     expect(
       authority.resolveAgainst(DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1, receiptId).status
@@ -204,7 +204,7 @@ describe('TEC1 statistics evidence receipt transport', () => {
       expect(bridge.statisticsEvidenceReceiptBundle(0)).toBeNull();
       expect(bridge.statisticsEvidenceReceiptBundle(columnar)).toBeNull();
       expect(call('prepared_computation_count', RECEIPT_COMPUTATION_INDEX)).toBe(before);
-      expect(() => statisticsEvidenceReceiptAuthority(columnar)).toThrow();
+      expect(() => statisticsEvidenceReceiptAuthority(bridge, columnar)).toThrow();
     } finally {
       bridge.destroyDataset(columnar);
     }

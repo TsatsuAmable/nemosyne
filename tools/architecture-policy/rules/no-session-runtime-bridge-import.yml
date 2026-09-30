@@ -1,0 +1,15 @@
+id: no-session-runtime-bridge-import
+language: TypeScript
+severity: error
+message: >-
+  Issue #834: the session layer reaches analytical authority only through
+  AtlasCore and the analytical execution port that is installed on it. Importing
+  the module-global runtime bridge here re-creates a capture path that survives
+  replacing, disposing or de-capability-ing the injected port.
+files:
+  - src/session/**/*.ts
+rule:
+  kind: import_statement
+  has:
+    kind: string
+    regex: wasm/RuntimeBridge

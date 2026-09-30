@@ -57,16 +57,16 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     }
   });
 
-  it('captures the Rust-issued bundle deterministically with coherent live identity and empty uses', () => {
+  it('captures the Rust-issued bundle deterministically with coherent live identity and empty uses', async () => {
     const { atlas, handle } = liveGovernedSession();
     try {
-      const first = atlas.captureGovernedEvidenceReceiptSnapshot();
+      const first = await atlas.captureGovernedEvidenceReceipt();
       expect(first).not.toBeNull();
       expect(first!.envelope.uses).toEqual([]);
       expect(first!.envelope.bundle.receipts.length).toBeGreaterThan(0);
       expect(first!.envelope.bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
       expect(first!.envelope.bundle.kernelVersion).toBe(bridge.kernelVersion());
-      const second = atlas.captureGovernedEvidenceReceiptSnapshot();
+      const second = await atlas.captureGovernedEvidenceReceipt();
       expect(Buffer.from(second!.bytes).equals(Buffer.from(first!.bytes))).toBe(true);
       // An explicit governed export must be available from the live capture path.
       const bytes = sha256Hex(first!.bytes);
@@ -76,9 +76,38 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     }
   });
 
-  it('returns null without a live dataset handle instead of manufacturing evidence', () => {
-    expect(new AtlasCore({ kernel: null }).captureGovernedEvidenceReceiptSnapshot()).toBeNull();
-    expect(new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceiptSnapshot()).toBeNull();
+  it('returns null without a live dataset handle instead of manufacturing evidence', async () => {
+    expect(await new AtlasCore({ kernel: null }).captureGovernedEvidenceReceipt()).toBeNull();
+    expect(await new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceipt()).toBeNull();
+  });
+
+  it('acquires the same authority synchronously for session serialization as it does asynchronously', async () => {
+    // Issue #834: ordinary serialization is synchronous, so it uses the sync
+    // narrowing of the port capability. That narrowing must be the *same* read
+    // through the same installed port, not a second authority: the two forms are
+    // required to agree byte-for-byte on the same live state.
+    const { atlas, handle } = liveGovernedSession();
+    try {
+      const sync = atlas.captureGovernedEvidenceReceiptSync();
+      const async = await atlas.captureGovernedEvidenceReceipt();
+      expect(sync).not.toBeNull();
+      expect(async).not.toBeNull();
+      expect(Buffer.from(sync!.bytes).equals(Buffer.from(async!.bytes))).toBe(true);
+      expect(sync!.envelope.uses).toEqual([]);
+      expect(sync!.envelope.bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
+      expect(sync!.envelope.bundle.kernelVersion).toBe(bridge.kernelVersion());
+
+      // A repeat read is deterministic.
+      const again = atlas.captureGovernedEvidenceReceiptSync();
+      expect(Buffer.from(again!.bytes).equals(Buffer.from(sync!.bytes))).toBe(true);
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  });
+
+  it('refuses the synchronous narrowing when no live dataset is loaded', () => {
+    expect(new AtlasCore({ kernel: null }).captureGovernedEvidenceReceiptSync()).toBeNull();
+    expect(new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceiptSync()).toBeNull();
   });
 
   it('exports a governed V3 package from the live session with committed receipt bytes and identity', async () => {
@@ -182,6 +211,22 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
       const governedJson = governed.session.serialize();
       const driftedJson = drifted.session.serialize();
       expect(driftedJson.datasetFingerprint).not.toBe(governedJson.datasetFingerprint);
+      // Issue #834 falsifier: the save-time capture a session carries describes
+      // its *own* dataset. A session that serializes another session's — or
+      // another runtime's — bundle is the cross-runtime aliasing this repair
+      // removes, so the identity is pinned to the kernel read for each handle.
+      const driftedEnvelope = evidenceEnvelopeOf(
+        new Uint8Array(Buffer.from(driftedJson.evidenceReceiptSnapshot!, 'base64'))
+      );
+      const governedEnvelope = evidenceEnvelopeOf(
+        new Uint8Array(Buffer.from(governedJson.evidenceReceiptSnapshot!, 'base64'))
+      );
+      expect(driftedEnvelope.bundle.datasetFingerprint).toBe(
+        bridge.datasetFingerprint(drifted.handle)
+      );
+      expect(governedEnvelope.bundle.datasetFingerprint).toBe(
+        bridge.datasetFingerprint(governed.handle)
+      );
 
       const mismatched = {
         ...driftedJson,

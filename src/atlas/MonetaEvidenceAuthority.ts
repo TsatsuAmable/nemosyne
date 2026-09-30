@@ -9,11 +9,6 @@ import {
   type EvidenceRequirementProfileV1,
   type RustDatasetStructureProfile,
 } from '../data/evidence/index.ts';
-import {
-  datasetFingerprint as liveDatasetFingerprint,
-  kernelVersion as liveKernelVersion,
-  statisticsEvidenceReceiptBundle,
-} from '../wasm/RuntimeBridge.ts';
 import { canonicalJsonStringify } from '../security/CryptoHash.ts';
 import { parsePersistedEvidenceReceiptsV1, type PersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
 
@@ -21,6 +16,20 @@ import { parsePersistedEvidenceReceiptsV1, type PersistedEvidenceReceiptsV1 } fr
 export interface DatasetStructureProfileKernel {
   computeDatasetStructureProfile(handle: number): unknown | null;
   datasetFingerprint?(handle: number): string | null;
+}
+
+/**
+ * Narrow kernel contract for Rust-issued statistics evidence receipts.
+ *
+ * Issue #834: this boundary is given the analytical authority, never a module
+ * singleton it can reach on its own. Which runtime satisfies it — the
+ * main-thread kernel for inline execution, the Worker-owned runtime for a
+ * transport port — is decided by the caller that injects it.
+ */
+export interface StatisticsEvidenceReceiptKernel {
+  statisticsEvidenceReceiptBundle(handle: number): unknown | null;
+  datasetFingerprint?(handle: number): string | null;
+  kernelVersion?(): string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -253,21 +262,39 @@ export interface LiveEvidenceReceiptAuthorityV1 {
 /**
  * Mint a live statistics receipt resolver from the current Rust dataset capability.
  * Serialized receipt data alone cannot construct this authority.
+ *
+ * Issue #834: the analytical authority is injected, so a caller cannot obtain
+ * this capability from a module-global runtime the caller never chose. Live
+ * identity reads and every revocation check go through the injected kernel.
  */
 export function statisticsEvidenceReceiptAuthority(
+  kernel: StatisticsEvidenceReceiptKernel,
   handle: number,
 ): LiveEvidenceReceiptAuthorityV1 {
   if (!Number.isInteger(handle) || handle <= 0) {
     throw new Error('[AtlasCore] EvidenceReceipt authority requires a valid Rust dataset handle');
   }
 
-  const datasetFingerprint = liveDatasetFingerprint(handle);
-  const kernelVersion = liveKernelVersion();
+  const readDatasetFingerprint = kernel.datasetFingerprint;
+  const readKernelVersion = kernel.kernelVersion;
+  const produceReceiptBundle = kernel.statisticsEvidenceReceiptBundle;
+  if (
+    typeof readDatasetFingerprint !== 'function' ||
+    typeof readKernelVersion !== 'function' ||
+    typeof produceReceiptBundle !== 'function'
+  ) {
+    throw new Error(
+      '[AtlasCore] EvidenceReceipt authority requires an injected kernel that produces statistics evidence receipts',
+    );
+  }
+
+  const datasetFingerprint = readDatasetFingerprint.call(kernel, handle);
+  const kernelVersion = readKernelVersion.call(kernel);
   if (!datasetFingerprint || !kernelVersion) {
     throw new Error('[AtlasCore] EvidenceReceipt authority cannot establish live kernel identity');
   }
 
-  const rawBundle = statisticsEvidenceReceiptBundle(handle);
+  const rawBundle = produceReceiptBundle.call(kernel, handle);
   if (!rawBundle) {
     throw new Error('[AtlasCore] Rust statistics evidence receipts unavailable for current dataset');
   }
@@ -284,8 +311,8 @@ export function statisticsEvidenceReceiptAuthority(
   }
 
   const assertLiveIdentity = (): void => {
-    const currentFingerprint = liveDatasetFingerprint(handle);
-    const currentKernelVersion = liveKernelVersion();
+    const currentFingerprint = readDatasetFingerprint.call(kernel, handle);
+    const currentKernelVersion = readKernelVersion.call(kernel);
     if (
       currentFingerprint !== datasetFingerprint ||
       currentKernelVersion !== kernelVersion
@@ -326,46 +353,56 @@ export function statisticsEvidenceReceiptAuthority(
   });
 }
 
-/**
- * RFC 0009 tranche 2: authoritative capture of the Rust-issued statistics
- * evidence receipt bundle for the current live analytical dataset.
- *
- * The bytes are the one owned serialization of a closed v1 envelope holding
- * exactly the bundle the Rust kernel produced; no TypeScript code derives or
- * re-ranks receipt content. An identity drift between the bundle and the live
- * kernel state throws instead of returning a stale capture.
- */
 export interface GovernedEvidenceReceiptSnapshotV1 {
   readonly bytes: Uint8Array;
   readonly envelope: PersistedEvidenceReceiptsV1;
 }
 
-export function captureGovernedEvidenceReceiptSnapshot(
-  handle: number,
-): GovernedEvidenceReceiptSnapshotV1 {
-  if (!Number.isInteger(handle) || handle <= 0) {
-    throw new Error('[AtlasCore] Governed evidence capture requires a valid Rust dataset handle');
-  }
+/**
+ * One producer read: the unparsed Rust payload plus the live kernel identity it
+ * was read under. Issue #834: this is the *only* input the composition step
+ * accepts, so receipt content and the identity it claims come from the
+ * analytical authority that was actually consulted.
+ */
+export interface GovernedEvidenceProducerReadoutV1 {
+  readonly rawBundle: unknown;
+  readonly datasetFingerprint: string;
+  readonly kernelVersion: string;
+}
 
-  const datasetFingerprint = liveDatasetFingerprint(handle);
-  const kernelVersion = liveKernelVersion();
-  if (!datasetFingerprint || !kernelVersion) {
+/**
+ * RFC 0009 tranche 2: compose the authoritative governed-evidence snapshot from
+ * one producer readout.
+ *
+ * The bytes are the one owned serialization of a closed v1 envelope holding
+ * exactly the bundle the Rust kernel produced; no TypeScript code derives or
+ * re-ranks receipt content. An identity drift between the bundle and the
+ * identity the read was taken under throws instead of returning a stale
+ * capture.
+ *
+ * This function is deliberately **pure**: it cannot reach a kernel, so no
+ * module-global runtime can be substituted for the authority whose readout it
+ * was handed. Acquiring the readout is the analytical execution port's job.
+ */
+export function composeGovernedEvidenceReceiptSnapshot(
+  readout: GovernedEvidenceProducerReadoutV1,
+): GovernedEvidenceReceiptSnapshotV1 {
+  if (!readout.datasetFingerprint || !readout.kernelVersion) {
     throw new Error('[AtlasCore] Governed evidence capture cannot establish live kernel identity');
   }
-
-  const rawBundle = statisticsEvidenceReceiptBundle(handle);
-  if (!rawBundle) {
+  if (!readout.rawBundle) {
     throw new Error('[AtlasCore] Rust statistics evidence receipts unavailable for current dataset');
   }
-  const bundle = parseEvidenceReceiptBundleV1(rawBundle);
+
+  const bundle = parseEvidenceReceiptBundleV1(readout.rawBundle);
   if (
-    bundle.datasetFingerprint !== datasetFingerprint ||
-    bundle.kernelVersion !== kernelVersion
+    bundle.datasetFingerprint !== readout.datasetFingerprint ||
+    bundle.kernelVersion !== readout.kernelVersion
   ) {
     throw new Error(
       '[AtlasCore] Governed evidence capture bundle identity drift: ' +
         `bundle=${bundle.datasetFingerprint}@${bundle.kernelVersion}, ` +
-        `kernel=${datasetFingerprint}@${kernelVersion}`,
+        `kernel=${readout.datasetFingerprint}@${readout.kernelVersion}`,
     );
   }
 
