@@ -190,6 +190,27 @@ Exclusive seams remain strictly serialized: `docs/ROADMAP.md`, `governance/*.jso
 
 Disjointness must be re-checked against fresh `main` immediately before each PR is opened. When disjointness is uncertain, serialize rather than assume.
 
+
+#### Parallel lane claims
+
+Parallel capacity is allocated by **roadmap tranche and authority/file surface, not permanently by machine or model**. Agent names below are an operational snapshot, not architectural ownership. Before mutating a tranche, every recruit must fetch fresh `main`, inspect active worktrees/PRs and leases, and claim an isolated worktree with `nemosyne-workstream`. A claim records owner, roadmap item/purpose, branch/PR, expected changed-file surface and any exclusive seam. If the expected surface intersects an active claim, the later recruit must choose another eligible tranche or wait; it may not rely on merge-conflict detection as the collision protocol.
+
+Use three scheduling classes:
+
+- **PARALLEL-SAFE** — bounded research, architecture preflight, tests/contracts or implementation whose expected authority and changed-file surfaces are disjoint from all active claims.
+- **CONDITIONAL** — may run concurrently only after an explicit fresh-main collision check proves disjointness; stop and reclassify if the implementation expands into another lane's surface.
+- **EXCLUSIVE/SEQUENTIAL** — touches an exclusive seam above, changes a shared authority/persistence/replay contract, or depends on an unlanded predecessor. Only one such claimant may mutate that seam at a time.
+
+Current coordination snapshot (30 September 2026; refresh rather than preserving stale assignments):
+
+| Recruit / host | Active tranche | Class | Allowed surface | Must avoid while claimed |
+| --- | --- | --- | --- | --- |
+| OpenCode / Millhouse | TEC1 analytical-port authority fix-forward; #834/#838 lineage | EXCLUSIVE/SEQUENTIAL while active | analytical execution/capture ports, their authority guards and focused TEC1 tests | FM1 intent/history work; another recruit editing the same ports, `NemosyneSession` or `tests/config/test-groups.ts` |
+| Claude / Millhouse | unassigned until its live branch/worktree declares a fresh post-#838 tranche | CONDITIONAL | next roadmap item only after a claim + changed-surface declaration | inheriting stale TEC1 worktrees as current authority; any active OpenCode or Antigravity surface |
+| Antigravity / Mac | FM1/AP-INV preflight and bounded InvestigationIntent contract; #839 | PARALLEL-SAFE pre-work only | `InvestigationIntent`, focused intent falsifiers and ADR-0009 | TEC1 evidence authority; graph/persistence/replay/Moneta integration until prerequisites and collision checks clear |
+
+A merged PR, stopped worker or stale worktree ends the *assignment*, not the roadmap item. The coordinator should release/expire its lease, refresh this snapshot when useful, and allocate the newly free recruit to the highest-priority eligible non-colliding tranche. The executable lease/worktree state is the live collision guard; this table is the human-readable traffic map and must not be treated as stronger evidence than current Git/lease state.
+
 Risk classification under `AGENTS.md`, required CI, exact-head promotion gates and the adversarial review owed by each risk tier are unchanged and remain **per-tranche**. Every tranche still fetches fresh `main` before starting, completes the review its own tier requires, runs its own exact-head evidence, fixes forward and merges at its own verified head. Parallel execution never lets one tranche's verification evidence stand in for another's required evidence, and no shared artifact may be promoted as a substitute for an individual tranche's gate.
 
 ### Recursive adversarial governance
