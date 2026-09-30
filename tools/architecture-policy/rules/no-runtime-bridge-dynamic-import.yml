@@ -46,3 +46,17 @@ rule:
             kind: template_string
             regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
             stopBy: end
+        # A *partially* interpolated specifier is a reach no literal form can
+        # decide: `` import(`../wasm/${name}.ts`) `` resolves to the barrel
+        # whenever `name` is `index`, and nothing static can rule that out. The
+        # guard errs closed on any `/wasm/`-prefixed template with a
+        # substitution — the same deliberate over-block the session rule accepts
+        # for type-only forms, and cheaper than the alternative of letting the
+        # one spelling nobody can adjudicate through. A *fully* computed
+        # specifier (`await import(specifierVar)`) carries no literal at all and
+        # is out of reach of any static guard; the #834 record states that
+        # rather than implying the guard decides it.
+        - has:
+            kind: template_string
+            regex: "/wasm((/\\.)*/)+\\$\\{|/wasm[/.]*\\$\\{"
+            stopBy: end

@@ -15,6 +15,10 @@ valid:
   # `\b` must not turn another module under `wasm/` into the barrel.
   - "const sibling = await import('../data-wasm/index.ts')"
   - "const helper = await import('../wasm/indexHelper.ts')"
+  # A fully computed specifier carries no literal, so no static rule can decide
+  # it. It is a stated limit of the guard, not a case this rule claims.
+  - "const computed = await import(specifierVar)"
+  - "const siblingTemplate = await import(`../data-wasm/${name}.ts`)"
 invalid:
   - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
   - "const bridge = await import('../wasm/RuntimeBridge.ts')"
@@ -35,3 +39,9 @@ invalid:
   - "const bridge = await import('../wasm/')"
   - "const bridge = await import('../wasm//index.ts')"
   - "const bridge = await import(`../wasm/./index.ts`)"
+  # A partially interpolated specifier cannot be adjudicated statically: this
+  # resolves to the barrel whenever `name` is `index`. The guard errs closed, so
+  # a template that interpolates after the `wasm` directory fires as well.
+  - "const a = await import(`../wasm/${name}.ts`)"
+  - "const b = await import(`../wasm/${'index'}.ts`)"
+  - "const c = await import(`../wasm/${name}`)"
