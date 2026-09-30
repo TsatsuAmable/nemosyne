@@ -4,6 +4,8 @@ import type {
   AnalyticalExecutionRequest,
   AnalyticalExecutionResult,
   AnalyticalWorkerDiagnostic,
+  GovernedEvidenceCaptureRequest,
+  GovernedEvidenceCaptureV1,
 } from './AnalyticalExecutionPort.ts';
 import * as bridge from '../../wasm/RuntimeBridge.ts';
 import {
@@ -171,8 +173,9 @@ async function registerDataset(registration: AnalyticalDatasetRegistration): Pro
 
 self.onmessage = async (ev: MessageEvent) => {
   const data = ev.data as {
-    type: 'EXECUTE' | 'SUPERSEDE' | 'REGISTER';
+    type: 'EXECUTE' | 'SUPERSEDE' | 'REGISTER' | 'CAPTURE_GOVERNED_EVIDENCE';
     request?: AnalyticalExecutionRequest;
+    captureRequest?: GovernedEvidenceCaptureRequest;
     registration?: AnalyticalDatasetRegistration;
     fence?: AnalyticalExecutionFence;
   };
@@ -273,6 +276,69 @@ self.onmessage = async (ev: MessageEvent) => {
         ...(diagnostic ? { diagnostic } : {}),
       });
     }
+    return;
+  }
+
+  if (data.type === 'CAPTURE_GOVERNED_EVIDENCE' && data.captureRequest) {
+    const req = data.captureRequest;
+
+    // Issue #834: the Worker-owned runtime is the analytical authority here, so
+    // this producer read must resolve its handle from this worker's own handle
+    // map. The main thread's handle index is never transported across the
+    // boundary and would name a different runtime's dataset.
+    const refuse = (): void => {
+      self.postMessage({
+        type: 'GOVERNED_EVIDENCE',
+        requestId: req.requestId,
+        capture: null,
+      });
+    };
+
+    if (isSuperseded(req.generation, req.dataset.version, req.dataset.fingerprint)) {
+      refuse();
+      return;
+    }
+
+    try {
+      await ensureBridgeReady();
+    } catch {
+      refuse();
+      return;
+    }
+
+    // Capture never registers: governed evidence must describe a dataset this
+    // worker generation already holds, not one materialised by the capture.
+    const handle = handleMap.get(req.dataset.fingerprint);
+    if (!handle || handle === 0) {
+      refuse();
+      return;
+    }
+
+    let capture: GovernedEvidenceCaptureV1 | null = null;
+    try {
+      const datasetFingerprint = bridge.datasetFingerprint(handle);
+      const kernelVersion = bridge.kernelVersion();
+      const rawBundle = bridge.statisticsEvidenceReceiptBundle(handle);
+      if (datasetFingerprint && kernelVersion && rawBundle) {
+        capture = {
+          requestId: req.requestId,
+          generation: req.generation,
+          datasetVersion: req.dataset.version,
+          datasetFingerprint,
+          kernelVersion,
+          rawBundle,
+        };
+      }
+    } catch {
+      capture = null;
+    }
+
+    if (isSuperseded(req.generation, req.dataset.version, req.dataset.fingerprint)) {
+      refuse();
+      return;
+    }
+
+    self.postMessage({ type: 'GOVERNED_EVIDENCE', requestId: req.requestId, capture });
     return;
   }
 

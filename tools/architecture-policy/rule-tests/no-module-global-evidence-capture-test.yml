@@ -1,0 +1,9 @@
+id: no-module-global-evidence-capture
+valid:
+  - "const capture = await port.captureGovernedEvidenceReceipt(req)"
+  - "const snapshot = await this._atlas.captureGovernedEvidenceReceipt()"
+  - "const readDatasetFingerprint = kernel.datasetFingerprint"
+invalid:
+  - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
+  - "const rawBundle = statisticsEvidenceReceiptBundle(handle)"
+  - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'; const rawBundle = RuntimeBridge.statisticsEvidenceReceiptBundle(handle)"

@@ -1,0 +1,26 @@
+id: no-module-global-evidence-capture
+language: TypeScript
+severity: error
+message: >-
+  Issue #834: governed evidence capture must be acquired through the injected
+  analytical execution port, never from a module-global producer. Naming the
+  RuntimeBridge producer binding here re-creates the singleton path that let a
+  governed export succeed through authority the caller never injected. The only
+  legitimate readers are the port that holds the injected kernel, the transport
+  authority boundary, the injected-kernel contracts, and the runtime itself.
+files:
+  - src/**/*.ts
+ignores:
+  - src/wasm/**/*.ts
+  - src/atlas/adapters/AnalyticalKernelPort.ts
+  - src/atlas/MonetaEvidenceAuthority.ts
+  - src/atlas/ports/InlineAnalyticalPort.ts
+  - src/atlas/ports/analytical.worker.ts
+rule:
+  any:
+    # Named import binding or bare call of the producer.
+    - kind: identifier
+      regex: ^statisticsEvidenceReceiptBundle$
+    # Module-namespace form: RuntimeBridge.statisticsEvidenceReceiptBundle(...)
+    - kind: property_identifier
+      regex: ^statisticsEvidenceReceiptBundle$

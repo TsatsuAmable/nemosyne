@@ -139,6 +139,42 @@ export interface AnalyticalExecutionResult<T = unknown> {
   readonly refusal?: { preflight: TdaResourcePreflight; provenance: Provenance | null };
 }
 
+/**
+ * Issue #834: request for authoritative governed-evidence capture. The
+ * currently injected analytical execution authority is the one permitted
+ * producer of RFC 0009 receipt bytes; no module-global path may satisfy this.
+ */
+export interface GovernedEvidenceCaptureRequest {
+  readonly requestId: string;
+  readonly dataset: {
+    readonly fingerprint: string;
+    readonly version: number;
+  };
+  readonly generation: number;
+  /**
+   * Candidate main-thread handle. Meaningful only to ports that share the
+   * caller's kernel instance/handle space (inline). Transport ports must ignore
+   * it and resolve identity from their own resident handle map, otherwise the
+   * caller's handle index would be interpreted against a different runtime.
+   */
+  readonly handle?: number;
+}
+
+/**
+ * Raw output of one governed-evidence capture. `rawBundle` is the producer's
+ * unparsed payload: envelope composition and bundle validation stay in the
+ * authority layer so no transport can author evidence content.
+ */
+export interface GovernedEvidenceCaptureV1 {
+  readonly requestId: string;
+  readonly generation: number;
+  readonly datasetVersion: number;
+  /** Live kernel identity the producer reported for the captured dataset. */
+  readonly datasetFingerprint: string;
+  readonly kernelVersion: string;
+  readonly rawBundle: unknown;
+}
+
 export interface AnalyticalExecutionFence {
   readonly generation?: number;
   readonly datasetVersion?: number;
@@ -162,6 +198,22 @@ export interface AnalyticalExecutionPort {
    * it, forcing Atlas to retain/materialize ordinary registration data.
    */
   hasRegisteredDataset?(generation: number, fingerprint: string): boolean;
+  /**
+   * Issue #834: acquire the Rust-issued statistics evidence receipt bundle for
+   * the requested analytical identity from *this port's own* analytical
+   * authority — the Worker-owned runtime for a transport port, the injected
+   * kernel instance for an inline port.
+   *
+   * Returns null when this port cannot attest governed evidence for that
+   * identity: the capability is unavailable, the dataset is not resident in
+   * this port's runtime, the fence is stale, or the requested identity no
+   * longer matches. Ports that cannot produce authoritative evidence omit this
+   * member entirely; the omission refuses governed export instead of silently
+   * degrading to a module-global or un-governed path.
+   */
+  captureGovernedEvidenceReceipt?(
+    req: GovernedEvidenceCaptureRequest
+  ): Promise<GovernedEvidenceCaptureV1 | null>;
   /**
    * Drain bounded diagnostic samples captured by an instrumented Worker build.
    * Ordinary builds return an empty array because the Worker emits no samples.

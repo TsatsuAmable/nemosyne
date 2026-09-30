@@ -57,16 +57,16 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     }
   });
 
-  it('captures the Rust-issued bundle deterministically with coherent live identity and empty uses', () => {
+  it('captures the Rust-issued bundle deterministically with coherent live identity and empty uses', async () => {
     const { atlas, handle } = liveGovernedSession();
     try {
-      const first = atlas.captureGovernedEvidenceReceiptSnapshot();
+      const first = await atlas.captureGovernedEvidenceReceipt();
       expect(first).not.toBeNull();
       expect(first!.envelope.uses).toEqual([]);
       expect(first!.envelope.bundle.receipts.length).toBeGreaterThan(0);
       expect(first!.envelope.bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
       expect(first!.envelope.bundle.kernelVersion).toBe(bridge.kernelVersion());
-      const second = atlas.captureGovernedEvidenceReceiptSnapshot();
+      const second = await atlas.captureGovernedEvidenceReceipt();
       expect(Buffer.from(second!.bytes).equals(Buffer.from(first!.bytes))).toBe(true);
       // An explicit governed export must be available from the live capture path.
       const bytes = sha256Hex(first!.bytes);
@@ -76,9 +76,9 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     }
   });
 
-  it('returns null without a live dataset handle instead of manufacturing evidence', () => {
-    expect(new AtlasCore({ kernel: null }).captureGovernedEvidenceReceiptSnapshot()).toBeNull();
-    expect(new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceiptSnapshot()).toBeNull();
+  it('returns null without a live dataset handle instead of manufacturing evidence', async () => {
+    expect(await new AtlasCore({ kernel: null }).captureGovernedEvidenceReceipt()).toBeNull();
+    expect(await new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceipt()).toBeNull();
   });
 
   it('exports a governed V3 package from the live session with committed receipt bytes and identity', async () => {
@@ -143,6 +143,11 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
   it('preserves the receipt carrier through session JSON and re-exports governed from the snapshot', async () => {
     const { handle, session } = liveGovernedSession();
     try {
+      // Issue #834: governed evidence is acquired by awaiting capture through
+      // the analytical execution port. Ordinary serialization preserves an
+      // already-captured carrier; it never acquires one.
+      await session.exportPortablePackage({}, undefined, { governedEvidence: true });
+
       const json = session.serialize();
       expect(json.evidenceReceiptSnapshot).toBeDefined();
       const liveEnvelope = evidenceEnvelopeOf(
@@ -179,9 +184,14 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     const governed = liveGovernedSession();
     const drifted = liveGovernedSession(driftDataset());
     try {
+      await governed.session.exportPortablePackage({}, undefined, { governedEvidence: true });
       const governedJson = governed.session.serialize();
       const driftedJson = drifted.session.serialize();
       expect(driftedJson.datasetFingerprint).not.toBe(governedJson.datasetFingerprint);
+      // Issue #834 falsifier: with a live kernel and a loaded dataset available,
+      // ordinary serialization still acquires nothing. A save-time capture here
+      // is exactly the module-global path this repair removes.
+      expect(driftedJson.evidenceReceiptSnapshot).toBeUndefined();
 
       const mismatched = {
         ...driftedJson,

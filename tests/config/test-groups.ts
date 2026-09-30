@@ -57,6 +57,8 @@ export const UI_ONLY_TESTS = [
 export const WASM_TESTS = [
   'tests/tec1-v3-package-wasm.test.ts',
   'tests/tec1-governed-export-wasm.test.ts',
+  'tests/tec1-governed-capture-authority-wasm.test.ts',
+  'tests/tec1-statistics-evidence-receipts.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',
