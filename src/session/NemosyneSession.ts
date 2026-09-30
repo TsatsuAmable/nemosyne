@@ -110,12 +110,18 @@ function base64Decode(encoded: string): Uint8Array {
 }
 
 /** Decodes and structurally validates a persisted evidence-receipt carrier. */
-function decodePersistedEvidenceReceiptSnapshot(encoded: string): Uint8Array {
+function decodePersistedEvidenceReceiptSnapshot(encoded: string): {
+  bytes: Uint8Array;
+  datasetFingerprint: string;
+} {
   const bytes = base64Decode(encoded);
-  parsePersistedEvidenceReceiptsV1(
+  const envelope = parsePersistedEvidenceReceiptsV1(
     JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
   );
-  return bytes;
+  // The identity the carrier attests travels with its bytes: serialization must
+  // be able to tell whether it still describes the committed dataset without
+  // re-parsing the envelope on every save.
+  return { bytes, datasetFingerprint: envelope.bundle.datasetFingerprint };
 }
 
 export class NemosyneSession {
@@ -125,6 +131,13 @@ export class NemosyneSession {
   private _researchContext: ResearchContext;
   private _nilOutcomes = new NoFeasibleRepresentationStore();
   private _evidenceReceiptBytes: Uint8Array | null = null;
+  /**
+   * The analytical dataset identity the carrier above attests, or null when
+   * there is no carrier. Kept beside the bytes so {@link serialize} can decide
+   * whether they still describe the state it is about to commit without parsing
+   * the envelope on every save.
+   */
+  private _evidenceReceiptIdentity: string | null = null;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
@@ -170,7 +183,15 @@ export class NemosyneSession {
 
   serialize(): NemosyneSessionJSON {
     const core = this._atlas.toState();
-    const evidenceReceiptSnapshot = this._governedEvidenceSnapshotBase64();
+    // The same analytical identity the governed export validates a carrier
+    // against, so serialization and export cannot disagree about which dataset
+    // the carrier describes.
+    const committedAnalyticalFingerprint =
+      core.datasetFingerprint ??
+      (core.originalDataset ? canonicalDatasetIdentityHex(core.originalDataset) : null);
+    const evidenceReceiptSnapshot = this._governedEvidenceSnapshotBase64(
+      committedAnalyticalFingerprint
+    );
     return {
       schemaVersion: 2,
       savedAt: (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0,
@@ -204,39 +225,46 @@ export class NemosyneSession {
   }
 
   /**
-   * Snapshot the Rust-issued receipt bundle for the current analytical state,
-   * falling back to a restored carrier when no port can attest one. A failed
-   * live capture keeps any restored carrier (never regresses to un-governed);
-   * governed exports re-validate identity against the committed analytical
-   * state before emitting a package.
+   * Serialize the receipt carrier this session already holds: one restored from
+   * a persisted snapshot, or one acquired by a governed export on this session
+   * (see {@link exportPortablePackage}).
    *
-   * Issue #834: acquisition is routed through the analytical execution port
-   * installed on Atlas right now, narrowed to its synchronous form because
-   * serialization is synchronous by contract. Only an inline port can satisfy
-   * that narrowing — it reads its own injected kernel instance. A port that owns
-   * a separate runtime (the production Worker) cannot answer synchronously and
-   * omits it, so such a session carries the carrier it already holds instead of
-   * acquiring evidence it could not synchronously attest. There is deliberately
-   * no module-global fallback: a refusal keeps the carrier rather than resolving
-   * through whatever runtime happened to be importable.
+   * Issue #834, record item (4) in `docs/ROADMAP.md`: serialization is a pure
+   * snapshot operation. It performs no analytical work and acquires nothing — it never
+   * reaches a kernel, a port, or a module-global bridge. Acquisition is
+   * asynchronous and happens in exactly one place, the governed export, so
+   * there is no second authority that could attest a state this session is not
+   * in. A session that has neither restored nor captured a carrier serializes
+   * without one, and a governed export of it fails closed rather than
+   * manufacturing evidence.
+   *
+   * `committedFingerprint` is the analytical identity the snapshot is about to
+   * commit. A carrier captured for some *other* dataset is omitted rather than
+   * persisted beside a fingerprint it does not describe: a capture is only ever
+   * adopted for the state that validated it, but the dataset can move on
+   * afterwards, and a snapshot that pairs evidence for dataset A with the
+   * identity of dataset B corrupts the artifact for the replay loader that will
+   * read it (RFC 0009 tranche 3). This is an identity comparison over bytes the
+   * session already holds — no parse of a foreign source, no acquisition.
    */
-  private _governedEvidenceSnapshotBase64(): string | null {
-    let bytes = this._evidenceReceiptBytes;
-    try {
-      bytes = this._atlas.captureGovernedEvidenceReceiptSync()?.bytes ?? bytes;
-    } catch {
-      // Preserve the restored carrier, if any; identity is re-checked at export.
+  private _governedEvidenceSnapshotBase64(committedFingerprint: string | null): string | null {
+    const bytes = this._evidenceReceiptBytes;
+    if (bytes === null || this._evidenceReceiptIdentity !== committedFingerprint) {
+      return null;
     }
-    return bytes === null ? null : base64Encode(bytes);
+    return base64Encode(bytes);
   }
 
   private _restoreEvidenceReceiptSnapshot(json: NemosyneSessionJSON): void {
     const encoded = json.evidenceReceiptSnapshot;
     if (encoded === undefined) {
       this._evidenceReceiptBytes = null;
+      this._evidenceReceiptIdentity = null;
       return;
     }
-    this._evidenceReceiptBytes = decodePersistedEvidenceReceiptSnapshot(encoded);
+    const restored = decodePersistedEvidenceReceiptSnapshot(encoded);
+    this._evidenceReceiptBytes = restored.bytes;
+    this._evidenceReceiptIdentity = restored.datasetFingerprint;
   }
 
   async exportPortablePackage(
@@ -275,7 +303,8 @@ export class NemosyneSession {
       throw new Error('Governed evidence export requires a boolean governedEvidence option');
     }
     if (governedOptions?.governedEvidence === true) {
-      evidenceReceiptBytes = await this._requireGovernedEvidenceBytes();
+      const acquisition = await this._requireGovernedEvidenceBytes();
+      evidenceReceiptBytes = acquisition.bytes;
       const envelope = parsePersistedEvidenceReceiptsV1(
         JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(evidenceReceiptBytes))
       );
@@ -305,6 +334,16 @@ export class NemosyneSession {
         datasetFingerprint: envelope.bundle.datasetFingerprint,
         kernelVersion: envelope.bundle.kernelVersion,
       };
+      if (acquisition.live) {
+        // The identity checks above accepted this live capture for this
+        // package's committed state, so it is now this session's carrier:
+        // ordinary serialization carries it later without acquiring anything
+        // itself (#834 record item (4)). Its attested identity is recorded with
+        // it, so a later serialization after the dataset moves on omits it
+        // rather than committing evidence that describes a superseded state.
+        this._evidenceReceiptBytes = acquisition.bytes;
+        this._evidenceReceiptIdentity = governedBundleIdentity.datasetFingerprint;
+      }
     }
 
     const investigationDigest = await this._atlas.aggregate.computeDigest(
@@ -399,8 +438,14 @@ export class NemosyneSession {
    * and the resolved bytes are always re-validated against the committed
    * analytical state by the caller, so a carrier that disagrees with this
    * package's dataset refuses instead of exporting.
+   *
+   * `live` reports whether these bytes came from the port rather than from a
+   * restored carrier. The caller adopts a live capture as this session's
+   * carrier, but only after the coherence checks pass — a capture the export
+   * rejects must not be remembered, or a later serialization would carry
+   * evidence for a state this session is not in.
    */
-  private async _requireGovernedEvidenceBytes(): Promise<Uint8Array> {
+  private async _requireGovernedEvidenceBytes(): Promise<{ bytes: Uint8Array; live: boolean }> {
     let bytes: Uint8Array | null = null;
     try {
       bytes = (await this._atlas.captureGovernedEvidenceReceipt())?.bytes ?? null;
@@ -408,6 +453,15 @@ export class NemosyneSession {
       // A drifted live capture does not silently satisfy the governed request
       // with unvalidated bytes: the identity coherence checks below reject any
       // carrier (restored or captured) that disagrees with the committed state.
+      //
+      // This catch is deliberately wider than drift. A port that *throws*
+      // (disposed, saturated, transport failure, identity mismatch) is a real
+      // fault, and swallowing it here means a governed export falls back to a
+      // restored carrier instead of surfacing the fault. That is accepted
+      // because #834 record item (5) sanctions exactly this fallback, and the
+      // fallback is still fully validated below — so the failure mode is a
+      // quieter signal, not a weaker admission rule. If acquisition faults ever
+      // need to be observable, record them here rather than narrowing the catch.
     }
     const resolved = bytes ?? this._evidenceReceiptBytes;
     if (!resolved) {
@@ -415,12 +469,7 @@ export class NemosyneSession {
         'Governed evidence export requires a Rust-issued statistics evidence receipt bundle; none is available for this session'
       );
     }
-    if (bytes) {
-      // Remember the authoritative capture so ordinary serialization can carry
-      // it later without acquiring anything itself.
-      this._evidenceReceiptBytes = bytes;
-    }
-    return resolved;
+    return { bytes: resolved, live: bytes !== null };
   }
 
   /** Export a persisted snapshot in isolation from the mutable live Atlas/session. */

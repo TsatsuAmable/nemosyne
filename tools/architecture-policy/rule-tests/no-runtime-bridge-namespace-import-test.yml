@@ -4,6 +4,27 @@ valid:
   - "import type { AnalyticalExecutionPort } from './AnalyticalExecutionPort.ts'"
   # A dynamic import expression is not a namespace binding, so it stays valid.
   - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
+  # The `wasm` segment is anchored, so a sibling directory merely containing
+  # `wasm/` is not a namespace route into the runtime.
+  - "import * as x from '../xwasm/index.ts'"
+  # A sibling whose name merely ends in `wasm` is not the runtime either, and
+  # `\b` must not turn another module under `wasm/` into the barrel.
+  - "import * as d from '../data-wasm/index.ts'"
+  - "import * as h from '../wasm/indexHelper.ts'"
 invalid:
   - "import * as bridge from '../../wasm/RuntimeBridge.ts'"
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
+  # The production barrel republishes the bridge's surface, so a namespace import
+  # of the barrel reaches the same module-global bindings. Keying on the literal
+  # `RuntimeBridge` left this alias unguarded.
+  - "import * as wasm from '../wasm/index.ts'"
+  - "import * as wasm from '../../wasm/index.ts'"
+  # The bare-directory spelling resolves to the same barrel under
+  # `moduleResolution: "bundler"`.
+  - "import * as wasm from '../wasm'"
+  - "import * as wasm from '../../wasm'"
+  # Separator variants a resolver treats as the same path.
+  - "import * as wasm from '../wasm/'"
+  - "import * as wasm from '../wasm/.'"
+  - "import * as wasm from '../wasm/./index.ts'"
+  - "import * as wasm from '../wasm//index.ts'"

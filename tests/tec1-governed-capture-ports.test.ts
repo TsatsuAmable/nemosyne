@@ -287,6 +287,25 @@ describe('WorkerAnalyticalPort governed-evidence capture (issue #834)', () => {
     await expect(first).resolves.toBeNull();
   });
 
+  it('recycles a Worker when the only outstanding work is a stale governed capture', async () => {
+    // A governed capture blocked behind synchronous WASM in a Worker is exactly
+    // the work recycling exists to cancel, so it must count toward the recycle
+    // decision on its own — not only alongside an execution or registration.
+    const transport = workerTransport();
+    const replacement = workerTransport();
+    const createReplacementWorker = vi.fn(() => replacement);
+    const port = new WorkerAnalyticalPort(transport, null, null, {}, createReplacementWorker);
+    const pending = port.captureGovernedEvidenceReceipt(captureRequest());
+    expect(createReplacementWorker).not.toHaveBeenCalled();
+
+    port.supersede({ generation: 2 });
+
+    expect(createReplacementWorker).toHaveBeenCalledTimes(1);
+    await expect(pending).resolves.toBeNull();
+    // The replacement carries the live handler, so a later answer still lands.
+    expect(replacement.onmessage).toBeTypeOf('function');
+  });
+
   it('rejects on a disposed port or a failing transport', async () => {
     const disposedTransport = workerTransport();
     const disposed = new WorkerAnalyticalPort(disposedTransport);

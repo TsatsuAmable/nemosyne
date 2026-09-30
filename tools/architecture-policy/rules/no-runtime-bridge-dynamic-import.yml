@@ -1,0 +1,62 @@
+id: no-runtime-bridge-dynamic-import
+language: TypeScript
+severity: error
+message: >-
+  Issue #834: `await import('…/RuntimeBridge.ts')` hands the caller the whole
+  runtime namespace, so it reaches any module-global analytical producer
+  without ever naming it — routing around both the import-level guard in
+  no-module-global-evidence-capture and the namespace-import guard. Analytical
+  authority reaches callers through the injected kernel contract and the
+  analytical execution port. Exactly one module is allowed to load the runtime
+  itself: the injection owner that installs a port over it.
+files:
+  - src/**/*.ts
+ignores:
+  - src/wasm/**/*.ts
+  # AnalyticalRuntimeOwner is the composition root that *installs* the port; it
+  # owns the runtime import/init and is the one legitimate dynamic consumer.
+  - src/vr/runtime/AnalyticalRuntimeOwner.ts
+rule:
+  kind: call_expression
+  all:
+    # ast-grep's `has` stops at immediate children by default, so the source
+    # string (a grandchild, under `arguments`) needs `stopBy: end`.
+    - has:
+        kind: import
+    # The source argument parses as `string` or as `template_string`, and the
+    # second form carried no guard: `` await import(`…/wasm/index.ts`) `` reached
+    # the same module-global surface while the scan stayed clean.
+    #
+    # The alternation matches the production barrel `src/wasm/index.ts` as well
+    # as the bridge, anchors the `wasm` segment so a sibling directory merely
+    # containing `wasm/` (`'../xwasm/index.ts'`, `'../data-wasm/index.ts'`) is
+    # not swept in, and accepts the separator variants a resolver treats as the
+    # same path (`'../wasm//index.ts'`, `'../wasm/./index.ts'`). The second
+    # alternative covers the bare-directory spelling (`'../wasm'`, `'../wasm/'`,
+    # `'../wasm/.'`), which resolves to the same barrel under
+    # `moduleResolution: "bundler"`; `\b` alone cannot express it without
+    # over-matching every other module under `wasm/`. Neither alternative
+    # normalizes *interior* traversal (`'../wasm/x/../index.ts'`).
+    - any:
+        - has:
+            kind: string
+            regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
+            stopBy: end
+        - has:
+            kind: template_string
+            regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
+            stopBy: end
+        # A *partially* interpolated specifier is a reach no literal form can
+        # decide: `` import(`../wasm/${name}.ts`) `` resolves to the barrel
+        # whenever `name` is `index`, and nothing static can rule that out. The
+        # guard errs closed on any `/wasm/`-prefixed template with a
+        # substitution — the same deliberate over-block the session rule accepts
+        # for type-only forms, and cheaper than the alternative of letting the
+        # one spelling nobody can adjudicate through. A *fully* computed
+        # specifier (`await import(specifierVar)`) carries no literal at all and
+        # is out of reach of any static guard; the #834 record states that
+        # rather than implying the guard decides it.
+        - has:
+            kind: template_string
+            regex: "/wasm((/\\.)*/)+\\$\\{|/wasm[/.]*\\$\\{"
+            stopBy: end

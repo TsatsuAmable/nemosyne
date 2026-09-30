@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
-import { ColumnType } from '../src/data/Dataset.ts';
+import { ColumnType, Dataset } from '../src/data/Dataset.ts';
+import { canonicalDatasetIdentityHex } from '../src/data/DatasetIdentity.ts';
+import type { DatasetJSON } from '../src/data/types.ts';
 import {
   NemosyneSession,
   type NemosyneSessionJSON,
@@ -14,18 +16,33 @@ import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
  * without a Rust runtime.
  */
 
-const DATASET_JSON = {
+const DATASET_JSON: DatasetJSON = {
   name: 'tec1-governed-carrier',
   columns: [{ name: 'x', type: ColumnType.NUMERIC }],
   rows: [{ x: 1 }, { x: 2 }],
 };
+
+/**
+ * The analytical identity this dataset actually has.
+ *
+ * A kernel-less session has no Rust kernel to supply one, so the identity it
+ * commits is the canonical cross-language projection of the dataset content
+ * (`AnalyticalState.getFingerprint`). A carrier attesting any other fingerprint
+ * describes a *different* dataset, and serialization omits it rather than
+ * persisting evidence for dataset A beside the identity of dataset B.
+ *
+ * Derived rather than written as a literal so the fixture stays coherent with
+ * `DATASET_JSON` by construction: a hand-written value here would silently
+ * turn these fixtures into carriers for a dataset that does not exist.
+ */
+const DATASET_IDENTITY = canonicalDatasetIdentityHex(DATASET_JSON);
 
 function minimalSessionJson(): NemosyneSessionJSON {
   return {
     schemaVersion: 2,
     savedAt: 0,
     datasetVersion: 1,
-    datasetFingerprint: 'carrier-fingerprint',
+    datasetFingerprint: DATASET_IDENTITY,
     originalDataset: DATASET_JSON,
     currentDataset: DATASET_JSON,
     datasetSpace: null,
@@ -57,7 +74,7 @@ function validSyntheticEnvelope(): Record<string, unknown> {
     schemaVersion: '1',
     bundle: {
       schemaVersion: '1',
-      datasetFingerprint: 'carrier-fingerprint',
+      datasetFingerprint: DATASET_IDENTITY,
       kernelVersion: 'kernel',
       receipts: [
         {
@@ -83,7 +100,7 @@ function validSyntheticEnvelope(): Record<string, unknown> {
             method: 'descriptive/finite-numeric',
             methodVersion: 'statistics-v1',
             kernelVersion: 'kernel',
-            datasetFingerprint: 'carrier-fingerprint',
+            datasetFingerprint: DATASET_IDENTITY,
             parameters: [],
           },
         },
@@ -137,6 +154,30 @@ describe('TEC1 governed evidence session carrier', () => {
     const json = { ...minimalSessionJson(), evidenceReceiptSnapshot: carrier };
     const restored = kernellessSession(json);
     expect(restored.serialize().evidenceReceiptSnapshot).toBe(carrier);
+  });
+
+  it('omits a carrier once the dataset no longer matches the identity it attests', () => {
+    // The counterpart to the verbatim round trip above, and the reason that
+    // test is not vacuous: the carrier survives only while it still describes
+    // the dataset the snapshot commits. The WASM lane pins this against a live
+    // Rust kernel; here the same rule is pinned kernel-lessly, where the
+    // committed identity is the canonical content projection, so removing the
+    // identity comparison fails in the fast lane too.
+    const carrier = carrierFor(JSON.stringify(validSyntheticEnvelope()));
+    const json = { ...minimalSessionJson(), evidenceReceiptSnapshot: carrier };
+    const restored = kernellessSession(json);
+    expect(restored.serialize().evidenceReceiptSnapshot).toBe(carrier);
+
+    restored.atlas.loadDataset(
+      new Dataset('tec1-governed-carrier-drifted', [{ name: 'x', type: ColumnType.NUMERIC }], [
+        { x: 42 },
+        { x: 43 },
+      ])
+    );
+
+    const drifted = restored.serialize();
+    expect(drifted.evidenceReceiptSnapshot).toBeUndefined();
+    expect(drifted.datasetFingerprint).not.toBe(DATASET_IDENTITY);
   });
 
   it('keeps the default portable export on the V2 contract without receipts', async () => {

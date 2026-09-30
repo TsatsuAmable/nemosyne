@@ -22,6 +22,17 @@ rule:
     - has:
         kind: namespace_import
         stopBy: end
+    # The alternation also matches the production barrel `src/wasm/index.ts`,
+    # which republishes the bridge's surface. Keying on the literal
+    # `RuntimeBridge` alone let a namespace import of the barrel reach the same
+    # module-global bindings while the scan stayed clean.
+    #
+    # The leading `/` anchors the `wasm` segment, so a sibling directory merely
+    # containing `wasm/` (`'../xwasm/index.ts'`, `'../data-wasm/index.ts'`) is not
+    # swept in, and `((/\.)*/)+` accepts the separator variants a resolver treats
+    # as the same path. The second alternative covers the bare-directory spelling
+    # (`'../wasm'`, `'../wasm/'`, `'../wasm/.'`), which resolves to the same
+    # barrel under `moduleResolution: "bundler"`.
     - has:
         kind: string
-        regex: RuntimeBridge
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"

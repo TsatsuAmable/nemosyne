@@ -3,18 +3,53 @@ language: TypeScript
 severity: error
 message: >-
   Issue #834: governed evidence capture must be acquired through the injected
-  analytical execution port, never from a module-global producer. Importing the
-  RuntimeBridge producer binding re-creates the singleton path that let a
-  governed export succeed through authority the caller never injected — and that
-  path is invisible to callers, because the runtime it reaches is decided by the
-  module graph rather than by the port installed on the caller. Read the producer
-  from the injected kernel contract instead (AnalyticalKernelPort), which the
-  inline port satisfies with its own kernel instance and the analytical Worker
-  satisfies with its own runtime.
+  analytical execution port, never from a module-global producer. Importing or
+  re-exporting the RuntimeBridge producer binding re-creates the singleton path
+  that let a governed export succeed through authority the caller never
+  injected — and that path is invisible to callers, because the runtime it
+  reaches is decided by the module graph rather than by the port installed on
+  the caller. Read the producer from the injected kernel contract instead
+  (AnalyticalKernelPort), which the inline port satisfies with its own kernel
+  instance and the analytical Worker satisfies with its own runtime.
 files:
   - src/**/*.ts
 ignores:
-  - src/wasm/**/*.ts
+  # Only the two files where the binding legitimately *is* the bridge: its
+  # definition and the bridge barrel that republishes it. A blanket
+  # `src/wasm/**` exemption would let any other file there launder the producer
+  # (`src/wasm/helper.ts` re-exports it; a src/ file imports the helper and the
+  # scan stays clean), which is the same class of hole this rule exists to close.
+  - src/wasm/runtime/DatasetHandleBridge.ts
+  - src/wasm/RuntimeBridge.ts
 rule:
-  kind: import_specifier
-  regex: statisticsEvidenceReceiptBundle
+  any:
+    # `import { statisticsEvidenceReceiptBundle } from …`, including the aliased
+    # `… as produce` form (the specifier node then carries the whole text).
+    - kind: import_specifier
+      regex: statisticsEvidenceReceiptBundle
+    # `export { statisticsEvidenceReceiptBundle } from …` — a barrel re-export
+    # reaches the same binding without ever naming it at the use site.
+    - kind: export_specifier
+      regex: statisticsEvidenceReceiptBundle
+    # `export * from '…RuntimeBridge…'` / `export * as ns from …` — a star
+    # barrel is the one republishing form that produces neither node above, so
+    # without this branch the module is reachable again through a namespace
+    # import of the barrel.
+    #
+    # The alternation also matches the production barrel `src/wasm/index.ts`,
+    # which republishes the bridge's surface and today happens to omit
+    # `statisticsEvidenceReceiptBundle`. A star re-export of that barrel
+    # republishes the producer the moment it is added, silently, so the guard
+    # closes the route now rather than depending on the barrel's current
+    # contents.
+    #
+    # The leading `/` anchors the `wasm` segment so a sibling directory merely
+    # containing `wasm/` is not swept in, and `((/\.)*/)+` accepts the separator
+    # variants a resolver treats as the same path. The second alternative covers
+    # the bare-directory spelling (`'../wasm'`, `'../wasm/'`, `'../wasm/.'`),
+    # which resolves to the same barrel under `moduleResolution: "bundler"`.
+    - kind: export_statement
+      regex: 'export\s*\*'
+      has:
+        kind: string
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"

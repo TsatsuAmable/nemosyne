@@ -1,0 +1,47 @@
+id: no-runtime-bridge-dynamic-import
+valid:
+  - "const { installDevEvidence } = await import('./devEvidence.ts')"
+  - "const { KernelUnavailableError } = await import('../wasm/runtime/RuntimeState.ts')"
+  # A static import is not a dynamic namespace reach; the other two rules
+  # decide those cases on what they name.
+  - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
+  - "import type { AnalyticalExecutionPort } from './AnalyticalExecutionPort.ts'"
+  # Another wasm module is not the runtime bridge, and the `wasm` segment is
+  # anchored, so a sibling directory merely containing `wasm/` is not a route
+  # either.
+  - "const codec = await import('../wasm/TypedColumnsCodec.ts')"
+  - "const other = await import('../xwasm/index.ts')"
+  # A sibling whose name merely ends in `wasm` is not the runtime either, and
+  # `\b` must not turn another module under `wasm/` into the barrel.
+  - "const sibling = await import('../data-wasm/index.ts')"
+  - "const helper = await import('../wasm/indexHelper.ts')"
+  # A fully computed specifier carries no literal, so no static rule can decide
+  # it. It is a stated limit of the guard, not a case this rule claims.
+  - "const computed = await import(specifierVar)"
+  - "const siblingTemplate = await import(`../data-wasm/${name}.ts`)"
+invalid:
+  - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
+  - "const bridge = await import('../wasm/RuntimeBridge.ts')"
+  - "importRuntime = () => import('../../wasm/RuntimeBridge.ts')"
+  # The production barrel republishes the bridge's surface, so a dynamic import
+  # of it reaches the same module-global bindings. Keying on the literal
+  # `RuntimeBridge` left this alias unguarded.
+  - "const bridge = await import('../wasm/index.ts')"
+  # The bare-directory spelling resolves to the same barrel.
+  - "const bridge = await import('../wasm')"
+  # A template literal is a `template_string` node, not a `string` node, so the
+  # string-only branch missed this spelling of the same reach.
+  - "const bridge = await import(`../wasm/index.ts`)"
+  - "const bridge = await import(`../wasm`)"
+  - "const bridge = await import(`../../wasm/RuntimeBridge.ts`)"
+  # Separator variants a resolver treats as the same path: a trailing slash, a
+  # doubled slash and an interior `./` segment.
+  - "const bridge = await import('../wasm/')"
+  - "const bridge = await import('../wasm//index.ts')"
+  - "const bridge = await import(`../wasm/./index.ts`)"
+  # A partially interpolated specifier cannot be adjudicated statically: this
+  # resolves to the barrel whenever `name` is `index`. The guard errs closed, so
+  # a template that interpolates after the `wasm` directory fires as well.
+  - "const a = await import(`../wasm/${name}.ts`)"
+  - "const b = await import(`../wasm/${'index'}.ts`)"
+  - "const c = await import(`../wasm/${name}`)"
