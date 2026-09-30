@@ -65,6 +65,34 @@ The following are therefore restored as explicit product-development threads:
 
 Every recovered feature must earn its place through usability, comprehension, discovery or research value. Decorative complexity is not a success criterion.
 
+## 3.1 Architecture-preflight rule
+
+Do not create a standing architecture programme. Use a compact preflight only when the next implementation tranche crosses a durable authority, identity, persistence, learning, distributed-state or search seam that would be expensive to reverse after code lands.
+
+A preflight is triggered **immediately before its implementation frontier**, not months in advance. It should normally produce one short ADR/design note that states:
+
+- authority/ownership boundaries;
+- durable identities and versioned contracts;
+- data/control flow and replay implications;
+- failure/refusal behaviour;
+- migration/compatibility consequences;
+- the smallest competing alternatives worth preserving;
+- executable falsifiers or evidence that can reverse the decision.
+
+Stop the preflight once the implementation boundary is unambiguous. Reuse existing architecture instead of restating it. Routine feature work and already-designed seams do not require another preflight.
+
+Current triggers:
+
+| Trigger | Fires before | Minimum decision required |
+| --- | --- | --- |
+| **AP-INV — Investigation graph / branching** | first FM1 implementation that persists versioned intent, and before FM2 branch activation | canonical investigation node/edge identity; immutable history vs working state; branch/merge/revisit semantics; representation correspondence; Memory Palace/Farcaster projections; replay rules |
+| **AP-SEMRES — Semantic resolution / budget broker** | first FM4 adaptive-resolution implementation | semantic invariants; degradable dimensions; explicit information-loss contract; capability/resource budget vocabulary; admission/eviction/reconstruction ownership; phenotype negotiation |
+| **AP-LEARN — Learning-evidence architecture** | PT9/FM6 corpus construction or outcome-attribution implementation | preference vs discovery-outcome evidence; legitimate targets; attribution/credit; leakage and feedback-loop controls; grouping/holdouts; promotion/decay/rollback |
+| **AP-SEARCH — Representation search/synthesis** | first FM7 grammar/search implementation | grammar authority; search-state/lineage identity; objective vector; constraint/admission boundary; Pareto semantics; budget/stopping rules; deterministic baseline; MCR7 genome handoff |
+| **AP-COLLAB — Collaboration / recurrence** | first FM6+ shared-branch or cross-investigation recurrence implementation | shared/private state; attribution; conflict semantics; permissions; recurrence/similarity identity; explicit rule that convergence/retrieval is not scientific validation |
+
+FM0/P1-TEC and MCR0-MCR7 do **not** receive new general preflights merely because they are consequential: they already have substantial governing architecture. Use focused design review only if implementation exposes a new seam not covered by those contracts.
+
 ## 4. Capability increments
 
 ### FM0 — Trustworthy Moneta
@@ -93,6 +121,8 @@ Researcher-visible experience:
 **STOP/REVISE question:** Is evidence governance understandable enough that it increases trust rather than merely adding internal machinery?
 
 ### FM1 — Question-Aware Moneta
+
+**Architecture preflight:** trigger **AP-INV** before the first implementation that makes intent/branch state durable. The resulting contract must also govern FM2 rather than allowing FM1 and FM2 to invent separate history models.
 
 **Product promise:** “Nemosyne represents the dataset in relation to what I am trying to understand.”
 
@@ -181,6 +211,8 @@ Spatial epistemology checkpoint:
 
 ### FM4 — Resolution-Adaptive Moneta / Stickman ↔ Mona Lisa
 
+**Architecture preflight:** trigger **AP-SEMRES** immediately before adaptive semantic-resolution implementation. Ordinary renderer LOD work does not satisfy this decision.
+
 **Product promise:** “The same investigation remains meaningful on constrained and powerful hardware, while stronger hardware exposes more useful semantic depth.”
 
 Required implementation:
@@ -245,6 +277,8 @@ Researcher-visible experience:
 **STOP/REVISE question:** Do small learned reflexes reduce interaction/search cost enough to justify their runtime, data and governance complexity, or should Nemosyne remain deterministic at that seam?
 ### FM6 — Human-Refined Moneta
 
+**Architecture preflight:** trigger **AP-LEARN** before PT9/FM6 builds a new learning corpus or attributes discovery outcomes to representations. Trigger **AP-COLLAB** separately only when shared-branch/cross-investigation recurrence implementation reaches the frontier.
+
 **Product promise:** “Nemosyne learns from what researchers actually found useful and defensible, not merely from what they clicked.”
 
 Required implementation:
@@ -275,6 +309,8 @@ Memory Palace extension:
 **STOP/REVISE question:** Is learning improving discovery support rather than merely reproducing user preference?
 
 ### FM7 — Searching Moneta
+
+**Architecture preflight:** trigger **AP-SEARCH** before implementing the grammar/search loop. MCR7 defines the production handoff seam but does not by itself define the search architecture.
 
 **Product promise:** “Nemosyne can construct and search new bounded representation hypotheses rather than selecting only from a hand-authored catalogue.”
 
