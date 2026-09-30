@@ -8,10 +8,11 @@ message: >-
   `h.statisticsEvidenceReceiptBundle` where `h` is a namespace alias of a barrel
   that republishes the bridge — reaches whichever runtime the module graph
   resolved, not the one the caller injected, so a governed export could succeed
-  under authority the caller never chose. The read form is what makes this total:
-  a star barrel, a namespace alias, a computed subscript or a `Reflect.get`
-  cannot avoid naming the property at the point of use. Read it from the injected
-  kernel instead (AnalyticalKernelPort).
+  under authority the caller never chose. A read names the property at the point
+  of use, as a member access, a subscript or a string literal, so a star barrel,
+  a namespace alias or a `Reflect.get` cannot reach it without the name taking
+  one of those three forms. Read it from the injected kernel instead
+  (AnalyticalKernelPort).
 files:
   - src/**/*.ts
 ignores:
