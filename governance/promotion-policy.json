@@ -3,17 +3,16 @@
   "repository": "TsatsuAmable/nemosyne",
   "branch": "main",
   "intendedPolicy": {
-    "rulesetName": "Protect main — require PR + CI + approval-gate",
+    "rulesetName": "Protect main \u2014 require PR + CI + approval-gate",
     "enforcement": "active",
-    "requiredStatusChecks": [
-      "Node 24",
-      "CodeQL SAST (javascript-typescript)",
-      "approval-gate"
-    ],
+    "requiredStatusChecks": ["Node 24", "CodeQL SAST (javascript-typescript)", "approval-gate"],
     "requiredReviewThreadResolution": true,
     "requiredApprovingReviewCount": 0,
     "approvalAuthority": "approval-gate workflow (owner approval plus exact-head promotion evidence on the still-open PR)",
     "promotionEvidenceMarker": "Exact-head promotion evidence verified",
-    "headRevocation": "Any head movement revokes promotion evidence until re-verified"
+    "headRevocation": "Any head movement revokes promotion evidence until re-verified",
+    "requireBranchUpToDate": false,
+    "allowedMergeMethods": ["merge"],
+    "integrationStrategy": "Verify and review the immutable PR head; for proven-disjoint tranches, merge that head into current main with a merge commit without requiring latest-main ancestry. Head movement still revokes exact-head evidence."
   }
 }

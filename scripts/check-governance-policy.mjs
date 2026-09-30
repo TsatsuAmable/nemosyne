@@ -69,20 +69,48 @@ for (const check of intendedCheckSet) {
   if (!liveCheckSet.has(check)) fail(`required check "${check}" is not enforced live`);
 }
 for (const check of liveCheckSet) {
-  if (!intendedCheckSet.has(check)) fail(`live required check "${check}" is not declared in intended policy`);
+  if (!intendedCheckSet.has(check))
+    fail(`live required check "${check}" is not declared in intended policy`);
 }
 
 // 3. Review-thread resolution is enforced.
-if (pullRequestRule?.parameters?.required_review_thread_resolution !== intended.requiredReviewThreadResolution) {
+if (
+  pullRequestRule?.parameters?.required_review_thread_resolution !==
+  intended.requiredReviewThreadResolution
+) {
   fail(
     `review-thread resolution drift: intended ${intended.requiredReviewThreadResolution}, live ${pullRequestRule?.parameters?.required_review_thread_resolution}`
   );
 }
 
 // 4. Approving-review count matches the declared authority.
-if (pullRequestRule?.parameters?.required_approving_review_count !== intended.requiredApprovingReviewCount) {
+if (
+  pullRequestRule?.parameters?.required_approving_review_count !==
+  intended.requiredApprovingReviewCount
+) {
   fail(
     `approving-review-count drift: intended ${intended.requiredApprovingReviewCount}, live ${pullRequestRule?.parameters?.required_approving_review_count}`
+  );
+}
+
+// 5. Parallel integration policy: exact-head evidence is independent of latest-main ancestry.
+const strictStatus = checksRule?.parameters?.strict_required_status_checks_policy ?? false;
+if (strictStatus !== intended.requireBranchUpToDate) {
+  fail(
+    `strict-status drift: intended requireBranchUpToDate=${intended.requireBranchUpToDate}, live strict_required_status_checks_policy=${strictStatus}`
+  );
+}
+
+// 6. Merge method is explicit. Merge commits preserve the verified PR head as a parent
+// while allowing current main to advance independently for proven-disjoint tranches.
+const liveMergeMethods = pullRequestRule?.parameters?.allowed_merge_methods ?? [];
+const intendedMergeMethods = intended.allowedMergeMethods ?? [];
+if (
+  liveMergeMethods.length !== intendedMergeMethods.length ||
+  intendedMergeMethods.some((method) => !liveMergeMethods.includes(method))
+) {
+  fail(
+    `merge-method drift: intended [${intendedMergeMethods.join(', ')}], live [${liveMergeMethods.join(', ')}]`
   );
 }
 
@@ -99,6 +127,8 @@ console.log(
       requiredChecks: liveChecks,
       reviewThreadResolution: pullRequestRule?.parameters?.required_review_thread_resolution,
       requiredApprovingReviewCount: pullRequestRule?.parameters?.required_approving_review_count,
+      requireBranchUpToDate: strictStatus,
+      allowedMergeMethods: liveMergeMethods,
       approvalAuthority: intended.approvalAuthority,
       drift: false,
     },
