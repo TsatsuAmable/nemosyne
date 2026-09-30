@@ -1,5 +1,11 @@
 export const FAST_NODE_TESTS = [
   'tests/tec1-v3-package.test.ts',
+  // Registered here by the #834 corrective lane, which owns this file: #842
+  // landed this kernel-less consumer-policy binding test deliberately
+  // unregistered because the seam was held by the in-flight #834 branch. It
+  // still ran in the integration lane, which globs; this puts it in the fast
+  // lane its author intended.
+  'tests/tec1-consumer-policy.test.ts',
   'tests/tec1-governed-export.test.ts',
   'tests/tec1-governed-capture-ports.test.ts',
   'tests/tec1-f1-governed-replay.test.ts',
