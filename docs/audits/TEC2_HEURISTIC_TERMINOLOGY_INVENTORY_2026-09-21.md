@@ -573,3 +573,29 @@ Integration-lane suites covering every consumer of the canonical signature path 
 - **Q2** — re-verified: `MonetaEmpiricalTuner` and `EvidenceInformedRecommender` still have no production caller (their own modules, the barrel re-exports, and `tests/draco-empirical-tuner.test.ts` / `tests/research-position-draco-hardware.test.ts` only); the durable disposition recorded in the Q4/Q5 closure record above stands unchanged. This slice does not touch them.
 - **Q3** — `EvidenceReceiptStabilityV1` remains honest-null; populating it requires a real resampling stability implementation that does not exist (implementation-sequence step 8 in `docs/STATISTICAL_FOUNDATIONS.md`; promotable stability remains governed by RFC 0006). Not populated by this slice.
 - **Q6** — re-verified negative: no investigator-visible label surfaces any inventoried field. A full `src/**` scan at this head finds remaining `confidence`/`significance` tokens only where honest: researcher self-reported judgement vocabulary (`DiscoveryEpisode`, `EpistemicObject`, `Finding.confidence: 'preliminary'|'validated'|'definitive'`), interaction-layer intent-parse match scores (`IntentCompiler`, TypeScript-owned orchestration per boundary 3, not analytical evidence), hardware gesture-recognition confidence, and `PromotionGate`'s `GROUP_WIN_EVIDENCE_NOT_SIGNIFICANT`, which is backed by an actual one-sided exact sign-test p-value over independent groups — an explicit testing procedure, satisfying the governing principle 8.
+
+---
+
+## Q2 dormancy re-verification (2026-09-30)
+
+Fresh audit at `main@19daddea` (post-#845) confirms the durable Q2 disposition stands unchanged: `MonetaEmpiricalTuner`, `EvidenceInformedRecommender`, and the `draco_adjust_evidence` bridge path remain dormant with no production caller.
+
+Branch: `docs/tec2-q2-dormancy-confirm`. Base: `main@19daddea`.
+
+### Scan performed (re-runnable falsifiers)
+
+Repo-wide token scans at this head return closed sets — any future production caller appears here first:
+
+- `MonetaEmpiricalTuner` in `src tests wasm/src`: only the class definition and `DracoEmpiricalTuner` alias (`src/moneta/evidence/MonetaEmpiricalTuner.ts:25,133`), the barrel re-export (`src/moneta/evidence/index.ts:3`), and its own suite (`tests/draco-empirical-tuner.test.ts:3`).
+- `EvidenceInformedRecommender` in `src tests`: only the class definition (`src/moneta/EvidenceInformedRecommender.ts:18`), the barrel re-export (`src/moneta/index.ts:12`), and its own suite (`tests/research-position-draco-hardware.test.ts:4,27`).
+- `adjustMonetaEvidence|adjustDracoEvidence` in `src`: only the bridge definition and alias (`src/wasm/runtime/KernelContractBridge.ts:119,135`) and the facade re-exports (`src/wasm/RuntimeBridge.ts:90-91`). No module under `src/vr/**`, `src/app/**`, `src/atlas/**`, or `src/moneta/**` calls either name; the sole runtime path to the Rust authority remains the thin transport asserted by `tests/runtime-bridge-module-boundaries.test.ts` and `tests/wasm-runtime.test.ts`.
+
+Neither adjuster reimplements the Rust cost adjustment and neither module has churned: both adjuster files are untouched since #221, still aggregate human study outcomes into study-outcome weights (TypeScript-owned interaction/orchestration data under `AGENTS.md` boundary 3, not analytical dataset facts), and the `EvidenceInformedRecommender` layout priors remain an unwired preference table. Dormancy plus boundary-3 ownership means deletion is still not warranted.
+
+### Verification performed
+
+`tests/draco-empirical-tuner.test.ts`, `tests/research-position-draco-hardware.test.ts`, and `tests/evidence-draco.test.ts` (8 tests) plus `tests/moneta-evidence-scorer-authority.test.ts` (4 tests) pass at this head. `docs:check` passes. No production code, kernel, ABI, wire, or persistence surface changed by this slice.
+
+### Disposition
+
+Q2 remains an open product decision: delete, wire, or retain the dormant adjusters. This record confirms dormancy; it does not close TEC2, and Q3/Q6 stand as previously recorded.
