@@ -1,0 +1,9 @@
+id: no-runtime-bridge-namespace-import
+valid:
+  - "import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts'"
+  - "import type { AnalyticalExecutionPort } from './AnalyticalExecutionPort.ts'"
+  # A dynamic import expression is not a namespace binding, so it stays valid.
+  - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
+invalid:
+  - "import * as bridge from '../../wasm/RuntimeBridge.ts'"
+  - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"

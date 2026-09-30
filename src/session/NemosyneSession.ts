@@ -204,15 +204,30 @@ export class NemosyneSession {
   }
 
   /**
-   * Issue #834: ordinary serialization only *preserves* a carrier that was
-   * already restored or authoritatively captured. It must not acquire evidence
-   * itself — a synchronous capture at save time would resolve through whatever
-   * analytical authority happened to be reachable, bypassing the injected
-   * execution port and revocability along with it. Governed acquisition
-   * happens in `exportPortablePackage` through that port.
+   * Snapshot the Rust-issued receipt bundle for the current analytical state,
+   * falling back to a restored carrier when no port can attest one. A failed
+   * live capture keeps any restored carrier (never regresses to un-governed);
+   * governed exports re-validate identity against the committed analytical
+   * state before emitting a package.
+   *
+   * Issue #834: acquisition is routed through the analytical execution port
+   * installed on Atlas right now, narrowed to its synchronous form because
+   * serialization is synchronous by contract. Only an inline port can satisfy
+   * that narrowing — it reads its own injected kernel instance. A port that owns
+   * a separate runtime (the production Worker) cannot answer synchronously and
+   * omits it, so such a session carries the carrier it already holds instead of
+   * acquiring evidence it could not synchronously attest. There is deliberately
+   * no module-global fallback: a refusal keeps the carrier rather than resolving
+   * through whatever runtime happened to be importable.
    */
   private _governedEvidenceSnapshotBase64(): string | null {
-    return this._evidenceReceiptBytes === null ? null : base64Encode(this._evidenceReceiptBytes);
+    let bytes = this._evidenceReceiptBytes;
+    try {
+      bytes = this._atlas.captureGovernedEvidenceReceiptSync()?.bytes ?? bytes;
+    } catch {
+      // Preserve the restored carrier, if any; identity is re-checked at export.
+    }
+    return bytes === null ? null : base64Encode(bytes);
   }
 
   private _restoreEvidenceReceiptSnapshot(json: NemosyneSessionJSON): void {

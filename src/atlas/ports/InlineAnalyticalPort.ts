@@ -50,6 +50,29 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
   async captureGovernedEvidenceReceipt(
     req: GovernedEvidenceCaptureRequest
   ): Promise<GovernedEvidenceCaptureV1 | null> {
+    return this._readGovernedEvidenceReceipt(req);
+  }
+
+  /**
+   * Synchronous narrowing required by session serialization (see
+   * {@link AnalyticalExecutionPort.captureGovernedEvidenceReceiptSync}). An
+   * inline port shares the caller's kernel instance and thread, so the same read
+   * that satisfies the async form also satisfies this one — there is no second
+   * acquisition path and no module-global fallback.
+   */
+  captureGovernedEvidenceReceiptSync(
+    req: GovernedEvidenceCaptureRequest
+  ): GovernedEvidenceCaptureV1 | null {
+    return this._readGovernedEvidenceReceipt(req);
+  }
+
+  /**
+   * The single governed-evidence read, shared by both public forms so the sync
+   * and async paths cannot drift into different authority or refusal semantics.
+   */
+  private _readGovernedEvidenceReceipt(
+    req: GovernedEvidenceCaptureRequest
+  ): GovernedEvidenceCaptureV1 | null {
     if (this._isStale(req.generation, req.dataset.version)) return null;
 
     const handle = req.handle ?? this._handleMap.get(req.dataset.fingerprint);

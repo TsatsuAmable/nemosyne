@@ -70,7 +70,7 @@ import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
-import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload } from './ports/AnalyticalExecutionPort.ts';
+import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload, GovernedEvidenceCaptureV1 } from './ports/AnalyticalExecutionPort.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 
 export { KernelUnavailableError };
@@ -375,15 +375,59 @@ export class AtlasCore {
     });
     if (!capture) return null;
 
-    // The capture is only authoritative for the state it was requested
-    // against; anything the await let move is a refusal, not evidence.
+    return this._composeGovernedEvidence(capture, { generation, version, fingerprint });
+  }
+
+  /**
+   * Synchronous governed-evidence capture, for the one caller that cannot
+   * await: ordinary session serialization. It is not a second authority path —
+   * it is the same read through the same installed port, narrowed to ports that
+   * can answer on this thread.
+   *
+   * A port that owns a separate runtime cannot: `WorkerAnalyticalPort` omits the
+   * sync narrowing, `isAsync` refuses here, and the outcome is the carrier the
+   * session already holds rather than evidence that could not be synchronously
+   * attested. Reaching a module global to "fill the gap" is exactly the
+   * pre-#834 defect, so a refusal stays a refusal.
+   */
+  captureGovernedEvidenceReceiptSync(): GovernedEvidenceReceiptSnapshotV1 | null {
+    const port = this._executionPort;
+    if (!port || port.isAsync || !port.captureGovernedEvidenceReceiptSync) return null;
+
+    const fingerprint = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const generation = this._generation;
+    const handle = this._aggregate.analytical.currentHandle;
+    if (!fingerprint || !handle || !this.kernelVersion()) return null;
+
+    const capture = port.captureGovernedEvidenceReceiptSync({
+      requestId: `scap-${++this._requestSeq}`,
+      dataset: { fingerprint, version },
+      generation,
+      handle,
+    });
+    if (!capture) return null;
+
+    return this._composeGovernedEvidence(capture, { generation, version, fingerprint });
+  }
+
+  /**
+   * Admit a port readout only when it still describes the state it was
+   * requested against. Shared by the sync and async forms so neither can drift
+   * into a weaker admission rule; a stale or substituted readout refuses rather
+   * than composing evidence for a state this Atlas is no longer in.
+   */
+  private _composeGovernedEvidence(
+    capture: GovernedEvidenceCaptureV1,
+    expected: { generation: number; version: number; fingerprint: string },
+  ): GovernedEvidenceReceiptSnapshotV1 | null {
     if (
-      generation !== this._generation ||
-      capture.generation !== generation ||
-      capture.datasetVersion !== version ||
-      version !== this.datasetVersion ||
-      capture.datasetFingerprint !== fingerprint ||
-      fingerprint !== (this.datasetFingerprint ?? '')
+      expected.generation !== this._generation ||
+      capture.generation !== expected.generation ||
+      capture.datasetVersion !== expected.version ||
+      expected.version !== this.datasetVersion ||
+      capture.datasetFingerprint !== expected.fingerprint ||
+      expected.fingerprint !== (this.datasetFingerprint ?? '')
     ) {
       return null;
     }

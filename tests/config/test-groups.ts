@@ -1,6 +1,7 @@
 export const FAST_NODE_TESTS = [
   'tests/tec1-v3-package.test.ts',
   'tests/tec1-governed-export.test.ts',
+  'tests/tec1-governed-capture-ports.test.ts',
   'tests/tec1-f1-governed-replay.test.ts',
   'tests/tec1-f1-replay-attestation-text.test.ts',
   'tests/tec1-f1-continuity-attestation.test.ts',

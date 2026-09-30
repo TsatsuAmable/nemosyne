@@ -215,6 +215,26 @@ export interface AnalyticalExecutionPort {
     req: GovernedEvidenceCaptureRequest
   ): Promise<GovernedEvidenceCaptureV1 | null>;
   /**
+   * Synchronous narrowing of {@link captureGovernedEvidenceReceipt}, for the one
+   * caller that cannot await: ordinary session serialization, which is
+   * synchronous by contract.
+   *
+   * It is safe *only* because a port that owns a separate runtime cannot answer
+   * it — such a port omits this member, so a Worker-backed session serializes
+   * the carrier it already holds rather than acquiring evidence it could not
+   * synchronously attest. A port that implements it must therefore be reading a
+   * kernel instance that is callable on the calling thread, i.e. the injected
+   * inline kernel; it must never be implemented by reaching a module global,
+   * which is the pre-#834 defect this whole seam exists to remove.
+   *
+   * Same refusal semantics as the async form: null when the capability is
+   * absent, the dataset is not resident, the identity moved, or the fence is
+   * stale.
+   */
+  captureGovernedEvidenceReceiptSync?(
+    req: GovernedEvidenceCaptureRequest
+  ): GovernedEvidenceCaptureV1 | null;
+  /**
    * Drain bounded diagnostic samples captured by an instrumented Worker build.
    * Ordinary builds return an empty array because the Worker emits no samples.
    */

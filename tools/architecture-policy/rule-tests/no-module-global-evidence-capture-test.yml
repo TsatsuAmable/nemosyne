@@ -2,8 +2,14 @@ id: no-module-global-evidence-capture
 valid:
   - "const capture = await port.captureGovernedEvidenceReceipt(req)"
   - "const snapshot = await this._atlas.captureGovernedEvidenceReceipt()"
+  # Reading the producer from an injected kernel is the required form, so it must
+  # stay valid. An identifier-level rule rejected it (and the interface that
+  # declares it), which is why the guard is import-level instead.
+  - "const produceReceiptBundle = kernel.statisticsEvidenceReceiptBundle"
   - "const readDatasetFingerprint = kernel.datasetFingerprint"
+  - "interface StatisticsEvidenceReceiptKernel { statisticsEvidenceReceiptBundle(handle: number): unknown | null }"
+  - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
 invalid:
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
-  - "const rawBundle = statisticsEvidenceReceiptBundle(handle)"
-  - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'; const rawBundle = RuntimeBridge.statisticsEvidenceReceiptBundle(handle)"
+  - "import { statisticsEvidenceReceiptBundle as produce } from '../wasm/RuntimeBridge.ts'"
+  - "import { kernelVersion, statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
