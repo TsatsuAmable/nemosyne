@@ -9,7 +9,20 @@ valid:
   - "const readDatasetFingerprint = kernel.datasetFingerprint"
   - "interface StatisticsEvidenceReceiptKernel { statisticsEvidenceReceiptBundle(handle: number): unknown | null }"
   - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
+  # A re-export of a different binding is not the producer.
+  - "export { kernelVersion } from '../wasm/RuntimeBridge.ts'"
+  # A star barrel of some *other* module republishes no analytical authority, so
+  # the star branch must key on the source, not on the star alone.
+  - "export * from '../data/EvidenceReceipt.ts'"
+  - "export * as evidence from '../data/EvidenceReceipt.ts'"
 invalid:
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle as produce } from '../wasm/RuntimeBridge.ts'"
   - "import { kernelVersion, statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
+  # Barrel re-exports reach the same binding without naming it at the use site.
+  - "export { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
+  - "export { statisticsEvidenceReceiptBundle as produce } from '../wasm/RuntimeBridge.ts'"
+  # Star barrels produce neither an import_specifier nor an export_specifier, so
+  # they republished the producer invisibly until this branch was added.
+  - "export * from '../wasm/RuntimeBridge.ts'"
+  - "export * as bridge from '../wasm/RuntimeBridge.ts'"

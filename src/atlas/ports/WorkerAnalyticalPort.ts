@@ -267,9 +267,17 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     const staleRegistrationCount = [...this._pendingRegistrations.values()].filter((pending) =>
       this._isStale(pending.registration.generation, pending.registration.dataset.version, pending.registration.dataset.fingerprint)
     ).length;
-    const outstandingCount = this._pending.size + this._pendingRegistrations.size;
+    // Governed captures are outstanding work too: a stale capture waiting on a
+    // blocked Worker is exactly what recycling exists to cancel, so it counts
+    // toward the recycle decision and is resolved with the rest below.
+    const staleGovernedCaptureCount = [...this._pendingGovernedCaptures.values()].filter((pending) =>
+      this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)
+    ).length;
+    const outstandingCount =
+      this._pending.size + this._pendingRegistrations.size + this._pendingGovernedCaptures.size;
     const allOutstandingStale =
-      outstandingCount > 0 && staleExecutionCount + staleRegistrationCount === outstandingCount;
+      outstandingCount > 0 &&
+      staleExecutionCount + staleRegistrationCount + staleGovernedCaptureCount === outstandingCount;
     if (allOutstandingStale && this._createReplacementWorker) {
       let replacement: WorkerTransport | null = null;
       try {

@@ -81,33 +81,25 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     expect(await new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceipt()).toBeNull();
   });
 
-  it('acquires the same authority synchronously for session serialization as it does asynchronously', async () => {
-    // Issue #834: ordinary serialization is synchronous, so it uses the sync
-    // narrowing of the port capability. That narrowing must be the *same* read
-    // through the same installed port, not a second authority: the two forms are
-    // required to agree byte-for-byte on the same live state.
-    const { atlas, handle } = liveGovernedSession();
+  it('performs no analytical acquisition during serialization, and fails a governed export closed when nothing can attest one', async () => {
+    // #834 record item (4) in docs/ROADMAP.md: ordinary serialization is a pure
+    // snapshot. A session that has neither restored nor captured a carrier must
+    // serialize without one rather than reaching a kernel, a port or an
+    // importable module global for evidence it never acquired.
+    const { handle, session } = liveGovernedSession();
     try {
-      const sync = atlas.captureGovernedEvidenceReceiptSync();
-      const async = await atlas.captureGovernedEvidenceReceipt();
-      expect(sync).not.toBeNull();
-      expect(async).not.toBeNull();
-      expect(Buffer.from(sync!.bytes).equals(Buffer.from(async!.bytes))).toBe(true);
-      expect(sync!.envelope.uses).toEqual([]);
-      expect(sync!.envelope.bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
-      expect(sync!.envelope.bundle.kernelVersion).toBe(bridge.kernelVersion());
+      const json = session.serialize();
+      expect(json.evidenceReceiptSnapshot).toBeUndefined();
 
-      // A repeat read is deterministic.
-      const again = atlas.captureGovernedEvidenceReceiptSync();
-      expect(Buffer.from(again!.bytes).equals(Buffer.from(sync!.bytes))).toBe(true);
+      // Detached from any live kernel and holding no carrier, the governed
+      // request must refuse instead of manufacturing evidence from a global.
+      const detached = NemosyneSession.deserialize(json, new AtlasCore({ kernel: null }));
+      await expect(
+        detached.exportPortablePackage({}, undefined, { governedEvidence: true })
+      ).rejects.toThrow(/none is available for this session/);
     } finally {
       bridge.destroyDataset(handle);
     }
-  });
-
-  it('refuses the synchronous narrowing when no live dataset is loaded', () => {
-    expect(new AtlasCore({ kernel: null }).captureGovernedEvidenceReceiptSync()).toBeNull();
-    expect(new AtlasCore({ kernel: bridge }).captureGovernedEvidenceReceiptSync()).toBeNull();
   });
 
   it('exports a governed V3 package from the live session with committed receipt bytes and identity', async () => {
@@ -164,20 +156,68 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
       await expect(
         session.exportPortablePackage({}, 'not-the-captured-kernel', { governedEvidence: true })
       ).rejects.toThrow(/kernel-version override/);
+      // The refusal must not be remembered: `_evidenceReceiptBytes` is adopted
+      // only after every coherence check passes, so a capture this export
+      // rejected cannot become the carrier a later serialization persists.
+      // Without this, hoisting the adoption above the checks would fail nothing.
+      expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
     } finally {
       bridge.destroyDataset(handle);
     }
   });
 
+  it('omits a carrier that no longer describes the dataset a snapshot commits', async () => {
+    // A capture is adopted for the state that validated it, but the dataset can
+    // move on afterwards. Persisting the old carrier beside the new identity
+    // would commit evidence for dataset A under the identity of dataset B — a
+    // corrupt artifact for the replay loader RFC 0009 tranche 3 will add, and a
+    // violation of this field's own contract (NemosyneSessionJSON
+    // `evidenceReceiptSnapshot`: bytes "for the analytical dataset this snapshot
+    // commits"). Serialization stays pure: it compares an identity it already
+    // holds, and reaches no kernel, port or module global to do it.
+    const { atlas, session } = liveGovernedSession();
+    try {
+      await session.exportPortablePackage({}, undefined, { governedEvidence: true });
+      // Coherent while the dataset is the one the carrier attests.
+      expect(session.serialize().evidenceReceiptSnapshot).toBeDefined();
+
+      atlas.loadDataset(driftDataset());
+      const driftedJson = session.serialize();
+      expect(driftedJson.evidenceReceiptSnapshot).toBeUndefined();
+      // The omission is the carrier's incoherence, not the loss of the live
+      // dataset — the snapshot still commits the drifted analytical identity.
+      expect(driftedJson.datasetFingerprint).toBe(
+        bridge.datasetFingerprint(atlas.aggregate.analytical.currentHandle)
+      );
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
+
   it('preserves the receipt carrier through session JSON and re-exports governed from the snapshot', async () => {
     const { handle, session } = liveGovernedSession();
     try {
+      // Acquisition happens in the governed export (#834 record item (3)) and the
+      // accepted capture becomes this session's carrier (item 4), so ordinary
+      // serialization carries exactly the bytes the authoritative path
+      // committed — asserted here, because an operation named `export…` that
+      // silently changes what a later `serialize()` persists must be pinned.
+      const exported = await session.exportPortablePackage({}, undefined, {
+        governedEvidence: true,
+      });
+      const committed = NemosynePackageManager.unpack(exported).evidenceReceiptBytes!;
       const json = session.serialize();
       expect(json.evidenceReceiptSnapshot).toBeDefined();
       const liveEnvelope = evidenceEnvelopeOf(
         new Uint8Array(Buffer.from(json.evidenceReceiptSnapshot!, 'base64'))
       );
       expect(liveEnvelope.uses).toEqual([]);
+      expect(
+        Buffer.from(new Uint8Array(Buffer.from(json.evidenceReceiptSnapshot!, 'base64'))).equals(
+          Buffer.from(committed)
+        )
+      ).toBe(true);
 
       const roundTrip = NemosyneSession.deserialize(
         json,
@@ -208,6 +248,10 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     const governed = liveGovernedSession();
     const drifted = liveGovernedSession(driftDataset());
     try {
+      // Each session acquires its own carrier through its own injected port, so
+      // the carriers below describe two different datasets on purpose.
+      await governed.session.exportPortablePackage({}, undefined, { governedEvidence: true });
+      await drifted.session.exportPortablePackage({}, undefined, { governedEvidence: true });
       const governedJson = governed.session.serialize();
       const driftedJson = drifted.session.serialize();
       expect(driftedJson.datasetFingerprint).not.toBe(governedJson.datasetFingerprint);

@@ -1,0 +1,37 @@
+id: no-module-global-evidence-producer-read
+language: TypeScript
+severity: error
+message: >-
+  Issue #834: the Rust statistics evidence producer must be read from the
+  injected analytical kernel contract, never as a property of an imported module
+  object. A read like `bridge.statisticsEvidenceReceiptBundle` — or
+  `h.statisticsEvidenceReceiptBundle` where `h` is a namespace alias of a barrel
+  that republishes the bridge — reaches whichever runtime the module graph
+  resolved, not the one the caller injected, so a governed export could succeed
+  under authority the caller never chose. The read form is what makes this total:
+  a star barrel, a namespace alias, a computed subscript or a `Reflect.get`
+  cannot avoid naming the property at the point of use. Read it from the injected
+  kernel instead (AnalyticalKernelPort).
+files:
+  - src/**/*.ts
+ignores:
+  # The only three files that legitimately hold a kernel object and read the
+  # producer from it. Each one's runtime is already its own authority: the inline
+  # port reads its injected kernel, the Worker reads its own realm's runtime, and
+  # the authority helper takes the kernel as a parameter rather than reaching for
+  # one. Every other file must go through the port.
+  - src/atlas/MonetaEvidenceAuthority.ts
+  - src/atlas/ports/InlineAnalyticalPort.ts
+  - src/atlas/ports/analytical.worker.ts
+rule:
+  any:
+    # `bridge.statisticsEvidenceReceiptBundle` and `h.statisticsEvidenceReceiptBundle`.
+    - kind: member_expression
+      regex: statisticsEvidenceReceiptBundle
+    # `bridge['statisticsEvidenceReceiptBundle']` — the computed form.
+    - kind: subscript_expression
+      regex: statisticsEvidenceReceiptBundle
+    # `Reflect.get(bridge, 'statisticsEvidenceReceiptBundle')` — the string
+    # literal form, which names the property without any member access at all.
+    - kind: string
+      regex: \bstatisticsEvidenceReceiptBundle\b

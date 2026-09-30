@@ -1,0 +1,12 @@
+id: no-runtime-bridge-dynamic-import
+valid:
+  - "const { installDevEvidence } = await import('./devEvidence.ts')"
+  - "const { KernelUnavailableError } = await import('../wasm/runtime/RuntimeState.ts')"
+  # A static import is not a dynamic namespace reach; the other two rules
+  # decide those cases on what they name.
+  - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
+  - "import type { AnalyticalExecutionPort } from './AnalyticalExecutionPort.ts'"
+invalid:
+  - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
+  - "const bridge = await import('../wasm/RuntimeBridge.ts')"
+  - "importRuntime = () => import('../../wasm/RuntimeBridge.ts')"
