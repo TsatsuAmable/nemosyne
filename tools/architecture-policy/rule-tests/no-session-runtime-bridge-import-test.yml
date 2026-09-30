@@ -10,6 +10,8 @@ valid:
   # `wasm/` is not a route into the runtime. Without the anchor the alternation
   # matched this text and banned an unrelated module.
   - "import { kernelVersion } from '../xwasm/index.ts'"
+  # A sibling whose name merely ends in `wasm` is not the runtime either.
+  - "import { toHex } from '../data-wasm/index.ts'"
 invalid:
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
@@ -29,3 +31,9 @@ invalid:
   # path segment. `\b` cannot express it, which is why it has its own branch.
   - "import { kernelVersion } from '../../wasm'"
   - "export * from '../../wasm'"
+  # Separator variants a resolver treats as the same path: a trailing slash, an
+  # interior `./` segment and a doubled slash.
+  - "import { kernelVersion } from '../../wasm/'"
+  - "import { kernelVersion } from '../../wasm/./index.ts'"
+  - "import { kernelVersion } from '../../wasm//index.ts'"
+  - "import * as wasm from '../../wasm/.'"

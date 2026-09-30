@@ -11,6 +11,10 @@ valid:
   # either.
   - "const codec = await import('../wasm/TypedColumnsCodec.ts')"
   - "const other = await import('../xwasm/index.ts')"
+  # A sibling whose name merely ends in `wasm` is not the runtime either, and
+  # `\b` must not turn another module under `wasm/` into the barrel.
+  - "const sibling = await import('../data-wasm/index.ts')"
+  - "const helper = await import('../wasm/indexHelper.ts')"
 invalid:
   - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
   - "const bridge = await import('../wasm/RuntimeBridge.ts')"
@@ -26,3 +30,8 @@ invalid:
   - "const bridge = await import(`../wasm/index.ts`)"
   - "const bridge = await import(`../wasm`)"
   - "const bridge = await import(`../../wasm/RuntimeBridge.ts`)"
+  # Separator variants a resolver treats as the same path: a trailing slash, a
+  # doubled slash and an interior `./` segment.
+  - "const bridge = await import('../wasm/')"
+  - "const bridge = await import('../wasm//index.ts')"
+  - "const bridge = await import(`../wasm/./index.ts`)"

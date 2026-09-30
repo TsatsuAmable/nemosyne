@@ -20,20 +20,28 @@ rule:
     # a probe tree). The barrel is a republishing surface for this module, so it is
     # the same route with one hop added.
     #
-    # `(^|/)` anchors the `wasm` segment. Without it the alternation also matched
-    # any sibling directory merely *containing* `wasm/` (`'../xwasm/index.ts'`),
-    # which is an over-block rather than a route.
+    # The leading `/` anchors the `wasm` segment. Without an anchor the
+    # alternation also matched any sibling directory merely *containing* `wasm/`
+    # (`'../xwasm/index.ts'`), which is an over-block rather than a route. The
+    # node text always begins with its opening quote, so an alternative anchored
+    # at text start could never fire: `/` is the whole anchor.
     #
-    # The second alternative covers the bare-directory spelling `'../../wasm'`,
-    # which `moduleResolution: "bundler"` resolves to the same barrel `index.ts`.
-    # `\b` cannot express it: `wasm/` requires a following path segment, so the
-    # directory form needs its own end-anchored branch. Writing it as
-    # `wasm/(RuntimeBridge|index)?\b` instead would over-match every other module
-    # under `wasm/` (`'../wasm/TypedColumnsCodec.ts'`), breaking a valid form.
+    # `((/\.)*/)+` accepts the separator variants a resolver treats as the same
+    # path (`'../../wasm//index.ts'`, `'../../wasm/./index.ts'`). Spelling it as
+    # `wasm[/.]+` would instead match a module merely *named* `wasm.index.ts`, and
+    # `wasm/(RuntimeBridge|index)?\b` would over-match every other module under
+    # `wasm/` (`'../wasm/TypedColumnsCodec.ts'`, pinned as a valid form).
+    #
+    # The second alternative covers the bare-directory spelling — `'../../wasm'`,
+    # `'../../wasm/'`, `'../../wasm/.'` — which `moduleResolution: "bundler"`
+    # resolves to the same barrel `index.ts`. `\b` cannot express it, because
+    # there is no following path segment for it to bind to. Neither alternative
+    # normalizes *interior* traversal (`'../../wasm/x/../index.ts'`); the #834
+    # record states that limit rather than implying the guard resolves paths.
     - kind: import_statement
       has:
         kind: string
-        regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
     # `export … from '…'` hands the same authority to every importer of this
     # module, so it is the import route with one more hop. Named re-exports
     # (`export { datasetFingerprint } from …`) and star re-exports
@@ -42,4 +50,4 @@ rule:
     - kind: export_statement
       has:
         kind: string
-        regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"

@@ -22,6 +22,10 @@ valid:
   # The `wasm` segment is anchored, so a star barrel of a sibling directory that
   # merely contains `wasm/` is not this producer's route.
   - "export * from '../xwasm/index.ts'"
+  # A sibling whose name merely ends in `wasm` is not this producer's route, and
+  # `\b` must not turn another module under `wasm/` into the barrel.
+  - "export * from '../data-wasm/index.ts'"
+  - "export * from '../wasm/indexHelper.ts'"
 invalid:
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle as produce } from '../wasm/RuntimeBridge.ts'"
@@ -44,3 +48,7 @@ invalid:
   # barrel does.
   - "export * from '../wasm'"
   - "export * as wasm from '../wasm'"
+  # Separator variants a resolver treats as the same path.
+  - "export * from '../wasm/'"
+  - "export * as wasm from '../wasm/.'"
+  - "export * from '../wasm//index.ts'"

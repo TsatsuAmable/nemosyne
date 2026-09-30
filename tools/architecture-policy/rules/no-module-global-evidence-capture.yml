@@ -43,12 +43,13 @@ rule:
     # closes the route now rather than depending on the barrel's current
     # contents.
     #
-    # `(^|/)` anchors the `wasm` segment so a sibling directory merely
-    # containing `wasm/` is not swept in; the second alternative covers the
-    # bare-directory spelling `'../wasm'`, which resolves to the same barrel
-    # under `moduleResolution: "bundler"`.
+    # The leading `/` anchors the `wasm` segment so a sibling directory merely
+    # containing `wasm/` is not swept in, and `((/\.)*/)+` accepts the separator
+    # variants a resolver treats as the same path. The second alternative covers
+    # the bare-directory spelling (`'../wasm'`, `'../wasm/'`, `'../wasm/.'`),
+    # which resolves to the same barrel under `moduleResolution: "bundler"`.
     - kind: export_statement
       regex: 'export\s*\*'
       has:
         kind: string
-        regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+        regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"

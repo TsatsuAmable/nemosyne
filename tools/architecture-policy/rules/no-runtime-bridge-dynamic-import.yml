@@ -29,16 +29,20 @@ rule:
     #
     # The alternation matches the production barrel `src/wasm/index.ts` as well
     # as the bridge, anchors the `wasm` segment so a sibling directory merely
-    # containing `wasm/` (`'../xwasm/index.ts'`) is not swept in, and covers the
-    # bare-directory spelling `'../wasm'`, which resolves to the same barrel
-    # under `moduleResolution: "bundler"`. `\b` alone cannot express the
-    # directory form without over-matching every other module under `wasm/`.
+    # containing `wasm/` (`'../xwasm/index.ts'`, `'../data-wasm/index.ts'`) is
+    # not swept in, and accepts the separator variants a resolver treats as the
+    # same path (`'../wasm//index.ts'`, `'../wasm/./index.ts'`). The second
+    # alternative covers the bare-directory spelling (`'../wasm'`, `'../wasm/'`,
+    # `'../wasm/.'`), which resolves to the same barrel under
+    # `moduleResolution: "bundler"`; `\b` alone cannot express it without
+    # over-matching every other module under `wasm/`. Neither alternative
+    # normalizes *interior* traversal (`'../wasm/x/../index.ts'`).
     - any:
         - has:
             kind: string
-            regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+            regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
             stopBy: end
         - has:
             kind: template_string
-            regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+            regex: "/wasm((/\\.)*/)+(RuntimeBridge|index)\\b|/wasm[/.]*['\"`]$"
             stopBy: end

@@ -7,6 +7,10 @@ valid:
   # The `wasm` segment is anchored, so a sibling directory merely containing
   # `wasm/` is not a namespace route into the runtime.
   - "import * as x from '../xwasm/index.ts'"
+  # A sibling whose name merely ends in `wasm` is not the runtime either, and
+  # `\b` must not turn another module under `wasm/` into the barrel.
+  - "import * as d from '../data-wasm/index.ts'"
+  - "import * as h from '../wasm/indexHelper.ts'"
 invalid:
   - "import * as bridge from '../../wasm/RuntimeBridge.ts'"
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
@@ -19,3 +23,7 @@ invalid:
   # `moduleResolution: "bundler"`.
   - "import * as wasm from '../wasm'"
   - "import * as wasm from '../../wasm'"
+  # Separator variants a resolver treats as the same path.
+  - "import * as wasm from '../wasm/'"
+  - "import * as wasm from '../wasm/./index.ts'"
+  - "import * as wasm from '../wasm//index.ts'"
