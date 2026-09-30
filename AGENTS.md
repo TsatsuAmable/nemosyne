@@ -38,6 +38,8 @@ The assurance burden is **risk-tiered**. The goal is to spend review effort wher
 
 Every implementation PR must classify itself as **high-risk**, **standard-risk**, or **low-risk exemption**. The classification controls review depth; required CI and exact-head merge protection remain independent of this classification.
 
+**Exact-head** means that review, required CI and promotion evidence bind to the immutable PR head that is actually being integrated. It does **not** mean a proven-disjoint PR must continuously incorporate the latest `main`. Parallel tranches use merge commits so the verified PR head remains a parent of the integration commit. If the PR head moves, exact-head evidence is revoked and must be re-established. If current `main` creates a real merge conflict, changes an authority/seam the tranche depends on, or invalidates the tranche's declared disjointness, refresh the branch and re-verify rather than bypassing the dependency.
+
 ### Risk classification
 
 A **high-risk** change is one that touches any of the following, closes a blocker/high review finding, or could plausibly create an undetected correctness or evidence failure at one of these boundaries:
