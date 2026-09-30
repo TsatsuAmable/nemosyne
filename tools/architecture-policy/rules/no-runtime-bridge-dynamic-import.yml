@@ -23,7 +23,22 @@ rule:
     # string (a grandchild, under `arguments`) needs `stopBy: end`.
     - has:
         kind: import
-    - has:
-        kind: string
-        regex: RuntimeBridge
-        stopBy: end
+    # The source argument parses as `string` or as `template_string`, and the
+    # second form carried no guard: `` await import(`…/wasm/index.ts`) `` reached
+    # the same module-global surface while the scan stayed clean.
+    #
+    # The alternation matches the production barrel `src/wasm/index.ts` as well
+    # as the bridge, anchors the `wasm` segment so a sibling directory merely
+    # containing `wasm/` (`'../xwasm/index.ts'`) is not swept in, and covers the
+    # bare-directory spelling `'../wasm'`, which resolves to the same barrel
+    # under `moduleResolution: "bundler"`. `\b` alone cannot express the
+    # directory form without over-matching every other module under `wasm/`.
+    - any:
+        - has:
+            kind: string
+            regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+            stopBy: end
+        - has:
+            kind: template_string
+            regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"
+            stopBy: end

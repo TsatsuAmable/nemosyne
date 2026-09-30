@@ -6,6 +6,10 @@ valid:
   # the rule closes a route into the runtime bridge, not barrel imports as such.
   - "import { NemosyneSession } from './index.ts'"
   - "export { NemosyneSession } from './index.ts'"
+  # The `wasm` segment is anchored, so a sibling directory that merely contains
+  # `wasm/` is not a route into the runtime. Without the anchor the alternation
+  # matched this text and banned an unrelated module.
+  - "import { kernelVersion } from '../xwasm/index.ts'"
 invalid:
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
@@ -20,3 +24,8 @@ invalid:
   - "export { datasetFingerprint } from '../wasm/index.ts'"
   - "export * from '../wasm/index.ts'"
   - "export * from '../wasm/RuntimeBridge.ts'"
+  # The bare-directory spelling resolves to the same barrel `index.ts` under
+  # `moduleResolution: "bundler"`, so it is the same route without the trailing
+  # path segment. `\b` cannot express it, which is why it has its own branch.
+  - "import { kernelVersion } from '../../wasm'"
+  - "export * from '../../wasm'"

@@ -26,6 +26,11 @@ rule:
     # which republishes the bridge's surface. Keying on the literal
     # `RuntimeBridge` alone let a namespace import of the barrel reach the same
     # module-global bindings while the scan stayed clean.
+    #
+    # `(^|/)` anchors the `wasm` segment, so a sibling directory merely
+    # containing `wasm/` (`'../xwasm/index.ts'`) is not swept in; the second
+    # alternative covers the bare-directory spelling `'../wasm'`, which resolves
+    # to the same barrel under `moduleResolution: "bundler"`.
     - has:
         kind: string
-        regex: 'wasm/(RuntimeBridge|index)\b'
+        regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"

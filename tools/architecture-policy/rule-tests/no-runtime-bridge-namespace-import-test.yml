@@ -4,6 +4,9 @@ valid:
   - "import type { AnalyticalExecutionPort } from './AnalyticalExecutionPort.ts'"
   # A dynamic import expression is not a namespace binding, so it stays valid.
   - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
+  # The `wasm` segment is anchored, so a sibling directory merely containing
+  # `wasm/` is not a namespace route into the runtime.
+  - "import * as x from '../xwasm/index.ts'"
 invalid:
   - "import * as bridge from '../../wasm/RuntimeBridge.ts'"
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
@@ -12,3 +15,7 @@ invalid:
   # `RuntimeBridge` left this alias unguarded.
   - "import * as wasm from '../wasm/index.ts'"
   - "import * as wasm from '../../wasm/index.ts'"
+  # The bare-directory spelling resolves to the same barrel under
+  # `moduleResolution: "bundler"`.
+  - "import * as wasm from '../wasm'"
+  - "import * as wasm from '../../wasm'"

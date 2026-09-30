@@ -42,8 +42,13 @@ rule:
     # republishes the producer the moment it is added, silently, so the guard
     # closes the route now rather than depending on the barrel's current
     # contents.
+    #
+    # `(^|/)` anchors the `wasm` segment so a sibling directory merely
+    # containing `wasm/` is not swept in; the second alternative covers the
+    # bare-directory spelling `'../wasm'`, which resolves to the same barrel
+    # under `moduleResolution: "bundler"`.
     - kind: export_statement
       regex: 'export\s*\*'
       has:
         kind: string
-        regex: 'wasm/(RuntimeBridge|index)\b'
+        regex: "(^|/)wasm/(RuntimeBridge|index)\\b|(^|/)wasm['\"`]$"

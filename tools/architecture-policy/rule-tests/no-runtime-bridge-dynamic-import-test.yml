@@ -6,7 +6,23 @@ valid:
   # decide those cases on what they name.
   - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
   - "import type { AnalyticalExecutionPort } from './AnalyticalExecutionPort.ts'"
+  # Another wasm module is not the runtime bridge, and the `wasm` segment is
+  # anchored, so a sibling directory merely containing `wasm/` is not a route
+  # either.
+  - "const codec = await import('../wasm/TypedColumnsCodec.ts')"
+  - "const other = await import('../xwasm/index.ts')"
 invalid:
   - "const bridge = await import('../../wasm/RuntimeBridge.ts')"
   - "const bridge = await import('../wasm/RuntimeBridge.ts')"
   - "importRuntime = () => import('../../wasm/RuntimeBridge.ts')"
+  # The production barrel republishes the bridge's surface, so a dynamic import
+  # of it reaches the same module-global bindings. Keying on the literal
+  # `RuntimeBridge` left this alias unguarded.
+  - "const bridge = await import('../wasm/index.ts')"
+  # The bare-directory spelling resolves to the same barrel.
+  - "const bridge = await import('../wasm')"
+  # A template literal is a `template_string` node, not a `string` node, so the
+  # string-only branch missed this spelling of the same reach.
+  - "const bridge = await import(`../wasm/index.ts`)"
+  - "const bridge = await import(`../wasm`)"
+  - "const bridge = await import(`../../wasm/RuntimeBridge.ts`)"

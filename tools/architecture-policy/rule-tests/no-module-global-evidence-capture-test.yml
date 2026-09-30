@@ -19,6 +19,9 @@ valid:
   # alternation matching the `wasm/index` barrel must not become a blanket ban on
   # everything under `wasm/`.
   - "export * from '../wasm/TypedColumnsCodec.ts'"
+  # The `wasm` segment is anchored, so a star barrel of a sibling directory that
+  # merely contains `wasm/` is not this producer's route.
+  - "export * from '../xwasm/index.ts'"
 invalid:
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle as produce } from '../wasm/RuntimeBridge.ts'"
@@ -36,3 +39,8 @@ invalid:
   # current contents.
   - "export * from '../wasm/index.ts'"
   - "export * as wasm from '../wasm/index.ts'"
+  # The bare-directory spelling resolves to the same barrel under
+  # `moduleResolution: "bundler"`, so it republishes the producer the moment the
+  # barrel does.
+  - "export * from '../wasm'"
+  - "export * as wasm from '../wasm'"
