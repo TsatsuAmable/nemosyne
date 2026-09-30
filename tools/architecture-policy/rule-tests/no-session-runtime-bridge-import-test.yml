@@ -2,7 +2,21 @@ id: no-session-runtime-bridge-import
 valid:
   - "import { AtlasCore, type WasmRuntimeBridgeFull } from '../atlas/AtlasCore.ts'"
   - "const bytes = await this._atlas.captureGovernedEvidenceReceipt()"
+  # The `wasm/` prefix is required, so the session layer's own barrel stays legal:
+  # the rule closes a route into the runtime bridge, not barrel imports as such.
+  - "import { NemosyneSession } from './index.ts'"
+  - "export { NemosyneSession } from './index.ts'"
 invalid:
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
   - "import { kernelVersion } from '../wasm/RuntimeBridge.ts'"
+  # The production barrel republishes `kernelVersion` and `datasetFingerprint`
+  # from the bridge, so it is the same route with one hop. Keying on the literal
+  # `RuntimeBridge` left it an unguarded alias (reproduced by adversarial review).
+  - "import { kernelVersion } from '../wasm/index.ts'"
+  - "import { datasetFingerprint } from '../wasm/index.ts'"
+  - "import * as wasm from '../wasm/index.ts'"
+  # Re-exporting hands the same authority to every importer of this module.
+  - "export { datasetFingerprint } from '../wasm/index.ts'"
+  - "export * from '../wasm/index.ts'"
+  - "export * from '../wasm/RuntimeBridge.ts'"

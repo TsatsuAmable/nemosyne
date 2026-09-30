@@ -7,3 +7,8 @@ valid:
 invalid:
   - "import * as bridge from '../../wasm/RuntimeBridge.ts'"
   - "import * as RuntimeBridge from '../wasm/RuntimeBridge.ts'"
+  # The production barrel republishes the bridge's surface, so a namespace import
+  # of the barrel reaches the same module-global bindings. Keying on the literal
+  # `RuntimeBridge` left this alias unguarded.
+  - "import * as wasm from '../wasm/index.ts'"
+  - "import * as wasm from '../../wasm/index.ts'"

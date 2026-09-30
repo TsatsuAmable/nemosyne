@@ -15,6 +15,10 @@ valid:
   # the star branch must key on the source, not on the star alone.
   - "export * from '../data/EvidenceReceipt.ts'"
   - "export * as evidence from '../data/EvidenceReceipt.ts'"
+  # Another wasm module's star barrel republishes no producer either, so the
+  # alternation matching the `wasm/index` barrel must not become a blanket ban on
+  # everything under `wasm/`.
+  - "export * from '../wasm/TypedColumnsCodec.ts'"
 invalid:
   - "import { statisticsEvidenceReceiptBundle } from '../wasm/RuntimeBridge.ts'"
   - "import { statisticsEvidenceReceiptBundle as produce } from '../wasm/RuntimeBridge.ts'"
@@ -26,3 +30,9 @@ invalid:
   # they republished the producer invisibly until this branch was added.
   - "export * from '../wasm/RuntimeBridge.ts'"
   - "export * as bridge from '../wasm/RuntimeBridge.ts'"
+  # The production barrel republishes the bridge's surface and today omits the
+  # producer. A star re-export of it would republish the producer the moment it
+  # is added, so the route is closed now rather than left to the barrel's
+  # current contents.
+  - "export * from '../wasm/index.ts'"
+  - "export * as wasm from '../wasm/index.ts'"

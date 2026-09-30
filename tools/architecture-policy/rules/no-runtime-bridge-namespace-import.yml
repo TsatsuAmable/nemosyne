@@ -22,6 +22,10 @@ rule:
     - has:
         kind: namespace_import
         stopBy: end
+    # The alternation also matches the production barrel `src/wasm/index.ts`,
+    # which republishes the bridge's surface. Keying on the literal
+    # `RuntimeBridge` alone let a namespace import of the barrel reach the same
+    # module-global bindings while the scan stayed clean.
     - has:
         kind: string
-        regex: RuntimeBridge
+        regex: 'wasm/(RuntimeBridge|index)\b'

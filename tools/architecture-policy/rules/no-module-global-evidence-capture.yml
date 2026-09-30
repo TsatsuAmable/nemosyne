@@ -35,8 +35,15 @@ rule:
     # barrel is the one republishing form that produces neither node above, so
     # without this branch the module is reachable again through a namespace
     # import of the barrel.
+    #
+    # The alternation also matches the production barrel `src/wasm/index.ts`,
+    # which republishes the bridge's surface and today happens to omit
+    # `statisticsEvidenceReceiptBundle`. A star re-export of that barrel
+    # republishes the producer the moment it is added, silently, so the guard
+    # closes the route now rather than depending on the barrel's current
+    # contents.
     - kind: export_statement
       regex: 'export\s*\*'
       has:
         kind: string
-        regex: RuntimeBridge
+        regex: 'wasm/(RuntimeBridge|index)\b'
