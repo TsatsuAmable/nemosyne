@@ -18,7 +18,7 @@
       "roadmapRefs": ["PT4", "P1-W"],
       "capabilityRefs": ["product-analytics-browser-client"],
       "sources": ["src/governance-service"],
-      "summary": "Product-intended PostgreSQL/OIDC governance substrate for authenticated, consent-aware ingestion, durable storage, export and erasure. The browser client exists, but the repository still lacks a runnable service entry point and end-to-end service evidence.",
+      "summary": "Product-intended PostgreSQL/OIDC governance substrate for authenticated, consent-aware ingestion, durable storage, export and erasure. The browser client exists, and the repository owns a runnable service entry point (src/governance-service/server-entry.ts) with fail-closed configuration, health/readiness, and authenticated lifecycle coverage (tests/p1w-governance-service-runtime.test.ts, tests/p1w-governance-service-lifecycle.test.ts) exercised through a real process boundary. Deployed-service evidence remains RDO-003.",
       "obligationRefs": ["RDO-001", "RDO-002", "RDO-003"]
     },
     {
@@ -66,16 +66,16 @@
       "id": "RDO-001",
       "serviceRef": "governance-service",
       "kind": "AUTOMATED",
-      "state": "MISSING",
-      "expectedEvidence": ["tests/p1w-governance-service-runtime.test.ts"],
+      "state": "GREEN",
+      "evidence": ["tests/p1w-governance-service-runtime.test.ts"],
       "closure": "Add a runnable repository service entry point with fail-closed configuration plus health/readiness coverage exercised through a real process boundary."
     },
     {
       "id": "RDO-002",
       "serviceRef": "governance-service",
       "kind": "AUTOMATED",
-      "state": "MISSING",
-      "expectedEvidence": ["tests/p1w-governance-service-lifecycle.test.ts"],
+      "state": "GREEN",
+      "evidence": ["tests/p1w-governance-service-lifecycle.test.ts"],
       "closure": "Exercise authenticated consent-aware ingestion, durable storage, export, revoke-future-collection and applicable erasure through the runnable service boundary."
     },
     {

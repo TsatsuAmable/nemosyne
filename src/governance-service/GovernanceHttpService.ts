@@ -430,8 +430,16 @@ function writeResponse(response: ServerResponse, result: GovernanceHttpResponseV
   response.end(result.body);
 }
 
-export function createGovernanceHttpServer(service: GovernanceHttpService): Server {
-  const server = createServer({ maxHeaderSize: MAX_HEADER_BYTES }, async (request, response) => {
+/**
+ * The production HTTP request listener with no transport envelope. Exported
+ * so the runnable service entry point can compose it behind its own
+ * liveness/readiness surface on a single port without reimplementing or
+ * weakening dispatch semantics.
+ */
+export function createGovernanceHttpRequestListener(
+  service: GovernanceHttpService,
+): (request: IncomingMessage, response: ServerResponse) => void {
+  return async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://governance.invalid');
       const result = await service.dispatch({
@@ -455,7 +463,11 @@ export function createGovernanceHttpServer(service: GovernanceHttpService): Serv
       writeResponse(response, errorResponse(500, 'INTERNAL_ERROR', null));
       if (!request.complete) request.resume();
     }
-  });
+  };
+}
+
+export function createGovernanceHttpServer(service: GovernanceHttpService): Server {
+  const server = createServer({ maxHeaderSize: MAX_HEADER_BYTES }, createGovernanceHttpRequestListener(service));
   server.headersTimeout = HEADER_TIMEOUT_MS;
   server.requestTimeout = REQUEST_TIMEOUT_MS;
   server.maxConnections = MAX_CONNECTIONS;
