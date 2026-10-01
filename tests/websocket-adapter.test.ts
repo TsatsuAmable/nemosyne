@@ -94,8 +94,8 @@ describe('WebSocketAdapter', () => {
     const update = updateSpy.mock.calls[0][0];
     expect(update.topology).toBe('TIME_SERIES');
     expect(update.mode).toBe('window');
-    expect(update.dataset.rows.length).toBe(1);
-    expect(update.dataset.columns.map((c) => c.name)).toContain('temperature');
+    expect(update.rows.length).toBe(1);
+    expect(Object.keys(update.rows[0] ?? {})).toContain('temperature');
   });
 
   it('emits an error for invalid JSON', () => {
@@ -182,7 +182,7 @@ describe('WebSocketAdapter', () => {
     adapter._ws.dispatchMessage(JSON.stringify({ type: 'trade', price: '123.45' }));
 
     expect(updateSpy).toHaveBeenCalledOnce();
-    expect(updateSpy.mock.calls[0][0].dataset.rows[0].price).toBe(123.45);
+    expect(updateSpy.mock.calls[0][0].rows[0].price).toBe(123.45);
 
     // Non-trade messages are ignored.
     adapter._ws.dispatchMessage(JSON.stringify({ type: 'heartbeat' }));

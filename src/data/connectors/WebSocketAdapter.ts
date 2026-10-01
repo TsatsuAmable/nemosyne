@@ -203,7 +203,8 @@ export class WebSocketAdapter extends DataConnector {
     }
 
     this._emitUpdate({
-      dataset: normalized.dataset,
+      rows: normalized.rows,
+      name: normalized.name,
       topology: normalized.topology,
       mode: this.mode,
     } as LiveUpdate);

@@ -1,9 +1,9 @@
-import type { Dataset } from '../Dataset.ts';
-
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export interface LiveUpdate {
-  dataset: Dataset;
+  /** Raw transport rows. Schema inference belongs to Rust/WASM at the application boundary. */
+  rows: Record<string, unknown>[];
+  name?: string;
   mode: string;
   topology: string;
 }
@@ -16,7 +16,7 @@ type UpdateListener = (update: LiveUpdate) => void;
  *
  * Implementations should:
  *  - Open/close an external stream.
- *  - Normalize incoming messages into a {@link Dataset}.
+ *  - Normalize incoming messages into transport rows without inferring analytical schema.
  *  - Emit updates through `_emitUpdate(update)`.
  *  - Emit status changes through `_setStatus(status, detail)`.
  *
@@ -49,7 +49,7 @@ export class DataConnector {
   }
 
   /**
-   * Subscribe to normalized live dataset updates.
+   * Subscribe to normalized live transport updates.
    */
   onUpdate(fn: UpdateListener): () => void {
     this._updateListeners.push(fn);

@@ -1,5 +1,4 @@
 import { DataConnector, type LiveUpdate } from './DataConnector.ts';
-import { rowsToDataset } from './normalize.ts';
 
 export interface PollingAdapterOptions {
   url: string;
@@ -90,9 +89,9 @@ export class PollingAdapter extends DataConnector {
       const json: unknown = await res.json();
       const parsed = this.parseResponse(json);
       if (parsed && parsed.rows && parsed.rows.length > 0) {
-        const dataset = rowsToDataset(parsed.rows, parsed.name || 'Live Polling');
         this._emitUpdate({
-          dataset,
+          rows: parsed.rows,
+          name: parsed.name || 'Live Polling',
           topology: parsed.topology || this.topology,
           mode: this.mode,
         } as LiveUpdate);

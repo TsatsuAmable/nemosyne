@@ -672,6 +672,17 @@ export class World {
           if (!this.dracoNode || this.currentEntry?.name !== 'Live Stream') return false;
           return this.dracoNode.appendRows?.(rows, options) ?? false;
         },
+        materializeRows: (rows, name, topology) => {
+          const bytes = new TextEncoder().encode(JSON.stringify(rows));
+          const parsed = this.atlas.parseBytes(bytes, 'json', topology);
+          return {
+            name,
+            topology: parsed.topology,
+            dataset: parsed.dataset,
+            maxDepth: 1,
+            encodings: parsed.encodings,
+          };
+        },
         loadDataset: (entry) => {
           void this.loadDataset(entry).catch((error) => this._reportDatasetLoadFailure(error));
         },
