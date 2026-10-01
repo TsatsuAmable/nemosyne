@@ -31,7 +31,7 @@
       "roadmapRefs": ["RF-054", "P1-W1"],
       "capabilityRefs": ["collaboration-client", "collaboration-signalling-service"],
       "sources": ["src/network/SignallingServer.mjs", "src/network/SignallingServerCore.ts", "src/network/SignedTicket.ts"],
-      "summary": "Fail-closed signalling runtime with readiness surface, container contract and operator-issued one-use signed collaboration invites. Repository tests cover real two-peer service admission and replay rejection; deployed wss:// evidence is intentionally deferred.",
+      "summary": "Fail-closed signalling runtime with readiness surface, container contract and operator-issued one-use signed collaboration invites. Repository tests cover real two-peer service admission, replay rejection, and cross-replica one-use safety through a shared atomic nonce store; deployed wss:// evidence is intentionally deferred.",
       "obligationRefs": ["RDO-004", "RDO-005", "RDO-006", "RDO-007"]
     },
     {
@@ -112,8 +112,8 @@
       "id": "RDO-007",
       "serviceRef": "collaboration-signalling-service",
       "kind": "AUTOMATED",
-      "state": "MISSING",
-      "expectedEvidence": ["tests/p1w-signalling-shared-nonce-store.test.ts"],
+      "state": "GREEN",
+      "evidence": ["tests/p1w-signalling-shared-nonce-store.test.ts"],
       "closure": "Before enabling more than one signalling replica, introduce a shared atomic nonce store and prove one-use ticket replay safety across replicas. Single-replica operation does not require this obligation to be green."
     },
     {

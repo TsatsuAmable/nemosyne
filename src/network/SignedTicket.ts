@@ -288,17 +288,42 @@ function validateClaims(value: unknown): TicketVerificationResult | null {
 }
 
 /**
+ * Cross-replica nonce-consumption contract for one-use ticket replay safety.
+ *
+ * A store instance may be shared by several signalling-registry instances so
+ * a nonce consumed by a successful admission on one replica is refused on
+ * every other replica sharing the store. `consume` must be an atomic
+ * check-and-set: exactly one caller observes `true` per nonce. The default
+ * in-process implementation below is atomic because the check and the insert
+ * run in one synchronous block; a future multi-host backend must provide its
+ * own atomicity (for example a single compare-and-set round trip) — sharing
+ * only the HMAC secret is never sufficient, with or without this interface.
+ */
+export interface SignedTicketNonceStore {
+  /**
+   * Mark a nonce as consumed. Returns true only on first use; false when the
+   * nonce is empty or already consumed (replay).
+   */
+  consume(nonce: string, expiresAt: number): boolean;
+  /** Evict nonces whose ticket expiration timestamp has passed. */
+  clearExpired(now?: number): void;
+  /** Active (unexpired) nonce count for inspection/telemetry. */
+  readonly size: number;
+}
+
+/**
  * Per-registry replay guard. Consumes a nonce exactly once and evicts entries
  * once their ticket expiration has passed, bounding the replay window to the
  * ticket lifetime and bounding memory growth to active tickets.
  *
- * DEPLOYMENT BOUNDARY: this store is owned by one registry instance. Replay
- * protection therefore holds only within one running instance. Multiple
- * signalling replicas sharing an HMAC secret MUST also share nonce-consumption
- * state. Until a shared nonce store exists, a multi-replica deployment must be
- * recorded as replay-protection degraded rather than described as replay-safe.
+ * DEPLOYMENT BOUNDARY: a privately owned instance protects only its own
+ * registry. Multiple signalling replicas sharing an HMAC secret MUST share
+ * one store instance (see `replayNonceStore` on the registry options) before
+ * the deployment may claim replay protection across replicas. Until then, a
+ * multi-replica deployment must be recorded as replay-protection degraded
+ * rather than described as replay-safe.
  */
-export class SignedTicketReplayGuard {
+export class SignedTicketReplayGuard implements SignedTicketNonceStore {
   private readonly _usedNonces = new Map<string, number>();
 
   constructor(private readonly _now: () => number = Date.now) {}
