@@ -155,7 +155,7 @@ Committee work is evidence-producing work, not ceremony. Run the F1 architecture
 
 ## Execution model
 
-The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer parallel execution streams**. From 31 August 2026 onward, implementation proceeded as one forward stream; the integration policy was relaxed on 29 September 2026 to permit provably disjoint parallel tranches (see **Integration policy** below). From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` remains the strategic tranche specification. Issue #620 is a historical execution checklist whose unchecked items and ordering are stale after PT0-PT8 and the P1-UXR activation; it is not current status authority. This file alone governs live status and next-work sequencing.
+The roadmap retains the A/B/C/D programme names because they encode bounded ownership and finite exits, but **they are no longer independent parallel execution streams**. From 31 August 2026 onward, implementation proceeded on one dependency-ordered forward spine; the integration policy was relaxed on 29 September 2026 to permit provably disjoint work, and on 1 October 2026 the execution rule was made explicit as **sequential tranches with optional parallel-safe/spawnable sub-branches** (see **Forward execution: dependency spine with optional parallel ribs** below). From 11 September 2026 onward, adversarial review is explicitly **recursive rather than merely post-implementation**: consequential choices are attacked before implementation, substantive disagreement becomes falsifying evidence, and results are attacked again before promotion. `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md` remains the strategic tranche specification. Issue #620 is a historical execution checklist whose unchecked items and ordering are stale after PT0-PT8 and the P1-UXR activation; it is not current status authority. This file alone governs live status and next-work sequencing.
 
 Current order:
 
@@ -775,15 +775,24 @@ Every checkpoint PR must:
 
 The single forward implementation stream should sync frequently with remote `main`, especially before touching the small but high-leverage shared contracts.
 
-## One forward implementation PR
+## Forward execution: dependency spine with optional parallel ribs
 
-Default maximum:
+The default execution unit is one **sequential tranche** on the roadmap dependency spine. One owner is accountable for taking that tranche through integration and promotion. Parallelism is optional capacity, not a delivery requirement: never delay the spine merely to keep multiple agents busy.
 
-```text
-1 open forward implementation PR
-```
+Within a tranche, work may be decomposed into bounded sub-branches when ownership and merge dependencies are explicit:
 
-Do not parallelize product-transition implementation. Documentation-only closure/fix-forward commits should normally remain on the owning active PR rather than creating overlapping work. A different execution model requires an explicit user decision.
+- **OWNER_ONLY**: authority-sensitive, tightly coupled or integration-defining work kept by the tranche owner.
+- **PARALLEL_SAFE**: provably disjoint implementation, test, documentation, research or review work that does not change the owner governing assumptions.
+- **SPAWNABLE**: a PARALLEL_SAFE slice small and self-contained enough for delegation to a sub-agent or another worker.
+- **BLOCKED_BY**: a dependency that must land or resolve before the slice may start or promote.
+
+A tranche has the shape: sequential tranche (one owner) -> owner-only critical path + optional parallel-safe/spawnable ribs -> integration gate on fresh main and exact-head evidence -> next dependency-satisfied tranche.
+
+The administrator should **advance the spine first, then exploit available ribs opportunistically**. Idle agents are preferable to invented work, speculative branches or collisions. A single worker may execute the whole tranche sequentially; multiple workers or sub-agents are used only when decomposition is genuinely independent.
+
+Parallel sub-branches must state their base SHA, owner, allowed scope, forbidden/collision scope, exit criteria and BLOCKED_BY/integration dependency. They should be short-lived and merge back through the tranche integration gate rather than becoming independent long-lived streams. Documentation-only closure/fix-forward work should normally remain with the owning tranche unless explicitly marked PARALLEL_SAFE.
+
+Default maximum remains **one owner-controlled forward tranche**. Concurrent sub-branches are determined by proven independence, not by the number of available agents.
 
 ---
 
