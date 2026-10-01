@@ -25,6 +25,7 @@ import {
   INVESTIGATION_DIGEST_ALGORITHM,
 } from '../src/investigation/index.ts';
 import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
+import { governedConsumerPolicyV1 } from '../src/data/evidence/ConsumerPolicyRegistry.ts';
 import { sha256Hex } from '../src/security/CryptoHash.ts';
 import {
   DIGEST,
@@ -183,7 +184,7 @@ describe('F1 falsifier 4a: non-empty uses are typed unavailable, not corruption'
       envelope: 'present',
       integrity: 'verified',
       enforcement: 'none',
-      refusal: { code: 'uses-not-governable-by-this-build' },
+      refusal: { code: 'CONSUMER_NOT_GOVERNED' },
     });
   });
 
@@ -204,7 +205,7 @@ describe('F1 falsifier 4a: non-empty uses are typed unavailable, not corruption'
     const result = await runner().replayPayload(nonEmptyUsesPayload());
 
     expect(result.evidence).toMatchObject({
-      refusal: { code: 'uses-not-governable-by-this-build' },
+      refusal: { code: 'CONSUMER_NOT_GOVERNED' },
     });
   });
 });
@@ -286,6 +287,14 @@ describe('F1 falsifier 12: the governed happy path is reachable and commits the 
       integrity: 'verified',
       enforcement: 'none',
     });
+
+    // Coupled to the registry on purpose. `enforcement: 'none'` is a claim about
+    // this build, and it is true only while the authority-owned consumer policy
+    // governs no consumer. The assertion is here, beside the literal it keeps
+    // honest, so the first entry to land fails *this* line and sends the author
+    // to the union that has to widen with it — rather than silently making an
+    // attestation that no longer describes the run.
+    expect(governedConsumerPolicyV1().size).toBe(0);
   });
 
   it('commits the envelope bytes, so it is not the legacy digest composition', async () => {

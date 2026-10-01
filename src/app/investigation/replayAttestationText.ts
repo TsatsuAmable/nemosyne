@@ -26,11 +26,24 @@ import type {
  * discrepancy text previously fell through to "integrity mismatch", which would
  * send an analyst looking for damaged bytes that the loader had already ruled
  * out — in the `uses` case, after verifying the envelope's integrity outright.
+ *
+ * Each string has to be true for *every* loader status mapped to its code, which
+ * is what makes the consumer-policy pair worded as broadly as they are. Two codes
+ * cover five binder outcomes, and a string that names one outcome's cause is
+ * false for the others: `CONSUMER_POLICY_REFUSED` covers a profile-identity
+ * disagreement, a required profile this build cannot mint, and evidence that does
+ * not resolve — and the first of those never evaluates the receipt at all, so a
+ * claim about the *evidence* would send an analyst to amend data when the profile
+ * id is what disagrees. Naming the cause is the refusal's job at the code level;
+ * naming the disagreement is this string's.
  */
 const REFUSAL_CLAIM: Record<ReplayEvidenceRefusalCode, string> = {
-  'uses-not-governable-by-this-build':
-    'the package requires consumer uses this build cannot resolve, so replay refuses it ' +
-    'rather than open it without its governing policy',
+  CONSUMER_NOT_GOVERNED:
+    'the package and this build’s governing policy cannot resolve to the same governed ' +
+    'consumer set, so replay refuses it rather than open it without that policy',
+  CONSUMER_POLICY_REFUSED:
+    'the package records a use of a consumer this build governs, but one that does not ' +
+    'satisfy this build’s policy, so replay refuses it rather than open it on weaker terms',
   DATASET_MISMATCH:
     'the reconstructed dataset is not the dataset the governed evidence commits to',
   KERNEL_MISMATCH:
@@ -51,9 +64,10 @@ const REFUSAL_CLAIM: Record<ReplayEvidenceRefusalCode, string> = {
  * the declared identity and the reconstructed one — which is what an analyst
  * actually needs in order to tell which side is wrong.
  *
- * Only the `uses` refusal leaves `discrepancies` empty; it is a build-capability
- * limit with nothing to compare, and it is the one refusal that must not be
- * conflated with malformed input.
+ * Only the consumer-policy refusals leave `discrepancies` empty; they are
+ * limits or disagreements of *this build's policy* with nothing in the archive to
+ * compare against, and they are the refusals that must not be conflated with
+ * malformed input.
  *
  * A verified envelope with *no* refusal is also a real shape — a damaged dataset
  * or command-log entry fails with `integrity: 'verified'` and a discrepancy — so
@@ -75,11 +89,18 @@ export function replayFailureDetail(result: ReplayVerificationResult): string {
  *
  * A legacy package carries no governed envelope, so "verified" is the whole
  * claim and a caveat would be noise. A present envelope means the governed
- * evidence commitment was checked — but this build enforces no consumer policy
- * over it (RFC 0009 tranche 3 owns that). Saying only "verified" there would let
- * a reader infer that the investigation's claims were checked against the
- * consumers that require them; they were not, and until that changes this line
- * is the only place an analyst is told so.
+ * evidence commitment was checked, and the loader put the package under this
+ * build's authority-owned consumer policy (RFC 0009 tranche 3) — but that policy
+ * governs no consumer, so nothing was checked against the consumers that require
+ * the evidence. Saying only "verified" would let a reader infer that it was; it
+ * was not, and this line is the only place an analyst is told so. It changes with
+ * the registry's first entry, and a falsifier pins the two together.
+ *
+ * "Put the package under the policy" and "no consumer policy enforced" are two
+ * different claims and both are true: the policy decides, and nothing was
+ * enforced, because it governs nothing. They are worded to stay apart — an
+ * earlier draft of this comment said the loader "enforced" the policy, which is
+ * the opposite of the string it documents six lines below.
  */
 export function replayVerifiedMessage(result: ReplayVerificationResult): string {
   const base = `Replay verified (${result.eventsMatched} events)`;

@@ -309,8 +309,12 @@ export class NemosyneSession {
         JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(evidenceReceiptBytes))
       );
       if (envelope.uses.length !== 0) {
-        // Until consumer-policy binding lands (RFC 0009 tranche 3), this
-        // build is the only legitimate writer and mints empty uses only.
+        // Consumer-policy binding has landed in the loader (RFC 0009 tranche 3
+        // slice 1), but no *producer* exists that knows which consumer consumes
+        // which receipt under which profile. This build is the only legitimate
+        // writer and mints empty uses only, and the authority-owned policy governs
+        // no consumer, so a non-empty `uses` here would be an assertion no path
+        // authored. Both sides lift together, with the producer.
         throw new Error(
           'Governed evidence export refuses a receipt envelope carrying consumer-use assertions that no production path authored'
         );
