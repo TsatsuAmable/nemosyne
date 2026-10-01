@@ -63,6 +63,29 @@ The recovered product ideas and legacy-code decisions are now scheduled rather t
 - **FM8:** integrated product coherence plus `FM8-CLEAN`, a final removal/archive pass for any executable prototype or compatibility surface without a declared product owner and evidence basis.
 - **Post-FM:** Gaussian splatting, biosignal salience, federated learning, richer literary metaphors, larger generative representation models and autonomous research/representation agents are evidence-triggered research candidates, not default roadmap commitments.
 
+
+### Claude parallel maintenance sprints — opportunistic substrate improvement
+
+**Status:** READY / PARALLEL_SAFE when active forward-lane ownership does not overlap.
+**Survey base:** `main@a55edaf1` (1 October 2026).
+**Purpose:** turn non-forward codebase debt into bounded work for Claude/sub-agents without manufacturing a second critical path. These are optional ribs under the roadmap execution model: the forward dependency spine always wins resource or ownership conflicts.
+
+Each sprint must begin from fresh `main`, declare its exact base SHA and touched paths, and stop if a fresh reachability audit discovers an active forward-lane caller or authority dependency. Production/evidence authority semantics may not be changed merely to make cleanup easier. Each implementation sprint requires focused tests, typecheck/architecture checks relevant to the touched surface, exact-head CI and a bounded adversarial post-review. Prefer one PR per sprint.
+
+| Sprint | Parallelism / dependency | Claude task | Exit criterion |
+|---|---|---|---|
+| **CMS-1 — collaboration contract extraction** | `PARALLEL_SAFE`; precedes CMS-4 | Remove production `PeerAvatarManager`'s type dependency on superseded `CollaborativeStateSync`. Define/reuse the smallest neutral peer-pose/state contract required by the production avatar/collaboration path; migrate callers/tests without reviving the legacy synchronizer. | No production source imports `CollaborativeStateSync`; production collaboration behavior and focused tests remain green; no second collaboration authority is introduced. |
+| **CMS-2 — false FlatBuffers retirement** | `PARALLEL_SAFE`, `SPAWNABLE` | Audit tests/E2E fixtures using `FlatBuffersSerializer`; preserve only behavior that belongs to a canonical supported serialization boundary, migrate valuable coverage to Arrow/MessagePack/current package formats, then delete the misleading hand-rolled serializer and its registry entry if reachability remains non-production. | No executable/test dependency on the false FlatBuffers surface; useful boundary/safety assertions survive against a truthful supported format; registry/docs are reconciled. |
+| **CMS-3 — dev debug bundling boundary** | `PARALLEL_SAFE`, `SPAWNABLE`; quick-fix candidate | Prove whether the static `src/main.ts` import of development-only `RemoteDebugStreamer` enters production bundles. If it does, replace it with an explicit DEV-only loading boundary and test that production startup/bundling cannot initialize or include the streamer accidentally. If bundler evidence disproves the concern, record STOP rather than churn code. | Reproducible bundle/reachability evidence; either bounded fix with tests or documented STOP. `RemoteDebugStreamer` remains development-only. |
+| **CMS-4 — superseded collaboration deletion** | `BLOCKED_BY: CMS-1`; otherwise parallel with CMS-2/3 | Re-audit `CollaborativeStateSync` and `src/network/SharedAnnotationManager.ts`; migrate/delete legacy-only tests, then remove implementations and production-capability entries when no production caller remains. Preserve `NetworkManager`/`CollaborationCoordinator` and `src/vr/interactions/SharedAnnotationManager.ts` as canonical authorities. | Superseded implementations absent from executable tree and registry; no lost production behavior; collaboration/security tests remain green. |
+| **CMS-5 — palette/CVD value extraction** | `PARALLEL_SAFE` research/review first; implementation only after decision | Compare development-only `ColorPaletteEngine` with canonical encoding/representation paths. Identify CVD/contrast algorithms and tests that materially improve accessibility semantics. Propose bounded absorption into the canonical authority or deletion; do not create another colour authority. | Written KEEP/ABSORB/DELETE decision with reachability and test evidence. If ABSORB/DELETE is mechanical and non-colliding, a follow-up PR may execute it. |
+| **CMS-6 — multimodal perception contract audit** | `PARALLEL_SAFE` research/review; do not promote prototype | Audit `MultimodalPerceptionEngine` heuristic confidence/action semantics against NIL and the System-1/System-2 architecture. Extract candidate typed cue contracts and falsifiers; do not describe heuristic scores as calibrated confidence and do not make the prototype production authority. | Bounded REVISE/ARCHIVE proposal with explicit cue contract, authority boundary and evidence needed before implementation. |
+| **CMS-7 — legacy-test rent census** | `SPAWNABLE`; may run alongside all above | Inventory tests whose primary purpose is preserving development-only, compatibility-only or explicitly superseded code. Classify each as `PROTECT`, `MIGRATE`, `DELETE_WITH_SURFACE`, or `RESEARCH_FIXTURE`; measure approximate CI/test volume but do not delete tests merely for speed. | Machine-readable or documented census that directly feeds CMS-2/4 and later cleanup packages; every deletion recommendation names the replacement invariant or explains why none remains. |
+
+**Explicitly not a sprint:** the dormant Rust scene command buffer (`CommandApplier` + `wasm/src/command_buffer.rs`) remains evidence-triggered. Do not spend implementation capacity on it until measured headset/runtime evidence justifies `CAP_SCENE_RUST` / `CAP_COMMAND_BUFFER`.
+
+**Claude scheduling rule:** Claude may run CMS-1, CMS-2, CMS-3 and CMS-7 concurrently, including via sub-agents, provided their path declarations remain disjoint. CMS-4 starts only after CMS-1 lands. CMS-5 and CMS-6 are review/research ribs and may run concurrently without blocking implementation. If any sprint collides with the active forward tranche, park that sprint immediately rather than negotiating ownership or slowing the spine.
+
 ## Historical status snapshot - 16 September 2026
 
 **Current integration base for this planning update:** `main@8adb2c7899d749be5c2676551ed0f5b8a757168e` (#754). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. PT0-PT8 remain landed at their bounded exits. P1-UXR remains the active pre-PT9 product-development programme: UXR0's bounded software contract and UXR1's canonical UI migration plus purpose/comprehension treatment-v3 fix-forward are landed. #745 remains open because software, browser and simulator evidence cannot establish the required physical human comprehension outcome. The forward engineering frontier is again the UXR2 resource lifecycle governor at its UXR3 bounded-semantic-working-set seam, followed by UXR4/UXR5 evidence, while the #745 Quest retest runs when physical-human evidence is available. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream. Experimental Full-Moneta work may be preserved off the integration path but may not jump those prerequisites.
@@ -318,9 +341,9 @@ A is the shared semantic integration spine and is frozen at its finite P1-R5 bou
 
 # Stream A - Progressive Disclosure & Semantic Drill-down
 
-**Status:** VERIFIED COMPLETE / STOP — #606 merged, all exact-head gates green  
-**Primary programme:** P1-R5 in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
-**Closure review:** `review/P1_R5_A5_STOP_REVIEW_2026-08-31.md`  
+**Status:** VERIFIED COMPLETE / STOP — #606 merged, all exact-head gates green
+**Primary programme:** P1-R5 in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`
+**Closure review:** `review/P1_R5_A5_STOP_REVIEW_2026-08-31.md`
 **Mission:** make observations an explicit detail capability rather than the universal geometry substrate.
 
 Canonical detail hierarchy:
@@ -335,7 +358,7 @@ investigation
 
 ## A1 - semantic drill-down contract and falsifiers
 
-**Status:** VERIFIED COMPLETE  
+**Status:** VERIFIED COMPLETE
 
 Freeze the generic contract before implementation fans out.
 
@@ -354,7 +377,7 @@ Required decisions/evidence:
 
 ## A2 - resident membership/query capability
 
-**Status:** VERIFIED COMPLETE  
+**Status:** VERIFIED COMPLETE
 
 - implement the bounded membership/detail query at the canonical Rust/Worker dataset authority;
 - return only the requested bounded identity/compact view;
@@ -367,7 +390,7 @@ Required decisions/evidence:
 
 ## A3 - representation transition and selection lineage
 
-**Status:** VERIFIED COMPLETE  
+**Status:** VERIFIED COMPLETE
 
 - reveal observation-level marks only for the selected/focused bounded subset or an explicit observation-level task;
 - preserve the selected semantic structure while entering detail;
@@ -379,7 +402,7 @@ Required decisions/evidence:
 
 ## A4 - exact datum/provenance inspection
 
-**Status:** VERIFIED COMPLETE  
+**Status:** VERIFIED COMPLETE
 
 - connect selected observations to exact datum/provenance retrieval;
 - make missing/unavailable provenance explicit;
@@ -388,7 +411,7 @@ Required decisions/evidence:
 
 ## A5 - product evidence and independent STOP
 
-**Status:** VERIFIED COMPLETE / STOP — #606 merged, all exact-head gates green  
+**Status:** VERIFIED COMPLETE / STOP — #606 merged, all exact-head gates green
 
 Canonical product evidence includes Aggregate/Distribution/Density/Cluster paths and proves:
 
@@ -419,9 +442,9 @@ B must not create a competing graph-specific member-query API. C may present `Re
 
 # Stream B - Source-Authoritative Structural Representations
 
-**Status:** VERIFIED COMPLETE / STOP FOR RELATIONSHIP GRAPH V1 — B1 #607, B2 #610, B3 #611, B4 #612 merged  
-**Primary programme:** P1-R2E in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`  
-**First selected family:** source-provided `RELATIONSHIP_GRAPH`.  
+**Status:** VERIFIED COMPLETE / STOP FOR RELATIONSHIP GRAPH V1 — B1 #607, B2 #610, B3 #611, B4 #612 merged
+**Primary programme:** P1-R2E in `roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`
+**First selected family:** source-provided `RELATIONSHIP_GRAPH`.
 **Closure review:** `review/P1_R2E_B4_STOP_REVIEW_2026-09-01.md`.
 
 ## Governing rule
@@ -497,16 +520,16 @@ B's Relationship Graph V1 integration contract is frozen. Future B-family work, 
 
 # Stream C - Visible Investigator Product Convergence
 
-**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE — C1 #613, C2 #614, C3 #615 and C4 #616 merged; physical P1-U9 evidence remains open  
-**Primary programme:** `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`  
+**Status:** IMPLEMENTATION LANDED / REVIEW ACTIVE — C1 #613, C2 #614, C3 #615 and C4 #616 merged; physical P1-U9 evidence remains open
+**Primary programme:** `roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`
 **Baseline authority:** `roadmap/P1_UV0_BASELINE_INVENTORY.md`.
 
 The bounded C1-C4 product-convergence implementation has landed. C consumes analytical/semantic truth from A/B/Moneta/Atlas and may not calculate new scientific facts from visual appearance. Browser and simulator evidence prove production wiring and simulator-testable semantics, not physical controller/direct-touch/comfort fitness.
 
 ## C1 - functional epistemic world objects
 
-**Status:** VERIFIED COMPLETE — #613 MERGED AT `main@5c593b57`  
-**Pre-review:** `review-plans/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_PRE_REVIEW_2026-09-01.md`  
+**Status:** VERIFIED COMPLETE — #613 MERGED AT `main@5c593b57`
+**Pre-review:** `review-plans/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_PRE_REVIEW_2026-09-01.md`
 **Post-review:** `review/P1_UV_C1_FUNCTIONAL_WORLD_OBJECTS_POST_REVIEW_2026-09-01.md`
 
 Re-audit every persistent world object against the rule: **persistent objects earn their volume**.
@@ -538,8 +561,8 @@ Re-audit every persistent world object against the rule: **persistent objects ea
 
 ## C2 - investigation-state legibility
 
-**Status:** LANDED / #614 MERGED; bounded post-review closed  
-**Pre-review:** `review-plans/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_PRE_REVIEW_2026-09-01.md`  
+**Status:** LANDED / #614 MERGED; bounded post-review closed
+**Pre-review:** `review-plans/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_PRE_REVIEW_2026-09-01.md`
 **Post-review:** `review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md`
 
 C2 makes the normal Status Strip answer without log reading:
@@ -568,7 +591,7 @@ Implementation/review invariants:
 
 ## C3 - desktop/XR parity
 
-**Status:** LANDED / #615 MERGED  
+**Status:** LANDED / #615 MERGED
 **Post-review:** `review/P1_UV_C3_DESKTOP_XR_PARITY_POST_REVIEW_2026-09-01.md`
 
 - one canonical selected-object task vocabulary: `Inspect | Compare | Challenge | Record | Navigate | More`;
@@ -580,7 +603,7 @@ Implementation/review invariants:
 
 ## C4 - visible-product evidence
 
-**Status:** LANDED / #616 MERGED; canonical browser journeys present; physical evidence still open  
+**Status:** LANDED / #616 MERGED; canonical browser journeys present; physical evidence still open
 **Pre-review:** `review-plans/P1_UV_C4_VISIBLE_PRODUCT_JOURNEYS_PRE_REVIEW_2026-09-01.md`
 
 C4 exercised the canonical journeys:
@@ -602,7 +625,7 @@ C owns product shell/world-object/presentation state and affordances. It consume
 
 # Stream D - Assurance & Private-Preview Readiness
 
-**Status:** PARTIALLY LANDED / NOW CONSUMED AS BOUNDED ASSURANCE TRANCHES WITHIN P1-PT  
+**Status:** PARTIALLY LANDED / NOW CONSUMED AS BOUNDED ASSURANCE TRANCHES WITHIN P1-PT
 **Primary programmes:** `roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`, `docs/archive/STREAM_C_SECURITY_ASSURANCE.md` (legacy execution name), issue #314 hardening backlog, and later P1-U9/P1-W gates.
 
 The file `docs/archive/STREAM_C_SECURITY_ASSURANCE.md` retains its historical name because it is evidence from the previous completed A/B/C wave. Under the current product-transition programme, unresolved security/privacy/live-path findings are selected as bounded forward tranches rather than executed as a parallel stream.
@@ -696,7 +719,7 @@ For the selected private-preview platform/scope:
 
 **Status:** PT0-PT8 LANDED AT THEIR BOUNDED EXITS; P1-UXR ACTIVE BEFORE PT9/PT10
 
-**Primary plan:** `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md`  
+**Primary plan:** `roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md`
 **Historical execution checklist:** issue #620; stale for live status and sequencing
 
 Current sequential status:
