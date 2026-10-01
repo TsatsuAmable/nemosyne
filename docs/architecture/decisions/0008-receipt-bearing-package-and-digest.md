@@ -32,15 +32,17 @@ Malformed V3 is never retried as V2. Default session export remains V2.
 
 ## Consequences and bounded implementation
 
-This decision records package packing/unpacking and digest infrastructure only. The production
-replay runner explicitly refuses V3 before parsing datasets or invoking the kernel until the
-sequential governed-loader tranche implements all RFC 0009 checks. No parsed envelope mints
-an authority capability. Unknown historical profiles and nonexistent references can remain
-inspectable data here; they must be resolved or refused by that future loader.
+This decision records package packing/unpacking and digest infrastructure only. The governed
+loader, not this format, is the authority for what replay accepts: none of the checks this
+decision specifies establish admissibility, and no parsed envelope mints an authority
+capability. Unknown historical profiles and nonexistent references can remain inspectable
+data here; resolving or refusing them is the governed loader's decision.
 
 Authoritative capture/export, reconstructed identity verification, consumer-policy binding,
-missing-use enforcement, and complete investigation replay remain dependencies. This format
-does not close TEC1, PT9 or MCR2+. [ROADMAP.md](../../ROADMAP.md) owns live status.
+missing-use enforcement, and complete investigation replay are likewise not provided by this
+format. Which of them the loader implements today is live status rather than part of this
+decision, so this record does not restate it. This format does not close TEC1, PT9 or MCR2+.
+[ROADMAP.md](../../ROADMAP.md) owns live status.
 
 ## Evidence
 
