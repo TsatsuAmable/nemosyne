@@ -30,5 +30,5 @@ Each ADR contains:
 - [ADR-0006: Moneta stability-certificate authority and scientific abstention](0006-moneta-stability-certificate-authority-and-abstention.md)
 - [ADR-0007: Rust-issued trustworthy evidence receipts and live resolution authority](0007-trustworthy-evidence-receipt-authority.md)
 
-- [ADR-0008: Explicit receipt-bearing package and investigation digest](0008-receipt-bearing-package-and-digest.md) — bounded RFC 0009 package/digest infrastructure; governed replay remains unavailable.
+- [ADR-0008: Explicit receipt-bearing package and investigation digest](0008-receipt-bearing-package-and-digest.md) — bounded RFC 0009 package/digest infrastructure; the format grants no replay authority.
 - [ADR-0009: AP-INV Architecture Preflight for FM1 Question-Aware Moneta](0009-ap-inv-fm1-question-aware-investigation.md) — defines investigation graph boundaries and versioned intent.
