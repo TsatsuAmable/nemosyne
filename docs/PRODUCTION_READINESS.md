@@ -31,7 +31,7 @@ Product-intended PostgreSQL/OIDC governance substrate for authenticated, consent
 
 ### collaboration-signalling-service
 
-Fail-closed signalling runtime with readiness surface, container contract and operator-issued one-use signed collaboration invites. Repository tests cover real two-peer service admission and replay rejection; deployed wss:// evidence is intentionally deferred.
+Fail-closed signalling runtime with readiness surface, container contract and operator-issued one-use signed collaboration invites. Repository tests cover real two-peer service admission, replay rejection, and cross-replica one-use safety through a shared atomic nonce store; deployed wss:// evidence is intentionally deferred.
 
 **Sources:** `src/network/SignallingServer.mjs`, `src/network/SignallingServerCore.ts`, `src/network/SignedTicket.ts`
 
@@ -69,7 +69,7 @@ PT6/PT7 provide governed user-disjoint snapshots, held-out evaluation artifacts,
 | RDO-004 | collaboration-signalling-service | AUTOMATED | GREEN | `tests/p1w1-signalling-service-runtime.test.ts` | Keep real service startup, health/readiness, signed-ticket admission and bounded failure semantics green. |
 | RDO-005 | collaboration-signalling-service | AUTOMATED | GREEN | `tests/p1w1-collaboration-invite.test.ts`, `tests/signalling-reconnect-ticket.test.ts` | Keep operator-issued invite consumption, server-bound peer identity and consumed-ticket replay rejection green. |
 | RDO-006 | collaboration-signalling-service | EXTERNAL_SERVICE | DEFERRED_BY_POLICY | — | Run a clean production bundle through the actually deployed wss:// endpoint and capture RF-054 deployment evidence. |
-| RDO-007 | collaboration-signalling-service | AUTOMATED | MISSING | expected: `tests/p1w-signalling-shared-nonce-store.test.ts` | Before enabling more than one signalling replica, introduce a shared atomic nonce store and prove one-use ticket replay safety across replicas. Single-replica operation does not require this obligation to be green. |
+| RDO-007 | collaboration-signalling-service | AUTOMATED | GREEN | `tests/p1w-signalling-shared-nonce-store.test.ts` | Before enabling more than one signalling replica, introduce a shared atomic nonce store and prove one-use ticket replay safety across replicas. Single-replica operation does not require this obligation to be green. |
 | RDO-008 | production-live-source-contract | AUTOMATED | GREEN | `tests/rf062f-feature-ports-production-path.test.ts` | Keep configured live-source adapters on the governed production path without silently depending on the bundled development stream. |
 | RDO-009 | production-live-source-contract | MANUAL | GREEN | `dev/demo-stream-server.ts` | Keep /__demo-stream explicitly classified as a development fixture rather than a production service claim. This is a classification assertion, not an executable production-service test. |
 | RDO-010 | production-live-source-contract | EXTERNAL_SERVICE | DEFERRED_BY_POLICY | — | When a real production live source is selected, exercise a clean configured source journey and capture endpoint, reconnect, parsing, bounded-ingest and failure evidence. |

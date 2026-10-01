@@ -17,6 +17,7 @@ import {
   verifySignedTicket,
   timingSafeEqualString,
   SignedTicketReplayGuard,
+  type SignedTicketNonceStore,
 } from './SignedTicket.ts';
 
 const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024; // 64 KiB
@@ -144,6 +145,14 @@ export interface RoomRegistryOptions {
    * `Development` profile flips this default to `true` unless explicitly set.
    */
   allowOpenNoToken?: boolean;
+  /**
+   * Optional shared one-use ticket nonce store for multi-replica replay
+   * safety. When several registry instances share one store, a nonce consumed
+   * by a successful admission on any of them is refused on all of them.
+   * Defaults to a private per-registry `SignedTicketReplayGuard`, which keeps
+   * replay protection scoped to a single instance exactly as before.
+   */
+  replayNonceStore?: SignedTicketNonceStore;
   /**
    * When true, a token supplied via the `handleConnection` `token` parameter
    * (typically extracted from a URL query string) is accepted for immediate
@@ -305,6 +314,7 @@ export function createRoomRegistry({
   securityProfile,
   allowOpenNoToken,
   acceptUrlToken,
+  replayNonceStore,
 }: RoomRegistryOptions = {}): RoomRegistry {
   // Resolve the security profile and fail-closed defaults. When no profile is
   // specified the registry is fail-closed: open mode is OFF and authentication
@@ -382,10 +392,13 @@ export function createRoomRegistry({
   const ipConnectionCounts = new Map<string, number>();
   const ipAuthFailures = new Map<string, { count: number; resetAt: number }>();
   const roomLastActive = new Map<string, number>();
-  // Replay authority: one nonce store per registry instance, consumed atomically
-  // with successful ticket admission and evicted when the ticket expires. Kept
-  // inside the registry so replay enforcement lives on the admission path.
-  const signedTicketReplayGuard = new SignedTicketReplayGuard();
+  // Replay authority: one nonce store per registry instance by default,
+  // consumed atomically with successful ticket admission and evicted when the
+  // ticket expires. Kept inside the registry so replay enforcement lives on
+  // the admission path. Pass `replayNonceStore` to share one store across
+  // several registry instances for cross-replica one-use safety.
+  const signedTicketReplayGuard: SignedTicketNonceStore =
+    replayNonceStore ?? new SignedTicketReplayGuard();
 
   function getTotalPeers(): number {
     let total = 0;
