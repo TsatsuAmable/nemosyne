@@ -2,15 +2,16 @@
 
 **Status:** accepted
 **Date:** 2026-09-28  
-**Scope:** accepted TEC1 persistence contract; the first package/digest slice is implemented, while production replay integration and checkpoint completion remain open.
+**Scope:** accepted TEC1 persistence contract — the V3 receipt-bearing package/digest format, the governed replay contract that consumes it, and the consumer-policy binding that contract requires.
 
 ## Context
 
 RFC 0007 and ADR-0007 define Rust-issued receipt bundles and governed resolution. The
-exported replay resolver exists, but `NemosyneSession.exportPortablePackage` →
-`NemosynePackageManager` → `InvestigationReplayRunner` does not persist or consume receipt
-bundles, receipt uses, or governing requirement-profile identities. Structural validation
-alone therefore cannot establish end-to-end replay evidence integrity.
+exported replay resolver exists, but at the time of writing this RFC (2026-09-28)
+`NemosyneSession.exportPortablePackage` → `NemosynePackageManager` →
+`InvestigationReplayRunner` did not persist or consume receipt bundles, receipt uses, or
+governing requirement-profile identities. Structural validation alone therefore cannot
+establish end-to-end replay evidence integrity.
 
 RFC 0008 requires historical representation decisions and their digest-bearing signatures
 to survive verbatim. The current package and digest contracts must not be silently extended
@@ -152,5 +153,6 @@ Use the real export → pack → clean-room replay entry points with real Rust-i
 ## Resulting ADR
 
 [ADR-0008](../architecture/decisions/0008-receipt-bearing-package-and-digest.md) records the
-implemented package/digest boundary only. Capture/export, governed replay and consumer-policy
-integration remain subsequent tranches. RFC 0007, ADR-0007 and RFC 0008 remain governing dependencies.
+package/digest boundary decided here, and only that; the capture/export, governed replay and
+consumer-policy slices this RFC sequences are separate tranches sequenced by `docs/ROADMAP.md`.
+RFC 0007, ADR-0007 and RFC 0008 remain governing dependencies.

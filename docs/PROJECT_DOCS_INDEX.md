@@ -20,7 +20,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 - [`rfcs/0003-production-data-lifecycle-and-event-boundary.md`](rfcs/0003-production-data-lifecycle-and-event-boundary.md) - accepted PT3 production identity, purpose-scoped authorization, lifecycle, event-envelope and runtime-provenance boundary.
 - [`rfcs/0004-governed-data-plane-vertical-slice.md`](rfcs/0004-governed-data-plane-vertical-slice.md) - accepted PT4 trust-boundary contract for the first authenticated consent-aware ingestion, storage, export and erasure slice.
 - [`rfcs/0005-persistence-architecture-rationalisation.md`](rfcs/0005-persistence-architecture-rationalisation.md) - accepted persistence architecture: PostgreSQL is the canonical production server database, one versioned IndexedDB database is the canonical durable browser database, and database implementations remain behind explicit persistence ports.
-- [`rfcs/0009-persisted-governed-evidence-replay.md`](rfcs/0009-persisted-governed-evidence-replay.md) - accepted TEC1 receipt-bearing package/replay contract; bounded package/digest support implemented, governed replay integration remains open.
+- [`rfcs/0009-persisted-governed-evidence-replay.md`](rfcs/0009-persisted-governed-evidence-replay.md) - accepted TEC1 receipt-bearing package/replay contract: the V3 evidence format and the governed replay contract that consumes it.
 - [`architecture/decisions/README.md`](architecture/decisions/README.md) - accepted Architecture Decision Records.
 
 ## Implementation and engineering reference
