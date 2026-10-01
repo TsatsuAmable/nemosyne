@@ -194,13 +194,6 @@
       "forbiddenPublicExports": [{ "path": "src/network/index.ts", "symbols": ["SharedAnnotationManager"] }]
     },
     {
-      "id": "shareable-session-url",
-      "classification": "development-only",
-      "sources": ["src/session/ShareableSessionURL.ts"],
-      "reason": "Legacy lightweight URL prototype; .nemosyne packaging is the governed portable investigation product path.",
-      "forbiddenPublicExports": [{ "path": "src/session/index.ts", "symbols": ["ShareableSessionURL", "ShareableSessionPayload"] }]
-    },
-    {
       "id": "color-palette-engine",
       "classification": "development-only",
       "sources": ["src/data/ColorPaletteEngine.ts"],
