@@ -28,9 +28,13 @@ import type {
  * out — in the `uses` case, after verifying the envelope's integrity outright.
  */
 const REFUSAL_CLAIM: Record<ReplayEvidenceRefusalCode, string> = {
-  'uses-not-governable-by-this-build':
-    'the package requires consumer uses this build cannot resolve, so replay refuses it ' +
-    'rather than open it without its governing policy',
+  CONSUMER_NOT_GOVERNED:
+    'the package and this build’s governing policy cannot resolve to the same governed ' +
+    'consumer set, so replay refuses it rather than open it without that policy',
+  CONSUMER_POLICY_REFUSED:
+    'the package records a use of a consumer this build governs, but its evidence cannot ' +
+    'resolve under the profile that policy requires, so replay refuses it rather than open ' +
+    'it on weaker terms',
   DATASET_MISMATCH:
     'the reconstructed dataset is not the dataset the governed evidence commits to',
   KERNEL_MISMATCH:
@@ -51,9 +55,10 @@ const REFUSAL_CLAIM: Record<ReplayEvidenceRefusalCode, string> = {
  * the declared identity and the reconstructed one — which is what an analyst
  * actually needs in order to tell which side is wrong.
  *
- * Only the `uses` refusal leaves `discrepancies` empty; it is a build-capability
- * limit with nothing to compare, and it is the one refusal that must not be
- * conflated with malformed input.
+ * Only the consumer-policy refusals leave `discrepancies` empty; they are
+ * limits or disagreements of *this build's policy* with nothing in the archive to
+ * compare against, and they are the refusals that must not be conflated with
+ * malformed input.
  *
  * A verified envelope with *no* refusal is also a real shape — a damaged dataset
  * or command-log entry fails with `integrity: 'verified'` and a discrepancy — so
@@ -75,11 +80,12 @@ export function replayFailureDetail(result: ReplayVerificationResult): string {
  *
  * A legacy package carries no governed envelope, so "verified" is the whole
  * claim and a caveat would be noise. A present envelope means the governed
- * evidence commitment was checked — but this build enforces no consumer policy
- * over it (RFC 0009 tranche 3 owns that). Saying only "verified" there would let
- * a reader infer that the investigation's claims were checked against the
- * consumers that require them; they were not, and until that changes this line
- * is the only place an analyst is told so.
+ * evidence commitment was checked, and the loader enforced this build's
+ * authority-owned consumer policy over it (RFC 0009 tranche 3) — but that policy
+ * governs no consumer yet, so nothing was checked against the consumers that
+ * require the evidence. Saying only "verified" would let a reader infer that it
+ * was; it was not, and this line is the only place an analyst is told so. It
+ * changes with the registry's first entry, and a falsifier pins the two together.
  */
 export function replayVerifiedMessage(result: ReplayVerificationResult): string {
   const base = `Replay verified (${result.eventsMatched} events)`;

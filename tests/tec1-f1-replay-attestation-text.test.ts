@@ -20,7 +20,8 @@ import { replayResultDouble } from './helpers/replayResult.ts';
  * doesn't.
  */
 const ALL_REFUSAL_CODES = [
-  'uses-not-governable-by-this-build',
+  'CONSUMER_NOT_GOVERNED',
+  'CONSUMER_POLICY_REFUSED',
   'DATASET_MISMATCH',
   'KERNEL_MISMATCH',
   'INVESTIGATION_DIGEST_MISMATCH',
@@ -78,10 +79,15 @@ describe('F1 falsifier 10: the surfacing layer cannot overclaim what was enforce
         }),
       );
 
-      // The loader leaves `discrepancies` empty for the `uses` refusal, so the
-      // old `discrepancies.join('; ')` path fell through to "integrity
-      // mismatch" — telling an analyst to hunt for damage the loader had
-      // already excluded.
+      // The loader leaves `discrepancies` empty for both consumer-policy
+      // refusals, so the old `discrepancies.join('; ')` path fell through to
+      // "integrity mismatch" — telling an analyst to hunt for damage the loader
+      // had already excluded. The enumerated framings are the specific
+      // explanations a refusal is allowed to give, and the consumer-policy pair
+      // states its own reason rather than borrowing one of the three mismatch
+      // clauses: both of its codes say "cannot resolve", because what they report
+      // is a limit or disagreement of *this build's policy*, not a disagreement
+      // with the replay the archive was checked against.
       expect(detail).not.toBe('');
       expect(detail).not.toMatch(/integrity mismatch/i);
       expect(detail).toMatch(

@@ -179,7 +179,7 @@ describe('V3 closed data and digest commitment', () => {
         envelope: 'present',
         integrity: 'verified',
         enforcement: 'none',
-        refusal: { code: 'uses-not-governable-by-this-build' },
+        refusal: { code: 'CONSUMER_NOT_GOVERNED' },
       });
       expect(result.discrepancies).toEqual([]);
     }

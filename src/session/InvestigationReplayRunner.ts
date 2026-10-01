@@ -29,6 +29,11 @@ import {
   parsePersistedEvidenceReceiptsV1,
   type PersistedEvidenceReceiptsV1,
 } from '../data/evidence/PersistedEvidenceReceipts.ts';
+import {
+  bindConsumerUsesV1,
+  type ConsumerBindingRefusalV1,
+} from '../data/evidence/ConsumerPolicy.ts';
+import { governedConsumerPolicyV1 } from '../data/evidence/ConsumerPolicyRegistry.ts';
 import { sha256Hex } from '../security/CryptoHash.ts';
 import { fnv1aHex } from '../atlas/DatasetSpace.ts';
 import { strFromU8 } from 'fflate';
@@ -40,18 +45,47 @@ import { strFromU8 } from 'fflate';
  * damaged *payload* (unparseable dataset or command-log bytes), which fails with
  * a verified envelope and a discrepancy naming the damaged part.
  *
- * These are the two answers an analyst acts on differently, which is why they
- * are separate codes rather than one. `uses-not-governable-by-this-build` is a
- * limit of the build and will lift on its own. The three `*_MISMATCH` codes are
- * disagreements between the archive's commitment and what the replay
+ * These are the answers an analyst acts on differently, which is why they are
+ * separate codes rather than one. The two consumer-policy codes are limits of
+ * *this build's policy*, and they are distinguished because one lifts on its own
+ * and the other does not. `CONSUMER_NOT_GOVERNED` means the archive and the
+ * authority-owned policy disagree about *which* consumers are governed — the
+ * archive names one the policy does not govern, or the policy governs one the
+ * archive's uses never mention. Like the code it replaces, a build limit that
+ * lifts when the registry gains that entry.
+ * `CONSUMER_POLICY_REFUSED` means the policy *does* govern the consumer but the
+ * recorded use cannot be bound or resolved under it: a disagreement between the
+ * archive and the policy, which no future build resolves. The three `*_MISMATCH`
+ * codes are disagreements between the archive's commitment and what the replay
  * reconstructed, and no future tranche resolves them — the archive or the
  * runtime has to be corrected.
  */
 export type ReplayEvidenceRefusalCode =
-  | 'uses-not-governable-by-this-build'
+  | 'CONSUMER_NOT_GOVERNED'
+  | 'CONSUMER_POLICY_REFUSED'
   | 'DATASET_MISMATCH'
   | 'KERNEL_MISMATCH'
   | 'INVESTIGATION_DIGEST_MISMATCH';
+
+/**
+ * How a policy refusal is classified for the analyst.
+ *
+ * Written as an exhaustive map rather than a comparison so a status added to
+ * `bindConsumerUsesV1` later is a compile error here instead of a silently
+ * reused classification. The split follows the paragraph above: both ways the
+ * archive and the policy can disagree about *which* consumers are governed are
+ * `CONSUMER_NOT_GOVERNED`, and both ways a governed consumer's recorded profile
+ * can fail under the policy are `CONSUMER_POLICY_REFUSED`.
+ */
+const POLICY_REFUSAL_CODE: Record<
+  ConsumerBindingRefusalV1['status'],
+  ReplayEvidenceRefusalCode
+> = {
+  UNKNOWN_CONSUMER: 'CONSUMER_NOT_GOVERNED',
+  MISSING_USE: 'CONSUMER_NOT_GOVERNED',
+  PROFILE_MISMATCH: 'CONSUMER_POLICY_REFUSED',
+  UNKNOWN_REQUIREMENT_PROFILE: 'CONSUMER_POLICY_REFUSED',
+};
 
 /**
  * RFC 0009: what persisted governed evidence this replay run actually stands on.
@@ -76,11 +110,15 @@ export type ReplayEvidenceRefusalCode =
  * reason appears as a `refusal` or only as a discrepancy.
  *
  * `envelope` and `integrity` are independent axes so `enforcement` can never
- * contradict the tag. `enforcement` is deliberately single-valued in this
- * tranche: consumer-policy binding (RFC 0009 tranche 3) does not exist yet, so a
- * later widening is a breaking union change that forces every consumer to
- * reconsider — rather than a variant that already looks handled and silently
- * changes meaning the day it becomes reachable.
+ * contradict the tag. `enforcement` is deliberately single-valued, and it is
+ * still `'none'` for a precise reason rather than an unfinished one: the loader
+ * now enforces the authority-owned consumer policy on every run (RFC 0009 tranche
+ * 3), and that policy governs no consumer, so no run this build accepts has had
+ * consumer policy applied to it. Widening the union is required the moment the
+ * registry gains an entry — a breaking change that forces every consumer to
+ * reconsider — rather than a variant that could look handled and silently change
+ * meaning the day it becomes reachable. A falsifier pins that coupling, so an
+ * entry cannot land without reopening this union.
  */
 export type ReplayEvidenceAttestation =
   | { readonly envelope: 'absent' }
@@ -96,9 +134,11 @@ export type ReplayEvidenceAttestation =
  * RFC 0009: the only governed-integrity attestation this build may report.
  *
  * A named constructor rather than an inline literal at each site, because the
- * `enforcement` value is the single claim in this tranche that is a statement
- * about *this build* rather than about the archive. The day consumer binding
- * lands, exactly one place has to start telling the truth.
+ * `enforcement` value is the single claim here that is a statement about *this
+ * build* rather than about the archive. Consumer binding has landed and this is
+ * where it starts telling the truth: the value stays `'none'` because the policy
+ * governs no consumer, so this constructor is the one place that changes when the
+ * registry gains its first entry.
  */
 function verifiedEvidence(
   refusal?: ReplayEvidenceRefusalCode,
@@ -529,21 +569,45 @@ export class InvestigationReplayRunner {
           [`Governed evidence integrity failure: ${(e as Error).message}`],
           { envelope: 'present', integrity: 'not-established' });
       }
-      if (envelope.uses.length > 0) {
-        // RFC 0009 tranche 3 owns consumer-policy binding. No consumer registry
-        // exists in this build, so accepting a use would forge consumer policy:
-        // the archive would be selecting its own governing contract, which is
-        // exactly what "an archive cannot select a weaker profile" forbids.
-        // This is a capability limit, not an archive defect, so it reports as
-        // typed *unavailable* carrying the verbatim envelope's verified
-        // integrity. Folding it into `discrepancies` would make it
-        // indistinguishable from a corrupt package, and — more importantly —
-        // would hide the day binding lands and this same archive silently
-        // becomes openable with nobody re-examining the classification.
+      // RFC 0009 tranche 3: the loader no longer answers this from the envelope's
+      // shape. It asks the authority-owned policy, so it is the policy — not a
+      // claim about what this build can read — that decides. Binding is data-only
+      // and consults no kernel, so it stays here, before reconstruction and before
+      // any bridge access, which is what keeps a refusal from touching the runtime
+      // at all rather than merely declining to use it.
+      //
+      // The predicate is deliberately wider than "not BOUND". `bindConsumerUsesV1`
+      // returns `BOUND` as soon as the consumer and profile *identities* agree —
+      // even when the receipt is absent from the bundle or its assumptions are
+      // violated, which it reports in `resolution` instead. Accepting a use on
+      // identity agreement alone would open an archive whose required evidence does
+      // not actually resolve, so a bound-but-unresolved use refuses here too.
+      const policyBindings = bindConsumerUsesV1({
+        envelope,
+        requiredConsumers: governedConsumerPolicyV1(),
+      });
+      const unresolvedBinding = policyBindings.find(
+        (binding) =>
+          binding.status !== 'BOUND' || binding.resolution.status !== 'RESOLVED',
+      );
+      if (unresolvedBinding !== undefined) {
+        // A policy limit or a policy disagreement, never an archive defect, so it
+        // reports as typed *unavailable* carrying the verbatim envelope's verified
+        // integrity rather than as a discrepancy. Folding it into `discrepancies`
+        // would make it indistinguishable from a corrupt package, and — more
+        // importantly — would hide the day this build's policy governs the
+        // consumer and the same archive silently becomes openable with nobody
+        // re-examining the classification.
         return this._failedResult(
           manifest,
           [],
-          verifiedEvidence('uses-not-governable-by-this-build'),
+          verifiedEvidence(
+            unresolvedBinding.status === 'BOUND'
+              // Bound, so the consumer *is* governed and the identities agreed —
+              // what refuses is the receipt under the recorded profile.
+              ? 'CONSUMER_POLICY_REFUSED'
+              : POLICY_REFUSAL_CODE[unresolvedBinding.status],
+          ),
         );
       }
     }

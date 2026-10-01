@@ -6,6 +6,9 @@ export const FAST_NODE_TESTS = [
   // still ran in the integration lane, which globs; this puts it in the fast
   // lane its author intended.
   'tests/tec1-consumer-policy.test.ts',
+  // The loader-side half of the same tranche: the policy the governed loader
+  // consults, and the properties that keep that seam from reverting.
+  'tests/tec1-consumer-policy-wiring.test.ts',
   'tests/tec1-governed-export.test.ts',
   'tests/tec1-governed-capture-ports.test.ts',
   'tests/tec1-f1-governed-replay.test.ts',
