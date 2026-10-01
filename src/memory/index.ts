@@ -6,6 +6,5 @@
 
 export * from './EpistemicObject.ts';
 export * from './MemoryPalaceGraph.ts';
-export * from './MemoryPalaceController.ts';
 
 export { EPISTEMIC_COLORS, EPISTEMIC_CUES } from './EpistemicObject.ts';
