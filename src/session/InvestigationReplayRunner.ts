@@ -119,6 +119,13 @@ const POLICY_REFUSAL_CODE: Record<
  * reconsider — rather than a variant that could look handled and silently change
  * meaning the day it becomes reachable. A falsifier pins that coupling, so an
  * entry cannot land without reopening this union.
+ *
+ * It says `'none'` on a *refusal* attestation too, and that is not the same claim
+ * as "no policy was consulted": a policy refusal is decided by the policy. What
+ * `'none'` asserts there is that no consumer's requirements were *enforced*, which
+ * a refused run trivially did not do. Scoping it as "this build enforced nothing"
+ * rather than "this build consulted nothing" is what keeps it true on both
+ * variants.
  */
 export type ReplayEvidenceAttestation =
   | { readonly envelope: 'absent' }

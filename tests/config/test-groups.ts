@@ -7,8 +7,10 @@ export const FAST_NODE_TESTS = [
   // lane its author intended.
   'tests/tec1-consumer-policy.test.ts',
   // The loader-side half of the same tranche: the policy the governed loader
-  // consults, and the properties that keep that seam from reverting.
+  // consults, the properties that keep that seam from reverting, and the
+  // substituted-policy falsifiers that show the decision really is the policy's.
   'tests/tec1-consumer-policy-wiring.test.ts',
+  'tests/tec1-consumer-policy-loader-decision.test.ts',
   'tests/tec1-governed-export.test.ts',
   'tests/tec1-governed-capture-ports.test.ts',
   'tests/tec1-f1-governed-replay.test.ts',

@@ -50,7 +50,7 @@ export function parsePersistedEvidenceReceiptsV1(value: unknown): PersistedEvide
     seen.add(key);
     return Object.freeze(result);
   });
-  // Existence and authority-owned consumer policy are checked by the future
-  // governed loader, not inferred from opaque IDs at this data-only boundary.
+  // Existence and authority-owned consumer policy are checked by the governed
+  // loader, not inferred from opaque IDs at this data-only boundary.
   return Object.freeze({ schemaVersion: '1', bundle, uses: Object.freeze(uses) });
 }

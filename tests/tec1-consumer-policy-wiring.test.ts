@@ -9,11 +9,15 @@ import { governedConsumerPolicyV1 } from '../src/data/evidence/ConsumerPolicyReg
  * and the loader's acceptance boundary in `tec1-f1-governed-replay.test.ts` and
  * `tec1-v3-package.test.ts`. What none of those can falsify is the *wiring*: this
  * build's policy governs no consumer, and while that is true the loader's refusal
- * is extensionally identical to the `envelope.uses.length > 0` branch it replaced.
- * No archive can tell the two apart, because both refuse every archive this build
- * can mint or read. So the properties that keep the seam from silently reverting
- * are asserted here, and the one that cannot be asserted behaviourally is asserted
- * against the loader's source with its weakness stated.
+ * is extensionally identical to the `envelope.uses.length > 0` branch it replaced
+ * — for every *archive*, because both refuse each one this build can mint or read.
+ *
+ * The two are not indistinguishable, though, and an earlier draft of this file
+ * wrongly said they were: the difference is observable through the *policy*
+ * rather than through an archive, and `tec1-consumer-policy-loader-decision.test.ts`
+ * demonstrates it by substituting the registry. This file holds what that cannot:
+ * the shipped registry's own properties, and the source guard against the seam
+ * being reverted outright.
  */
 
 const RUNNER = new URL('../src/session/InvestigationReplayRunner.ts', import.meta.url);
@@ -49,16 +53,15 @@ describe('the authority-owned consumer policy this build ships', () => {
   });
 
   it('is consulted by the loader rather than answered beside it', () => {
-    // Weakest assertion in this file, deliberately, and the reason is the point
-    // of the slice. While the policy governs nothing, "the loader binds against
-    // the registry" and "the loader kept the hard-coded build-capability branch"
-    // produce identical results for every input either can be given, so there is
-    // no behavioural falsifier to write. A source guard is what is left: it
-    // catches the specific regression of the seam being reverted — the loader
-    // dropping the import and re-growing the removed literal — and it would not
-    // catch a loader that imported the module and ignored it. The coupling
-    // assertions above are what make that second case fail loudly the moment the
-    // registry stops being empty.
+    // A source guard, and the weakest kind: it would not catch a loader that
+    // imported the module and ignored it. It is not standing in for a missing
+    // behavioural falsifier — that lives in
+    // `tec1-consumer-policy-loader-decision.test.ts`, which substitutes the
+    // registry and shows the loader's decision flipping with the policy alone on
+    // an archive whose `uses` array is empty, which the replaced branch could not
+    // have refused under any policy. What this catches is the regression that
+    // substitution cannot: the seam reverted outright — the loader dropping the
+    // import and re-growing the removed literal.
     const source = readFileSync(RUNNER, 'utf8');
 
     expect(source).toContain('governedConsumerPolicyV1');

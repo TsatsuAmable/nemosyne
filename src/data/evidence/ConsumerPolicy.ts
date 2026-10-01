@@ -1,5 +1,5 @@
 /**
- * RFC 0009 tranche 3 — authority-owned consumer-policy binding (contract only).
+ * RFC 0009 tranche 3 — authority-owned consumer-policy binding.
  *
  * A persisted `uses` record authorizes a semantic consumer only when three
  * identities agree: the `receiptId` names a receipt in the same envelope's
@@ -12,10 +12,13 @@
  * call site or a `receiptId` derived from a column name cannot bind.
  *
  * This module is data-only, like `PersistedEvidenceReceipts` parsing: binding
- * never mints a replay capability and never consults a live kernel. Wiring the
- * result into the governed loader is a later production tranche; this PR
- * claims the binding contract and its falsifiers only, not loader
- * enforcement or TEC1 closure.
+ * never mints a replay capability and never consults a live kernel. The governed
+ * loader does now call it (RFC 0009 tranche 3 slice 1), but that does not make it
+ * enforcement: `requiredConsumers` is the authority-owned policy from
+ * `ConsumerPolicyRegistry.ts`, which governs no consumer, so every non-empty
+ * `uses` array refuses. Binding becoming *reachable* still waits on the producer
+ * that can mint a conforming use, and this module claims no loader enforcement or
+ * TEC1 closure of its own.
  */
 import {
   evaluateEvidenceReceiptAgainstProfileV1,
@@ -71,9 +74,10 @@ export type ConsumerBindingV1 = ConsumerUseBindingV1 | ConsumerBindingRefusalV1;
  *
  * `requiredConsumers` maps each governed `consumerId` to the exact
  * `requirementProfileId` its owning policy demands. The map is supplied by
- * the calling policy authority (later: the governed loader); this function
- * never invents policy entries, weakens a requirement, or substitutes a
- * current default for a recorded historical identity.
+ * the calling policy authority — the governed loader passes the one
+ * `ConsumerPolicyRegistry.ts` owns — and this function never invents policy
+ * entries, weakens a requirement, or substitutes a current default for a
+ * recorded historical identity.
  *
  * Check order is fixed so refusals are deterministic: unknown consumer, then
  * profile disagreement with the owning policy, then unresolvable recorded
