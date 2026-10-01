@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/vr/World.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { NetworkManager } from '../src/network/NetworkManager.ts';
+import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 
 vi.mock('../src/wasm/RuntimeBridge.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/wasm/RuntimeBridge.ts')>();
@@ -52,9 +53,12 @@ describe('RF-062F production feature ports', () => {
       onStatus: vi.fn(() => () => {}),
     };
 
+    const bridge = makeKernelMockBridge();
+    world.atlas.setKernel(bridge, 0x3c07);
+
     vi.useFakeTimers();
     world.liveStreamCoordinator._onLiveUpdate({
-      dataset: sample.dataset,
+      rows: sample.dataset.rows,
       mode: 'replace',
       topology: 'TIME_SERIES',
     });
