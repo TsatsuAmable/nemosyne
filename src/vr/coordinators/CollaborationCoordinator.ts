@@ -63,6 +63,7 @@ export interface NetworkManagerLike {
   };
   peerId: string;
   addEventListener(type: string, handler: (event: NetworkEvent) => void): void;
+  removeEventListener(type: string, handler: (event: NetworkEvent) => void): void;
   connect(roomId?: string): Promise<void>;
   disconnect(): void;
   setLocalState(state: Record<string, unknown>): void;
@@ -82,6 +83,7 @@ export interface NetworkManagerLike {
  * ordinary production bundle never guesses that a signalling service exists.
  */
 export class CollaborationCoordinator {
+  private networkListeners: Array<{ type: string; handler: (event: NetworkEvent) => void }> = [];
   private readonly presence: CollaborationPresencePort;
   private readonly presentation: CollaborationPresentationPort;
   private readonly signallingConfig: BrowserSignallingRuntimeConfig | null;
@@ -242,7 +244,11 @@ export class CollaborationCoordinator {
   }
 
   private _wireNetworkEvents(networkManager: NetworkManagerLike, generation: number): void {
-    networkManager.addEventListener('connected', (e: NetworkEvent) => {
+    const listen = (type: string, handler: (event: NetworkEvent) => void): void => {
+      networkManager.addEventListener(type, handler);
+      this.networkListeners.push({ type, handler });
+    };
+    listen('connected', (e: NetworkEvent) => {
       if (!this.isCurrent(networkManager, generation)) return;
       const roomId = String(e.detail?.roomId ?? networkManager.roomId);
       this.presentation.setStatus({
@@ -255,7 +261,7 @@ export class CollaborationCoordinator {
       this.presentation.recordTelemetry('network-connect');
       this.desktopCompanion?.render();
     });
-    networkManager.addEventListener('disconnected', () => {
+    listen('disconnected', () => {
       if (!this.isCurrent(networkManager, generation)) return;
       this.presentation.setStatus({
         connected: false,
@@ -266,7 +272,7 @@ export class CollaborationCoordinator {
       this.presentation.recordTelemetry('network-disconnect');
       this.desktopCompanion?.render();
     });
-    networkManager.addEventListener('peerJoined', (e: NetworkEvent) => {
+    listen('peerJoined', (e: NetworkEvent) => {
       if (!this.isCurrent(networkManager, generation)) return;
       const peers = networkManager.room.getRemoteSnapshot();
       const peerName = String(e.detail?.name ?? e.detail?.peerId ?? '');
@@ -282,7 +288,7 @@ export class CollaborationCoordinator {
       this.presentation.recordInteraction('Peer joined', { result: peerName });
       this.desktopCompanion?.render();
     });
-    networkManager.addEventListener('peerLeft', (e: NetworkEvent) => {
+    listen('peerLeft', (e: NetworkEvent) => {
       if (!this.isCurrent(networkManager, generation)) return;
       const peers = networkManager.room.getRemoteSnapshot();
       const peerId = String(e.detail?.peerId ?? '');
@@ -294,12 +300,12 @@ export class CollaborationCoordinator {
       this.presentation.recordInteraction('Peer left', { result: peerId });
       this.desktopCompanion?.render();
     });
-    networkManager.addEventListener('peerState', () => {
+    listen('peerState', () => {
       if (!this.isCurrent(networkManager, generation)) return;
       this.presentation.recordTelemetry('peer-state');
       this.desktopCompanion?.render();
     });
-    networkManager.addEventListener('remoteCameraPose', (e: NetworkEvent) => {
+    listen('remoteCameraPose', (e: NetworkEvent) => {
       if (!this.isCurrent(networkManager, generation)) return;
       const detail = e.detail as
         | {
@@ -326,6 +332,10 @@ export class CollaborationCoordinator {
   }
 
   private teardown(networkManager: NetworkManagerLike): void {
+    for (const { type, handler } of this.networkListeners) {
+      networkManager.removeEventListener(type, handler);
+    }
+    this.networkListeners = [];
     networkManager.disconnect();
     if (this.networkManager === networkManager) this.networkManager = null;
     this.peerAvatarManager?.dispose();
