@@ -57,11 +57,10 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
 
     const produceReceiptBundle = this._kernel.statisticsEvidenceReceiptBundle;
     const readGovernedConsumers = this._kernel.statisticsGovernedConsumers;
+    const readGovernedCapture = this._kernel.statisticsGovernedCapture;
     const readDatasetFingerprint = this._kernel.datasetFingerprint;
     const readKernelVersion = this._kernel.kernelVersion;
     if (
-      typeof produceReceiptBundle !== 'function' ||
-      typeof readGovernedConsumers !== 'function' ||
       typeof readDatasetFingerprint !== 'function' ||
       typeof readKernelVersion !== 'function'
     ) {
@@ -75,15 +74,45 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     // mismatch means this port's kernel state moved under the caller.
     if (datasetFingerprint !== req.dataset.fingerprint) return null;
 
-    const rawBundle = produceReceiptBundle.call(this._kernel, handle);
-    if (!rawBundle) return null;
+    // RFC 0009 tranche 3 slice 2 follow-up: prefer the single-pass governed
+    // capture — one kernel read computes the receipt bundle once and mints the
+    // consumer attestation from that same in-kernel bundle value — instead of
+    // composing the capture out of two reads that each computed the bundle.
+    // Three outcomes on the preferred read: a capture is used as-is, a real
+    // refusal (`null`) refuses without ever consulting the two-call bytes, and
+    // the `'unsupported'` capability marker falls back to the two-call path —
+    // exactly as it was — for kernel contracts that do not carry the
+    // single-pass export on this build.
+    let rawBundle: unknown;
+    let governedConsumers: unknown;
+    const captured =
+      typeof readGovernedCapture === 'function'
+        ? readGovernedCapture.call(this._kernel, handle)
+        : 'unsupported';
+    if (captured === null) return null;
+    if (captured !== 'unsupported') {
+      rawBundle = captured.rawBundle;
+      governedConsumers = captured.governedConsumers;
+    } else {
+      if (
+        typeof produceReceiptBundle !== 'function' ||
+        typeof readGovernedConsumers !== 'function'
+      ) {
+        return null;
+      }
 
-    // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
-    // same read — composition mints the persisted uses from it, so a kernel
-    // runtime that cannot attest governed consumers refused the slice, rather
-    // than exporting an envelope whose `uses` no kernel path authored.
-    const governedConsumers = readGovernedConsumers.call(this._kernel, handle);
-    if (!governedConsumers) return null;
+      rawBundle = produceReceiptBundle.call(this._kernel, handle);
+      if (!rawBundle) return null;
+
+      // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
+      // same read — composition mints the persisted uses from it, so a kernel
+      // runtime that cannot attest governed consumers refused the slice, rather
+      // than exporting an envelope whose `uses` no kernel path authored.
+      governedConsumers = readGovernedConsumers.call(this._kernel, handle);
+      if (!governedConsumers) return null;
+    }
+
+    if (!rawBundle || !governedConsumers) return null;
 
     // Re-check after the producer call: a supersession that raced this capture
     // must not be reported as evidence for the current generation.

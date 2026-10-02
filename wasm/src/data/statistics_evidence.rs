@@ -38,6 +38,15 @@ pub fn compute_statistics_evidence_receipt_bundle(
     dataset_fingerprint: &str,
     kernel_version: &str,
 ) -> Result<EvidenceReceiptBundleV1, String> {
+    // RFC 0009 tranche 3 slice 2 follow-up (#866 residual): counted per the
+    // established prepared-results idiom, inside the computation itself so the
+    // count is the number of times the kernel actually ran the receipt
+    // families — not the number of times a caller *asked* for a read that may
+    // compose several of them. The single-pass governed capture falsifier
+    // asserts this delta, not a closure entry.
+    crate::prepared_results::record_computation(
+        crate::prepared_results::STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS,
+    );
     let evidence = compute_statistics_evidence(dataset, dataset_fingerprint, kernel_version);
     EvidenceReceiptBundleV1::new(dataset_fingerprint, kernel_version, evidence.receipts())
 }
@@ -208,6 +217,12 @@ mod tests {
 
     #[test]
     fn receipt_bundle_is_rust_issued_and_preserves_unknown_axes() {
+        // Computes a receipt bundle, which moves the process-global
+        // computation counters: serialized on the shared test guard (see its
+        // doc in `prepared_results`) so parallel test threads cannot compute
+        // into a delta-window falsifier's measurement span.
+        let _guard = crate::prepared_results::COUNTER_TESTS.lock().unwrap();
+
         let dataset = Dataset::new(
             "receipt-evidence",
             vec![Column::new("x", ColumnType::Numeric)],

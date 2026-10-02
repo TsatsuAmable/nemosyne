@@ -58,6 +58,8 @@ export {
   statistics,
   statisticsEvidenceReceiptBundle,
   statisticsGovernedConsumers,
+  statisticsGovernedCapture,
+  type StatisticsGovernedCaptureResult,
   computeSpectralFacts,
   parseArrow,
   computeMapperGraph,

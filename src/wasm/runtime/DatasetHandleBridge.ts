@@ -475,6 +475,73 @@ export function statisticsGovernedConsumers(handle: number): unknown | null {
   }
 }
 
+/**
+ * The two halves of one governed capture, read from the kernel in a single
+ * pass. `rawBundle` is exactly the value `statisticsEvidenceReceiptBundle`
+ * parses, and `governedConsumers` exactly the value `statisticsGovernedConsumers`
+ * parses — the kernel embeds each standalone export's wire shape — so callers
+ * switch between the single-pass and two-call reads without reshaping anything.
+ * `'unsupported'` is a capability signal, not a refusal: it distinguishes a
+ * wasm build that predates the single-pass export (the two-call path is still
+ * authoritative there) from a present export that refused or failed its read
+ * (`null`).
+ */
+export interface StatisticsGovernedCaptureResult {
+  rawBundle: unknown;
+  governedConsumers: unknown;
+}
+
+/**
+ * RFC 0009 tranche 3 slice 2 follow-up (#866 residual): the governed capture
+ * computed in one kernel pass — the receipt bundle is computed exactly once and
+ * the consumer attestation is minted from that same in-kernel bundle value,
+ * inside one dataset read. Two-call string-out ABI, mirroring
+ * `statisticsGovernedConsumers`.
+ *
+ * The three outcomes are deliberately distinct: `'unsupported'` means this
+ * build's wasm has no single-pass export and governed capture must keep the
+ * two-call read it still trusts (a slice-2-era pkg paired with this JS build
+ * must not start refusing what slice-2 captured); `null` means the export is
+ * present and refused — no dataset, families refused, or a payload that does
+ * not parse — and the ports refuse outright rather than re-minting from the
+ * two-call bytes, which must never be consulted after a real refusal.
+ */
+export function statisticsGovernedCapture(
+  handle: number
+): StatisticsGovernedCaptureResult | null | 'unsupported' {
+  const wasm: DatasetHandleExports = getRuntimeExports();
+  // The runtime feature-detect is a capability signal; the typed access below
+  // stays on the declared export contract.
+  if (typeof wasm.data_statistics_evidence_governed_capture !== 'function') {
+    return 'unsupported';
+  }
+  const json = readStringExport((ptr, len) =>
+    wasm.data_statistics_evidence_governed_capture(handle, ptr, len)
+  );
+  if (!json) return null;
+  try {
+    // The kernel wraps the two standalone wire shapes under these keys; an
+    // absent (or null) half is a shape mismatch, and the ports refuse it.
+    const parsed = JSON.parse(json) as {
+      receipts?: unknown;
+      governedConsumers?: unknown;
+    } | null;
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      parsed.receipts === undefined ||
+      parsed.receipts === null ||
+      parsed.governedConsumers === undefined ||
+      parsed.governedConsumers === null
+    ) {
+      return null;
+    }
+    return { rawBundle: parsed.receipts, governedConsumers: parsed.governedConsumers };
+  } catch {
+    return null;
+  }
+}
+
 export function computeSpectralFacts(
   handle: number,
   timeColumn?: string,

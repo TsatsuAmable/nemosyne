@@ -115,6 +115,13 @@ const publicFacadeExports = [
   // live dataset, carried to governed capture (feature-detected, so a build
   // without the Rust export supplies nothing rather than throwing).
   'statisticsGovernedConsumers',
+  // RFC 0009 tranche 3 slice 2 follow-up: the single-pass governed capture —
+  // kernel-computed receipt bundle and the attestation minted from that same
+  // bundle value, in one kernel read (feature-detected, so an older wasm
+  // build supplies nothing rather than carrying the read). Only the runtime
+  // export is pinned here; the wire type (`StatisticsGovernedCaptureResult`)
+  // is type-only and carries no runtime key.
+  'statisticsGovernedCapture',
   'tdaResourcePreflight',
   'update',
 ] as const;

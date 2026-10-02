@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 const MAX_RESULTS: usize = 4;
 const MAX_RESULT_BYTES: usize = crate::MAX_MEMORY_PAGES as usize * 65536;
-static COMPUTATIONS: [AtomicU32; 13] = [const { AtomicU32::new(0) }; 13];
+static COMPUTATIONS: [AtomicU32; 14] = [const { AtomicU32::new(0) }; 14];
 pub const STATISTICS: usize = 3;
 pub const DATASET_JSON: usize = 4;
 pub const AGGREGATE: usize = 5;
@@ -16,6 +16,29 @@ pub const GRAPH: usize = 9;
 pub const SEMANTIC_DETAIL: usize = 10;
 pub const SPECTRAL_FACTS: usize = 11;
 pub const STATISTICS_EVIDENCE_RECEIPTS: usize = 12;
+// RFC 0009 tranche 3 slice 2 follow-up (#866 residual): one real receipt-bundle
+// computation, counted inside `compute_statistics_evidence_receipt_bundle`
+// itself, for every caller — the prepared receipts export (which separately
+// bumps `STATISTICS_EVIDENCE_RECEIPTS` around the same computation), the
+// governed-consumer attestation read, and the single-pass governed capture. A
+// new slot under the existing counted-operations idiom, never the receipts
+// slot: `prepared_computation_count(12)` keeps its proven meaning (exactly one
+// increment per receipts prepare), and the capture falsifier distinguishes
+// single-pass from two-call composition by this slot's delta (1 vs 2) with the
+// receipts slot's delta (0 vs 1).
+pub const STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS: usize = 13;
+
+/// Test-only serialization for every falsifier that reads or moves the
+/// process-global computation counters (`COMPUTATIONS`): `cargo test` runs
+/// test threads in parallel, and delta-window assertions are only stable if
+/// no concurrent test computes into the same window. Every test whose body
+/// can bump a counted operation — calling a bundle/receipts computation
+/// directly, or through a prepared or composed read — holds this guard for
+/// its whole body. `lock()` panics on poisoning, which is the right failure
+/// mode for tests; guards are never nested in the same thread, so this
+/// cannot deadlock.
+#[cfg(test)]
+pub(crate) static COUNTER_TESTS: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);

@@ -229,6 +229,67 @@ describe('InlineAnalyticalPort governed-evidence capture (issue #834)', () => {
     expect(produce).toHaveBeenCalledTimes(1);
     expect(produce).toHaveBeenCalledWith(11);
   });
+
+  it('prefers a single-pass governed capture and never mints from the two-call reads', async () => {
+    // RFC 0009 tranche 3 slice 2 follow-up: a kernel contract offering the
+    // single-pass read is authoritative for both halves — the two-call reads
+    // must not run, or a capture could be composed out of bytes the kernel
+    // minted across two separate dataset reads.
+    const callsTwoCallReads = vi.fn();
+    const kernel = {
+      ...inlineKernel().kernel,
+      statisticsGovernedCapture: vi.fn(() => ({
+        rawBundle: { schemaVersion: '1', receipts: [] },
+        governedConsumers: { schemaVersion: '1', consumers: [] },
+      })),
+      statisticsEvidenceReceiptBundle: callsTwoCallReads,
+      statisticsGovernedConsumers: callsTwoCallReads,
+    } as unknown as AnalyticalKernelPort;
+    const port = new InlineAnalyticalPort(kernel);
+
+    const result = await port.captureGovernedEvidenceReceipt(captureRequest());
+    expect(result).not.toBeNull();
+    expect(result!.rawBundle).toEqual({ schemaVersion: '1', receipts: [] });
+    expect(result!.governedConsumers).toEqual({ schemaVersion: '1', consumers: [] });
+    expect(callsTwoCallReads).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the two-call reads when the single-pass capture reports it is unsupported', async () => {
+    // The capability marker must stay distinguishable from a refusal: a
+    // slice-2-era wasm paired with this JS build reports 'unsupported' on the
+    // single-pass read, and such a build captured successfully under slice 2 —
+    // it must keep capturing through the two-call reads, not start refusing
+    // because the single-pass export does not exist yet.
+    const fallback = inlineKernel();
+    const kernel = {
+      ...fallback.kernel,
+      statisticsGovernedCapture: vi.fn(() => 'unsupported'),
+    } as unknown as AnalyticalKernelPort;
+    const port = new InlineAnalyticalPort(kernel);
+
+    const result = await port.captureGovernedEvidenceReceipt(captureRequest());
+    expect(result).toEqual(capture());
+    expect(fallback.produce).toHaveBeenCalledTimes(1);
+    expect(fallback.readGovernedConsumers).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses, rather than falling back, when a single-pass capture is refused', async () => {
+    // A kernel that offers the single-pass read and refuses it half-attests:
+    // its two-call exports may describe a different dataset read than the one
+    // refused, so `null` is a refusal — the capture refuses outright, never
+    // re-minting from the two-call bytes.
+    const callsTwoCallReads = vi.fn();
+    const kernel = {
+      ...inlineKernel().kernel,
+      statisticsGovernedCapture: vi.fn(() => null),
+      statisticsEvidenceReceiptBundle: callsTwoCallReads,
+      statisticsGovernedConsumers: callsTwoCallReads,
+    } as unknown as AnalyticalKernelPort;
+    expect(
+      await new InlineAnalyticalPort(kernel).captureGovernedEvidenceReceipt(captureRequest())
+    ).toBeNull();
+    expect(callsTwoCallReads).not.toHaveBeenCalled();
+  });
 });
 
 interface PostedMessage {
