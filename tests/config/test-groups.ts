@@ -31,6 +31,11 @@ export const FAST_NODE_TESTS = [
   'tests/tec3-ma2-fitness-model-controls.test.ts',
   'tests/tec3-ma2-anomaly-floor-readback.test.ts',
   'tests/tec3-ma2-spectral-null-closure.test.ts',
+  // TEC3-MA2 second slice: decision-layer control fixtures over the scale
+  // envelope (F-3), information preservation (F-4), the p>=n gate (F-13),
+  // DecisionPolicy thresholds (F-14), weight sensitivity (F-15) and the
+  // signature equality gate (F-16).
+  'tests/tec3-ma2-decision-layer-controls.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',

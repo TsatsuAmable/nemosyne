@@ -1,13 +1,13 @@
-# TEC3-MA2 Control Harness — First Slice Calibration Report
+# TEC3-MA2 Control Harness — Calibration Report (two slices)
 
-- **Status:** first bounded slice of MA2 (deterministic control fixtures + this calibration report for five metric families). This is **not** MA2 completion, and it makes no promotion-eligibility statement. TEC3 remains open; every disposition below is family-specific and none is a universal calibration claim.
+- **Status:** two bounded slices of MA2 (deterministic control fixtures + this calibration report). Slice 1 covered five model/kernel metric families (§1-§5); slice 2 covered the six decision-layer families (§6). This is **not** MA2 completion, and it makes no promotion-eligibility statement. TEC3 remains open; every disposition below is family-specific and none is a universal calibration claim.
 - **Date:** 2026-10-02
 - **Base:** `main` @ `1a66850b` (branch `feat/tec3-ma2-control-harness`, in-progress worktree)
 - **Scope discipline:** no production source was changed. `src/**` untouched; the only Rust changes are new `#[cfg(test)]` tests appended to the existing test module in `wasm/src/data/profile.rs`. No ABI, wire key or persisted-format surface was touched. No threshold, weight or floor was changed or added; where a control's design conflicted with the current behaviour of a threshold, the current behaviour was recorded and the refusal noted here (see §1, §4).
 - **Entry ids** (`F-*`, `K-*`) cite `docs/audits/TEC3_METRIC_ADMISSIBILITY_INVENTORY_2026-10-02.md` ("MA1") throughout.
 - **Governing rule** (`docs/ROADMAP.md`, TEC3-MA table): metric presence is not metric admissibility; each decision-bearing metric needs evidence it can discriminate a positive from a negative control in its declared regime, recorded here DRF-like as the observed positive/negative separation on the metric's own decision scale — reported as measured, not massaged — plus family-specific diagnostics, or an explicit `NOT_CALIBRATABLE_FOR_DECISION` disposition.
 - **Rust lane note:** per the standing record, cargo does not run on this Windows authoring host (no MSVC toolchain); the Rust control tests in `wasm/src/data/profile.rs` execute in CI only. Every numeric value asserted in them was verified before being pinned by an exact TypeScript transcription of the invoked kernel kernels — `statistics_columnar.rs` (`numeric_stats`, `outlier_count`, `median_of`, `iqr_and_multimodality`), the profile.rs cluster/silhouette pipeline including the bit-exact u64 `cluster_sample_key`/`mix_cluster_hash` subsample ordering, and `spectral.rs` (Hann-windowed DFT, power/entropy thresholds) — executed locally with the exact fixtures (including the external `statify` crate's skewness, which supplies `max_skewness` — its symmetric-deviation cancellation keeps the `1e-9` pin safe under rounding residue of order `1e-15`). The pinned numbers below therefore carry the same provenance: verified by transcription, CI-confirmation outstanding.
-- **Verification (this host):** `npm run test:fast -- tests/tec3-ma2` (equivalent to `npx vitest run --config vitest.fast.config.ts` over the three files) → 3 files, 10 tests, all passing; `npm run test:fast -- tests/tec3`, `npm run typecheck`, `npm run lint`, `npm run docs:check` recorded at the end of this slice's lane log.
+- **Verification (this host):** `npm run test:fast -- tests/tec3-ma2` (equivalent to `npx vitest run --config vitest.fast.config.ts` over the three files) → 3 files, 10 tests, all passing; `npm run test:fast -- tests/tec3`, `npm run typecheck`, `npm run lint`, `npm run docs:check` recorded at the end of this slice's lane log. Slice 2 (§6) adds a fourth file (`tests/tec3-ma2-decision-layer-controls.test.ts`, 36 tests) to the same fast-lane selection per its own verification record in §6's header.
 
 ---
 
@@ -82,9 +82,11 @@ Family diagnostics: none beyond the gate itself; the underlying kernel metric (K
 
 ## Families covered vs open
 
-**Covered by this slice:** F-1/F-9 CLUSTER canonical + gate-flip + legacy-route check (§1); DISTRIBUTION boost halves — outlier half + highVariance half (§2); K-8 anomaly floor kernel + TS readback (§3); K-1 cap and subsample-ordering confounds (§4); K-5 periodicity negative + null closure (§5). Test artefacts: `wasm/src/data/profile.rs` (7 new `#[cfg(test)]` controls, CI-only lane), `tests/tec3-ma2-fitness-model-controls.test.ts`, `tests/tec3-ma2-anomaly-floor-readback.test.ts`, `tests/tec3-ma2-spectral-null-closure.test.ts` (registered in `tests/config/test-groups.ts` fast lane).
+**Covered by slice 1:** F-1/F-9 CLUSTER canonical + gate-flip + legacy-route check (§1); DISTRIBUTION boost halves — outlier half + highVariance half (§2); K-8 anomaly floor kernel + TS readback (§3); K-1 cap and subsample-ordering confounds (§4); K-5 periodicity negative + null closure (§5). Test artefacts: `wasm/src/data/profile.rs` (7 new `#[cfg(test)]` controls, CI-only lane), `tests/tec3-ma2-fitness-model-controls.test.ts`, `tests/tec3-ma2-anomaly-floor-readback.test.ts`, `tests/tec3-ma2-spectral-null-closure.test.ts` (registered in `tests/config/test-groups.ts` fast lane).
 
-**Open for MA2 (MA1 §5's remaining uncalibrated families, none started):** F-3 scale envelope, F-4 informationPreservation, F-5 densityVariation term, F-7 perceptualFitness, F-13 p≥n gate, F-14 DecisionPolicy thresholds, F-15 sensitivity rate, F-16 mismatch gate; K-3 correlation magnitude rule, K-6 periodicityHeuristicScore, K-7 trend/seasonality, K-9 graph, K-10 density bands, K-11 geospatial name-sniff, K-12 effective dimensions, K-13 dormant sample-count weight; P-1..P-5 (PT9 accuracy, sign test, LOO floor, feature vector, gesture quality bar).
+**Covered by slice 2:** F-3 scale envelope (component + hard-constraint boundary at `minN`/`maxN` + shadowing) (§6a); F-4 informationPreservation (full/critical/half-credit + CRITICAL-loss shadowing) (§6b); F-13 p≥n gate boundary pair (§6c); F-14 DecisionPolicy thresholds (boundary-localized pair per constant + one-feasible/INFEASIBLE boundary) (§6d); F-15 winnerChangeRate (constructed ±10% flip, rate 2/14, plus canonical production readback 0/14) (§6e); F-16 signature equality gate (15/15 per-field refusals + the exact `densityVariation` exclusion, direct + `EvidenceBackedMoneta` production path) (§6f). Test artefact: `tests/tec3-ma2-decision-layer-controls.test.ts` (36 tests, fast lane).
+
+**Open for MA2 (MA1 §5's remaining uncalibrated families, none started):** F-5 densityVariation term, F-7 perceptualFitness; K-3 correlation magnitude rule, K-6 periodicityHeuristicScore, K-7 trend/seasonality, K-9 graph, K-10 density bands, K-11 geospatial name-sniff, K-12 effective dimensions, K-13 dormant sample-count weight; P-1..P-5 (PT9 accuracy, sign test, LOO floor, feature vector, gesture quality bar).
 
 ## Dispositions summary
 
@@ -96,5 +98,91 @@ Family diagnostics: none beyond the gate itself; the underlying kernel metric (K
 | Anomaly severity score | K-8 `max_anomaly_score` | `NOT_CALIBRATABLE_FOR_DECISION` | saturates in ordinary regime; floor binds only in a degenerate constant-column regime; not transported to the decision signature |
 | Cluster count / strength | K-1 | `NOT_CALIBRATABLE_FOR_DECISION` | count capped at 3 (5→3 demonstrated); threshold verdict subsample-order-coupled; textbook uniform-noise negative is a positive at kernel order |
 | Periodicity boolean | K-5 `has_periodicity` | `NOT_CALIBRATABLE_FOR_DECISION` | no threshold-proximate controls; gate reachability per §1; null-closure property itself measured and holding |
+| Scale envelope | F-3 `scale` component + `scale-range` constraint | `NOT_CALIBRATABLE_FOR_DECISION` | `D = 1.0` is envelope-membership itself; within-envelope metric is a hand-set constant (`0.9` band) + hand-set `optimalN` window; component's outside-envelope branch is dead in ranking (hard-disqualified before scoring) |
+| Information preservation | F-4 `informationPreservation` component | `NOT_CALIBRATABLE_FOR_DECISION` | the CRITICAL branch is shadowed by the `information-loss-critical` hard constraint in live ranking; separations (D = 1.0, 0.5) measure authored `preserves`/`loses` metadata consistency, not data |
+| p ≥ n gate | F-13 | `NOT_CALIBRATABLE_FOR_DECISION` | boolean regime marker — a one-column shift flips the whole arbitration (typed ABSTAIN ↔ promoted), zero graded information; replacement authority unexported |
+| DecisionPolicy thresholds | F-14 (0.35 / 0.08 / 0.02) | `NOT_CALIBRATABLE_FOR_DECISION` | all three boundaries flip exactly at the pinned constants (boundary pairs observed, incl. strict-comparison exact-boundary behaviour and the uniqueness-only `DECISIVE`); constants sit on the uncalibrated utility scale |
+| Winner weight-sensitivity | F-15 `winnerChangeRate` | `NOT_CALIBRATABLE_FOR_DECISION` | rate is fixture-gap-dependent (2/14 flip at 1% base margin; 0/14 canonical readback); ±10%/single-axis design remains unjustified |
+| Signature equality gate | F-16 | property measured and holding (no calibration disposition applies) | 15/15 individually tampered fields refused, exact `densityVariation` exclusion pinned, through the direct gate and the `EvidenceBackedMoneta` production path |
 
-Every disposition is MA2-slice-1 evidence, not an MA3 certificate: MA3's governed record (metric identity, regime, control digests, pre-specified rule) is a separate authority surface and has not been created here.
+Every disposition is MA2-slice evidence, not an MA3 certificate: MA3's governed record (metric identity, regime, control digests, pre-specified rule) is a separate authority surface and has not been created here.
+
+---
+
+## 6. MA2 second slice — decision-layer controls (2026-10-02, second slice)
+
+**Scope discipline (unchanged from slice 1):** no production source changed — the only edits are the new test file `tests/tec3-ma2-decision-layer-controls.test.ts` (36 tests, registered in `tests/config/test-groups.ts` fast lane), the `test-groups.ts` registration, and this report + the ROADMAP row. No threshold, weight, envelope, ontology or gate was changed; every refusalling measurement was recorded, not tuned. All controls drive the production classes (`BootstrapFitnessModel`, `MonetaHypothesisEngine.arbitrate`, `assessRepresentationDecision`, `analyzeWinnerSensitivity`, `assertDecisionRelevantSignatureMatchesEvidence`/`EvidenceBackedMoneta`); fixture-level constants such as `minimumUtility` boundaries are asserted against the production `DEFAULT_DECISION_POLICY`/`DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS` themselves, not re-declared. **Slice-2 verification (this host):** `npm run test:fast -- tests/tec3-ma2` → 4 files, 46 tests, all passing; `npm run typecheck`, `npm run lint` and `npm run docs:check` clean on the slice-2 base `f4507032` (branch `feat/tec3-ma2-slice2-decision-controls`). Predicted-from-source pins were re-measured before pinning; one authoring prediction was wrong in flight (DENSITY_FIELD's sub-optimal band above `optimalN` was briefly predicted 0.9 at 20_000 rows — observed 1.0, i.e. still inside the optimal window) and was corrected to observed truth, not tuned. No pinned value contradicts MA1.
+
+### 6a. F-3 — scale envelope (`scoreScale`, `MonetaHypothesisEngine.ts:984-997` hard range)
+
+**Controls** (production `BootstrapFitnessModel.evaluate` on `DENSITY_FIELD` — `minN=100, maxN=500_000, optimalN=[1000, 50_000], scalabilityRating=0.9`; `tests/tec3-ma2-decision-layer-controls.test.ts`):
+
+- **Positive:** rowCount 1000 (inside `optimalN`). Observed `scale` rawScore `1.0`.
+- **Negative:** rowCount 1_000_000 (far above `maxN`). Observed rawScore `0.0`.
+- **Observed D = (1.0 − 0.0)/1 = 1.0** on the component's own [0,1] scale.
+
+**Diagnostics (observed):**
+
+- The component is a **three-valued step function** `{0, scalabilityRating, 1}`, not a scale fit: inside the envelope but outside `optimalN` it pins to the hand-authored constant `0.9` — observed *identical* at 100, 101, 999, 50_001 and 500_000 rows — and is discontinuous by exactly 0.1 at both `optimalN` boundaries (999→1000 gains 0.1; 50_000→50_001 loses 0.1). 20_000 rows sits inside the optimal window (observed 1.0). Within-envelope ranking can therefore only ever take the value `0.9`; ~99.9% of the envelope's width is banded to one constant.
+- **Hard-constraint boundary is reachable through the public path** (engine `arbitrate`, hardware element budget raised above `maxN` so `scale-range` is not masked by `hardware-element-budget`): flips exactly at `minN` (99 rows → entry `disqualified`, code `scale-range`, `score 0`, empty components; 100 rows → feasible, `scale` component 0.9) and exactly at `maxN` (500_000 rows → feasible; 500_001 rows → typed `NoFeasibleRepresentationError` whose traces carry `DENSITY_FIELD…: scale-range` — observed, because at that rowCount no candidate is feasible, so the typed NIL is the public surface).
+- **Shadowing observed:** through `arbitrate`, the component's outside-envelope `0.0` branch is unreachable in ranking — an out-of-envelope rowCount is a hard disqualification *before scoring* (empty components at rowCount 99). The live ranking surface of F-3 is exactly the two-value ladder `{0.9, 1.0}`; the raw-model `0.0` observed above exists only off the engine path.
+
+**Disposition: NOT_CALIBRATABLE_FOR_DECISION.** D = 1.0 is the envelope-membership test itself; the within-envelope metric is one hand-set constant plus a hand-set window (`optimalN` is an authored constant, not a measured fit). The just-inside/just-outside hard-constraint flips at `minN`/`maxN` are real, boundary-localized, and pass as fixture-level evidence for MA3; they do not calibrate the envelope's contents.
+
+### 6b. F-4 — informationPreservation (`:347-365`, CRITICAL hard constraint `:736-743`)
+
+**Controls** (production model `evaluate` with hand-authored requirements; `individual-inspection`/`explore` engine fixtures):
+
+- **Preserves-all positive:** goals `{exact-metric-values, CRITICAL}` × `POINT_SET` (preserves). Raw component `1.0`.
+- **CRITICAL-loss negative:** same goal × `DISTRIBUTION_FIELD` (declares it lost). Raw component `0.0`. **D = 1.0.**
+- **Half-credit rule (`:361`) measured:** a DESIRED goal neither in `preserves` nor `loses` (`relational-edge-connectivity` × `POINT_SET`) scores exactly `0.5`; a preserved + a half-credited DESIRED pair (`empirical-distribution-shape` + `relational-edge-connectivity` × `DISTRIBUTION_FIELD`) scores `0.75`; no goals scores `1.0`.
+- **Live engine:** `explore` with two declared dimensions (goal `empirical-bivariate-bin-mass` DESIRED, 200 rows) — `DENSITY_FIELD` `1.0` vs `POINT_SET` `0.5` (half credit) read from `decision.rankedCandidates` components; raw-component **D = 0.5** (0.075 on the weighted utility scale at weight 0.15).
+- **CRITICAL-loss shadowing (observed, matches MA1 F-8):** under `individual-inspection` (two CRITICAL goals), every candidate losing a CRITICAL goal is disqualified with code `information-loss-critical`, `score 0`, empty components **before the model runs** — the CRITICAL branch's `0.0` is therefore unreachable in live ranking through canonical intake; it is observable only off the engine path, via direct model evaluation as above. The *live* surface of F-4 is the half-credit/DESIRED-loss band.
+
+**Disposition: NOT_CALIBRATABLE_FOR_DECISION.** The observed separations (D = 1.0, 0.5) measure the consistency of hand-authored `preserves`/`loses` metadata with the priority-weighted rule (MA1 F-4 confound), not a discriminating measurement of data; the CRITICAL branch is doubly shadowed by the hard constraint in live arbitration. The half-credit boundary values and the disqualification shadowing are recorded as fixture-level evidence for MA3.
+
+### 6c. F-13 — p ≥ n stability-admission gate (`:295-344`)
+
+**Controls** (engine `arbitrate`, mirror of `tests/moneta-hypothesis-hard-constraints.test.ts:28-50` style, boundary pair at p == n):
+
+- **p == n (40 rows, 40 numeric):** observed `decisionStatus = 'ABSTAIN'`, no `chosenCandidateId`; blocked entries carry the typed refusal code `stability-evidence-required` and the reason text `p >= n (40 features, 40 observations) requires authority-certified perturbation/stability evidence before promotion`; blocked candidates keep their scored utilities (> 0) as ranked near-misses; `decisionRationale` names `p >= n`.
+- **Same dataset minus one column (40/39, p < n):** observed `chosenCandidateId` defined, status promoted, and no `stability-evidence-required` entry.
+
+**Diagnostic:** observed separation is a full status flip (typed ABSTAIN ↔ promoted decision) from a one-column shift — but the "metric" of F-13 is a boolean regime marker, not a scale, so the flip carries **zero graded calibration information**: no measured stability quantity enters the decision (the effective-feature authority that would replace the conservative dataset-wide `p` is unexported, MA1 F-13; the gate's own rationale text is the whole output). No contradiction with MA1; the pinned boundary behaviour (strict `p ≥ n`, exactly at equality) is new fixture-level evidence.
+
+**Disposition: NOT_CALIBRATABLE_FOR_DECISION** — there is nothing to calibrate on a boolean gate whose conservative regime constant is deliberate and whose replacement authority is unexported (MA1 §9 item 9). The observed p == n / p == n−1 boundary pair is recorded as fixture-level evidence for MA3.
+
+### 6d. F-14 — DecisionPolicy thresholds (`DecisionPolicy.ts:16-20`)
+
+**Controls** (production `assessRepresentationDecision` under the production defaults, one boundary-localized control pair per threshold, `DEFAULT_DECISION_POLICY` imported so the pinned constants are the production ones):
+
+- `minimumUtility 0.35`: single feasible candidate at `0.3499` → observed `UNDERDETERMINED` ("below the minimum"); at exactly `0.35` → observed `DECISIVE` — the comparison is a strict `<`, so the boundary itself is admitted.
+- `decisiveMargin 0.08`: `{0.5, 0.42}` → margin `0.08000000000000002` ≥ 0.08 → observed `DECISIVE`; `{0.5, 0.4201}` → margin `0.0799` → observed `AMBIGUOUS`. (The just-decisive margin is 1 double-ulp above the constant's nearest double — measured, not assumed.)
+- `underdeterminedMargin 0.02`: `{0.5, 0.48}` → margin `0.0200000000000000178…` → observed `AMBIGUOUS`; `{0.5, 0.4801}` → exact double `0.019899999999999973` → observed `UNDERDETERMINED`.
+- INFEASIBLE boundary: all-disqualified → `INFEASIBLE`; one feasible remains → `DECISIVE` even at the utility floor — **observed**: with a single feasible candidate the `DECISIVE` verdict comes entirely from uniqueness and bypasses both margin thresholds (`margin null`, rationale "Only one feasible candidate").
+
+**All three boundaries flip exactly at the pinned constants; observed and pin-compatible, no tuning.**
+
+**Disposition: NOT_CALIBRATABLE_FOR_DECISION.** Every threshold is reachable and boundary-exact behaviour is now pinned, but all three constants sit on the uncalibrated bootstrap utility scale (MA1 §1: engineering priors; §9 item 7). The boundary pairs are boundary-localized fixture evidence for MA3 — they demonstrate that the statuses are well-defined functions of the constants, not that 0.35 is the utility floor a real decision should require.
+
+### 6e. F-15 — winner weight-sensitivity `winnerChangeRate` (`SensitivityAnalysis.ts:31-105`)
+
+**Controls** (production `analyzeWinnerSensitivity` over the frozen v5 `DEFAULT_BOOTSTRAP_FITNESS_WEIGHTS` with a hand-authored two-candidate ranker applying the production functional form `U = Σ wᵢ·uᵢ`):
+
+- **Flip scenario (positive — constructible, observed):** A draws utility solely from `task` (raw 1.0 → `U_A = 0.25`), B solely from `structure` with component `0.83` → `U_B = 0.249`; base margin ≈ 1% of utility. Observed: `winnerChanges = 2` of `14` scenarios (`structure:increase`, `task:decrease`), `winnerChangeRate = 2/14 ≈ 0.1429`, `stable = false`.
+- **Boundary-localized negative:** the same fixture with B's component `0.75` (base margin 0.025) → observed `winnerChanges = 0`, `winnerChangeRate = 0`, `stable = true`. The flip regime begins at base margins smaller than the perturbation band `0.1·w_axis` (≤ 0.03 for `structure` at the frozen weights) — the boundary between these two fixtures is a property of the fixture's margin, not of the weights.
+- **Production-path readback (observed):** `engine.arbitrate` on the canonical explore fixture (§6b) reports `scenarioCount = 14`, `winnerChangeRate = 0`, `stable = true` — the realistic fixture's winner (observed ranked utilities DENSITY_FIELD ≈ 0.6515, runner-up MATRIX_FIELD ≈ 0.3735; base margin ≈ 0.278) sits far above the ±10% band and never flips. These winner/runner-up values are pinned by the same fixture's test.
+
+**Diagnostic:** a ±10% single-axis flip *is* constructible at the frozen weights, so `winnerChangeRate > 0` is not structurally impossible — but the rate is a direct function of the fixture's base margin: any margin below `0.1·w_axis` can be manufactured to flip, and any practical margin above it reports `stable`. A single scalar rate therefore cannot discriminate a robust decision from an adversarially separable one without a declared margin regime.
+
+**Disposition: NOT_CALIBRATABLE_FOR_DECISION** (MA1 §9 item 14 upheld: ±10% and single-axis-only remain unjustified; the rate is fixture-gap-dependent rather than a property of the decision). Both rates (2/14 flip; 0/14 canonical) are pinned as fixture-level evidence for MA3.
+
+### 6f. F-16 — signature equality admission gate (`DatasetEvidenceSignature.ts:505-540`)
+
+**Controls** (`assertDecisionRelevantSignatureMatchesEvidence` directly, plus the production consumer `EvidenceBackedMoneta.arbitrate`; canonical `datasetEvidenceToSignature(structureProfileToDatasetEvidence(profile))` fixture):
+
+- **Positive:** provided signature exactly equal to the reconstructed authoritative signature → passes (and `EvidenceBackedMoneta.arbitrate` completes a real arbitration through the gate).
+- **Negative (all 15 compared fields individually):** tampering exactly one of the 15 compared facts per case — fingerprint, kernel version, row count, column count, edge count, hierarchy depth, numeric/categorical/temporal counts, outlier presence, high variance, cluster presence, topology, time-series structure, spectral periodicity (via `spectralStructure?.hasPeriodicity ?? false` on a `null` authority) — each observed to refuse with a typed Error naming that field's label. **15/15 refusals observed; none silent.** The production consumer path additionally refuses a tampered `rowCount` with `/row count/`.
+- **The deliberate exclusion, pinned exactly:** only `clusterStructure.densityVariation` is absent from the compared list. Observed: the authoritative signature carries no `densityVariation`, a provided signature with `densityVariation = 0.42` still passes. This matches MA1 F-16's `:522-527` description exactly — the field's ranking influence is left solely to the FitnessModel's measured/derived epistemic gate (itself inert on the canonical path, MA1 F-12/§4).
+
+**Disposition: property measured and holding** — this family is an admission gate, not a metric, so no calibration disposition applies; the equality property (15/15 per-field refusals + the exact single-field exclusion) is execution-backed here where MA1 could only cite it from source. Recorded as fixture-level evidence for MA3 (e.g. for the F-12 densityVariation gate that the exclusion defers to).
