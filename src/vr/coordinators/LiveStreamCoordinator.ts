@@ -11,8 +11,6 @@ import { TopologyTypes } from '../../moneta/ConstraintEngine.ts';
 import { WebSocketAdapter } from '../../data/connectors/WebSocketAdapter.ts';
 import { PollingAdapter } from '../../data/connectors/PollingAdapter.ts';
 import { getOpenDataSource } from '../../data/connectors/OpenDataSources.ts';
-import { rowsToDataset } from '../../data/connectors/normalize.ts';
-import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { TopologyType } from '../../data/types.ts';
 import type { LiveUpdate } from '../../data/connectors/DataConnector.ts';
 import type { DatasetLoadEntry } from './types.ts';
@@ -39,6 +37,11 @@ export interface LiveDatasetSink {
     rows: Record<string, unknown>[],
     options: { mode: 'append'; limit: number }
   ): boolean;
+  materializeRows(
+    rows: Record<string, unknown>[],
+    name: string,
+    topology: TopologyType
+  ): DatasetLoadEntry;
   loadDataset(entry: DatasetLoadEntry): void;
 }
 
@@ -221,7 +224,7 @@ export class LiveStreamCoordinator {
   }
 
   _onLiveUpdate(update: LiveUpdate): void {
-    const rows = update.dataset?.rows ?? [];
+    const rows = update.rows ?? [];
     if (rows.length === 0) return;
 
     if (update.mode === 'replace') {
@@ -263,14 +266,8 @@ export class LiveStreamCoordinator {
     }
 
     // Fallback: full re-solve.
-    const dataset = rowsToDataset(this.liveRows, 'Live Stream');
-    this.dataset.loadDataset({
-      name: 'Live Stream',
-      topology,
-      dataset,
-      maxDepth: 1,
-      encodings: getDefaultEncodings({ dataset, topology }),
-    });
+    const entry = this.dataset.materializeRows(this.liveRows, 'Live Stream', topology);
+    this.dataset.loadDataset(entry);
     this._pendingRows = [];
   }
 

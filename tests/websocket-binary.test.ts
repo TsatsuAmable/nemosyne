@@ -63,7 +63,7 @@ describe('WebSocketAdapter binary frames', () => {
 
     expect(binaryParser).toHaveBeenCalledOnce();
     expect(update).not.toBeNull();
-    expect(update.dataset.rowCount).toBe(1);
+    expect(update.rows.length).toBe(1);
   });
 
   it('reports an error when a binary frame arrives without a binaryParser', () => {

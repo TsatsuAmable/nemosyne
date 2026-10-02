@@ -42,7 +42,7 @@ const contracts = [
   {
     file: 'LiveStreamCoordinator.ts',
     name: 'LiveDatasetSink',
-    members: ['appendRows', 'loadDataset'],
+    members: ['appendRows', 'loadDataset', 'materializeRows'],
   },
   {
     file: 'LiveStreamCoordinator.ts',

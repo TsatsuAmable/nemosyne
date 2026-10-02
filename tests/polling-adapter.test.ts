@@ -46,8 +46,8 @@ describe('PollingAdapter', () => {
 
     expect(updateSpy).toHaveBeenCalledOnce();
     const update = updateSpy.mock.calls[0][0];
-    expect(update.dataset.rows.length).toBe(1);
-    expect(update.dataset.rows[0].mag).toBe(2.5);
+    expect(update.rows.length).toBe(1);
+    expect(update.rows[0].mag).toBe(2.5);
 
     adapter.disconnect();
   });
