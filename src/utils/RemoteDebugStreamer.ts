@@ -42,6 +42,11 @@ class RemoteDebugStreamer {
   private endpointUnavailable = false;
 
   init(): void {
+    // DEV-only defence in depth (CMS-3): even if a future import site forgets
+    // the loading boundary, this streamer must never initialize in a
+    // production build — it patches console methods and starts a timed flush
+    // loop against a dev-server-only endpoint.
+    if (!import.meta.env.DEV) return;
     if (typeof window === 'undefined') return;
     // Idempotent: a second init (hot reload, repeated test cycle) would
     // otherwise stack a second pair of window listeners and a second HUD
