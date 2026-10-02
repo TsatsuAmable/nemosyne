@@ -115,6 +115,41 @@ export function toCssHex(n: number): string {
 /** Alias for backwards compatibility with palette.ts consumers. */
 export const cssHex = toCssHex;
 
+/**
+ * WCAG 2.x relative luminance and contrast ratio over colour values the token
+ * set already owns (`0xrrggbb` numbers or `#rrggbb` strings). Measurement only:
+ * no new colours derived, no parsing library (no second colour authority).
+ */
+function srgbChannelToLinear(channel8: number): number {
+  const c = channel8 / 255;
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+/** Unpack a colour value (`0xrrggbb` number or `#rrggbb` string) to 8-bit channels. */
+function unpackHex(value: number | string): [number, number, number] {
+  if (typeof value === 'number') return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+  const n = parseInt(value.slice(1), 16);
+  return [(n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+}
+
+/** WCAG 2.x relative luminance of a colour value (`0xrrggbb` or `#rrggbb`). */
+export function relativeLuminance(value: number | string): number {
+  const [r, g, b] = unpackHex(value);
+  return (
+    0.2126 * srgbChannelToLinear(r) +
+    0.7152 * srgbChannelToLinear(g) +
+    0.0722 * srgbChannelToLinear(b)
+  );
+}
+
+/** WCAG 2.x contrast ratio between two colour values (range 1..21). */
+export function contrastRatio(a: number | string, b: number | string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 /** CSS custom property (variable) map derived from tokens — inject into :root for DOM consumers. */
 export const CSS_VARIABLES: Record<string, string> = {
   '--nms-color-void': toCssHex(COLOR_TOKENS.space.void),

@@ -194,13 +194,6 @@
       "forbiddenPublicExports": [{ "path": "src/network/index.ts", "symbols": ["SharedAnnotationManager"] }]
     },
     {
-      "id": "color-palette-engine",
-      "classification": "development-only",
-      "sources": ["src/data/ColorPaletteEngine.ts"],
-      "reason": "Standalone palette experiment not consumed by the production encoding or UI token paths.",
-      "forbiddenPublicExports": [{ "path": "src/data/index.ts", "symbols": ["ColorPaletteEngine", "CVDMode", "PaletteColor"] }]
-    },
-    {
       "id": "learned-fitness-training",
       "classification": "development-only",
       "sources": ["src/fitness", "src/judgement", "src/app/JudgementFeatureTransaction.ts"],
