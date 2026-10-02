@@ -985,6 +985,26 @@ A/B/C and the legacy D labels remain useful programme/evidence boundaries, but P
 
 - **2026-09-18 Moneta dataset-first prerequisites:** explicit semantic abstraction levels, fail-closed raw-row presentation authority, SemanticEmbodimentGraph V1 and SpatialEmbodimentPlan V1 contracts, plus laboratory specimen capability discovery are landed prerequisites. **2026-09-20 ownership refinement:** `roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md` now owns the future compositional RepresentationGraph -> SpatialEmbodimentPlan production path. Evolutionary synthesis/search and RepresentationGenome operators remain a separate laboratory workstream and may consume P1-MCR contracts only after their authority/version boundaries are stable.
 
+### Adversarial Shadow Review (ASR) — closed-loop corrective feedback
+
+**Status: READY / non-authoritative review and dispatch.** A high-capability shadow reviewer independently inspects durable outputs from implementation, RFL, architecture and model/agent experiments. Its job is to detect material correctness, scientific-validity, security, governance, production-behaviour and autonomous-loop reliability problems. It does not implement fixes, merge code, silently rewrite roadmap intent, or accept its own findings.
+
+Shadow findings use the append-only ledger `governance/shadow/findings.jsonl`. Every finding must carry a stable id, UTC observation time, severity, confidence, affected artifact/PR/path, violated invariant or claim, observed evidence, causal hypothesis if any, cheapest independent reproduction, suggested owning lane and status. Observation and hypothesis are separate fields. Initial status is always `CANDIDATE`.
+
+**Validation and dispatch protocol:**
+
+1. **Independent validation before obligation.** A shadow finding becomes corrective work only after an independent worker reproduces it or the governing evidence/authority mechanism accepts it. The shadow cannot validate itself. Insufficient evidence produces `ABSTAIN`, not an invented decision.
+2. **Severity controls interruption.** A validated critical/high finding affecting correctness, security, evidence authority, production behaviour or governance pre-empts the affected lane before new feature work. A validated normal finding enters that owner's next eligible tranche. Low-value style/process commentary is not admitted.
+3. **Uncertain findings route to falsification.** Where the claim is experimentally decidable, send the candidate to RFL or another independent verifier with the exact invariant and cheapest reproducer. Architecture/governance ambiguity routes to an independent architectural/adjudication review instead.
+4. **Roadmap changes remain governed.** A finding that implies sequencing, scope or architectural-policy change produces a proposed roadmap amendment for the administrator/maintainer. The shadow does not directly change roadmap intent.
+5. **Worker intake is mandatory.** At the start of every Claude, OpenCode and Antigravity loop iteration, after refreshing `main`, inspect open validated shadow findings assigned to that lane before selecting ordinary roadmap work. Do not consume `CANDIDATE` as fact. Respect active leases/collision boundaries when taking corrective work.
+6. **Fixes preserve the evidence trail.** Corrective PRs reference the finding id and the independent validation artifact. Do not weaken assertions, thresholds or governing criteria merely to make the reproducer pass.
+7. **Independent closure.** After a corrective PR lands, rerun the original reproducer against the exact landed head. Record `VERIFIED_FIXED`, `REJECTED`, `SUPERSEDED` or `ABSTAIN` with evidence. The implementing worker cannot certify its own correction.
+8. **No invisible queue.** A validated finding must have an owner or an explicit `UNROUTED` state. Critical/high `UNROUTED` findings are administrator exceptions and should surface immediately rather than waiting for a routine loop.
+9. **Measure the reviewer.** Track findings raised, independently validated, rejected/abstained, defects caught before merge versus after merge, corrective latency, and review cost. If the shadow mostly emits false positives or ceremony, narrow or retire it.
+
+The intended control flow is: **worker artifact → shadow candidate → independent validation/adjudication → routed corrective work → independent post-fix verification**. This separation prevents either the builder or the critic from marking its own homework while still closing the feedback loop automatically.
+
 ### Recursive Falsification Laboratory (RFL) — autonomous support loop
 
 **Status: READY / non-authoritative support.** OpenCode running a low-cost model such as Spark may operate an open-ended bounded falsification loop through `npm run rfl:loop`. RFL is not a third production implementation stream: it recursively selects non-colliding under-examined surfaces, states an invariant, constructs the cheapest useful falsifier, runs it, and records reproducible candidate findings in `governance/rfl/findings.jsonl`.
