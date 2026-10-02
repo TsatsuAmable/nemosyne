@@ -42,6 +42,11 @@ export const FAST_NODE_TESTS = [
   // in the learned pairwise layer (P-4) and the gesture quality bar and
   // staged-deployment seam (P-5).
   'tests/tec3-ma2-promotion-gate-controls.test.ts',
+  // TEC3-MA2 fourth slice: F-5 density-ladder controls (canonical never-set
+  // densityVariation gate, hand-set rungs incl. the registry-unreachable 0.75)
+  // and F-7 perceptual-fitness controls (prior/observed blends, surrogate
+  // inputs, frustum-exclusion hard-constraint route, 32 px normalization).
+  'tests/tec3-ma2-f5-f7-controls.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
