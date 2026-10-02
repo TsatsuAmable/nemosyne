@@ -1,4 +1,3 @@
-import { remoteDebugStreamer } from './utils/RemoteDebugStreamer.ts';
 import { bootstrapApp } from './app/index.ts';
 import { installConfiguredProductAnalyticsClient } from './app/governance/installProductAnalyticsClient.ts';
 import { installInvestigationJourney } from './app/investigation/installInvestigationJourney.ts';
@@ -11,7 +10,15 @@ import {
 import { injectCssVariables } from './vr/ui-system/tokens.ts';
 
 if (import.meta.env.DEV) {
-  remoteDebugStreamer.init();
+  // CMS-3 DEV-only loading boundary: the streamer is development tooling, so
+  // it loads dynamically inside the DEV guard. The bundler folds `DEV` to
+  // `false` in a production build and eliminates this branch wholesale, which
+  // removes the module from the production bundle entirely (a static import
+  // here survives tree-shaking — it ships with the chunk — since the module's
+  // exported instance and its class methods are not statically provably dead).
+  void import('./utils/RemoteDebugStreamer.ts').then(({ remoteDebugStreamer }) => {
+    remoteDebugStreamer.init();
+  });
 }
 
 injectCssVariables();

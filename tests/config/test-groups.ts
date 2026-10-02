@@ -54,6 +54,12 @@ export const FAST_NODE_TESTS = [
   // network barrel stays free of it, and that the avatar behavioural path is
   // unchanged under the production caller's literal shape.
   'tests/cms1-collaboration-contract.test.ts',
+  // CMS-3 "dev debug bundling boundary" (Claude parallel maintenance sprint,
+  // base 832e8700): reproducible evidence that the production startup path
+  // cannot statically import the dev-only remote debug streamer, that the
+  // streamer module refuses to initialize outside DEV, and that the DEV
+  // tooling itself survives the boundary.
+  'tests/cms3-debug-bundling.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
