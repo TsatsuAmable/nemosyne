@@ -79,7 +79,7 @@ describe('RFL cycle 2: unauthenticated-peer reaping and idle-room eviction', () 
     expect(refused.closeCode).toBe(1008);
     expect(refused.closeReason).toBe('too many unauthenticated peers in room');
 
-    first.close();
+    first.close?.();
     const replacement = makeSocket();
     registry.handleConnection(replacement, 'pending-room', 'peer-4', undefined, 'participant');
     expect(replacement.closeCode).toBeUndefined();
@@ -99,7 +99,7 @@ describe('RFL cycle 2: unauthenticated-peer reaping and idle-room eviction', () 
     expect(staying.closeCode).toBeUndefined();
     expect(registry.getTotalPeers()).toBe(2);
 
-    leaving.close();
+    leaving.close?.();
     expect(registry.getTotalPeers()).toBe(1);
     expect(registry.getRoomCount()).toBe(2);
 
@@ -108,7 +108,7 @@ describe('RFL cycle 2: unauthenticated-peer reaping and idle-room eviction', () 
     expect(registry.getRoomCount()).toBe(1);
     expect(registry.getTotalPeers()).toBe(1);
     expect(staying.closeCode).toBeUndefined();
-    staying.close();
+    staying.close?.();
   });
 
   it('leaves an authenticated peer untouched while an unauthenticated peer times out', async () => {
@@ -128,6 +128,6 @@ describe('RFL cycle 2: unauthenticated-peer reaping and idle-room eviction', () 
     expect(slow.closeCode).toBe(4001);
     expect(authed.closeCode).toBeUndefined();
     expect(registry.getTotalPeers()).toBe(1);
-    authed.close();
+    authed.close?.();
   });
 });
