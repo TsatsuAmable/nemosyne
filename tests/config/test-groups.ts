@@ -47,6 +47,13 @@ export const FAST_NODE_TESTS = [
   // and F-7 perceptual-fitness controls (prior/observed blends, surrogate
   // inputs, frustum-exclusion hard-constraint route, 32 px normalization).
   'tests/tec3-ma2-f5-f7-controls.test.ts',
+  // CMS-1 "collaboration contract extraction" (Claude parallel maintenance
+  // sprint, base 58c6a91e): exit-criterion falsifiers pinning that no
+  // production source references the superseded synchronizer, that
+  // PeerAvatarManager owns the neutral avatar input contract, that the
+  // network barrel stays free of it, and that the avatar behavioural path is
+  // unchanged under the production caller's literal shape.
+  'tests/cms1-collaboration-contract.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
