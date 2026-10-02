@@ -1792,4 +1792,387 @@ mod tests {
         assert!(spectral.spectral_entropy > 0.75);
         assert!(!profile.temporal.as_ref().unwrap().has_seasonality);
     }
+
+    // TEC3-MA2 fifth-slice controls: K-3 (correlation magnitude family), K-6
+    // (periodicity heuristic score) and K-7 (trend/seasonality). Every pinned
+    // double was first verified against an exact TypeScript transcription of
+    // the invoked kernels (statistics_columnar.rs `pearson_pairwise` /
+    // `assemble_temporal_stats`, spectral.rs `compute_regular_fft`) before
+    // being written, because the cargo lane does not run on the Windows
+    // authoring host; the Rust assertions execute in CI only.
+
+    const CORRELATION_STRADDLE_NOISE_SEED: u32 = 27_649;
+    const CORRELATION_STRADDLE_ROWS: usize = 64;
+    /// Mixing coefficients binary-searched against the transcribed
+    /// `pearson_pairwise` to straddle `CORRELATION_MAGNITUDE_THRESHOLD` with
+    /// adjacent-but-clear margin (the exactly-0.6 boundary is not publicly
+    /// reachable without manufacturing a dedicated column pair).
+    const CORRELATION_STRADDLE_C_ABOVE: f64 = 0.18637685589288194;
+    const CORRELATION_STRADDLE_C_BELOW: f64 = 0.18564472729093312;
+
+    fn correlation_profile_for(name: &str, x: &[f64], y: &[f64]) -> CorrelationProfile {
+        let rows: Vec<HashMap<String, Value>> = x
+            .iter()
+            .zip(y.iter())
+            .map(|(a, b)| {
+                HashMap::from([
+                    ("x".to_string(), Value::Number(*a)),
+                    ("y".to_string(), Value::Number(*b)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            name,
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        profile.correlations
+    }
+
+    fn full_two_column_profile(name: &str, x: &[f64], y: &[f64]) -> DatasetStructureProfile {
+        let rows: Vec<HashMap<String, Value>> = x
+            .iter()
+            .zip(y.iter())
+            .map(|(a, b)| {
+                HashMap::from([
+                    ("x".to_string(), Value::Number(*a)),
+                    ("y".to_string(), Value::Number(*b)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            name,
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        compute_dataset_structure_profile(&dataset, "fp", "0.1.0")
+    }
+
+    #[test]
+    fn perfect_linear_correlation_pins_to_one_and_couples_to_rank_deficiency() {
+        // MA1 K-3 positive controls. An exact y = 2x pair observes |r| = 1.0
+        // (the clamp is what pins unity), and the SAME observation trips the
+        // neighbouring K-3-adjacent constants is_rank_deficient (> 0.98) and
+        // redundant_columns (> 0.95): two constants of this one family couple
+        // on a perfectly linear pair. The negative direction is reported with
+        // its sign: the magnitude rule is direction-blind.
+        let x: Vec<f64> = (0..50).map(|i| i as f64).collect();
+        let positive = correlation_profile_for("corr-positive-direction", &x, &x.iter().map(|v| v * 2.0).collect::<Vec<_>>());
+        let negative = correlation_profile_for("corr-negative-direction", &x, &x.iter().map(|v| -(v * 2.0)).collect::<Vec<_>>());
+
+        assert_eq!(positive.pairs.len(), 1);
+        let pair = &positive.pairs[0];
+        assert_eq!(pair.column_a, "x");
+        assert_eq!(pair.column_b, "y");
+        assert_eq!(pair.r, 1.0, "y = 2x must pin to the clamped unity double");
+        assert!(pair.exceeds_magnitude_threshold);
+        assert_eq!(positive.max_correlation, 1.0);
+        assert_eq!(positive.pairs_above_magnitude_threshold, 1);
+        assert!(positive.is_rank_deficient,
+            "a perfectly linear pair necessarily also exceeds the 0.98 rank-deficiency constant");
+
+        // The third coupled constant is pinned through the full profile: the
+        // 1.0 max correlation crosses the > 0.95 redundant-columns rule.
+        let full = full_two_column_profile("corr-positive-full-profile", &x, &x.iter().map(|v| v * 2.0).collect::<Vec<_>>());
+        assert_eq!(full.dimensionality.redundant_columns, 1,
+            "two constants of this one family couple on a perfectly linear pair");
+        assert_eq!(full.correlations.pairs[0].r, 1.0);
+
+        assert_eq!(negative.pairs[0].r, -1.0);
+        assert!(negative.pairs[0].exceeds_magnitude_threshold);
+        assert_eq!(negative.max_correlation, 1.0, "max_correlation is the magnitude, not the signed value");
+        assert_eq!(negative.pairs_above_magnitude_threshold, 1);
+    }
+
+    #[test]
+    fn independent_noise_columns_stay_far_below_the_magnitude_threshold() {
+        // MA1 K-3 negative control: two independent deterministic LCG streams.
+        // The observed r is pinned exactly (same arithmetic order as the
+        // kernel transcription), and the magnitude count stays zero.
+        let mut first = FixtureLcg::new(12_345);
+        let mut second = FixtureLcg::new(67_890);
+        let x: Vec<f64> = (0..64).map(|_| first.next()).collect();
+        let y: Vec<f64> = (0..64).map(|_| second.next()).collect();
+        let profile = correlation_profile_for("corr-independent-negative", &x, &y);
+
+        let pair = &profile.pairs[0];
+        assert_eq!(pair.r, -0.06041819921132467);
+        assert_eq!(profile.max_correlation, 0.06041819921132467);
+        assert!(!pair.exceeds_magnitude_threshold);
+        assert_eq!(profile.pairs_above_magnitude_threshold, 0);
+        assert!(!profile.is_rank_deficient);
+    }
+
+    #[test]
+    fn magnitude_threshold_straddle_is_adjacent_but_clear_and_symmetric() {
+        // MA1 K-3 threshold-family control: two mixing coefficients produce
+        // |r| pairs straddling the 0.6 constant with a ~6e-4 margin on both
+        // sides; the exactly-0.6 double itself is not publicly reachable
+        // without manufacturing a dedicated column pair (recorded honestly).
+        // The comparison is a strict `>`, so a hypothetical exactly-0.6 double
+        // would NOT be counted. Sign symmetry: negating the y series negates
+        // r exactly (IEEE negation commutes with every operation in the
+        // Pearson pipeline), so the magnitude rule treats both signs alike.
+        let straddle = |c: f64, negate: bool| {
+            let mut rng = FixtureLcg::new(CORRELATION_STRADDLE_NOISE_SEED);
+            let x: Vec<f64> = (0..CORRELATION_STRADDLE_ROWS)
+                .map(|index| index as f64)
+                .collect();
+            let y: Vec<f64> = (0..CORRELATION_STRADDLE_ROWS)
+                .map(|index| {
+                    let value = c * index as f64 + (rng.next() - 0.5) * 20.0;
+                    if negate { -value } else { value }
+                })
+                .collect();
+            correlation_profile_for("corr-straddle", &x, &y)
+        };
+        let above = straddle(CORRELATION_STRADDLE_C_ABOVE, false);
+        let above_negated = straddle(CORRELATION_STRADDLE_C_ABOVE, true);
+        let below = straddle(CORRELATION_STRADDLE_C_BELOW, false);
+        let below_negated = straddle(CORRELATION_STRADDLE_C_BELOW, true);
+
+        assert!(
+            (above.pairs[0].r - 0.6006).abs() < 1e-12 && above.pairs[0].r > 0.6,
+            "above-arm r {} must sit just above the 0.6 constant",
+            above.pairs[0].r
+        );
+        assert!(
+            (below.pairs[0].r - 0.5994).abs() < 1e-12 && below.pairs[0].r < 0.6,
+            "below-arm r {} must sit just below the 0.6 constant",
+            below.pairs[0].r
+        );
+        assert_eq!(above_negated.pairs[0].r, -above.pairs[0].r,
+            "negating the y series negates r exactly");
+        assert_eq!(below_negated.pairs[0].r, -below.pairs[0].r);
+        assert!(above.pairs[0].exceeds_magnitude_threshold);
+        assert!(above_negated.pairs[0].exceeds_magnitude_threshold);
+        assert!(!below.pairs[0].exceeds_magnitude_threshold);
+        assert!(!below_negated.pairs[0].exceeds_magnitude_threshold);
+        assert_eq!(above.pairs_above_magnitude_threshold, 1);
+        assert_eq!(above_negated.pairs_above_magnitude_threshold, 1);
+        assert_eq!(below.pairs_above_magnitude_threshold, 0);
+        assert_eq!(below_negated.pairs_above_magnitude_threshold, 0);
+        assert!(!above.is_rank_deficient);
+        assert!(!below.is_rank_deficient);
+    }
+
+    #[test]
+    fn perfect_nonlinear_dependence_reads_near_zero_pearson() {
+        // The correlation receipt's own recorded limitation, demonstrated:
+        // `a weak Pearson coefficient does not establish absence of nonlinear
+        // dependence`. y = x^2 over a symmetric 64-row window is a perfect
+        // functional dependence, yet |r| = 0.0604… stays far below the 0.6
+        // magnitude gate — the count above the threshold is a LINEAR
+        // association count, not a dependence count.
+        let x: Vec<f64> = (0..64).map(|i| i as f64 - 32.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| v * v).collect();
+        let profile = correlation_profile_for("corr-nonlinear-dependence", &x, &y);
+        assert_eq!(profile.pairs[0].r, -0.06043426966215648);
+        assert_eq!(profile.max_correlation, 0.06043426966215648);
+        assert!(!profile.pairs[0].exceeds_magnitude_threshold);
+        assert_eq!(profile.pairs_above_magnitude_threshold, 0);
+        assert!(!profile.is_rank_deficient);
+    }
+
+    #[test]
+    fn small_n_perfect_fit_passes_the_magnitude_gate() {
+        // MA1 K-3 strongest confound, demonstrated: a four-row perfect fit
+        // observes r = 1.0 and passes the 0.6 magnitude gate (and the 0.98
+        // rank-deficiency constant) while carrying no statistical meaning —
+        // the rule is a magnitude rule, not a significance test, exactly as
+        // its own source comment states.
+        let x: Vec<f64> = (0..4).map(|i| i as f64).collect();
+        let profile = correlation_profile_for("corr-small-n", &x, &x.iter().map(|v| v * 2.0).collect::<Vec<_>>());
+        assert_eq!(profile.pairs[0].r, 1.0);
+        assert!(profile.pairs[0].exceeds_magnitude_threshold);
+        assert_eq!(profile.pairs_above_magnitude_threshold, 1);
+        assert!(profile.is_rank_deficient);
+    }
+
+    fn profile_for_temporal(name: &str, times: &[f64], values: &[f64]) -> DatasetStructureProfile {
+        let rows: Vec<HashMap<String, Value>> = times
+            .iter()
+            .zip(values.iter())
+            .map(|(time, value)| {
+                HashMap::from([
+                    ("time".to_string(), Value::Number(*time)),
+                    ("value".to_string(), Value::Number(*value)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            name,
+            vec![
+                Column::new("time", ColumnType::Temporal),
+                Column::new("value", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        compute_dataset_structure_profile(&dataset, "fp", "0.1.0")
+    }
+
+    #[test]
+    fn monotone_trends_pin_normalized_strength_and_constant_column_reports_zero() {
+        // MA1 K-7 controls. The trend strength is |OLS slope / observed value
+        // range|, so an EXACTLY linear series reads |1 - 1 ulp| regardless of
+        // its steepness (the window's own value range cancels the amplitude —
+        // the metric measures shape over the observed window, not a steepness
+        // scale). A constant column short-circuits to exactly 0.0 and keeps
+        // its is_time_series claim true: the TIME_SERIES structure claim
+        // hinges on the temporal+numeric column presence, not on the trend
+        // (MA1's recorded isTimeSeries decoupling).
+        let times: Vec<f64> = (0..16).map(|i| i as f64).collect();
+        let up = profile_for_temporal("trend-up", &times, &times);
+        let down = profile_for_temporal(
+            "trend-down",
+            &times,
+            &times.iter().rev().copied().collect::<Vec<_>>(),
+        );
+        let constant_values: Vec<f64> = vec![5.0; 16];
+        let constant = profile_for_temporal("trend-constant", &times, &constant_values);
+
+        let up_temporal = up.temporal.as_ref().expect("temporal profile");
+        assert!(up_temporal.is_time_series);
+        assert_eq!(up_temporal.time_column.as_deref(), Some("time"));
+        assert_eq!(up_temporal.trend_direction, "up");
+        assert_eq!(up_temporal.trend_strength, 0.9999999999999999,
+            "a monotone ramp pins at unity to within one ulp (this fixture reads 0.9999999999999999); it is scale-cancelling, fixture-specific in the exact ulp");
+        // A pure monotone ramp is ALSO classified periodic by the spectral
+        // estimator (windowed ramp power concentrates below), so its
+        // seasonality flag fires — recorded honestly, not worked around.
+        let up_spectral = up.spectral.as_ref().expect("ramp emits spectral facts");
+        assert_eq!(up_spectral.power_spectrum_peak, 0.898);
+        assert_eq!(up_spectral.spectral_entropy, 0.17);
+        assert!(up_spectral.has_periodicity);
+        assert_eq!(up_spectral.periodicity_heuristic_score, 0.871);
+        assert!(up_temporal.has_seasonality,
+            "observed truth: the monotone ramp inherits a periodicity true from the spectral estimator");
+
+        let down_temporal = down.temporal.as_ref().expect("temporal profile");
+        assert_eq!(down_temporal.trend_direction, "down");
+        assert_eq!(down_temporal.trend_strength, 0.9999999999999999);
+
+        let constant_temporal = constant.temporal.as_ref().expect("temporal profile");
+        assert!(constant_temporal.is_time_series,
+            "is_time_series is presence-based, not trend-based");
+        assert_eq!(constant_temporal.trend_direction, "flat");
+        assert_eq!(constant_temporal.trend_strength, 0.0);
+        assert_eq!(constant.dimensionality.constant_columns, 1,
+            "the flat fixture's value column is simultaneously constant-classified");
+        let constant_spectral = constant.spectral.as_ref().expect("constant series still emits spectral facts");
+        assert_eq!(constant_spectral.periodicity_heuristic_score, 0.0);
+        assert!(!constant_spectral.has_periodicity);
+        assert!(!constant_temporal.has_seasonality);
+    }
+
+    #[test]
+    fn trend_direction_threshold_straddle_reaches_the_0_dot_01_constant() {
+        // MA1 K-7 threshold-family control: mixing coefficients searched
+        // against the transcribed `assemble_temporal_stats` to straddle the
+        // direction constant 0.01. The just-below arm keeps a NONZERO trend
+        // strength (0.0095) under a "flat" direction — direction and strength
+        // are decoupled bands of one normalized quantity. Negating the series
+        // negates the normalized slope exactly, so the down side is the
+        // mirrored fixture.
+        let straddle = |c: f64, negate: bool| {
+            let mut rng = FixtureLcg::new(4_242);
+            let times: Vec<f64> = (0..32).map(|i| i as f64).collect();
+            let values: Vec<f64> = (0..32)
+                .map(|index| {
+                    let value = c * index as f64 + (rng.next() - 0.5) * 8.0;
+                    if negate { -value } else { value }
+                })
+                .collect();
+            profile_for_temporal("trend-straddle", &times, &values)
+        };
+        let above = straddle(0.052812454757053415, false);
+        let below = straddle(0.05253349719030241, false);
+        let down = straddle(0.052812454757053415, true);
+
+        let above_temporal = above.temporal.as_ref().expect("temporal profile");
+        assert_eq!(above_temporal.trend_direction, "up");
+        assert_eq!(above_temporal.trend_strength, 0.010499999999999976);
+        let below_temporal = below.temporal.as_ref().expect("temporal profile");
+        assert_eq!(below_temporal.trend_direction, "flat");
+        assert_eq!(below_temporal.trend_strength, 0.009500000000000017,
+            "a flat direction can still carry nonzero strength: decoupled bands");
+        let down_temporal = down.temporal.as_ref().expect("temporal profile");
+        assert_eq!(down_temporal.trend_direction, "down");
+        assert_eq!(down_temporal.trend_strength, above_temporal.trend_strength,
+            "negating the series reflects the normalized slope exactly");
+    }
+
+    #[test]
+    fn integer_period_series_reads_as_trend_while_seasonality_fires() {
+        // MA1 K-7 window-local confound + K-6 positive control: four integer
+        // periods of a sine are read by the OLS trend machinery as a real
+        // downtrend (the x-weighted skew over the observed window does not
+        // cancel), and the spectral estimator fires on the same window, so
+        // has_seasonality and a trend claim coexist with no conflict guard.
+        // The K-6 score is pinned at the emitted (rounded) doubles.
+        let times: Vec<f64> = (0..64).map(|i| i as f64 * 0.5).collect();
+        let values: Vec<f64> = (0..64).map(|i| (2.0 * PI * i as f64 / 16.0).sin()).collect();
+        let profile = profile_for_temporal("periodic-series-control", &times, &values);
+
+        let spectral = profile.spectral.as_ref().expect("regular series emits spectral facts");
+        assert_eq!(spectral.method, "regular-time-fft");
+        assert_eq!(spectral.window_function, "hann");
+        assert!(spectral.has_periodicity);
+        assert_eq!(spectral.power_spectrum_peak, 0.656);
+        assert_eq!(spectral.spectral_entropy, 0.255);
+        assert_eq!(spectral.periodicity_heuristic_score, 0.692);
+        assert!(
+            (spectral.periodicity_heuristic_score
+                - (0.6 * spectral.power_spectrum_peak + 0.4 * (1.0 - spectral.spectral_entropy)))
+            .abs() < 0.002,
+            "the emitted score must match the 0.6/0.4 blend of the emitted (rounded) components"
+        );
+
+        let temporal = profile.temporal.as_ref().expect("temporal profile");
+        assert!(temporal.has_seasonality,
+            "has_seasonality is spectral has_periodicity inherited, not a separate estimator");
+        assert_eq!(temporal.trend_direction, "down");
+        assert_eq!(temporal.trend_strength, 0.23203105348273143,
+            "four integer periods still read as a real downtrend: the trend is a window-local read");
+    }
+
+    #[test]
+    fn bell_noise_pinches_the_periodicity_score_at_zero() {
+        // MA1 K-6 negative control: the score is exactly 0.0 unless K-5's
+        // boolean fires — there is no "low but nonzero" band. The emitted
+        // peak/entropy doubles are pinned (they match the slice-1 K-5
+        // negative control's recorded 0.036/0.921 margins), and the TEC2
+        // rename is pinned at this profile level too: the ABI carries
+        // periodicityHeuristicScore, never the retired claim-shaped name.
+        let mut rng = FixtureLcg::new(0x4e4d_5359);
+        let times: Vec<f64> = (0..256).map(|index| index as f64).collect();
+        let values: Vec<f64> = (0..256)
+            .map(|_| (0..12).map(|_| rng.next()).sum::<f64>() - 6.0)
+            .collect();
+        let profile = profile_for_temporal("bell-noise-score-control", &times, &values);
+
+        let spectral = profile.spectral.as_ref().expect("regular series emits spectral facts");
+        assert_eq!(spectral.method, "regular-time-fft");
+        assert!(!spectral.has_periodicity);
+        assert_eq!(spectral.power_spectrum_peak, 0.036);
+        assert_eq!(spectral.spectral_entropy, 0.921);
+        assert_eq!(spectral.periodicity_heuristic_score, 0.0,
+            "the score must be exactly zero when K-5 does not fire");
+        assert!(!profile.temporal.as_ref().unwrap().has_seasonality);
+
+        let json = serde_json::to_string(&profile).expect("profile serialization");
+        assert!(json.contains("\"periodicityHeuristicScore\""),
+            "the heuristic score must transport under its TEC2 name");
+        assert!(
+            !json.contains("periodicityConfidence"),
+            "retired claim-shaped name must not be aliased back onto the ABI"
+        );
+    }
 }
