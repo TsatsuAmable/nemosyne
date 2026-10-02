@@ -769,7 +769,7 @@ fn compute_governed_consumers_result(handle: u32) -> Option<String> {
             data::governed_consumer::GovernedConsumerAttestationV1::for_receipt_bundle(&bundle)
                 .ok()?;
         Some((attestation, dataset_fingerprint))
-    })?;
+    })??;
 
     let json = serde_json::to_string(&attestation).ok()?;
     let output_fp = data::fingerprint::sha256_hex(&json);
