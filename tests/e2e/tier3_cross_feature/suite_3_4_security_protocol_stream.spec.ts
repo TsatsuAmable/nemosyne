@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Dataset } from '../../../src/data/Dataset.ts';
-import { flatBufferToDataset } from '../../../src/data/serializers/FlatBuffersSerializer.ts';
+import { messagePackToDataset } from '../../../src/data/serializers/MessagePackSerializer.ts';
 import { NetworkManager } from '../../../src/network/NetworkManager.ts';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 
 describe('Tier 3 — Suite 3.4: Security Hardening × Protocol Safety & Resilience (F11 × F12 × F13)', () => {
-  it('INT-3.4.1: Malicious JSON and FlatBuffer payloads with prototype keys and truncated bounds are caught cleanly without unhandled rejection', async () => {
+  it('INT-3.4.1: Malicious JSON and corrupted canonical binary payloads with prototype keys and truncated bounds are caught cleanly without unhandled rejection', async () => {
     // Malicious JSON payload — parsed through the kernel mock (canned, with
     // __proto__ stripping). Parse/pollution-hardening parity is covered by Rust
     // #[test]s + wasm-runtime.test.ts.
@@ -18,11 +18,14 @@ describe('Tier 3 — Suite 3.4: Security Hardening × Protocol Safety & Resilien
     expect(testObj.admin).toBeUndefined();
     expect(dataset.rows.length).toBe(1);
 
-    // Corrupt FlatBuffer payload
-    const corruptBuffer = new Uint8Array([0x4e, 0x45, 0x4d, 0x01, 0xff, 0xff]); // Truncated length
+    // Corrupted canonical binary payload — a MessagePack envelope truncated
+    // mid-decode fails deliberately with a thrown decode error. The failure is
+    // synchronous and caught by the expect, so no unhandled rejection escapes
+    // the stream-pollution boundary.
+    const corruptPacked = new Uint8Array([0x81, 0xa4, 0xa4]); // Truncated length
     expect(() => {
-      flatBufferToDataset(corruptBuffer);
-    }).not.toThrow();
+      messagePackToDataset(corruptPacked);
+    }).toThrow();
   });
 
   it('INT-3.4.2: NetworkManager handles malformed incoming peer message payloads without crash', () => {

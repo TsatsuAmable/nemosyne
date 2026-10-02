@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
+import { tableFromArrays, tableToIPC } from 'apache-arrow';
+import { encode } from '@msgpack/msgpack';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import {
   datasetToArrowIPC,
@@ -7,10 +9,6 @@ import {
   datasetToMessagePack,
   messagePackToDataset,
 } from '../src/data/serializers/index.ts';
-import {
-  datasetToFlatBuffer,
-  flatBufferToDataset,
-} from '../src/data/serializers/FlatBuffersSerializer.ts';
 
 const TEST_DATASET = new Dataset(
   'Test',
@@ -40,20 +38,6 @@ describe('Serializers', () => {
     expect(restored.rows[0].value).toBe(10);
   });
 
-  it('round-trips a dataset through the hand-rolled FlatBuffer format', () => {
-    const buffer = datasetToFlatBuffer(TEST_DATASET);
-    expect(buffer).toBeInstanceOf(ArrayBuffer);
-    expect(buffer.byteLength).toBeGreaterThan(0);
-
-    const restored = flatBufferToDataset(buffer, 'FlatBuffer Test');
-    expect(restored.name).toBe('FlatBuffer Test');
-    expect(restored.rowCount).toBe(3);
-    expect(restored.columns.map((c) => c.name)).toEqual(['id', 'value', 'time']);
-    expect(restored.rows[0].id).toBe('A');
-    expect(restored.rows[0].value).toBe(10);
-    expect(restored.rows[2].value).toBeNull();
-  });
-
   it('round-trips a dataset through MessagePack', () => {
     const packed = datasetToMessagePack(TEST_DATASET);
     expect(packed).toBeInstanceOf(Uint8Array);
@@ -74,101 +58,113 @@ describe('Serializers', () => {
     expect(restored.rowCount).toBe(0);
   });
 
-  it('handles empty datasets in FlatBuffers', () => {
-    const empty = new Dataset('Empty', [], []);
-    const buffer = datasetToFlatBuffer(empty);
-    const restored = flatBufferToDataset(buffer);
-    expect(restored.rowCount).toBe(0);
-  });
-
   it('handles empty datasets in MessagePack', () => {
     const empty = new Dataset('Empty', [], []);
     const packed = datasetToMessagePack(empty);
     const restored = messagePackToDataset(packed);
     expect(restored.rowCount).toBe(0);
   });
-
-  it('rejects FlatBuffers with invalid magic bytes', () => {
-    const bad = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    expect(() => flatBufferToDataset(bad)).toThrow('Invalid FlatBuffer magic bytes');
-  });
 });
 
-// FlatBuffer length-field bounds: the hand-rolled format carries untrusted
-// columnCount / rowCount / per-column nameLength / per-cell string-len. A
-// malformed payload must fail deliberately and descriptively rather than via an
-// incidental DataView RangeError or silent subarray truncation.
-describe('FlatBuffer length-field bounds', () => {
-  // Minimal valid 10-byte header (magic 0x4E 0x45 0x4D 0x01 + columnCount + rowCount).
-  function flatHeader(columnCount, rowCount) {
-    const h = new DataView(new ArrayBuffer(10));
-    h.setUint8(0, 0x4e);
-    h.setUint8(1, 0x45);
-    h.setUint8(2, 0x4d);
-    h.setUint8(3, 0x01);
-    h.setUint16(4, columnCount, true);
-    h.setUint32(6, rowCount, true);
-    return new Uint8Array(h.buffer);
-  }
+// Canonical-serializer robustness. The retired hand-rolled row-buffer
+// serializer (CMS-2) carried these bounds/safety properties; they are repinned
+// here against the two truthful canonical serialization surfaces. The property
+// under test: malformed or hostile untrusted input fails deliberately (a
+// thrown, descriptive error) or degrades to an honest empty Dataset — never
+// silently producing a Dataset that carries bogus rows.
+describe('Canonical serializer robustness', () => {
+  describe('MessagePack untrusted input', () => {
+    it('throws on a payload truncated mid-envelope', () => {
+      // Map header (0x81) claiming one key, followed by 3 of 4 string bytes.
+      // Observed: @msgpack/msgpack raises RangeError('Insufficient data')
+      // (decoder refusing truncated input), not a silent empty Dataset.
+      expect(() => messagePackToDataset(new Uint8Array([0x81, 0xa4, 0xa4]))).toThrow(
+        /insufficient data/i
+      );
+    });
 
-  // Append a single column descriptor: typeId (u8) + nameLength (u16 LE) + name bytes.
-  function withColumn(buf, typeId, name) {
-    const nameBytes = new TextEncoder().encode(name);
-    const meta = new DataView(new ArrayBuffer(3 + nameBytes.length));
-    meta.setUint8(0, typeId);
-    meta.setUint16(1, nameBytes.length, true);
-    const out = new Uint8Array(buf.length + meta.buffer.byteLength);
-    out.set(buf, 0);
-    out.set(new Uint8Array(meta.buffer), buf.length);
-    out.set(nameBytes, buf.length + 3);
-    return out;
-  }
+    it('throws on non-payload garbage bytes', () => {
+      // 0xc1 is never a valid MessagePack type byte.
+      // Observed: DecodeError('Unrecognized type byte: 0xc1'), not a silent
+      // empty Dataset.
+      expect(() => messagePackToDataset(new Uint8Array([0xc1, 0xc2, 0xc3, 0xc4]))).toThrow(
+        /unrecognized type byte/i
+      );
+    });
 
-  it('returns an empty Dataset when the buffer is shorter than the 10-byte header', () => {
-    const restored = flatBufferToDataset(new Uint8Array(4));
-    expect(restored.rowCount).toBe(0);
-    expect(restored.columnCount).toBe(0);
+    it('throws on an empty buffer', () => {
+      // Observed: RangeError from the decoder's DataView read, not a silent
+      // empty Dataset — a caller passing zero bytes learns they sent nothing.
+      expect(() => messagePackToDataset(new Uint8Array(0))).toThrow();
+    });
+
+    it('refuses a __proto__ row key outright', () => {
+      // JSON.parse creates a genuine own '__proto__' property. Observed:
+      // @msgpack/msgpack refuses such map keys at decode time with
+      // DecodeError('The key __proto__ is not allowed'), before our Dataset
+      // boundary is ever reached.
+      const payload = JSON.parse(
+        '{"columns":[{"name":"id"}],"rows":[{"id":1,"__proto__":{"admin":true}}]}'
+      );
+      expect(() => messagePackToDataset(encode(payload))).toThrow(/not allowed/);
+    });
+
+    it('strips constructor/prototype row keys at the Dataset boundary', () => {
+      const payload = JSON.parse(
+        '{"columns":[{"name":"id"}],' +
+          '"rows":[{"id":1,"constructor":{"prototype":{"p":1}}},' +
+          '{"id":2,"prototype":{"evil":true}}]}'
+      );
+      const restored = messagePackToDataset(encode(payload));
+      expect(restored.rows[0]).toEqual({ id: 1 });
+      expect(restored.rows[1]).toEqual({ id: 2 });
+      const canary: Record<string, unknown> = {};
+      expect(canary.polluted).toBeUndefined();
+      expect(canary.p).toBeUndefined();
+    });
   });
 
-  it('rejects an inflated columnCount with no column metadata', () => {
-    // Declares 1000 columns but carries none.
-    const buf = flatHeader(1000, 0);
-    expect(() => flatBufferToDataset(buf)).toThrow(/truncated at column 0 header/);
-  });
+  describe('Arrow IPC untrusted input', () => {
+    it('throws descriptively on garbage (non-IPC) bytes', () => {
+      // Observed: Error('Expected to read 1819043176 metadata bytes, but only
+      // read 32.') — the first garbage bytes read as a metadata length field.
+      expect(() => arrowIPCToDataset(new TextEncoder().encode('hello world this is not arrow at all'))).toThrow(
+        /metadata bytes, but only read/
+      );
+    });
 
-  it('rejects an inflated column nameLength that runs past the buffer', () => {
-    // 1 column whose nameLength claims 9999 bytes that are not present.
-    const buf = withColumn(flatHeader(1, 0), 1 /* NUMERIC */, '');
-    // Overwrite the nameLength field (byte 10 is typeId; bytes 11..12 are nameLength) to 9999.
-    const view = new DataView(buf.buffer);
-    view.setUint16(11, 9999, true);
-    expect(() => flatBufferToDataset(buf)).toThrow(/truncated at column 0 name/);
-  });
+    it('throws descriptively on a stream truncated mid-metadata', () => {
+      const ipc = datasetToArrowIPC(TEST_DATASET);
+      // Drop bytes after the continuation marker + metadata-length prefix.
+      // Observed: Error('Expected to read 224 metadata bytes, but only read 8.').
+      expect(() => arrowIPCToDataset(ipc.slice(0, 16))).toThrow(/metadata bytes, but only read/);
+    });
 
-  it('rejects an inflated rowCount with no row data', () => {
-    // 1 valid column "x", but 1_000_000 declared rows with no row bytes.
-    const buf = withColumn(flatHeader(1, 1_000_000), 1 /* NUMERIC */, 'x');
-    expect(() => flatBufferToDataset(buf)).toThrow(/truncated at row 0 column "x" kind/);
-  });
+    it('yields an honest empty Dataset — never bogus rows — for an under-header buffer', () => {
+      // Observed apache-arrow behaviour (pinned as-is): a buffer that begins a
+      // valid IPC sequence (continuation marker + short metadata length) but
+      // stops there parses as an empty table, so the surface yields an empty
+      // Dataset. It carries zero bogus columns/rows; a data-losing truncation
+      // cannot fabricate data. Recorded as an observation, not as a defect.
+      const restored = arrowIPCToDataset(new Uint8Array([0xff, 0xff, 0xff, 0xff, 0x10]));
+      expect(restored).toBeDefined();
+      expect(restored.rowCount).toBe(0);
+      expect(restored.columnCount).toBe(0);
+    });
 
-  it('rejects an inflated per-cell string length that runs past the buffer', () => {
-    // 1 TEXT column "s", 1 row, cell kind=2 (string) with len=99999 but no bytes.
-    const buf = withColumn(flatHeader(1, 1), 4 /* TEXT */, 's');
-    // Append kind=2 + len=99999 (0x0001869F LE).
-    const cell = new DataView(new ArrayBuffer(5));
-    cell.setUint8(0, 2);
-    cell.setUint32(1, 99999, true);
-    const out = new Uint8Array(buf.length + 5);
-    out.set(buf, 0);
-    out.set(new Uint8Array(cell.buffer), buf.length);
-    expect(() => flatBufferToDataset(out)).toThrow(/truncated at row 0 column "s" string/);
-  });
-
-  it('still round-trips a valid dataset after the bounds checks are added', () => {
-    const restored = flatBufferToDataset(datasetToFlatBuffer(TEST_DATASET), 'RT');
-    expect(restored.name).toBe('RT');
-    expect(restored.rowCount).toBe(3);
-    expect(restored.columns.map((c) => c.name)).toEqual(['id', 'value', 'time']);
-    expect(restored.rows[2].value).toBeNull();
+    it('strips a hostile constructor-typed column key at the Dataset boundary', () => {
+      // Rows built by arrowIPCToDataset flow into the Dataset constructor, so a
+      // field named with a dangerous key must be stripped there. ('__proto__'
+      // cannot even be manufactured as an Arrow field name — tableFromArrays
+      // stack-overflows on the own key — so 'constructor' pins the boundary.)
+      const ipc = tableToIPC(tableFromArrays({ ['constructor']: [1, 2], id: [1, 2] }));
+      const restored = arrowIPCToDataset(ipc);
+      expect(restored.rowCount).toBe(2);
+      expect(restored.rows[0]).toEqual({ id: 1 });
+      expect(restored.rows[1]).toEqual({ id: 2 });
+      const canary: Record<string, unknown> = {};
+      expect(canary.polluted).toBeUndefined();
+      expect(canary.p).toBeUndefined();
+    });
   });
 });

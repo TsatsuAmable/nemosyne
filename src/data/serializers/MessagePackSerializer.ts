@@ -1,7 +1,7 @@
 /**
  * MessagePack serializer for Nemosyne datasets.
  *
- * MessagePack is a good default when Arrow/FlatBuffers are not available:
+ * MessagePack is a good default when Arrow IPC is not available:
  * small, fast, and human-inspectable with tooling. The payload shape matches
  * the existing JSON envelope (`{ name, columns, rows }`) so that a server
  * using MessagePack is transparent to the Nemosyne runtime.

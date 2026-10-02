@@ -201,13 +201,6 @@
       "forbiddenPublicExports": [{ "path": "src/data/index.ts", "symbols": ["ColorPaletteEngine", "CVDMode", "PaletteColor"] }]
     },
     {
-      "id": "flatbuffers-prototype",
-      "classification": "development-only",
-      "sources": ["src/data/serializers/FlatBuffersSerializer.ts"],
-      "reason": "Hand-rolled Nemosyne row buffer, not FlatBuffers interoperability; kept only for legacy tests pending deletion/rename.",
-      "forbiddenPublicExports": [{ "path": "src/data/serializers/index.ts", "symbols": ["datasetToFlatBuffer", "flatBufferToDataset"] }]
-    },
-    {
       "id": "learned-fitness-training",
       "classification": "development-only",
       "sources": ["src/fitness", "src/judgement", "src/app/JudgementFeatureTransaction.ts"],
