@@ -120,7 +120,12 @@ describe('F1 falsifier 13: the continuity surface reports governed standing', ()
     const result = await controller().openPortable(await verifiedGovernedArchive());
 
     expect(result.verification.success).toBe(true);
-    expect(result.message).toContain('governed evidence verified, no consumer policy enforced');
+    // Widened from its slice-1 pin, which asserted the opposite: with the first
+    // registry entry landed (RFC 0009 tranche 3 slice 2), a verifying run applies
+    // the authority-owned consumer policy to the persisted uses, so the surface
+    // must say the policy was applied rather than that nothing was enforced.
+    expect(result.message).toContain('governed evidence verified under the consumer policy');
+    expect(result.message).not.toContain('no consumer policy enforced');
     // The previous wording called every package that reached this branch "older".
     // The newest format reaches it, so that was simply false.
     expect(result.message).not.toContain('older');

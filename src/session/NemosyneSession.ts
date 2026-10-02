@@ -26,7 +26,11 @@ import {
   type NemosynePackageManifest,
 } from './NemosynePackage.ts';
 import { sha256Hex } from '../security/CryptoHash.ts';
-import { parsePersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
+import {
+  parsePersistedEvidenceReceiptsV1,
+  type PersistedEvidenceReceiptsV1,
+} from '../data/evidence/PersistedEvidenceReceipts.ts';
+import { governedConsumerPolicyV1 } from '../data/evidence/index.ts';
 import { strToU8 } from 'fflate';
 
 export interface PresentationState {
@@ -267,6 +271,49 @@ export class NemosyneSession {
     this._evidenceReceiptIdentity = restored.datasetFingerprint;
   }
 
+  /**
+   * RFC 0009 tranche 3 slice 2: an export may commit `uses` only when they
+   * bind under the authority-owned policy against this very bundle. This is
+   * the same test the replay loader applies at its binding step, applied here
+   * so a carrier minted under a policy this build no longer governs fails
+   * closed at export instead of writing a package its own loader would refuse.
+   * It is not duplication-without-purport: the loader test runs over committed
+   * package bytes; this one runs over bytes we are about to commit. Consumers
+   * that the current policy governs but that no use names are refused for the
+   * same reason ("emptiness cannot bypass policy").
+   */
+  private _validateGovernedUseRecords(envelope: PersistedEvidenceReceiptsV1): void {
+    const policy = governedConsumerPolicyV1();
+    const receiptIds = new Set(envelope.bundle.receipts.map((receipt) => receipt.receiptId));
+    const namedConsumers = new Set<string>();
+    for (const use of envelope.uses) {
+      const requiredProfileId = policy.get(use.consumerId);
+      if (requiredProfileId === undefined) {
+        throw new Error(
+          'Governed evidence export refuses consumer-use assertions naming a consumer the authority-owned policy does not govern'
+        );
+      }
+      if (use.requirementProfileId !== requiredProfileId) {
+        throw new Error(
+          'Governed evidence export refuses consumer-use assertions recorded under a profile the authority does not require for that consumer'
+        );
+      }
+      if (!receiptIds.has(use.receiptId)) {
+        throw new Error(
+          'Governed evidence export refuses consumer-use assertions naming a receipt absent from the committed bundle'
+        );
+      }
+      namedConsumers.add(use.consumerId);
+    }
+    for (const consumerId of policy.keys()) {
+      if (!namedConsumers.has(consumerId)) {
+        throw new Error(
+          'Governed evidence export refuses an envelope that leaves a governed consumer without any consumer-use assertion'
+        );
+      }
+    }
+  }
+
   async exportPortablePackage(
     environment: PortablePackageEnvironment = {},
     kernelVersionOverride?: string,
@@ -308,17 +355,17 @@ export class NemosyneSession {
       const envelope = parsePersistedEvidenceReceiptsV1(
         JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(evidenceReceiptBytes))
       );
-      if (envelope.uses.length !== 0) {
-        // Consumer-policy binding has landed in the loader (RFC 0009 tranche 3
-        // slice 1), but no *producer* exists that knows which consumer consumes
-        // which receipt under which profile. This build is the only legitimate
-        // writer and mints empty uses only, and the authority-owned policy governs
-        // no consumer, so a non-empty `uses` here would be an assertion no path
-        // authored. Both sides lift together, with the producer.
-        throw new Error(
-          'Governed evidence export refuses a receipt envelope carrying consumer-use assertions that no production path authored'
-        );
-      }
+      // RFC 0009 tranche 3 slice 2: the producer-side refusal lifts together
+      // with the producer. A live capture mints its uses in envelope
+      // composition, from the kernel-issued governed-consumer attestation and
+      // the authority-owned policy; a restored carrier carries the uses its
+      // own capture minted. Either way, the uses the export is about to
+      // commit must bind under the current authority policy against this
+      // bundle — otherwise the export would write a package its own replay
+      // loader refuses (unknown consumer, wrong profile, dangling receipt, or
+      // a governed consumer left unnamed), so an envelope that cannot be
+      // exported on governing terms fails closed here.
+      this._validateGovernedUseRecords(envelope);
       if (
         kernelVersionOverride !== undefined &&
         kernelVersionOverride !== envelope.bundle.kernelVersion

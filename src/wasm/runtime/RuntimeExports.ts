@@ -31,6 +31,13 @@ export interface DatasetHandleExports {
   ): number;
   data_prepare_statistics(handle: number): number;
   data_prepare_statistics_evidence_receipts(handle: number): number;
+  /**
+   * RFC 0009 tranche 3 slice 2: two-call string-out read of the kernel-issued
+   * governed-consumer attestation for this dataset. Absent from wasm builds
+   * older than the slice (the wrapper feature-detects and refuses), so a stale
+   * prebuilt pkg fails closed rather than minting uses without an attestation.
+   */
+  data_governed_consumers(handle: number, ptr: number, len: number): number;
   dataset_prepare_json(handle: number): number;
   data_prepare_betti0_curve(handle: number, paramsPtr: number, paramsLen: number): number;
   data_prepare_mapper_graph(handle: number, paramsPtr: number, paramsLen: number): number;

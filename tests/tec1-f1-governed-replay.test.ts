@@ -8,8 +8,10 @@
  *
  * Scope note: F1 may claim integrity and preservation only. Nothing here may be
  * read as evidence of governance, consumer enforcement, or TEC1 closure — the
- * fixtures deliberately use an envelope with no receipts and no usable consumer
- * registry, because none exists in this build.
+ * fixtures exercise the loader's binding step through a Rust-shaped fixture
+ * receipt (kept here, not live, so the falsifiers run without the Rust binary),
+ * but the success path they pin is that a verifying run reports enforcement;
+ * TEC1 closure is claimed by the production-path falsifiers on the wasm lane.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -210,29 +212,34 @@ describe('F1 falsifier 4a: non-empty uses are typed unavailable, not corruption'
   });
 });
 
-describe('F1: an empty uses array is preserved, never read as enforcement', () => {
-  it('never raises the uses refusal when there are no uses to govern', async () => {
-    // The identity must reproduce and the digest must be pinned for this to test
-    // anything: on the unreproducible default identity step 3 refuses with
-    // `DATASET_MISMATCH`, and "no `uses` refusal" then holds because the run
-    // failed for an unrelated reason. Asserting the whole attestation instead of
-    // only the absence of one code is what makes that impossible to confuse.
+describe('F1: an empty uses array cannot bypass the governing policy', () => {
+  it('refuses an empty uses array once a governed consumer exists', async () => {
+    // Widened honestly from its slice-1 form, which asserted the opposite: with
+    // no governed consumer, emptiness was preservation and success was reachable.
+    // Since the first registry entry landed (RFC 0009 tranche 3 slice 2), the
+    // descriptive consumer *is* governed, so an envelope with a receipt bundle
+    // but zero uses leaves it unnamed — and per the RFC, emptiness cannot bypass
+    // policy. The digest is pinned from a *conforming* probe (an empty-uses run
+    // refuses before recomputing a digest), so this refusal is not merely the
+    // first of several: on an unpinned digest step 4 would refuse
+    // `not-established` and this line would green for an unrelated reason.
     const identity = await reproducibleIdentity();
-    const probe = await runner().replayPayload(governedPayload({ identity, uses: [] }));
+    const probe = await runner().replayPayload(governedPayload({ identity }));
     const result = await runner().replayPayload(governedPayload({
       identity,
       uses: [],
       manifestOverrides: { investigationDigest: probe.investigationDigest },
     }));
 
-    expect(result.success).toBe(true);
-    // Preservation only: this build enforces nothing, and the *capability*
-    // refusal is reserved for archives that actually claim a use.
+    expect(result.success).toBe(false);
     expect(result.evidence).toEqual({
       envelope: 'present',
       integrity: 'verified',
       enforcement: 'none',
+      refusal: { code: 'CONSUMER_NOT_GOVERNED' },
     });
+    // Still a build-policy limit, not a corrupt package.
+    expect(result.discrepancies).toEqual([]);
   });
 
   it('does not let a bare success flag stand in for an attestation', () => {
@@ -285,16 +292,18 @@ describe('F1 falsifier 12: the governed happy path is reachable and commits the 
     expect(result.evidence).toEqual({
       envelope: 'present',
       integrity: 'verified',
-      enforcement: 'none',
+      enforcement: 'consumer-policy',
     });
 
-    // Coupled to the registry on purpose. `enforcement: 'none'` is a claim about
-    // this build, and it is true only while the authority-owned consumer policy
-    // governs no consumer. The assertion is here, beside the literal it keeps
-    // honest, so the first entry to land fails *this* line and sends the author
-    // to the union that has to widen with it — rather than silently making an
-    // attestation that no longer describes the run.
-    expect(governedConsumerPolicyV1().size).toBe(0);
+    // Coupled to the registry on purpose. `enforcement: 'consumer-policy'` is a
+    // claim about this run, and it is true only while the authority-owned
+    // consumer policy actually governs the consumer the fixture's use names —
+    // here the descriptive-statistics consumer at exactly the one entry slice 2
+    // landed. It sits beside the literal it keeps honest, so a policy change
+    // that un-governs that consumer (or a re-run on a build without any entry)
+    // fails this line and sends the author back to the attestation union rather
+    // than silently making an attestation that no longer describes the run.
+    expect(governedConsumerPolicyV1().size).toBe(1);
   });
 
   it('commits the envelope bytes, so it is not the legacy digest composition', async () => {
@@ -409,7 +418,7 @@ describe('F1 falsifier 14: a governed package that commits to nothing cannot suc
         expect(result.evidence).toEqual({
           envelope: 'present',
           integrity: 'verified',
-          enforcement: 'none',
+          enforcement: 'consumer-policy',
         });
       }
     }

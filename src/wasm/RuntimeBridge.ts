@@ -57,6 +57,7 @@ export {
   inferSchema,
   statistics,
   statisticsEvidenceReceiptBundle,
+  statisticsGovernedConsumers,
   computeSpectralFacts,
   parseArrow,
   computeMapperGraph,

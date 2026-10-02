@@ -13,6 +13,11 @@ export const FAST_NODE_TESTS = [
   'tests/tec1-consumer-policy-loader-decision.test.ts',
   'tests/tec1-governed-export.test.ts',
   'tests/tec1-governed-capture-ports.test.ts',
+  // RFC 0009 tranche 3 slice 2: the production-path falsifiers for minted
+  // governed uses (composition -> session export -> replay loader) and the
+  // mutated-registry refusals over byte-identical archives.
+  'tests/tec1-governed-use-minting.test.ts',
+  'tests/tec1-mutated-policy-refusal.test.ts',
   'tests/tec1-f1-governed-replay.test.ts',
   'tests/tec1-f1-replay-attestation-text.test.ts',
   'tests/tec1-f1-continuity-attestation.test.ts',
@@ -71,6 +76,11 @@ export const WASM_TESTS = [
   'tests/tec1-governed-export-wasm.test.ts',
   'tests/tec1-governed-capture-authority-wasm.test.ts',
   'tests/tec1-governed-capture-worker-runtime.test.ts',
+  // RFC 0009 tranche 3 slice 2: end-to-end production-path falsifier —
+  // real live-kernel governed export, committed bytes replayed through the
+  // real loader under the real registry (kernel-minted attestation, minted
+  // uses, policy enforcement actually applied).
+  'tests/tec1-governed-use-minting-live.test.ts',
   'tests/tec1-statistics-evidence-receipts.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',

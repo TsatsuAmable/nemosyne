@@ -173,6 +173,14 @@ export interface GovernedEvidenceCaptureV1 {
   readonly datasetFingerprint: string;
   readonly kernelVersion: string;
   readonly rawBundle: unknown;
+  /**
+   * RFC 0009 tranche 3 slice 2: the kernel-issued governed-consumer
+   * attestation for this same read, in its unparsed wire form. Required: a
+   * port that cannot attest which governed consumers consume the receipts it
+   * is handing over cannot satisfy governed capture, because envelope
+   * composition mints the persisted uses from this attestation alone.
+   */
+  readonly governedConsumers: unknown;
 }
 
 export interface AnalyticalExecutionFence {

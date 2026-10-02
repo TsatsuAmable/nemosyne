@@ -56,10 +56,12 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     if (!handle) return null;
 
     const produceReceiptBundle = this._kernel.statisticsEvidenceReceiptBundle;
+    const readGovernedConsumers = this._kernel.statisticsGovernedConsumers;
     const readDatasetFingerprint = this._kernel.datasetFingerprint;
     const readKernelVersion = this._kernel.kernelVersion;
     if (
       typeof produceReceiptBundle !== 'function' ||
+      typeof readGovernedConsumers !== 'function' ||
       typeof readDatasetFingerprint !== 'function' ||
       typeof readKernelVersion !== 'function'
     ) {
@@ -76,6 +78,13 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     const rawBundle = produceReceiptBundle.call(this._kernel, handle);
     if (!rawBundle) return null;
 
+    // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
+    // same read — composition mints the persisted uses from it, so a kernel
+    // runtime that cannot attest governed consumers refused the slice, rather
+    // than exporting an envelope whose `uses` no kernel path authored.
+    const governedConsumers = readGovernedConsumers.call(this._kernel, handle);
+    if (!governedConsumers) return null;
+
     // Re-check after the producer call: a supersession that raced this capture
     // must not be reported as evidence for the current generation.
     if (this._isStale(req.generation, req.dataset.version)) return null;
@@ -87,6 +96,7 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
       datasetFingerprint,
       kernelVersion,
       rawBundle,
+      governedConsumers,
     };
   }
 

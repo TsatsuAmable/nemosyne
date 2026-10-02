@@ -29,11 +29,22 @@ function inlineKernel(
     fingerprint?: string | null;
     kernelVersion?: string | null;
     rawBundle?: unknown;
+    governedConsumers?: unknown;
     omitProducer?: boolean;
+    omitGovernedConsumers?: boolean;
     onProduce?: () => void;
   } = {}
 ) {
   const rawBundle = 'rawBundle' in options ? options.rawBundle : { schemaVersion: '1' };
+  const governedConsumers =
+    'governedConsumers' in options
+      ? options.governedConsumers
+      : {
+          schemaVersion: '1',
+          datasetFingerprint: LIVE_FINGERPRINT,
+          kernelVersion: 'kernel-1',
+          consumers: [{ consumerId: 'consumer-1', receiptIds: ['descriptive:x'] }],
+        };
   const produce = vi.fn(function (this: { marker?: string }) {
     // Proves the port read the producer through the injected instance; a bare
     // call would lose the receiver and fail here.
@@ -42,6 +53,12 @@ function inlineKernel(
     }
     options.onProduce?.();
     return rawBundle;
+  });
+  const readGovernedConsumers = vi.fn(function (this: { marker?: string }) {
+    if (this?.marker !== 'injected-kernel') {
+      throw new Error('governed-consumers read without the injected kernel as receiver');
+    }
+    return governedConsumers;
   });
   const kernel = {
     marker: 'injected-kernel',
@@ -54,8 +71,11 @@ function inlineKernel(
     statistics: vi.fn(() => null),
     loadDatasetJson: vi.fn(() => 11),
     ...(options.omitProducer ? {} : { statisticsEvidenceReceiptBundle: produce }),
+    ...(options.omitGovernedConsumers
+      ? {}
+      : { statisticsGovernedConsumers: readGovernedConsumers }),
   } as unknown as AnalyticalKernelPort;
-  return { kernel, produce };
+  return { kernel, produce, readGovernedConsumers };
 }
 
 function captureRequest(
@@ -89,6 +109,12 @@ function capture(overrides: Partial<GovernedEvidenceCaptureV1> = {}): GovernedEv
     datasetFingerprint: LIVE_FINGERPRINT,
     kernelVersion: 'kernel-1',
     rawBundle: { schemaVersion: '1' },
+    governedConsumers: {
+      schemaVersion: '1',
+      datasetFingerprint: LIVE_FINGERPRINT,
+      kernelVersion: 'kernel-1',
+      consumers: [{ consumerId: 'consumer-1', receiptIds: ['descriptive:x'] }],
+    },
     ...overrides,
   };
 }
@@ -138,6 +164,41 @@ describe('InlineAnalyticalPort governed-evidence capture (issue #834)', () => {
     ).toBeNull();
   });
 
+  it('refuses a kernel that cannot attest governed consumers', async () => {
+    // RFC 0009 tranche 3 slice 2: composition mints the persisted uses from the
+    // kernel-issued governing-consumer attestation alone, so a runtime older than
+    // the slice — one whose read fails or returns nothing — cannot satisfy a
+    // governed capture. Refusing here keeps the null path out of the producer's
+    // hands rather than exporting an envelope whose `uses` no kernel path authored.
+    const failing = inlineKernel({ governedConsumers: null });
+    expect(
+      await new InlineAnalyticalPort(failing.kernel).captureGovernedEvidenceReceipt(
+        captureRequest()
+      )
+    ).toBeNull();
+    const incapable = inlineKernel({ omitGovernedConsumers: true });
+    expect(
+      await new InlineAnalyticalPort(incapable.kernel).captureGovernedEvidenceReceipt(
+        captureRequest()
+      )
+    ).toBeNull();
+  });
+
+  it('reads the governed-consumer attestation from the same injected kernel instance', async () => {
+    const { kernel, produce, readGovernedConsumers } = inlineKernel();
+    const port = new InlineAnalyticalPort(kernel);
+    const result = await port.captureGovernedEvidenceReceipt(captureRequest());
+    expect(result).not.toBeNull();
+    expect(produce).toHaveBeenCalledTimes(1);
+    expect(readGovernedConsumers).toHaveBeenCalledTimes(1);
+    expect(readGovernedConsumers).toHaveBeenCalledWith(7);
+    expect(result?.governedConsumers).toEqual(
+      expect.objectContaining({
+        consumers: [{ consumerId: 'consumer-1', receiptIds: ['descriptive:x'] }],
+      }),
+    );
+  });
+
   it('refuses a capture superseded while the producer was reading', async () => {
     const port = { current: null as InlineAnalyticalPort | null };
     const { kernel } = inlineKernel({
@@ -164,14 +225,7 @@ describe('InlineAnalyticalPort governed-evidence capture (issue #834)', () => {
     const result = await port.captureGovernedEvidenceReceipt(
       captureRequest({ handle: undefined })
     );
-    expect(result).toEqual({
-      requestId: 'acap-1',
-      generation: 1,
-      datasetVersion: LIVE_VERSION,
-      datasetFingerprint: LIVE_FINGERPRINT,
-      kernelVersion: 'kernel-1',
-      rawBundle: { schemaVersion: '1' },
-    });
+    expect(result).toEqual(capture());
     expect(produce).toHaveBeenCalledTimes(1);
     expect(produce).toHaveBeenCalledWith(11);
   });

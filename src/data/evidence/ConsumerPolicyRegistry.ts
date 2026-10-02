@@ -9,25 +9,21 @@
  * own — an archive able to select its own governing contract is exactly what
  * RFC 0009 forbids, and what the loader's refusal has always been protecting.
  *
- * It ships EMPTY, and that is a statement rather than a placeholder. A conforming
- * use can only be authored by a producer that knows which consumer consumes which
- * receipt under which profile, and this build has no such producer: governed
- * export refuses to write any non-empty `uses` (`NemosyneSession.ts:311-317`), and
- * no Rust-issued consumer identity exists anywhere in the kernel. Governing a
- * consumer here *before* such a producer exists would not add capability — it
- * would remove it. `bindConsumerUsesV1` reports `MISSING_USE` for every governed
- * consumer an envelope fails to name, so the first entry would refuse every
- * package this build itself exports, whose only mintable envelope shape is an
- * empty `uses` array.
- *
- * So entries arrive only with the slice that also gives a producer the ability to
- * mint conforming uses, and that slice owes the production-path falsifier proving
- * binding is reachable. Until then the loader enforces *policy* on every run while
- * governing nothing: a `uses`-carrying archive is refused because the policy does
- * not govern its consumer, not because this build cannot read uses. That
- * distinction is the whole point of routing the decision through this module
- * rather than keeping the answer hard-coded in the loader.
+ * RFC 0009 tranche 3 slice 2 (owner decision 2026-10-02) lands the first entry:
+ * the governed descriptive-statistics consumer — whose identity is minted by the
+ * Rust kernel (`wasm/src/data/governed_consumer.rs`, mirrored in TS as
+ * `DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1`) — is governed under
+ * `descriptive-summary/v1`. The entry could only land together with the producer
+ * that mints conforming uses: `bindConsumerUsesV1` reports `MISSING_USE` for every
+ * governed consumer an envelope fails to name, so until the kernel attested the
+ * consumer and the composition minted its uses, this entry would have refused
+ * every package this build itself exports. Slice 2 is that slice, and the
+ * production-path falsifier (`tec1-governed-use-minting.test.ts`) proves binding
+ * is reachable end to end.
  */
+
+import { DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1 } from './GovernedConsumerAttestation.ts';
+import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from './EvidenceRequirementProfile.ts';
 
 /**
  * The consumers this build's authority governs, and the profile each requires.
@@ -36,7 +32,12 @@
  * out: an exported `Map` would let any caller add an entry and so authorize an
  * archive's invented consumer.
  */
-const governedConsumersById = new Map<string, string>();
+const governedConsumersById = new Map<string, string>([
+  [
+    DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+    DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+  ],
+]);
 
 /**
  * The authority-owned consumer policy for this build.

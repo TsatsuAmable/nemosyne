@@ -1,7 +1,9 @@
 import {
+  evidenceRequirementProfileByIdV1,
   evaluateEvidenceReceiptAgainstProfileV1,
   isEvidenceRequirementProfileV1,
   parseEvidenceReceiptBundleV1,
+  parseGovernedConsumerAttestationV1,
   structureProfileToDatasetEvidence,
   type DatasetEvidence,
   type EvidenceReceiptResolutionV1,
@@ -9,8 +11,13 @@ import {
   type EvidenceRequirementProfileV1,
   type RustDatasetStructureProfile,
 } from '../data/evidence/index.ts';
+import { governedConsumerPolicyV1 } from '../data/evidence/ConsumerPolicyRegistry.ts';
 import { canonicalJsonStringify } from '../security/CryptoHash.ts';
-import { parsePersistedEvidenceReceiptsV1, type PersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
+import {
+  parsePersistedEvidenceReceiptsV1,
+  type PersistedEvidenceReceiptsV1,
+  type PersistedEvidenceUseV1,
+} from '../data/evidence/PersistedEvidenceReceipts.ts';
 
 /** Narrow kernel contract for the Moneta evidence composition boundary. */
 export interface DatasetStructureProfileKernel {
@@ -368,6 +375,14 @@ export interface GovernedEvidenceProducerReadoutV1 {
   readonly rawBundle: unknown;
   readonly datasetFingerprint: string;
   readonly kernelVersion: string;
+  /**
+   * RFC 0009 tranche 3 slice 2: the kernel-issued governed-consumer
+   * attestation, in its raw (unparsed) wire form — which governed consumers
+   * consume this bundle's receipts, minted by the Rust kernel alongside the
+   * bundle. Composition parses it and refuses anything the kernel could not
+   * have minted; it is never a caller parameter.
+   */
+  readonly governedConsumers: unknown;
 }
 
 /**
@@ -382,7 +397,27 @@ export interface GovernedEvidenceProducerReadoutV1 {
  *
  * This function is deliberately **pure**: it cannot reach a kernel, so no
  * module-global runtime can be substituted for the authority whose readout it
- * was handed. Acquiring the readout is the analytical execution port's job.
+ * was handed. Acquiring the readout is the analytical execution port's job —
+ * including the governed-consumer attestation, which is kernel-minted
+ * (`wasm/src/data/governed_consumer.rs`) and travels inside the readout.
+ *
+ * RFC 0009 tranche 3 slice 2: the envelope now mints the consumer-*use*
+ * records (`PersistedEvidenceUseV1`) instead of composing `uses: []`. Every
+ * use is authored entirely from three authorities, and composition refuses
+ * unless all three agree, so nothing unbindable can be serialized:
+ *
+ * - the **kernel** decides *which consumers consume which receipts*: each
+ *   minted use's `consumerId` and `receiptId` are copied from the kernel-issued
+ *   attestation over this exact bundle (a receipt id the attestation names but
+ *   the bundle lacks — a dangling reference — refuses here, never at replay);
+ * - the **authority policy** (`ConsumerPolicyRegistry.ts`) decides *which
+ *   profile each governed consumer requires*, and its profile id is copied
+ *   verbatim into the use — a kernel-minted consumer the policy does not
+ *   govern, and a governed consumer no attestation names, both refuse here;
+ * - the **closed profile registry** decides whether that profile resolves in
+ *   this build, and each minted use's receipt must resolve under it before the
+ *   envelope is serialized, so an export never writes a use its own replay
+ *   loader would refuse to bind.
  */
 export function composeGovernedEvidenceReceiptSnapshot(
   readout: GovernedEvidenceProducerReadoutV1,
@@ -406,13 +441,76 @@ export function composeGovernedEvidenceReceiptSnapshot(
     );
   }
 
-  // RFC 0009: a captured bundle is persisted under the closed v1 envelope with
-  // no authored uses; consumer-policy binding belongs to the replay loader, and
-  // empty uses establish preservation without enforcement.
+  const attestation = parseGovernedConsumerAttestationV1(readout.governedConsumers);
+  if (
+    attestation.datasetFingerprint !== bundle.datasetFingerprint ||
+    attestation.kernelVersion !== bundle.kernelVersion
+  ) {
+    throw new Error(
+      '[AtlasCore] Governed evidence capture consumer-attestation identity drift: ' +
+        `attestation=${attestation.datasetFingerprint}@${attestation.kernelVersion}, ` +
+        `bundle=${bundle.datasetFingerprint}@${bundle.kernelVersion}`,
+    );
+  }
+
+  // The authority snapshot is read once, as the loader does: the same policy
+  // decides what export may mint and what replay will bind, so a registry
+  // change moves both sides together instead of the export minting uses
+  // against a policy the loader no longer holds.
+  const policy = governedConsumerPolicyV1();
+  const receiptsById = new Map(bundle.receipts.map((receipt) => [receipt.receiptId, receipt]));
+  const uses: PersistedEvidenceUseV1[] = [];
+  for (const consumer of attestation.consumers) {
+    const requiredProfileId = policy.get(consumer.consumerId);
+    if (requiredProfileId === undefined) {
+      throw new Error(
+        `[AtlasCore] Governed evidence capture attests consumer '${consumer.consumerId}' that the authority-owned policy does not govern`
+      );
+    }
+    if (consumer.receiptIds.length === 0) {
+      throw new Error(
+        `[AtlasCore] Governed evidence capture attests consumer '${consumer.consumerId}' over no receipts; a governed use must name one`
+      );
+    }
+    const profile = evidenceRequirementProfileByIdV1(requiredProfileId);
+    if (profile === null) {
+      throw new Error(
+        `[AtlasCore] Governed evidence capture would mint a use under profile '${requiredProfileId}' that this build does not resolve`
+      );
+    }
+    for (const receiptId of consumer.receiptIds) {
+      const receipt = receiptsById.get(receiptId) ?? null;
+      if (receipt === null) {
+        throw new Error(
+          `[AtlasCore] Governed evidence capture attests receipt '${receiptId}' absent from the bundle`
+        );
+      }
+      if (
+        evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt).status !== 'RESOLVED'
+      ) {
+        throw new Error(
+          `[AtlasCore] Governed evidence capture would mint a use whose receipt does not resolve under '${requiredProfileId}'`
+        );
+      }
+      uses.push({
+        consumerId: consumer.consumerId,
+        receiptId,
+        requirementProfileId: requiredProfileId,
+      });
+    }
+  }
+  for (const consumerId of policy.keys()) {
+    if (!attestation.consumers.some((consumer) => consumer.consumerId === consumerId)) {
+      throw new Error(
+        `[AtlasCore] Governed evidence capture attests no receipts for governed consumer '${consumerId}'; the replay loader would refuse the envelope with MISSING_USE`
+      );
+    }
+  }
+
   const envelope = parsePersistedEvidenceReceiptsV1({
     schemaVersion: '1',
     bundle,
-    uses: [],
+    uses,
   });
   const bytes = new TextEncoder().encode(canonicalJsonStringify(envelope));
   return Object.freeze({ bytes, envelope });

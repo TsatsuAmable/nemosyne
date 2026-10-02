@@ -23,6 +23,8 @@ import {
 import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../../src/data/DatasetIdentity.ts';
 import { Dataset } from '../../src/data/Dataset.ts';
 import { sha256Hex } from '../../src/security/CryptoHash.ts';
+import { DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1 } from '../../src/data/evidence/GovernedConsumerAttestation.ts';
+import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from '../../src/data/evidence/EvidenceRequirementProfile.ts';
 import { makeKernelMockBridge } from './kernelMock.ts';
 
 /** Deliberately not the fingerprint this build reconstructs — see falsifier 3. */
@@ -70,9 +72,62 @@ export function runner(): InvestigationReplayRunner {
 }
 
 /**
- * A structurally valid closed v1 envelope. `receipts: []` is deliberate: it is
- * the only envelope shape this build can mint, and it keeps these falsifiers
- * independent of the Rust producer so they can run in the non-wasm suite.
+ * The receipt id the Rust statistics producer mints for the fixture dataset's
+ * first numeric column (receipt_id == claim_id, per-claim receipts).
+ */
+export const FIXTURE_RECEIPT_ID = 'descriptive:x';
+
+/**
+ * A Rust-shaped standalone receipt, mirroring `wasm/src/data/statistics_evidence.rs`
+ * for a `descriptive:<column>` numeric claim: no established measurement
+ * context, empty assumptions, no uncertainty/stability/geometry, and
+ * method provenance that agrees with the bundle identity (the structural parse
+ * refuses a receipt whose provenance disagrees with its bundle).
+ */
+export function fixtureReceipt(identity: FixtureIdentity): Record<string, unknown> {
+  return {
+    receiptId: FIXTURE_RECEIPT_ID,
+    claimId: FIXTURE_RECEIPT_ID,
+    estimand: 'descriptive finite-value summary for column x',
+    measurementContext: { status: 'NOT_ESTABLISHED' },
+    geometry: null,
+    assumptions: [],
+    sampleSupport: {
+      totalRows: 2,
+      rowsUsed: 2,
+      rowsExcluded: 0,
+      columns: ['x'],
+      policy: 'fullDataset',
+      exclusionReasons: [],
+    },
+    uncertainty: null,
+    stability: null,
+    sensitivity: [],
+    limitations: ['descriptive summary only; no population uncertainty has been estimated'],
+    methodProvenance: {
+      method: 'descriptive/finite-numeric',
+      methodVersion: 'statistics-v1',
+      kernelVersion: identity.kernelVersion,
+      datasetFingerprint: identity.analyticalFingerprint,
+      parameters: [],
+    },
+  };
+}
+
+/** The one conforming use the governed producer mints under the current policy. */
+export function defaultGovernedUse(): PersistedUse {
+  return {
+    consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+    receiptId: FIXTURE_RECEIPT_ID,
+    requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+  };
+}
+
+/**
+ * A structurally valid closed v1 envelope. The bundle carries the Rust-shaped
+ * fixture receipt so the falsifiers can exercise real binding (identity
+ * agreement plus receipt evaluation) against the live authority policy, while
+ * staying independent of the Rust binary so they run in the non-wasm suite.
  */
 export function governedEnvelope(
   uses: readonly PersistedUse[],
@@ -84,7 +139,7 @@ export function governedEnvelope(
       schemaVersion: '1',
       datasetFingerprint: identity.analyticalFingerprint,
       kernelVersion: identity.kernelVersion,
-      receipts: [],
+      receipts: [fixtureReceipt(identity)],
     },
     uses,
   };
@@ -97,11 +152,14 @@ export function governedEnvelope(
  * passed through transport validation — that is one of the properties under
  * falsification.
  *
- * `evidenceReceiptDigest` is always computed over the bytes actually handed
- * over. An earlier draft pinned it to a *different* envelope's bytes, which made
- * the malformed-envelope case pass via the digest check instead of the
- * structural parse it was supposed to isolate. Digest mismatches are requested
- * explicitly through `manifestOverrides`.
+ * `uses` defaults to the conforming use the governed producer mints under the
+ * current policy; an empty `uses` array is a deliberate refusal case now (the
+ * descriptive consumer is governed, so emptiness refuses MISSING_USE) and must
+ * be requested explicitly. `evidenceReceiptDigest` is always computed over the
+ * bytes actually handed over. An earlier draft pinned it to a *different*
+ * envelope's bytes, which made the malformed-envelope case pass via the digest
+ * check instead of the structural parse it was supposed to isolate. Digest
+ * mismatches are requested explicitly through `manifestOverrides`.
  */
 export function governedPayload(options: {
   uses?: readonly PersistedUse[];
@@ -111,7 +169,7 @@ export function governedPayload(options: {
 } = {}): NemosynePackagePayload {
   const identity = options.identity ?? DEFAULT_IDENTITY;
   const receiptBytes =
-    options.bytes ?? governedEnvelope(options.uses ?? [], identity).bytes;
+    options.bytes ?? governedEnvelope(options.uses ?? [defaultGovernedUse()], identity).bytes;
   // This manifest is deliberately narrower than `exportPortableSnapshot`'s: it
   // omits `researchContext`, `evidenceSummary`, `discoveryCount`,
   // `nilOutcomeCount` and simplifies `environment`. Every omission is inert for
@@ -148,7 +206,7 @@ export function governedPayload(options: {
 export function governedArchive(
   identity: FixtureIdentity,
   digest: string,
-  uses: readonly PersistedUse[] = [],
+  uses: readonly PersistedUse[] = [defaultGovernedUse()],
 ): Uint8Array {
   const payload = governedPayload({
     identity,

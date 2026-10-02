@@ -110,29 +110,29 @@ const POLICY_REFUSAL_CODE: Record<
  * reason appears as a `refusal` or only as a discrepancy.
  *
  * `envelope` and `integrity` are independent axes so `enforcement` can never
- * contradict the tag. `enforcement` is deliberately single-valued, and it is
- * still `'none'` for a precise reason rather than an unfinished one: the loader
- * now enforces the authority-owned consumer policy on every run (RFC 0009 tranche
- * 3), and that policy governs no consumer, so no run this build accepts has had
- * consumer policy applied to it. Widening the union is required the moment the
- * registry gains an entry — a breaking change that forces every consumer to
- * reconsider — rather than a variant that could look handled and silently change
- * meaning the day it becomes reachable. A falsifier pins that coupling, so an
- * entry cannot land without reopening this union.
+ * contradict the tag. `enforcement` reports whether this run actually applied
+ * the authority-owned consumer policy (RFC 0009 tranche 3 slice 2): since the
+ * registry's first entry landed, a verifying run over governed bytes binds the
+ * persisted uses and reports `'consumer-policy'`; a build whose authority still
+ * governs no consumer would report `'none'`, which remains representable so a
+ * policy-shaped build can never be confused with none. The union is deliberately
+ * exhaustive-with-widening rather than defaulted: the slice-1 falsifier pinned
+ * `'none'` against an empty registry, so landing the first entry forced this
+ * change to reopen instead of letting the meaning drift under a silent widen.
  *
- * It says `'none'` on a *refusal* attestation too, and that is not the same claim
- * as "no policy was consulted": a policy refusal is decided by the policy. What
- * `'none'` asserts there is that no consumer's requirements were *enforced*, which
- * a refused run trivially did not do. Scoping it as "this build enforced nothing"
- * rather than "this build consulted nothing" is what keeps it true on both
- * variants.
+ * It says `'none'` on a *refusal* attestation even when the policy decides the
+ * refusal, and that is not the same claim as "no policy was consulted": what
+ * `enforcement` asserts is that some consumer's requirements were *enforced*
+ * for a run that completed. A refused run trivially enforced nothing. Scoping
+ * it as "this run enforced nothing" rather than "this build consulted nothing"
+ * is what keeps it true on both variants.
  */
 export type ReplayEvidenceAttestation =
   | { readonly envelope: 'absent' }
   | {
       readonly envelope: 'present';
       readonly integrity: 'verified';
-      readonly enforcement: 'none';
+      readonly enforcement: 'none' | 'consumer-policy';
       readonly refusal?: { readonly code: ReplayEvidenceRefusalCode };
     }
   | { readonly envelope: 'present'; readonly integrity: 'not-established' };
@@ -142,10 +142,12 @@ export type ReplayEvidenceAttestation =
  *
  * A named constructor rather than an inline literal at each site, because the
  * `enforcement` value is the single claim here that is a statement about *this
- * build* rather than about the archive. Consumer binding has landed and this is
- * where it starts telling the truth: the value stays `'none'` because the policy
- * governs no consumer, so this constructor is the one place that changes when the
- * registry gains its first entry.
+ * build* rather than about the archive. Since the first registry entry landed,
+ * a *successful* run binds persisted uses under the authority-owned consumer
+ * policy, so it reports `'consumer-policy'`; a refused run reports `'none'`
+ * because it enforced no consumer's requirements. Reading the live registry
+ * (rather than hard-coding a value) keeps this constructor honest for a build
+ * whose authority governs no consumer at all.
  */
 function verifiedEvidence(
   refusal?: ReplayEvidenceRefusalCode,
@@ -153,7 +155,10 @@ function verifiedEvidence(
   return {
     envelope: 'present',
     integrity: 'verified',
-    enforcement: 'none',
+    enforcement:
+      refusal === undefined && governedConsumerPolicyV1().size > 0
+        ? 'consumer-policy'
+        : 'none',
     ...(refusal === undefined ? {} : { refusal: { code: refusal } }),
   };
 }

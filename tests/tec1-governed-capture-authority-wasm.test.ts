@@ -6,6 +6,11 @@ import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { composeGovernedEvidenceReceiptSnapshot } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { parsePersistedEvidenceReceiptsV1 } from '../src/data/evidence/PersistedEvidenceReceipts.ts';
 import { parseEvidenceReceiptBundleV1 } from '../src/data/evidence/EvidenceReceipt.ts';
+import {
+  DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+  parseGovernedConsumerAttestationV1,
+} from '../src/data/evidence/GovernedConsumerAttestation.ts';
+import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
 import { sha256Hex } from '../src/security/CryptoHash.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import type {
@@ -114,6 +119,7 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
     datasetFingerprint: string;
     kernelVersion: string;
     rawBundle: unknown;
+    governedConsumers: unknown;
   }): StubCapturePort {
     return new StubCapturePort((req) =>
       Promise.resolve({
@@ -123,6 +129,28 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
         ...readout,
       })
     );
+  }
+
+  /**
+   * The kernel-issued governing-consumer attestation shape the kernel would mint
+   * for the given bundle identity: one consumer claiming exactly the passed
+   * receipt ids. The stub port supplies the readout, so the attestation is part
+   * of what the port handed over; the kernel-minted form of the same shape is
+   * pinned separately in the Worker-owned capture tests below.
+   */
+  function stubGovernedConsumers(
+    fingerprint: string,
+    kernelVersion: string,
+    receiptIds: readonly string[]
+  ): unknown {
+    return {
+      schemaVersion: '1',
+      datasetFingerprint: fingerprint,
+      kernelVersion,
+      consumers: [
+        { consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1, receiptIds: [...receiptIds] },
+      ],
+    };
   }
 
   function committedEnvelope(bytes: Uint8Array) {
@@ -177,10 +205,16 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
         ...liveBundle,
         receipts: liveBundle.receipts.slice(0, 1),
       };
+      const producedConsumers = stubGovernedConsumers(
+        fingerprint,
+        kernelVersion,
+        produced.receipts.map((receipt) => receipt.receiptId),
+      );
       const port = echoingPort({
         datasetFingerprint: fingerprint,
         kernelVersion,
         rawBundle: produced,
+        governedConsumers: producedConsumers,
       });
       atlas.setExecutionPort(port);
 
@@ -202,12 +236,24 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
             rawBundle: produced,
             datasetFingerprint: fingerprint,
             kernelVersion,
+            governedConsumers: producedConsumers,
           }).bytes
         )
       );
 
       const envelope = committedEnvelope(payload.evidenceReceiptBytes!);
-      expect(envelope.uses).toEqual([]);
+      // RFC 0009 tranche 3 slice 2: the envelope's uses are minted from the
+      // kernel-issued attestation the port handed over — one use per claimed
+      // receipt, under the exact profile the authority requires — never empty,
+      // never caller-authored. Each receipt resolves under its use's profile, so
+      // the minted uses bind on replay rather than refusing it.
+      expect(envelope.uses).toEqual([
+        {
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: envelope.bundle.receipts[0]!.receiptId,
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        },
+      ]);
       expect(envelope.bundle.receipts).toHaveLength(1);
       expect(envelope.bundle.receipts[0]).toEqual(liveBundle.receipts[0]);
     } finally {
@@ -227,6 +273,11 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
           datasetFingerprint: bridge.datasetFingerprint(foreign.handle)!,
           kernelVersion: bridge.kernelVersion()!,
           rawBundle: foreignBundle,
+          governedConsumers: stubGovernedConsumers(
+            bridge.datasetFingerprint(foreign.handle)!,
+            bridge.kernelVersion()!,
+            parseEvidenceReceiptBundleV1(foreignBundle).receipts.map((r) => r.receiptId),
+          ),
         })
       );
 
@@ -251,6 +302,11 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
           datasetFingerprint: bridge.datasetFingerprint(handle)!,
           kernelVersion: bridge.kernelVersion()!,
           rawBundle: bridge.statisticsEvidenceReceiptBundle(foreign.handle),
+          governedConsumers: stubGovernedConsumers(
+            bridge.datasetFingerprint(handle)!,
+            bridge.kernelVersion()!,
+            ['descriptive:x'],
+          ),
         })
       );
 
@@ -284,6 +340,8 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
                 datasetFingerprint: fingerprint,
                 kernelVersion,
                 rawBundle,
+                // Never read: the fence refuses this capture before composition.
+                governedConsumers: { schemaVersion: '1', consumers: [] },
               });
           })
       );
@@ -388,6 +446,30 @@ describe('TEC1 governed evidence capture authority (issue #834)', () => {
       expect(
         parseEvidenceReceiptBundleV1(capture!.rawBundle).receipts.length
       ).toBeGreaterThan(0);
+
+      // RFC 0009 tranche 3 slice 2: the same read carries the kernel-issued
+      // governing-consumer attestation, unparsed, and the kernel's minter is the
+      // only authority for the consumer identity. This is the pin that keeps the
+      // TS mirror constant honest: if the kernel ever renames its consumer id,
+      // this line (CI-side, where the wasm binary is fresh) fails rather than
+      // letting the TS mirror drift into governing a consumer the kernel never
+      // mints. It also pins coverage: one consumer claiming exactly the bundle's
+      // receipt ids.
+      const attestation = parseGovernedConsumerAttestationV1(capture!.governedConsumers);
+      const bundle = parseEvidenceReceiptBundleV1(capture!.rawBundle);
+      expect(attestation.datasetFingerprint).toBe(bundle.datasetFingerprint);
+      expect(attestation.kernelVersion).toBe(bundle.kernelVersion);
+      expect(
+        attestation.consumers.map((consumer) => ({
+          consumerId: consumer.consumerId,
+          receiptIds: [...consumer.receiptIds],
+        })),
+      ).toEqual([
+        {
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptIds: bundle.receipts.map((receipt) => receipt.receiptId),
+        },
+      ]);
     });
 
     it('refuses a main-thread handle the Worker never registered', async () => {

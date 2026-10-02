@@ -450,6 +450,31 @@ export function statisticsEvidenceReceiptBundle(handle: number): unknown | null 
   }
 }
 
+/**
+ * RFC 0009 tranche 3 slice 2: the kernel-issued governed-consumer attestation
+ * for this dataset (which governed consumers consume the receipts the kernel
+ * issues). Two-call string-out ABI, mirroring `datasetFingerprint`.
+ *
+ * Feature-detecting is deliberate fail-closed behaviour: a wasm build older
+ * than this slice has no `data_governed_consumers` export, and governed
+ * capture must refuse rather than mint consumer uses without an attestation.
+ * The typed presence on `DatasetHandleExports` names the contract; the
+ * runtime check is what keeps a stale prebuilt pkg from half-attesting.
+ */
+export function statisticsGovernedConsumers(handle: number): unknown | null {
+  const wasm: DatasetHandleExports = getRuntimeExports();
+  // The runtime feature-detect guards a wasm build older than this slice; the
+  // typed access below stays on the declared export contract.
+  if (typeof wasm.data_governed_consumers !== 'function') return null;
+  const json = readStringExport((ptr, len) => wasm.data_governed_consumers(handle, ptr, len));
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 export function computeSpectralFacts(
   handle: number,
   timeColumn?: string,
