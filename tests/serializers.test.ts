@@ -76,14 +76,20 @@ describe('Canonical serializer robustness', () => {
   describe('MessagePack untrusted input', () => {
     it('throws on a payload truncated mid-envelope', () => {
       // Map header (0x81) claiming one key, followed by 3 of 4 string bytes.
-      // Observed: @msgpack/msgpack raises RangeError('Insufficient data').
-      expect(() => messagePackToDataset(new Uint8Array([0x81, 0xa4, 0xa4]))).toThrow();
+      // Observed: @msgpack/msgpack raises RangeError('Insufficient data')
+      // (decoder refusing truncated input), not a silent empty Dataset.
+      expect(() => messagePackToDataset(new Uint8Array([0x81, 0xa4, 0xa4]))).toThrow(
+        /insufficient data/i
+      );
     });
 
     it('throws on non-payload garbage bytes', () => {
       // 0xc1 is never a valid MessagePack type byte.
-      // Observed: DecodeError('Unrecognized type byte: 0xc1').
-      expect(() => messagePackToDataset(new Uint8Array([0xc1, 0xc2, 0xc3, 0xc4]))).toThrow();
+      // Observed: DecodeError('Unrecognized type byte: 0xc1'), not a silent
+      // empty Dataset.
+      expect(() => messagePackToDataset(new Uint8Array([0xc1, 0xc2, 0xc3, 0xc4]))).toThrow(
+        /unrecognized type byte/i
+      );
     });
 
     it('throws on an empty buffer', () => {
