@@ -9,13 +9,19 @@ import * as bridge from '../src/wasm/RuntimeBridge.ts';
 import { sha256Hex } from '../src/security/CryptoHash.ts';
 
 /**
- * Real-kernel falsifiers for RFC 0009 tranche 2: the governed V3 export path
- * must mint its receipt bytes from the live Rust production bridge, commit
- * them into the closed v1 envelope, and refuse every identity incoherence
- * instead of silently downgrading to V2. Production replay continues to
- * refuse V3 (pinned in tests/tec1-v3-package.test.ts); this slice makes no
- * replay-consumption claim.
+ * Real-kernel falsifiers for RFC 0009 tranche 2 + slice 2: the governed V3
+ * export path must mint its receipt bytes and its governing-consumer `uses`
+ * from the live Rust production bridge, commit them into the closed v1
+ * envelope, and refuse every identity incoherence instead of silently
+ * downgrading to V2. Replay consumption of what is exported is pinned by the
+ * tranche-3 production-path falsifiers.
  */
+import {
+  DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+} from '../src/data/evidence/GovernedConsumerAttestation.ts';
+import {
+  DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
+} from '../src/data/evidence/EvidenceRequirementProfile.ts';
 
 function fixtureDataset(): Dataset {
   return new Dataset(
@@ -57,12 +63,23 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
     }
   });
 
-  it('captures the Rust-issued bundle deterministically with coherent live identity and empty uses', async () => {
+  it('captures the Rust-issued bundle deterministically with coherent live identity and minted uses', async () => {
     const { atlas, handle } = liveGovernedSession();
     try {
       const first = await atlas.captureGovernedEvidenceReceipt();
       expect(first).not.toBeNull();
-      expect(first!.envelope.uses).toEqual([]);
+      // Widened from its tranche-2 pin (`uses` exactly empty): since slice 2 the
+      // composition mints one use per kernel-attested (consumer, receipt) pair
+      // from the same capture's kernel-issued attestation, under the authority's
+      // profile. One consumer claims every bundle receipt, in bundle order.
+      const firstBundle = first!.envelope.bundle;
+      expect(first!.envelope.uses).toEqual(
+        firstBundle.receipts.map((receipt) => ({
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: receipt.receiptId,
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        })),
+      );
       expect(first!.envelope.bundle.receipts.length).toBeGreaterThan(0);
       expect(first!.envelope.bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
       expect(first!.envelope.bundle.kernelVersion).toBe(bridge.kernelVersion());
@@ -113,7 +130,15 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
         'sha256-canonical-investigation-v3'
       );
       const envelope = evidenceEnvelopeOf(payload.evidenceReceiptBytes!);
-      expect(envelope.uses).toEqual([]);
+      // Minted, not empty: one use per bundle receipt under the governing
+      // consumer and the authority-required profile (slice 2).
+      expect(envelope.uses).toEqual(
+        envelope.bundle.receipts.map((receipt) => ({
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: receipt.receiptId,
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        })),
+      );
       expect(envelope.bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
       expect(payload.manifest.analyticalDatasetFingerprint).toBe(envelope.bundle.datasetFingerprint);
       expect(payload.manifest.analyticalKernelVersion).toBe(bridge.kernelVersion());
@@ -212,7 +237,13 @@ describe('TEC1 governed V3 export (RFC 0009 tranche 2)', () => {
       const liveEnvelope = evidenceEnvelopeOf(
         new Uint8Array(Buffer.from(json.evidenceReceiptSnapshot!, 'base64'))
       );
-      expect(liveEnvelope.uses).toEqual([]);
+      expect(liveEnvelope.uses).toEqual(
+        liveEnvelope.bundle.receipts.map((receipt) => ({
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: receipt.receiptId,
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        })),
+      );
       expect(
         Buffer.from(new Uint8Array(Buffer.from(json.evidenceReceiptSnapshot!, 'base64'))).equals(
           Buffer.from(committed)

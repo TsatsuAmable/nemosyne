@@ -47,10 +47,28 @@ describe('F1 falsifier 10: the surfacing layer cannot overclaim what was enforce
     );
 
     // A reader who sees only "Replay verified" infers the investigation's
-    // claims were checked against the consumers that require them. This build
-    // checks none of them, and this string is the only place that is said.
+    // claims were checked against the consumers that require them. This run
+    // enforced none, and this string is the only place that is said.
     expect(message).not.toBe('Replay verified (4 events)');
     expect(message).toContain('no consumer policy enforced');
+  });
+
+  it('reports when the run actually applied the consumer policy', () => {
+    // Widened alongside the enforcement union (RFC 0009 tranche 3 slice 2):
+    // since the registry governs a consumer, a verifying run binds the persisted
+    // uses and this surface must say so — the slice-1 wording ("no consumer
+    // policy enforced") would now be the overclaim on the happy path rather
+    // than the honest caveat on the empty-policy one, and both must stay worded
+    // apart so a reader can never read the policy-applied run as checked-nothing.
+    const message = replayVerifiedMessage(
+      replayResultDouble({
+        eventsMatched: 4,
+        evidence: { envelope: 'present', integrity: 'verified', enforcement: 'consumer-policy' },
+      }),
+    );
+
+    expect(message).toContain('governed evidence verified under the consumer policy');
+    expect(message).not.toContain('no consumer policy enforced');
   });
 
   it('does not claim verification when integrity was not established', () => {

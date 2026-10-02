@@ -88,24 +88,27 @@ export function replayFailureDetail(result: ReplayVerificationResult): string {
  * The status line for a successful replay.
  *
  * A legacy package carries no governed envelope, so "verified" is the whole
- * claim and a caveat would be noise. A present envelope means the governed
- * evidence commitment was checked, and the loader put the package under this
- * build's authority-owned consumer policy (RFC 0009 tranche 3) — but that policy
- * governs no consumer, so nothing was checked against the consumers that require
- * the evidence. Saying only "verified" would let a reader infer that it was; it
- * was not, and this line is the only place an analyst is told so. It changes with
- * the registry's first entry, and a falsifier pins the two together.
+ * claim and a caveat would be noise. A present, verified envelope reports what
+ * the run actually enforced against the persisted uses: since the registry's
+ * first entry landed (RFC 0009 tranche 3 slice 2), a verifying run binds the
+ * uses under the authority-owned consumer policy and says so; an authority that
+ * still governs no consumer would report that nothing was enforced. Reading the
+ * attestation's `enforcement` axis here — rather than deriving the wording from
+ * the registry — is what keeps this string and the loader from ever disagreeing
+ * about the same run.
  *
- * "Put the package under the policy" and "no consumer policy enforced" are two
- * different claims and both are true: the policy decides, and nothing was
- * enforced, because it governs nothing. They are worded to stay apart — an
- * earlier draft of this comment said the loader "enforced" the policy, which is
- * the opposite of the string it documents six lines below.
+ * "Put the package under the policy" and "no consumer policy enforced" remain
+ * two different claims and both remain reachable: the policy decides what the
+ * uses must satisfy, and a run only enforces requirements the policy actually
+ * attaches to a consumer.
  */
 export function replayVerifiedMessage(result: ReplayVerificationResult): string {
   const base = `Replay verified (${result.eventsMatched} events)`;
   if (result.evidence.envelope === 'absent') return base;
-  return result.evidence.integrity === 'verified'
-    ? `${base} · governed evidence verified, no consumer policy enforced`
-    : `${base} · governed evidence integrity not established`;
+  if (result.evidence.integrity !== 'verified') {
+    return `${base} · governed evidence integrity not established`;
+  }
+  return result.evidence.enforcement === 'consumer-policy'
+    ? `${base} · governed evidence verified under the consumer policy`
+    : `${base} · governed evidence verified, no consumer policy enforced`;
 }

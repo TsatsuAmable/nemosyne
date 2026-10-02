@@ -319,7 +319,12 @@ self.onmessage = async (ev: MessageEvent) => {
       const datasetFingerprint = bridge.datasetFingerprint(handle);
       const kernelVersion = bridge.kernelVersion();
       const rawBundle = bridge.statisticsEvidenceReceiptBundle(handle);
-      if (datasetFingerprint && kernelVersion && rawBundle) {
+      // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
+      // same read. A runtime build without this export (older than the slice)
+      // yields null and refuses the capture, rather than handing composition
+      // receipts it cannot mint governed uses for.
+      const governedConsumers = bridge.statisticsGovernedConsumers(handle);
+      if (datasetFingerprint && kernelVersion && rawBundle && governedConsumers) {
         capture = {
           requestId: req.requestId,
           generation: req.generation,
@@ -327,6 +332,7 @@ self.onmessage = async (ev: MessageEvent) => {
           datasetFingerprint,
           kernelVersion,
           rawBundle,
+          governedConsumers,
         };
       }
     } catch {

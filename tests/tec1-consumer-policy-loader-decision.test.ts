@@ -1,17 +1,19 @@
 /**
- * RFC 0009 tranche 3 slice 1 — the loader's decision is a function of the policy.
+ * RFC 0009 tranche 3 slice 1+2 — the loader's decision is a function of the policy.
  *
- * The shipped policy governs no consumer, and while that is true the wired loader
- * and the `envelope.uses.length > 0` branch it replaced produce identical results
- * for every archive either of them can be given — which is why
- * `tec1-consumer-policy-wiring.test.ts` has only a source guard for the wiring.
- * The two are distinguished by the *policy*, not by the archive, so this file
- * substitutes the registry to make that difference observable.
+ * The loader refuses what the *substituted* policy refuses: this file replaces the
+ * registry wholesale, so every binder outcome below is reachable in a way it is
+ * not against the shipped registry (which governs exactly one consumer, the
+ * descriptive-statistics one slice 2 added). The two are distinguished by the
+ * *policy*, not by the archive, so substituting it is what makes the decision
+ * procedure observable independently of what the shipped registry happens to
+ * govern today.
  *
  * Every assertion here is therefore about the loader's decision procedure. None of
  * them claims anything about what the shipped registry governs — that is pinned
  * against the real module elsewhere — and none of them is evidence that a
- * conforming use can be minted or replayed in production.
+ * conforming use can be minted or replayed in production; that is the
+ * production-path falsifier's job.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
@@ -51,13 +53,15 @@ describe('F1 wiring: the loader refuses what the policy refuses, not what the en
   it('flips on a byte-identical empty-uses archive when only the policy changes', async () => {
     // The distinguisher, and the reason the wiring is falsifiable after all. This
     // is one payload object replayed twice, so the archive is identical across the
-    // two runs; the only difference is the registry. Its `uses` array is empty,
-    // and `uses.length > 0` is what the replaced branch refused on — so that branch
-    // could not have produced the second outcome under *any* policy, while the
-    // wired loader produces it by binding a governed consumer the archive never
-    // names (`MISSING_USE`). A loader that imported the registry and ignored it
-    // behaves like the first run.
-    const payload = governedPayload();
+    // two runs; the only difference is the registry. Its `uses` array is empty —
+    // empty *deliberately* now that the shipped producer mints a conforming use
+    // by default, because the distinguisher the slice-1 form measured was a
+    // zero-use archive; a minted use would make the empty-policy arm refuse as
+    // UNKNOWN_CONSUMER (a different binder outcome) and weaken the point that
+    // the wired branch refuses an archive with nothing to bind when the policy
+    // names a consumer the archive never addresses (`MISSING_USE`). A loader
+    // that imported the registry and ignored it behaves like the first run.
+    const payload = governedPayload({ uses: [] });
 
     const withoutPolicy = await runner().replayPayload(payload);
     // The fixture identity is deliberately unreproducible, so with nothing to

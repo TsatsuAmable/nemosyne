@@ -742,6 +742,46 @@ fn compute_statistics_evidence_receipts_result(handle: u32) -> Option<String> {
     Some(json)
 }
 
+/// RFC 0009 tranche 3 slice 2: the kernel-issued governed consumer attestation
+/// for the live dataset — which governed consumers consume the receipts the
+/// kernel issues for it. Two-call string-out ABI, mirroring
+/// `dataset_fingerprint`. A handle with no row-backed dataset, or a dataset the
+/// receipt families refuse, yields ABI null (0), which the bridge surfaces as
+/// `null` and governed capture refuses.
+#[wasm_bindgen]
+pub fn data_governed_consumers(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    match compute_governed_consumers_result(handle) {
+        Some(json) => write_str_out(&json, out_ptr, out_len),
+        None => 0,
+    }
+}
+
+fn compute_governed_consumers_result(handle: u32) -> Option<String> {
+    let (attestation, input_fp) = data::with_dataset(handle, |ds| {
+        let dataset_fingerprint = ds.fingerprint();
+        let bundle = data::statistics_evidence::compute_statistics_evidence_receipt_bundle(
+            ds,
+            &dataset_fingerprint,
+            data::provenance::KERNEL_VERSION,
+        )
+        .ok()?;
+        let attestation =
+            data::governed_consumer::GovernedConsumerAttestationV1::for_receipt_bundle(&bundle)
+                .ok()?;
+        Some((attestation, dataset_fingerprint))
+    })??;
+
+    let json = serde_json::to_string(&attestation).ok()?;
+    let output_fp = data::fingerprint::sha256_hex(&json);
+    data::provenance::record(
+        "governed_consumers",
+        serde_json::json!({ "schemaVersion": "1" }),
+        &input_fp,
+        &output_fp,
+    );
+    Some(json)
+}
+
 #[wasm_bindgen]
 pub fn data_compute_spectral_facts(
     handle: u32,

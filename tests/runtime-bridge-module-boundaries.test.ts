@@ -111,6 +111,10 @@ const publicFacadeExports = [
   'solveMoneta',
   'statistics',
   'statisticsEvidenceReceiptBundle',
+  // RFC 0009 tranche 3 slice 2: kernel-attested governed consumers for the
+  // live dataset, carried to governed capture (feature-detected, so a build
+  // without the Rust export supplies nothing rather than throwing).
+  'statisticsGovernedConsumers',
   'tdaResourcePreflight',
   'update',
 ] as const;

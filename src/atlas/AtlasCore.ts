@@ -411,6 +411,7 @@ export class AtlasCore {
       rawBundle: capture.rawBundle,
       datasetFingerprint: capture.datasetFingerprint,
       kernelVersion: capture.kernelVersion,
+      governedConsumers: capture.governedConsumers,
     });
   }
 

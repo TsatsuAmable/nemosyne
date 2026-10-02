@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { strFromU8 } from 'fflate';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import { canonicalDatasetIdentityHex } from '../src/data/DatasetIdentity.ts';
@@ -8,6 +9,13 @@ import {
   type NemosyneSessionJSON,
 } from '../src/session/NemosyneSession.ts';
 import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
+import { parsePersistedEvidenceReceiptsV1 } from '../src/data/evidence/PersistedEvidenceReceipts.ts';
+import {
+  DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+} from '../src/data/evidence/GovernedConsumerAttestation.ts';
+import {
+  DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
+} from '../src/data/evidence/EvidenceRequirementProfile.ts';
 
 /**
  * Kernel-less falsifiers for the RFC 0009 tranche-2 session evidence carrier.
@@ -69,13 +77,13 @@ function carrierFor(value: string): string {
   return Buffer.from(value, 'utf-8').toString('base64');
 }
 
-function validSyntheticEnvelope(): Record<string, unknown> {
+function validSyntheticEnvelope(kernelVersion = 'kernel'): Record<string, unknown> {
   return {
     schemaVersion: '1',
     bundle: {
       schemaVersion: '1',
       datasetFingerprint: DATASET_IDENTITY,
-      kernelVersion: 'kernel',
+      kernelVersion,
       receipts: [
         {
           receiptId: 'descriptive:x',
@@ -99,7 +107,7 @@ function validSyntheticEnvelope(): Record<string, unknown> {
           methodProvenance: {
             method: 'descriptive/finite-numeric',
             methodVersion: 'statistics-v1',
-            kernelVersion: 'kernel',
+            kernelVersion,
             datasetFingerprint: DATASET_IDENTITY,
             parameters: [],
           },
@@ -210,6 +218,96 @@ describe('TEC1 governed evidence session carrier', () => {
     await expect(
       NemosyneSession.exportPortableSnapshot(json, {}, undefined, { governedEvidence: true })
     ).rejects.toThrow(/consumer-use assertions/);
+  });
+
+  it('refuses a governed export whose carrier leaves a governed consumer unaddressed', async () => {
+    // Widened alongside the refusal above (RFC 0009 tranche 3 slice 2): the
+    // descriptive consumer *is* governed now, so a carrier with a receipt bundle
+    // but an empty `uses` array is an export that its own replay loader would
+    // refuse with MISSING_USE — the empty-uses window that used to be the only
+    // mintable shape is now refused at the producer instead of written.
+    const carrier = carrierFor(JSON.stringify(validSyntheticEnvelope()));
+    const json = { ...minimalSessionJson(), evidenceReceiptSnapshot: carrier };
+    await expect(
+      NemosyneSession.exportPortableSnapshot(json, {}, undefined, { governedEvidence: true })
+    ).rejects.toThrow(/leaves a governed consumer/);
+  });
+
+  it('refuses a governed export whose carrier use binds by identity but does not resolve under its profile', async () => {
+    // The adversarial-review widening (RFC 0009 tranche 3 slice 2): the loader's
+    // binding predicate is deliberately wider than "not BOUND" — a use whose
+    // consumer and profile identities agree still refuses when the receipt does
+    // not resolve under the recorded profile, and `descriptive-summary/v1`
+    // refuses a violated assumption. The session validator used to check only
+    // identity agreement, so a carrier restored from foreign bytes whose use
+    // exists-but-does-not-resolve could be re-exported as a V3 package this
+    // build's own loader would refuse with CONSUMER_POLICY_REFUSED.
+    const envelope: Record<string, unknown> = JSON.parse(
+      JSON.stringify(validSyntheticEnvelope()),
+    );
+    envelope.uses = [
+      {
+        consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+        receiptId: 'descriptive:x',
+        requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+      },
+    ];
+    const bundle = envelope.bundle as { receipts: Array<Record<string, unknown>> };
+    bundle.receipts[0].assumptions = [
+      {
+        assumption: 'value independence across rows',
+        status: 'violated',
+        detail: 'fabricated for the falsifier; the receipt otherwise conforms',
+      },
+    ];
+    const json = {
+      ...minimalSessionJson(),
+      evidenceReceiptSnapshot: carrierFor(JSON.stringify(envelope)),
+    };
+    await expect(
+      NemosyneSession.exportPortableSnapshot(json, {}, undefined, { governedEvidence: true })
+    ).rejects.toThrow(/consumer-use assertions/);
+  });
+
+  it('re-exports a governed V3 package from a carrier whose uses conformed at capture', async () => {
+    // The kernel-less counterpart of the production-path falsifier: a carrier
+    // minted under the same governing consumer/profile this build still governs,
+    // with its receipt present, binds at export and writes a V3 package whose
+    // envelope carries exactly those uses. A carrier minted under a policy since
+    // changed would refuse instead — pinned by the two refusals above. The
+    // bundle's kernel identity is the archived kernel version a kernel-less
+    // re-export derives (`'unknown'`, since no kernel exists in this realm), so
+    // the carrier is minted under that identity in the first place.
+    const envelope = {
+      ...validSyntheticEnvelope('unknown'),
+      uses: [
+        {
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: 'descriptive:x',
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        },
+      ],
+    };
+    const json = {
+      ...minimalSessionJson(),
+      evidenceReceiptSnapshot: carrierFor(JSON.stringify(envelope)),
+    };
+    const bytes = await NemosyneSession.exportPortableSnapshot(
+      json,
+      {},
+      undefined,
+      { governedEvidence: true }
+    );
+    const payload = NemosynePackageManager.unpack(bytes);
+    expect(payload.manifest.formatVersion).toBe(3);
+    expect(parsePersistedEvidenceReceiptsV1(JSON.parse(strFromU8(payload.evidenceReceiptBytes!))).uses)
+      .toEqual([
+        {
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: 'descriptive:x',
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        },
+      ]);
   });
 
   it('refuses a non-boolean governedEvidence option instead of silently exporting V2', async () => {

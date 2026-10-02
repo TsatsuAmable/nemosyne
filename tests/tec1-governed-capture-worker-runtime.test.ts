@@ -14,6 +14,13 @@ import type {
 import { composeGovernedEvidenceReceiptSnapshot } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { parseEvidenceReceiptBundleV1 } from '../src/data/evidence/EvidenceReceipt.ts';
 import { parsePersistedEvidenceReceiptsV1 } from '../src/data/evidence/PersistedEvidenceReceipts.ts';
+import {
+  DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+  parseGovernedConsumerAttestationV1,
+} from '../src/data/evidence/GovernedConsumerAttestation.ts';
+import {
+  DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
+} from '../src/data/evidence/EvidenceRequirementProfile.ts';
 
 /**
  * Issue #834's fourth required falsifier, at the production path: governed
@@ -220,15 +227,39 @@ describe('TEC1 governed capture from a real Worker runtime (issue #834)', () => 
       // identity would satisfy.
       expect(bundle.receipts.length).toBeGreaterThan(0);
 
+      // The same read carries the kernel-issued governing-consumer attestation
+      // (RFC 0009 tranche 3 slice 2), read back through the production parser.
+      const attestation = parseGovernedConsumerAttestationV1(capture!.governedConsumers);
+      expect(attestation.datasetFingerprint).toBe(workerIdentity.fingerprint);
+      expect(
+        attestation.consumers.map((consumer) => ({
+          consumerId: consumer.consumerId,
+          receiptIds: [...consumer.receiptIds],
+        })),
+      ).toEqual([
+        {
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptIds: bundle.receipts.map((receipt) => receipt.receiptId),
+        },
+      ]);
+
       // And it composes into the closed RFC 0009 envelope through the same
       // pure composer the session uses — the readout is production-usable, not
-      // merely well-typed. This build mints empty consumer uses only.
+      // merely well-typed. Since slice 2 the uses are minted from the kernel
+      // attestation, one per claimed receipt under the authority's profile.
       const snapshot = composeGovernedEvidenceReceiptSnapshot({
         rawBundle: capture!.rawBundle,
         datasetFingerprint: capture!.datasetFingerprint,
         kernelVersion: capture!.kernelVersion,
+        governedConsumers: capture!.governedConsumers,
       });
-      expect(snapshot.envelope.uses).toEqual([]);
+      expect(snapshot.envelope.uses).toEqual(
+        bundle.receipts.map((receipt) => ({
+          consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+          receiptId: receipt.receiptId,
+          requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        })),
+      );
       const roundTripped = parsePersistedEvidenceReceiptsV1(
         JSON.parse(new TextDecoder().decode(snapshot.bytes))
       );

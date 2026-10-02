@@ -12,13 +12,16 @@
  * call site or a `receiptId` derived from a column name cannot bind.
  *
  * This module is data-only, like `PersistedEvidenceReceipts` parsing: binding
- * never mints a replay capability and never consults a live kernel. The governed
- * loader does now call it (RFC 0009 tranche 3 slice 1), but that does not make it
- * enforcement: `requiredConsumers` is the authority-owned policy from
- * `ConsumerPolicyRegistry.ts`, which governs no consumer, so every non-empty
- * `uses` array refuses. Binding becoming *reachable* still waits on the producer
- * that can mint a conforming use, and this module claims no loader enforcement or
- * TEC1 closure of its own.
+ * never mints a replay capability and never consults a live kernel. Since the
+ * authority-owned policy gained its first governed consumer (RFC 0009 tranche 3
+ * slice 2), binding is *reachable*: the governed loader passes the live
+ * `ConsumerPolicyRegistry.ts` map as `requiredConsumers`, so a persisted use
+ * conforms exactly when the governed producer minted it, and every refuser here
+ * is also enforced on the replay path. Its refusals are classified by the loader
+ * (`UNKNOWN_CONSUMER`/`MISSING_USE` → `CONSUMER_NOT_GOVERNED`,
+ * `PROFILE_MISMATCH`/`UNKNOWN_REQUIREMENT_PROFILE` → `CONSUMER_POLICY_REFUSED`,
+ * and a bound-but-unresolved resolution → `CONSUMER_POLICY_REFUSED`), so this
+ * module still claims no enforcement wording of its own.
  */
 import {
   evaluateEvidenceReceiptAgainstProfileV1,

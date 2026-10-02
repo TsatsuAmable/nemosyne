@@ -45,6 +45,15 @@ export interface AnalyticalKernelPort {
    * transport port — instead of a module-global singleton.
    */
   statisticsEvidenceReceiptBundle?(handle: number): unknown | null;
+  /**
+   * RFC 0009 tranche 3 slice 2: the kernel-issued governed-consumer
+   * attestation for this dataset (which governed consumers consume its
+   * receipts). Companion capability of `statisticsEvidenceReceiptBundle`; a
+   * runtime build that has the bundle producer but not this export is older
+   * than the slice, and governed capture refuses it rather than minting
+   * consumer uses without the kernel attestation.
+   */
+  statisticsGovernedConsumers?(handle: number): unknown | null;
   inferSchema?(handle: number): unknown;
   computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals?(

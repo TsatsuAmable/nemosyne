@@ -7,6 +7,7 @@ pub mod dataset;
 pub mod encodings;
 pub mod evidence;
 pub mod fingerprint;
+pub mod governed_consumer;
 pub mod load_profile;
 pub mod measurement;
 pub mod measurement_inference;
