@@ -216,6 +216,12 @@ mod tests {
 
     #[test]
     fn consumer_identity_is_kernel_minted_and_stable() {
+        // This test computes receipt bundles, which moves the process-global
+        // computation counters; hold the shared test guard (see its doc in
+        // `prepared_results`) so parallel test threads cannot compute into a
+        // delta-window falsifier's measurement span.
+        let _guard = crate::prepared_results::COUNTER_TESTS.lock().unwrap();
+
         // The minted consumer id is a build constant.
         assert_eq!(
             DESCRIPTIVE_STATISTICS_CONSUMER_ID,
@@ -262,6 +268,11 @@ mod tests {
 
     #[test]
     fn attestation_wire_shape_is_camel_case() {
+        // Computes a receipt bundle, so it moves the process-global counters:
+        // serialized on the shared test guard like every other counter-moving
+        // falsifier (see its doc in `prepared_results`).
+        let _guard = crate::prepared_results::COUNTER_TESTS.lock().unwrap();
+
         let dataset = Dataset::new(
             "consumer-wire",
             vec![Column::new("x", ColumnType::Numeric)],

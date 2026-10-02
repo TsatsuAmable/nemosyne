@@ -217,6 +217,12 @@ mod tests {
 
     #[test]
     fn receipt_bundle_is_rust_issued_and_preserves_unknown_axes() {
+        // Computes a receipt bundle, which moves the process-global
+        // computation counters: serialized on the shared test guard (see its
+        // doc in `prepared_results`) so parallel test threads cannot compute
+        // into a delta-window falsifier's measurement span.
+        let _guard = crate::prepared_results::COUNTER_TESTS.lock().unwrap();
+
         let dataset = Dataset::new(
             "receipt-evidence",
             vec![Column::new("x", ColumnType::Numeric)],

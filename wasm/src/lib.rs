@@ -2023,16 +2023,14 @@ mod tests {
         handle
     }
 
-    /// Serializes the falsifier fixtures that share the process-global
-    /// computation counters: `cargo test` runs tests on parallel threads, and
-    /// a concurrent test touching the same exports would corrupt the deltas.
-    static GOVERNED_CAPTURE_TESTS: std::sync::LazyLock<std::sync::Mutex<()>> =
-        std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
-
     #[test]
     fn governed_capture_carries_the_wire_bundle_and_a_valid_attestation() {
         use crate::data::statistics_evidence::compute_statistics_evidence_receipt_bundle;
-        let _guard = GOVERNED_CAPTURE_TESTS.lock().unwrap();
+        // These falsifiers move and read the process-global computation
+        // counters; they serialize on the shared test guard (see its doc in
+        // `prepared_results`) so parallel test threads cannot compute into
+        // another test's delta window.
+        let _guard = prepared_results::COUNTER_TESTS.lock().unwrap();
 
         let handle = governed_capture_register(
             "governed-capture-combined",
@@ -2110,7 +2108,7 @@ mod tests {
 
     #[test]
     fn governed_capture_bundle_is_computed_once_while_the_two_call_composition_computes_twice() {
-        let _guard = GOVERNED_CAPTURE_TESTS.lock().unwrap();
+        let _guard = prepared_results::COUNTER_TESTS.lock().unwrap();
 
         let handle = governed_capture_register(
             "governed-capture-counted",
@@ -2174,7 +2172,7 @@ mod tests {
 
     #[test]
     fn governed_capture_of_an_empty_receipt_bundle_carries_the_refusal_shape() {
-        let _guard = GOVERNED_CAPTURE_TESTS.lock().unwrap();
+        let _guard = prepared_results::COUNTER_TESTS.lock().unwrap();
 
         // A dataset no receipt family claims (Text columns produce no
         // statistics receipts) still serializes: the bundle is empty and the

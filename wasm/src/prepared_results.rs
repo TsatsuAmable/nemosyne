@@ -28,6 +28,18 @@ pub const STATISTICS_EVIDENCE_RECEIPTS: usize = 12;
 // receipts slot's delta (0 vs 1).
 pub const STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS: usize = 13;
 
+/// Test-only serialization for every falsifier that reads or moves the
+/// process-global computation counters (`COMPUTATIONS`): `cargo test` runs
+/// test threads in parallel, and delta-window assertions are only stable if
+/// no concurrent test computes into the same window. Every test whose body
+/// can bump a counted operation — calling a bundle/receipts computation
+/// directly, or through a prepared or composed read — holds this guard for
+/// its whole body. `lock()` panics on poisoning, which is the right failure
+/// mode for tests; guards are never nested in the same thread, so this
+/// cannot deadlock.
+#[cfg(test)]
+pub(crate) static COUNTER_TESTS: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);
 }
