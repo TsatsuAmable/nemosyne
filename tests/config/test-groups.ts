@@ -36,6 +36,12 @@ export const FAST_NODE_TESTS = [
   // DecisionPolicy thresholds (F-14), weight sensitivity (F-15) and the
   // signature equality gate (F-16).
   'tests/tec3-ma2-decision-layer-controls.test.ts',
+  // TEC3-MA2 third slice: promotion-gate control fixtures over group-balanced
+  // pairwise accuracy (P-1), the one-sided sign-test alpha boundary (P-2),
+  // the leave-one-group-out improvement floor (P-3), feature-vector coupling
+  // in the learned pairwise layer (P-4) and the gesture quality bar and
+  // staged-deployment seam (P-5).
+  'tests/tec3-ma2-promotion-gate-controls.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',
