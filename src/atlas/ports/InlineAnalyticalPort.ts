@@ -78,13 +78,19 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     // capture — one kernel read computes the receipt bundle once and mints the
     // consumer attestation from that same in-kernel bundle value — instead of
     // composing the capture out of two reads that each computed the bundle.
-    // The two-call path stays exactly as it was as the fallback, for kernel
-    // contracts that do not offer the single-pass read.
+    // Three outcomes on the preferred read: a capture is used as-is, a real
+    // refusal (`null`) refuses without ever consulting the two-call bytes, and
+    // the `'unsupported'` capability marker falls back to the two-call path —
+    // exactly as it was — for kernel contracts that do not carry the
+    // single-pass export on this build.
     let rawBundle: unknown;
     let governedConsumers: unknown;
-    if (typeof readGovernedCapture === 'function') {
-      const captured = readGovernedCapture.call(this._kernel, handle);
-      if (!captured) return null;
+    const captured =
+      typeof readGovernedCapture === 'function'
+        ? readGovernedCapture.call(this._kernel, handle)
+        : 'unsupported';
+    if (captured === null) return null;
+    if (captured !== 'unsupported') {
       rawBundle = captured.rawBundle;
       governedConsumers = captured.governedConsumers;
     } else {

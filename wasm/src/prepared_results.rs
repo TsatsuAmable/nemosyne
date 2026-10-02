@@ -16,14 +16,17 @@ pub const GRAPH: usize = 9;
 pub const SEMANTIC_DETAIL: usize = 10;
 pub const SPECTRAL_FACTS: usize = 11;
 pub const STATISTICS_EVIDENCE_RECEIPTS: usize = 12;
-// RFC 0009 tranche 3 slice 2 follow-up (#866 residual): one receipt-bundle
-// computation attempted inside the single-pass governed capture. A new slot
-// under the existing counted-operations idiom, never the receipts slot —
-// governed captures must not corrupt what the receipts counter is proven to
-// mean (`prepared_computation_count(12)` moves exactly once per receipts
-// prepare), and the falsifier for "the bundle is computed exactly once per
-// capture call" reads this slot instead.
-pub const STATISTICS_EVIDENCE_GOVERNED_CAPTURE: usize = 13;
+// RFC 0009 tranche 3 slice 2 follow-up (#866 residual): one real receipt-bundle
+// computation, counted inside `compute_statistics_evidence_receipt_bundle`
+// itself, for every caller — the prepared receipts export (which separately
+// bumps `STATISTICS_EVIDENCE_RECEIPTS` around the same computation), the
+// governed-consumer attestation read, and the single-pass governed capture. A
+// new slot under the existing counted-operations idiom, never the receipts
+// slot: `prepared_computation_count(12)` keeps its proven meaning (exactly one
+// increment per receipts prepare), and the capture falsifier distinguishes
+// single-pass from two-call composition by this slot's delta (1 vs 2) with the
+// receipts slot's delta (0 vs 1).
+pub const STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS: usize = 13;
 
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);

@@ -806,9 +806,10 @@ pub fn data_statistics_evidence_governed_capture(handle: u32, out_ptr: u32, out_
 
 fn compute_statistics_evidence_governed_capture_result(handle: u32) -> Option<String> {
     let (bundle, attestation, input_fp) = data::with_dataset(handle, |ds| {
-        prepared_results::record_computation(
-            prepared_results::STATISTICS_EVIDENCE_GOVERNED_CAPTURE,
-        );
+        // The bundle computation is counted inside
+        // `compute_statistics_evidence_receipt_bundle` itself — the count the
+        // single-computation falsifier reads is the real kernel computation,
+        // not a closure entry that a second computation in here would miss.
         let dataset_fingerprint = ds.fingerprint();
         let bundle = data::statistics_evidence::compute_statistics_evidence_receipt_bundle(
             ds,
@@ -2022,9 +2023,16 @@ mod tests {
         handle
     }
 
+    /// Serializes the falsifier fixtures that share the process-global
+    /// computation counters: `cargo test` runs tests on parallel threads, and
+    /// a concurrent test touching the same exports would corrupt the deltas.
+    static GOVERNED_CAPTURE_TESTS: std::sync::LazyLock<std::sync::Mutex<()>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+
     #[test]
-    fn governed_capture_combine_is_one_computation_and_wire_identical_each_call() {
+    fn governed_capture_carries_the_wire_bundle_and_a_valid_attestation() {
         use crate::data::statistics_evidence::compute_statistics_evidence_receipt_bundle;
+        let _guard = GOVERNED_CAPTURE_TESTS.lock().unwrap();
 
         let handle = governed_capture_register(
             "governed-capture-combined",
@@ -2090,22 +2098,10 @@ mod tests {
             .collect();
         assert_eq!(embedded_ids, bundle_ids);
 
-        // Counted, per the established prepared-results idiom: exactly one
-        // bundle computation per capture call, and a second call over the same
-        // dataset is another single computation with a structurally identical
-        // payload — not a cache hit, not a recomputed duplicate inside one call.
-        let before = prepared_results::prepared_computation_count(
-            prepared_results::STATISTICS_EVIDENCE_GOVERNED_CAPTURE as u32,
-        );
+        // A second call over the same dataset must return the same payload —
+        // no cache, no memo: the kernel is stateless per call.
         let second_json = compute_statistics_evidence_governed_capture_result(handle)
             .expect("second capture over the same dataset");
-        assert_eq!(
-            prepared_results::prepared_computation_count(
-                prepared_results::STATISTICS_EVIDENCE_GOVERNED_CAPTURE as u32,
-            ) - before,
-            1,
-            "one governed capture must attempt exactly one bundle computation"
-        );
         let second: serde_json::Value = serde_json::from_str(&second_json).unwrap();
         assert_eq!(first, second);
 
@@ -2113,7 +2109,73 @@ mod tests {
     }
 
     #[test]
+    fn governed_capture_bundle_is_computed_once_while_the_two_call_composition_computes_twice() {
+        let _guard = GOVERNED_CAPTURE_TESTS.lock().unwrap();
+
+        let handle = governed_capture_register(
+            "governed-capture-counted",
+            vec![data::column::Column::new("x", data::column::ColumnType::Numeric)],
+            vec![
+                governed_capture_row(&[("x", data::value::Value::Number(1.0))]),
+                governed_capture_row(&[("x", data::value::Value::Number(2.0))]),
+            ],
+        );
+        let bundle_computations = |operation: u32| {
+            prepared_results::prepared_computation_count(operation)
+        };
+
+        // Counted at the computation itself
+        // (`STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS`, inside
+        // `compute_statistics_evidence_receipt_bundle`), so the claim is exact:
+        // one capture call runs the receipt families exactly once. The
+        // receipts-operation counter stays put, proving the capture does not
+        // route through the prepared receipts path.
+        let bundle_op =
+            prepared_results::STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS as u32;
+        let receipts_op = prepared_results::STATISTICS_EVIDENCE_RECEIPTS as u32;
+        let before_bundles = bundle_computations(bundle_op);
+        let before_receipts = bundle_computations(receipts_op);
+        assert!(compute_statistics_evidence_governed_capture_result(handle).is_some());
+        assert_eq!(
+            bundle_computations(bundle_op) - before_bundles,
+            1,
+            "one governed capture must compute the receipt bundle exactly once"
+        );
+        assert_eq!(
+            bundle_computations(receipts_op) - before_receipts,
+            0,
+            "the single-pass capture must not mint through the prepared receipts path"
+        );
+
+        // The residual this slice removes, characterized: composing the same
+        // capture from the two standalone reads computes the bundle twice —
+        // the receipts prepare and the attestation read each recompute it.
+        let before_composed = bundle_computations(bundle_op);
+        assert!(compute_statistics_evidence_receipts_result(handle).is_some());
+        assert!(compute_governed_consumers_result(handle).is_some());
+        assert_eq!(
+            bundle_computations(bundle_op) - before_composed,
+            2,
+            "the two-call composition computes the receipt bundle twice per capture"
+        );
+
+        // A repeat capture is another genuine single computation, not a memo
+        // hit served from the first call's state.
+        let before_repeat = bundle_computations(bundle_op);
+        assert!(compute_statistics_evidence_governed_capture_result(handle).is_some());
+        assert_eq!(
+            bundle_computations(bundle_op) - before_repeat,
+            1,
+            "a repeated capture computes the bundle again, exactly once"
+        );
+
+        data::destroy_dataset(handle);
+    }
+
+    #[test]
     fn governed_capture_of_an_empty_receipt_bundle_carries_the_refusal_shape() {
+        let _guard = GOVERNED_CAPTURE_TESTS.lock().unwrap();
+
         // A dataset no receipt family claims (Text columns produce no
         // statistics receipts) still serializes: the bundle is empty and the
         // attestation names no consumer. The composition refuses that shape —

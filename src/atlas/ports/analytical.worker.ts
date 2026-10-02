@@ -320,25 +320,30 @@ self.onmessage = async (ev: MessageEvent) => {
       const kernelVersion = bridge.kernelVersion();
       // RFC 0009 tranche 3 slice 2 follow-up: prefer the single-pass governed
       // capture — one kernel read computes the receipt bundle once and mints
-      // the consumer attestation from that same in-kernel bundle value. Read
-      // the method through the bridge namespace: an older bridge build that
-      // does not offer it takes the two-call fallback below unchanged, and a
-      // wasm pkg the single-pass read refuses yields null and refuses the
-      // capture rather than re-minting from the two-call bytes.
+      // the consumer attestation from that same in-kernel bundle value. Three
+      // outcomes: a capture is used as-is; a real refusal (`null`) refuses
+      // without consulting the two-call bytes; the `'unsupported'` capability
+      // marker (build without the single-pass export, or an older bridge that
+      // does not offer the method at all) falls back to the two-call read —
+      // exactly as it was — for wasm pkgs this JS build trusts the slice-2
+      // way.
       let rawBundle: unknown;
       let governedConsumers: unknown;
-      const combined = (
+      const readCombined = (
         bridge as unknown as {
           statisticsGovernedCapture?: (
             handle: number,
-          ) => { rawBundle: unknown; governedConsumers: unknown } | null;
+          ) => { rawBundle: unknown; governedConsumers: unknown } | null | 'unsupported';
         }
       ).statisticsGovernedCapture;
-      if (typeof combined === 'function') {
-        const captured = combined.call(bridge, handle);
-        rawBundle = captured ? captured.rawBundle : null;
-        governedConsumers = captured ? captured.governedConsumers : null;
-      } else {
+      const captured =
+        typeof readCombined === 'function' ? readCombined.call(bridge, handle) : 'unsupported';
+      if (captured === null) {
+        // A present export that refused: the two-call bytes must never be
+        // consulted after a real refusal.
+        rawBundle = null;
+        governedConsumers = null;
+      } else if (captured === 'unsupported') {
         const bundleFromProducer = bridge.statisticsEvidenceReceiptBundle(handle);
         // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
         // same read. A runtime build without this export (older than the slice)
@@ -346,6 +351,9 @@ self.onmessage = async (ev: MessageEvent) => {
         // receipts it cannot mint governed uses for.
         governedConsumers = bridge.statisticsGovernedConsumers(handle);
         rawBundle = bundleFromProducer;
+      } else {
+        rawBundle = captured.rawBundle;
+        governedConsumers = captured.governedConsumers;
       }
       if (datasetFingerprint && kernelVersion && rawBundle && governedConsumers) {
         capture = {

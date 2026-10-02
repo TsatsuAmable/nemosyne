@@ -42,10 +42,11 @@ export interface DatasetHandleExports {
    * RFC 0009 tranche 3 slice 2 follow-up: two-call string-out read of the
    * single-pass governed capture — the kernel computes the receipt bundle once
    * and mints the consumer attestation from that same bundle value, inside one
-   * dataset read. Absent from wasm builds older than the slice (the wrapper
-   * feature-detects, and governed capture falls back to the two-call read),
-   * so a stale prebuilt pkg keeps the slice-2 behaviour rather than failing
-   * an export this build does not carry.
+   * dataset read. Absent from wasm builds older than the slice: the wrapper
+   * reports the `'unsupported'` capability marker (governed capture then keeps
+   * the two-call read, which is still authoritative on such a build), while a
+   * present export that refuses or fails its read yields `null` and the ports
+   * refuse the capture outright.
    */
   data_statistics_evidence_governed_capture(handle: number, ptr: number, len: number): number;
   dataset_prepare_json(handle: number): number;

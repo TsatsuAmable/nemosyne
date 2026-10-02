@@ -59,12 +59,24 @@ export interface AnalyticalKernelPort {
    * receipt bundle computed once and the consumer attestation minted from that
    * same in-kernel bundle value. Companion capability of
    * `statisticsGovernedConsumers`; a kernel contract that offers it replaces
-   * the two-call read, while one that does not carries the two-call path
-   * unchanged (narrow kernel contracts, older wasm builds).
+   * the two-call read, while one that does not offer the method (or reports
+   * `'unsupported'` for this build) carries the two-call path unchanged
+   * (narrow kernel contracts, older wasm builds). Three outcomes:
+   *
+   *  - `{ rawBundle, governedConsumers }` — the single-pass capture, both
+   *    halves read and minted inside one kernel read;
+   *  - `null` — the capability is present and refused: no dataset, the
+   *    receipt families refused, or a payload that did not parse. Governed
+   *    capture refuses outright; the two-call bytes must never be consulted
+   *    after a real refusal;
+   *  - `'unsupported'` — the capability marker, not a refusal: this build's
+   *    kernel carries no single-pass export, and the two-call path is still
+   *    the authoritative read (a slice-2-era wasm paired with this JS build
+   *    must keep capturing, not start refusing).
    */
   statisticsGovernedCapture?(
     handle: number,
-  ): { rawBundle: unknown; governedConsumers: unknown } | null;
+  ): { rawBundle: unknown; governedConsumers: unknown } | null | 'unsupported';
   inferSchema?(handle: number): unknown;
   computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals?(

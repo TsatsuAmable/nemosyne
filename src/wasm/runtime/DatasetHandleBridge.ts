@@ -481,6 +481,10 @@ export function statisticsGovernedConsumers(handle: number): unknown | null {
  * parses, and `governedConsumers` exactly the value `statisticsGovernedConsumers`
  * parses — the kernel embeds each standalone export's wire shape — so callers
  * switch between the single-pass and two-call reads without reshaping anything.
+ * `'unsupported'` is a capability signal, not a refusal: it distinguishes a
+ * wasm build that predates the single-pass export (the two-call path is still
+ * authoritative there) from a present export that refused or failed its read
+ * (`null`).
  */
 export interface StatisticsGovernedCaptureResult {
   rawBundle: unknown;
@@ -494,17 +498,23 @@ export interface StatisticsGovernedCaptureResult {
  * inside one dataset read. Two-call string-out ABI, mirroring
  * `statisticsGovernedConsumers`.
  *
- * Feature-detecting is the same deliberate fail-closed behaviour: a wasm build
- * older than this export returns null here, and the governed-capture ports fall
- * back to the two-call read instead of refusing outright. The result's shape is
- * enforced here so the ports never see a half-parsed capture.
+ * The three outcomes are deliberately distinct: `'unsupported'` means this
+ * build's wasm has no single-pass export and governed capture must keep the
+ * two-call read it still trusts (a slice-2-era pkg paired with this JS build
+ * must not start refusing what slice-2 captured); `null` means the export is
+ * present and refused — no dataset, families refused, or a payload that does
+ * not parse — and the ports refuse outright rather than re-minting from the
+ * two-call bytes, which must never be consulted after a real refusal.
  */
-export function statisticsGovernedCapture(handle: number): StatisticsGovernedCaptureResult | null {
+export function statisticsGovernedCapture(
+  handle: number
+): StatisticsGovernedCaptureResult | null | 'unsupported' {
   const wasm: DatasetHandleExports = getRuntimeExports();
-  // The runtime feature-detect guards a wasm build that predates the
-  // single-pass capture; the typed access below stays on the declared export
-  // contract.
-  if (typeof wasm.data_statistics_evidence_governed_capture !== 'function') return null;
+  // The runtime feature-detect is a capability signal; the typed access below
+  // stays on the declared export contract.
+  if (typeof wasm.data_statistics_evidence_governed_capture !== 'function') {
+    return 'unsupported';
+  }
   const json = readStringExport((ptr, len) =>
     wasm.data_statistics_evidence_governed_capture(handle, ptr, len)
   );

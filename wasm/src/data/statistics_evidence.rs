@@ -38,6 +38,15 @@ pub fn compute_statistics_evidence_receipt_bundle(
     dataset_fingerprint: &str,
     kernel_version: &str,
 ) -> Result<EvidenceReceiptBundleV1, String> {
+    // RFC 0009 tranche 3 slice 2 follow-up (#866 residual): counted per the
+    // established prepared-results idiom, inside the computation itself so the
+    // count is the number of times the kernel actually ran the receipt
+    // families — not the number of times a caller *asked* for a read that may
+    // compose several of them. The single-pass governed capture falsifier
+    // asserts this delta, not a closure entry.
+    crate::prepared_results::record_computation(
+        crate::prepared_results::STATISTICS_EVIDENCE_RECEIPT_BUNDLE_COMPUTATIONS,
+    );
     let evidence = compute_statistics_evidence(dataset, dataset_fingerprint, kernel_version);
     EvidenceReceiptBundleV1::new(dataset_fingerprint, kernel_version, evidence.receipts())
 }

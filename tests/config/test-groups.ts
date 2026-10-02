@@ -13,6 +13,10 @@ export const FAST_NODE_TESTS = [
   'tests/tec1-consumer-policy-loader-decision.test.ts',
   'tests/tec1-governed-export.test.ts',
   'tests/tec1-governed-capture-ports.test.ts',
+  // RFC 0009 tranche 3 slice 2 follow-up: unit-level falsifiers for the Worker
+  // capture path's single-pass preference, driven in-process against the real
+  // worker module with a RuntimeBridge mock.
+  'tests/tec1-governed-capture-worker-single-pass.test.ts',
   // RFC 0009 tranche 3 slice 2: the production-path falsifiers for minted
   // governed uses (composition -> session export -> replay loader) and the
   // mutated-registry refusals over byte-identical archives.
