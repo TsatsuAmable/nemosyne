@@ -1,0 +1,1513 @@
+{
+ "metadata": {
+  "date": "2026-10-02",
+  "base_sha": "87502f7d657e2af6f8ebf7e40c5cb39ffa6d97e6",
+  "branch": "census/cms7-legacy-test-rent",
+  "sprint": "CMS-7 legacy-test rent census (docs/ROADMAP.md, Claude parallel maintenance sprints)",
+  "method_notes": "Topology from tests/config/test-groups.ts + the three vitest configs + package.json scripts. approx_tests = occurrence count of top-level it(/test( call sites per file (git ls-files tests/*.test.ts|*.spec.ts, regex (?<![.\\w])(it|test)\\(); it.each/test.each cases counted as one occurrence, so numbers are approximations labelled approx, not vitest run results. production_reachability per surface = direct grep verification of src values-importers, backed by a static import-graph BFS from 4 entry roots (src/main.ts, src/network/SignallingServer.mjs, src/governance-service/server-entry.ts, src/atlas/ports/analytical.worker.ts) covering from-imports, dynamic import(), side-effect imports and new URL(...)/import.meta.url worker refs; graph limits (type-only imports as edges, barrel distortion, node-only deployment roots) are flagged in the affected rows. Keyword sweep (legacy|deprecated|compat|shim|alias|superseded|backward) over all test files; most hits were fail-closed guards against legacy input and are classified PROTECT. Overlapping files are counted once (first surface). ~482 files / ~2,804 its outside this census showed no legacy/dev/compat/superseded rent signal under the sweep and are screened-only (routine product-invariant tests); deeper test-quality audit is ERA-AG5.",
+  "classification_legend": {
+   "PROTECT": "protects production-reachable or deliberately retained, registry-owned behavior",
+   "MIGRATE": "valuable invariant tied to a surface that should change; replacement invariant named; some files are partial (file carries both rent and surviving invariants)",
+   "DELETE_WITH_SURFACE": "exists only for code a cleanup package should delete; replacement invariant named or absence explained",
+   "RESEARCH_FIXTURE": "fixture/data-generation test or dev-experiment harness with no production assertion"
+  }
+ },
+ "surfaces": [
+  {
+   "surface": "CMS-4 superseded collaborative state synchronizer",
+   "paths": [
+    "src/network/CollaborativeStateSync.ts"
+   ],
+   "production_reachability": "not production-reachable: zero src values-importers; governance/production-capabilities.json legacy-collaborative-state-sync (development-only): \"Superseded by NetworkManager plus CollaborationCoordinator; retained only for legacy tests until deletion\"; excluded from the network barrel by forbiddenPublicExports",
+   "classification": "DELETE_WITH_SURFACE",
+   "replacement_invariant": "Wire-contract falsifiers survive on BinaryPoseSerializer (production-reachable via src/network/NetworkManager.ts; re-pinned by tests/network.test.ts, tests/collaboration-embodied-presence.test.ts, tests/rf057-pose-identity.test.ts, tests/binary-pose-governor-binding.test.ts). Sequence/peer/channel-binding falsifiers must be re-homed onto the production NetworkManager/CollaborationCoordinator binary path (or their existence on that path confirmed) BEFORE deleting the class; connection-recovery/avatar/coordination invariants already live in tests/collaboration-recovery.test.ts, tests/cms1-collaboration-contract.test.ts, tests/coordinator-consumer-contracts.test.ts, tests/peer-presence-hud.test.ts",
+   "test_files": [
+    {
+     "path": "tests/collaborative-sync.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "DELETE_WITH_SURFACE"
+    },
+    {
+     "path": "tests/zero-copy-network-sync.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 15,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/production-runtime-wiring.test.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 6,
+     "classification": "MIGRATE"
+    }
+   ]
+  },
+  {
+   "surface": "CMS-1 collaboration-contract guard (adjacent, keep until CMS-4 lands)",
+   "paths": [
+    "src/network/CollaborativeStateSync.ts"
+   ],
+   "production_reachability": "guard-only: pins no-src-import, barrel cleanliness and the PeerAvatarManager avatar contract",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a (protective falsifier); after CMS-4 deletes the synchronizer the no-import falsifier degenerates with the deleted file and should be re-evaluated",
+   "test_files": [
+    {
+     "path": "tests/cms1-collaboration-contract.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "CMS-4 superseded network SharedAnnotationManager",
+   "paths": [
+    "src/network/SharedAnnotationManager.ts"
+   ],
+   "production_reachability": "not production-reachable: zero src values-importers; canonical authority src/vr/interactions/SharedAnnotationManager.ts is what src/vr/coordinators/CollaborationCoordinator.ts and src/vr/ui/AsymmetricDesktopCompanion.ts import; registry legacy-network-shared-annotations (development-only): \"Superseded by the live VR interaction annotation authority; retained only for legacy tests until deletion\"",
+   "classification": "DELETE_WITH_SURFACE",
+   "replacement_invariant": "None remains for the legacy manager: canonical annotation authority has a dedicated 12-test suite (tests/shared-annotations.test.ts) plus tests/asymmetric-desktop-companion.test.ts (ui lane); the PeerAvatarManager half of the split file is covered by tests/cms1-collaboration-contract.test.ts and tests/peer-presence-hud.test.ts",
+   "test_files": [
+    {
+     "path": "tests/peer-avatars-annotations.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "MIGRATE"
+    }
+   ]
+  },
+  {
+   "surface": "Canonical annotation authority (contrast row, not rent)",
+   "paths": [
+    "src/vr/interactions/SharedAnnotationManager.ts"
+   ],
+   "production_reachability": "production-reachable: imported by src/vr/coordinators/CollaborationCoordinator.ts and src/vr/ui/AsymmetricDesktopCompanion.ts",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a (protective)",
+   "test_files": [
+    {
+     "path": "tests/shared-annotations.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 12,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "FM4-UI-CLEAN legacy MovablePanel canvas substrate",
+   "paths": [
+    "src/vr/ui/MovablePanel.ts",
+    "src/vr/ui/CanvasTextureCacheManager.ts"
+   ],
+   "production_reachability": "not production-reachable: MovablePanel has zero src values-importers (only import type { MovablePanelOptions } from src/vr/coordinators/types.ts); CanvasTextureCacheManager is reachable only through MovablePanel; roadmap FM4-UI-CLEAN schedules the substrates retirement",
+   "classification": "DELETE_WITH_SURFACE",
+   "replacement_invariant": "Substrate-neutral panel behavior is pinned by tests/workspace-surface-manager.test.ts (incl. \"adapts SpatialPanel-like surfaces ... without MovablePanel lifecycle methods\") and tests/vr-interactions.test.ts (\"uses SpatialPanel/UIKit rather than the legacy canvas substrate\"). Behavior that only the legacy class has (dragging, snapping, scrollbar, texture-cache signature) must NOT survive - that is the deletion itself. Panel-agnostic geometry/regression claims must be re-hosted on a live SpatialPanel-backed surface before substrate deletion (FM4-UI-CLEAN owns the migration); MovablePanelOptions in src/vr/coordinators/types.ts must be deleted in the same change or kept deliberately as the options interface",
+   "test_files": [
+    {
+     "path": "tests/movable-panel.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 13,
+     "classification": "DELETE_WITH_SURFACE"
+    },
+    {
+     "path": "tests/movable-panel-scrollbar.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "DELETE_WITH_SURFACE"
+    },
+    {
+     "path": "tests/canvas-texture-cache.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "DELETE_WITH_SURFACE"
+    },
+    {
+     "path": "tests/dashboard-manager.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 21,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/free-3d-panel-orientation.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/matrix-world-regression.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/layout-binding-panel-typing.test.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 3,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/workspace-surface-manager.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 12,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/zero-alloc-instanced-buffer.test.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 5,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/e2e/tier1_feature_coverage/f10_panel_z_sorting.spec.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/e2e/tier2_boundary_corner/f10_boundary.spec.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/e2e/tier3_cross_feature/suite_3_3_ui_headset_tracking.spec.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/e2e/tier4_real_world/scenario1_large_scale_analytics.spec.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 1,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/e2e/tier4_real_world/scenario5_complete_analyst_journey.spec.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 1,
+     "classification": "MIGRATE"
+    }
+   ]
+  },
+  {
+   "surface": "CMS-2 retired FlatBuffersSerializer (executed; confirmation row)",
+   "paths": [
+    "(retired) src/data/serializers/FlatBuffersSerializer*"
+   ],
+   "production_reachability": "executed: case-insensitive \"flatbuffer\" has zero occurrences in src/, tests/, dev/, scripts/, wasm/, governance/ and docs/examples/ at base 87502f7d; no test still references the surface",
+   "classification": "DELETE_WITH_SURFACE (executed by CMS-2; zero residual test files)",
+   "replacement_invariant": "None applicable - retirement complete; recurrence guarded by tests/cms2-serializer-truthfulness.test.ts",
+   "test_files": [
+    {
+     "path": "tests/cms2-serializer-truthfulness.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "CMS-3 dev debug tooling that deliberately survives",
+   "paths": [
+    "src/dev/remote debug streaming path (DEV-gated dynamic import in src/main.ts)"
+   ],
+   "production_reachability": "registry development-only (remote-debug-streamer); CMS-3 landed decision keeps DEV tooling alive while the production startup cannot statically import it (production build eliminates the module)",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a (dev tooling intentionally retained per CMS-3)",
+   "test_files": [
+    {
+     "path": "tests/cms3-debug-bundling.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/remote-debug-streamer.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "Dev-only validation infrastructure (registry validation-infrastructure)",
+   "paths": [
+    "dev/loadtest-server.ts",
+    "dev/validation-*.ts",
+    "dev/uxr4-cohort-finalizer.ts",
+    "dev/ux-trace-server.ts",
+    "src/validation/*"
+   ],
+   "production_reachability": "development-only by construction (no src production import chains) but deliberately retained as the promotion-evidence path for governed Quest/UX research sessions",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a: guards device-declaration truthfulness, evidence-sink isolation, adjudication and UX-trace integrity - governance evidence, not rent",
+   "test_files": [
+    {
+     "path": "tests/quest-loadtest-sink.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 22,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-device-declaration.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 16,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-adjudication.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 16,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-adjudication-uxr4.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 12,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-closed-loop.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 11,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-custody.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-fidelity.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-publication-delete.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-manifest.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 36,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-validation-process-launch.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-telemetry.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-telemetry-analysis.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-evidence-status.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-adb-device.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 8,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/quest-boundary-probe.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/ux-trace-recorder.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 17,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/ux-trace-input-parser.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 11,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/ux-trace-terminal-sanitization.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/ux-trace-export-integrity.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/analyze-ux-trace-report.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "Dev XR research/eval harness",
+   "paths": [
+    "dev/xr-lab/*",
+    "dev/xr-simulator/*",
+    "dev/spatial-tools/*",
+    "dev/benchmark-uikit.ts"
+   ],
+   "production_reachability": "development-only experiment and campaign harnesses (no src importer); several run in the real-wasm lane deliberately as kernel campaign evidence",
+   "classification": "RESEARCH_FIXTURE",
+   "replacement_invariant": "None asserted for deletion; these are the fixture/evidence machinery for kernel-qualification campaigns. Any future retirement must first reconcile campaign evidence obligations in governance/production-readiness.json",
+   "test_files": [
+    {
+     "path": "tests/ui-system/webxr-simulator.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 14,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/usim-a-lifecycle.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/xr-experiment-evidence-contract.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/xr-architecture-campaign.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/xr-portable-campaign-config.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/portable-perturbation-config.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/portable-xr-experiment.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/ui-system/benchmark-uikit.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/spatial-ergonomics-linter.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/webxr-6dof-pose-rig.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/moneta-benchmark-corpus.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/moneta-evidence-protocol.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 9,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/moneta-known-structure-campaign-wasm.test.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 2,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/benchmark-session.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/seeded-random.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/research-position-draco-hardware.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/quest-field-trial-suite.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "RESEARCH_FIXTURE"
+    }
+   ]
+  },
+  {
+   "surface": "Non-product study instrumentation (registry study-harness)",
+   "paths": [
+    "src/study/*"
+   ],
+   "production_reachability": "development-only by landed registry decision (\"dedicated barrel is intentionally non-product\"); zero production import chains",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a: roadmap FM6 schedules human-refined learning; the registry owns the non-product declaration. Rent measured, not condemned",
+   "test_files": [
+    {
+     "path": "tests/study-controller.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/study-harness.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 9,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/study-freeze-enforcement.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/study-statistical-analyzer.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/study-data-exporter-security.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/runtime-fitness-mode-policy.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 10,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/research-validation.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "Research-only learned-fitness + gesture-learning machinery (registry learned-fitness-training)",
+   "paths": [
+    "src/fitness/*",
+    "src/gesture/*",
+    "src/governance-service/GestureLearningHttpService.ts",
+    "src/governance-service/GestureLearningGovernance.ts"
+   ],
+   "production_reachability": "registry development-only (\"research-only until a promoted artifact and operator workflow are intentionally activated\"); FLAG: GestureLearningHttpService/GestureLearningGovernance are not mounted by src/governance-service/server-entry.ts composition - only tests reach them, consistent with research-only status",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a: promotion-gate and snapshot-authority falsifiers, scheduled product destination",
+   "test_files": [
+    {
+     "path": "tests/fitness-model-promotion-gate.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 10,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/fitness-model-registry.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/group-balanced-fitness-evaluation.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/moneta-feature-snapshot.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pairwise-feature-snapshot-ledger.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/learned-fitness-runtime-adapter.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/learned-moneta-runtime-opt-in.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/gesture-upload.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/gesture-retrain.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/gesture-learning-contracts.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/gesture-edge-cases.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt6c-gesture-learning-delivery-replay.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt6c-gesture-learning-http-transport.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt6c-gesture-learning-lifecycle.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt6d-gesture-evaluation-report.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt6d-gesture-training-snapshot-materialization.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt7-runtime-model-registry.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt8-gesture-model-update-loop.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt8-gesture-training-feature-resolution.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt8-node-gesture-training-executor.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "Dormant experiments pending CMS-5 (color palette) / CMS-6 (multimodal perception)",
+   "paths": [
+    "src/data/ColorPaletteEngine.ts (registry development-only, \"not consumed by the production encoding or UI token paths\")",
+    "src/vr/perception/MultimodalPerceptionEnvelope.ts + src/vr/perception/GeometricGestureRecognizer.ts (registry development-only, dormant prototype)"
+   ],
+   "production_reachability": "not production-reachable per registry reasons; CMS-5 is the named comparison/retirement decision for ColorPaletteEngine, CMS-6 the named audit for the perception prototype",
+   "classification": "RESEARCH_FIXTURE pending CMS-5/CMS-6",
+   "replacement_invariant": "If CMS-5 decides DELETE: CVD/contrast semantics that materially improve accessibility must land on the canonical encoding/representation path (canonical contrast assertions already exist in tests/encodings.test.ts and the ui-system token tests), or none remains. If CMS-6 decides the prototype must not be promoted: none remains beyond the prototype itself",
+   "test_files": [
+    {
+     "path": "tests/color-palette-colord.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/multimodal-perception-envelope.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "RESEARCH_FIXTURE"
+    },
+    {
+     "path": "tests/sprint-27-4-resilience-and-gestures.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE"
+    }
+   ]
+  },
+  {
+   "surface": "Explicitly dormant Rust scene command buffer",
+   "paths": [
+    "src/wasm/CommandApplier.ts",
+    "wasm/src/command_buffer.rs"
+   ],
+   "production_reachability": "registry development-only (\"deliberately dormant until headset evidence warrants CAP_SCENE_RUST/CAP_COMMAND_BUFFER\"); docs/ROADMAP.md explicitly names it not-a-sprint",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a: no deletion consideration while the roadmap retains the dormant surface",
+   "test_files": [
+    {
+     "path": "tests/command-applier.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/subsystem-resiliency-audit.test.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "Compat / legacy-input fail-closed guards (tests whose legacy keywords falsify, not preserve)",
+   "paths": [
+    "persisted-format compat seams (session snapshots, portable legacy packages, legacy ZIP import), compatibility_* kernel exports, c2 legacy row format, governed legacy asset fallback"
+   ],
+   "production_reachability": "all guard production-reachable code; persisted-format/historical-replay compatibility is durable repo policy",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a (protective falsifiers)",
+   "test_files": [
+    {
+     "path": "tests/rf-050-session-storage-dedup.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt5d-continuity-ui.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/pt5d-investigation-continuity.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/runtime-columnar-boundary.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/rust-js-boundary-benchmark-contract.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/composed-representation-validation.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 10,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/nemosyne-file-presentation-contract.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 0,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/rf035b2b-compatibility-regressions.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/c2-investigation-state-legibility.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 11,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/governor-event-loop.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/atlas-async-execution.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 18,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/rf062g-analytical-runtime-owner.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/tec1-f1-governed-replay.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 21,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/tec1-governed-export.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 12,
+     "classification": "PROTECT"
+    }
+   ]
+  },
+  {
+   "surface": "Compatibility alias family pinned by tests",
+   "paths": [
+    "src/wasm/runtime/KernelContractBridge.ts:135 (adjustDracoEvidence/solveDraco/evaluateDracoCandidate identity+facades)",
+    "src/atlas/DatasetSpace.ts:60 (@deprecated fnv1aHex alias with 6+ live src callers - migration incomplete)",
+    "src/moneta/representation/RepresentationDecision.ts:112 (representationFamily/confidence compat aliases)",
+    "(src/vr/palette.ts compat alias module: fully dead, zero src AND zero test importers - no test rent; ERA-AG4 deletion)"
+   ],
+   "production_reachability": "aliases production-reached via src/wasm/RuntimeBridge.ts / live atlas callers; alias-identity guards are live-protective until caller migration completes",
+   "classification": "MIGRATE",
+   "replacement_invariant": "Single-authority property already stated in tests/moneta-evidence-scorer-authority.test.ts: \"one Rust authority per operation\". When alias names retire (fnv1aHex callers migrated; *Draco facades removed) these guards collapse into existing single-authority/canonical-name assertions plus typecheck - no new tests needed; the alias-identity lines are removed with the alias. Until then the guards are live",
+   "test_files": [
+    {
+     "path": "tests/runtime-bridge-module-boundaries.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 5,
+     "classification": "MIGRATE (partial: 1 of 5 its is the alias-identity guard)"
+    },
+    {
+     "path": "tests/wasm-runtime.test.ts",
+     "lanes": [
+      "real-wasm-boundary"
+     ],
+     "approx_tests": 28,
+     "classification": "MIGRATE (partial)"
+    },
+    {
+     "path": "tests/moneta-evidence-scorer-authority.test.ts",
+     "lanes": [
+      "fast-node"
+     ],
+     "approx_tests": 4,
+     "classification": "MIGRATE (partial)"
+    },
+    {
+     "path": "tests/moneta-explainer-panel-uikit.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "MIGRATE (partial)"
+    },
+    {
+     "path": "tests/moneta-diagnostic-hud-uikit.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "MIGRATE (partial)"
+    }
+   ]
+  },
+  {
+   "surface": "Test-only-reachable production modules (flagged, not condemned - no deletion on reachability alone)",
+   "paths": [
+    "src/data/serializers/* (datasetToArrowIPC/datasetToMessagePack - zero src values-caller; production persistence uses NemosynePackage/fflate)",
+    "src/wasm/TypedColumnsCodec.ts (NTC1 encodeTypedColumnsPayload has no production caller behind the reachable loadTypedColumns seam)",
+    "src/atlas/intent/* (zero src callers today; roadmap FM1 forward path)",
+    "dormant experiment modules: DataCard, TextField, SpatialTween, SpatialAudioSynthesizer, UserCloudAvatar/UserMetadataDataset/TelemetryInterpreter, GitHubCorpusConnector, FreeComputePolicy, HandWheelCategorization, UXAcceptanceGate, ErrorRegistry"
+   ],
+   "production_reachability": "not production-reachable in the current import graph; several are forward-path (intent compiler per FM1) or documented node-only authorities (src/network/server.ts per docs/PRODUCTION_SIGNALLING.md - graph limitation, not unreachability); flag ownership: ERA-AG1/AG4 + FM increments",
+   "classification": "PROTECT (forward-path / flagged) + RESEARCH_FIXTURE (dormant experiment fixtures)",
+   "replacement_invariant": "Named where relevant: serializers tests are the format contracts themselves (not dead-code rent); intent-compiler/investigation-intent must survive until FM1 lands question-aware intent or is explicitly deferred; dormant experiment tests follow the FM-increment/ERA disposition of their module",
+   "test_files": [
+    {
+     "path": "tests/serializers.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 13,
+     "classification": "PROTECT (format-contract)"
+    },
+    {
+     "path": "tests/network-security.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 36,
+     "classification": "PROTECT (graph-limitation; documented node-only authority)"
+    },
+    {
+     "path": "tests/architectural-invariants.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "PROTECT (barrel-import; barrel-unreachable != production-unreachable)"
+    },
+    {
+     "path": "tests/golden-path-vertical-slice.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT (barrel-import)"
+    },
+    {
+     "path": "tests/intent-compiler.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 11,
+     "classification": "PROTECT (forward path FM1)"
+    },
+    {
+     "path": "tests/investigation-intent.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 9,
+     "classification": "PROTECT (forward path FM1)"
+    },
+    {
+     "path": "tests/data-card.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/ui-system/text-field.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/spatial-tween.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/spatial-audio.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/webrtc-user-cloud-avatar.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 6,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/github-corpus-connector.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 14,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/inference-free-compute-policy.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/cockpit-taxonomy.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/status-strip-gates.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 3,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    },
+    {
+     "path": "tests/investigation-branching-error-register.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 2,
+     "classification": "RESEARCH_FIXTURE (flagged dormant module)"
+    }
+   ]
+  },
+  {
+   "surface": "Superseded src/app/AnalystJourneyControls.ts UI mount",
+   "paths": [
+    "src/app/AnalystJourneyControls.ts"
+   ],
+   "production_reachability": "not production-reachable: zero src values-importers; supersession recorded in-repo (src/app/uv0TestHandle.ts:154 \"InvestigationShell replaced AnalystJourneyControls\"; src/app/bootstrap.ts mounts InvestigationShell/rail actions); stale src/validation/uv0-inventory.ts:292 entry references the module",
+   "classification": "DELETE_WITH_SURFACE",
+   "replacement_invariant": "Re-pin the semantic-intent dispatch, unknown-intent fail-closed and task-first-rail contracts through the live bootstrap mounts (InputIntentBindings/InvestigationShell/DesktopSelectionTaskRail), re-homing TASK_FIRST_PRIMARY_ACTION_IDS to the production rail module, before deleting the module. Until that mount migration these tests are the only executable evidence for the intent vocabulary - do not delete them for the mounts sake",
+   "test_files": [
+    {
+     "path": "tests/application-semantic-intents.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 5,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/p1-uv1-task-first-shell.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 7,
+     "classification": "MIGRATE"
+    },
+    {
+     "path": "tests/post-m4-fix-forward.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 4,
+     "classification": "MIGRATE"
+    }
+   ]
+  },
+  {
+   "surface": "Superseded src/vr/coordinators/InvestigatorJourneyCoordinator.ts (e2e only)",
+   "paths": [
+    "src/vr/coordinators/InvestigatorJourneyCoordinator.ts"
+   ],
+   "production_reachability": "not production-reachable: imported only by its e2e test; installed production journey authority is src/app/investigation/InvestigationJourneyController.ts (imported by installInvestigationJourney.ts and DesktopInvestigationJourney.ts), tested by tests/pt5c-investigation-journey.test.ts, tests/pt5c-xr-investigation-panel.test.ts, tests/pt5e-xr-scientific-text-entry.test.ts, tests/pt5e-xr-spatial-text-entry-hitbox.test.ts",
+   "classification": "DELETE_WITH_SURFACE",
+   "replacement_invariant": "None remains for the superseded coordinator after confirming phase coverage: the walked journey phases are covered by the pt5c/pt5e suites plus tier4 scenario5_complete_analyst_journey.spec.ts; the test itself self-describes that candidate-specific embodiment/fallback behavior is pinned by representation-specific production tests, not here. Delete the file with the superseded coordinator as one package",
+   "test_files": [
+    {
+     "path": "tests/e2e/investigator-journey-e2e.test.ts",
+     "lanes": [
+      "jsdom-integration"
+     ],
+     "approx_tests": 1,
+     "classification": "MIGRATE"
+    }
+   ]
+  },
+  {
+   "surface": "Playwright smoke + collaboration browser harness (CI-required)",
+   "paths": [
+    "tests/smoke/*",
+    "tests/smoke/collaboration-harness.html",
+    "tests/collaboration-browser/*"
+   ],
+   "production_reachability": "production CI: playwright-smoke job runs npm run test:smoke (production journeys incl. load path) and test:smoke:collaboration (recovery smoke over the real collaboration stack through the harness page)",
+   "classification": "PROTECT",
+   "replacement_invariant": "n/a: CI-required production-path evidence; bounded harness approximation of the production composition",
+   "test_files": [
+    {
+     "path": "tests/smoke/analyst-journey.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/load.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1-uv0-baseline.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1-uv1-task-first-shell.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1r-cluster-c4-evidence.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1r-density-m4-evidence.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1r-graph-b4-evidence.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1uv-c1-functional-world-objects.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1uv-c2-investigation-state-legibility.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/p1uv-c3-desktop-xr-parity.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/q3-failure-evidence-probe.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/q3b-resource-envelope.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/q3c-same-operation-materialization.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/q3d-browser-envelope.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/stream-a-a1-browser-envelope.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/stream-a-a5-aggregate-evidence.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/stream-m-m4-distribution-evidence.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/ui-fix-forward.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/ux-adversarial.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 12,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/smoke/workspace-surface-wiring.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 2,
+     "classification": "PROTECT"
+    },
+    {
+     "path": "tests/collaboration-browser/recovery.spec.ts",
+     "lanes": [
+      "playwright-smoke"
+     ],
+     "approx_tests": 1,
+     "classification": "PROTECT"
+    }
+   ]
+  }
+ ],
+ "totals": {
+  "inventory": {
+   "files": 634,
+   "approx_tests": 3693
+  },
+  "lanes": {
+   "real-wasm-boundary": {
+    "files": 54,
+    "approx_tests": 389
+   },
+   "jsdom-integration": {
+    "files": 493,
+    "approx_tests": 2806
+   },
+   "ui-only": {
+    "files": 3,
+    "approx_tests": 13
+   },
+   "fast-node": {
+    "files": 63,
+    "approx_tests": 450
+   },
+   "playwright-smoke": {
+    "files": 21,
+    "approx_tests": 35
+   }
+  },
+  "census_cited": {
+   "files": 152,
+   "approx_tests": 889
+  },
+  "by_classification": {
+   "DELETE_WITH_SURFACE": {
+    "files": 4,
+    "approx_tests": 24
+   },
+   "MIGRATE": {
+    "files": 22,
+    "approx_tests": 132
+   },
+   "PROTECT": {
+    "files": 97,
+    "approx_tests": 598
+   },
+   "RESEARCH_FIXTURE": {
+    "files": 29,
+    "approx_tests": 135
+   }
+  }
+ }
+}
