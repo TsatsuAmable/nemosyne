@@ -38,6 +38,16 @@ export interface DatasetHandleExports {
    * prebuilt pkg fails closed rather than minting uses without an attestation.
    */
   data_governed_consumers(handle: number, ptr: number, len: number): number;
+  /**
+   * RFC 0009 tranche 3 slice 2 follow-up: two-call string-out read of the
+   * single-pass governed capture — the kernel computes the receipt bundle once
+   * and mints the consumer attestation from that same bundle value, inside one
+   * dataset read. Absent from wasm builds older than the slice (the wrapper
+   * feature-detects, and governed capture falls back to the two-call read),
+   * so a stale prebuilt pkg keeps the slice-2 behaviour rather than failing
+   * an export this build does not carry.
+   */
+  data_statistics_evidence_governed_capture(handle: number, ptr: number, len: number): number;
   dataset_prepare_json(handle: number): number;
   data_prepare_betti0_curve(handle: number, paramsPtr: number, paramsLen: number): number;
   data_prepare_mapper_graph(handle: number, paramsPtr: number, paramsLen: number): number;

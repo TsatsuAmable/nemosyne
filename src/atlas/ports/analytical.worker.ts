@@ -318,12 +318,35 @@ self.onmessage = async (ev: MessageEvent) => {
     try {
       const datasetFingerprint = bridge.datasetFingerprint(handle);
       const kernelVersion = bridge.kernelVersion();
-      const rawBundle = bridge.statisticsEvidenceReceiptBundle(handle);
-      // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
-      // same read. A runtime build without this export (older than the slice)
-      // yields null and refuses the capture, rather than handing composition
-      // receipts it cannot mint governed uses for.
-      const governedConsumers = bridge.statisticsGovernedConsumers(handle);
+      // RFC 0009 tranche 3 slice 2 follow-up: prefer the single-pass governed
+      // capture — one kernel read computes the receipt bundle once and mints
+      // the consumer attestation from that same in-kernel bundle value. Read
+      // the method through the bridge namespace: an older bridge build that
+      // does not offer it takes the two-call fallback below unchanged, and a
+      // wasm pkg the single-pass read refuses yields null and refuses the
+      // capture rather than re-minting from the two-call bytes.
+      let rawBundle: unknown;
+      let governedConsumers: unknown;
+      const combined = (
+        bridge as unknown as {
+          statisticsGovernedCapture?: (
+            handle: number,
+          ) => { rawBundle: unknown; governedConsumers: unknown } | null;
+        }
+      ).statisticsGovernedCapture;
+      if (typeof combined === 'function') {
+        const captured = combined.call(bridge, handle);
+        rawBundle = captured ? captured.rawBundle : null;
+        governedConsumers = captured ? captured.governedConsumers : null;
+      } else {
+        const bundleFromProducer = bridge.statisticsEvidenceReceiptBundle(handle);
+        // RFC 0009 tranche 3 slice 2: the consumer attestation is part of the
+        // same read. A runtime build without this export (older than the slice)
+        // yields null and refuses the capture, rather than handing composition
+        // receipts it cannot mint governed uses for.
+        governedConsumers = bridge.statisticsGovernedConsumers(handle);
+        rawBundle = bundleFromProducer;
+      }
       if (datasetFingerprint && kernelVersion && rawBundle && governedConsumers) {
         capture = {
           requestId: req.requestId,

@@ -782,6 +782,71 @@ fn compute_governed_consumers_result(handle: u32) -> Option<String> {
     Some(json)
 }
 
+/// RFC 0009 tranche 3 slice 2 follow-up (#866 residual): the governed capture
+/// read in one kernel pass. A governed capture previously composed the capture
+/// object out of two separate reads (`data_prepare_statistics_evidence_receipts`
+/// and `data_governed_consumers`), each of which ran the receipt families and
+/// computed the receipt bundle again; this export computes the bundle exactly
+/// once and mints the consumer attestation from that same in-kernel bundle
+/// value, inside one `with_dataset` closure. Two-call string-out ABI,
+/// mirroring `data_governed_consumers`. A handle with no row-backed dataset,
+/// or a dataset the receipt families refuse, yields ABI null (0), which the
+/// bridge surfaces as `null` and governed capture refuses.
+///
+/// The kernel stays stateless per call: no caching, no memoised attestation.
+/// A superseded or mutated dataset re-reads under its own fingerprint, so a
+/// mint can never be served from state older than the read itself.
+#[wasm_bindgen]
+pub fn data_statistics_evidence_governed_capture(handle: u32, out_ptr: u32, out_len: u32) -> u32 {
+    match compute_statistics_evidence_governed_capture_result(handle) {
+        Some(json) => write_str_out(&json, out_ptr, out_len),
+        None => 0,
+    }
+}
+
+fn compute_statistics_evidence_governed_capture_result(handle: u32) -> Option<String> {
+    let (bundle, attestation, input_fp) = data::with_dataset(handle, |ds| {
+        prepared_results::record_computation(
+            prepared_results::STATISTICS_EVIDENCE_GOVERNED_CAPTURE,
+        );
+        let dataset_fingerprint = ds.fingerprint();
+        let bundle = data::statistics_evidence::compute_statistics_evidence_receipt_bundle(
+            ds,
+            &dataset_fingerprint,
+            data::provenance::KERNEL_VERSION,
+        )
+        .ok()?;
+        // The mint consumes the bundle value this closure produced, never
+        // caller-supplied bytes: the attestation can only attest a bundle the
+        // kernel itself issued, in the same read.
+        let attestation =
+            data::governed_consumer::GovernedConsumerAttestationV1::for_receipt_bundle(&bundle)
+                .ok()?;
+        Some((bundle, attestation, dataset_fingerprint))
+    })??;
+
+    // Both halves embed exactly the serialization the standalone exports emit —
+    // the receipts value round-trips through the same serde wire bytes
+    // `data_prepare_statistics_evidence_receipts` writes, and the attestation
+    // through the same bytes `data_governed_consumers` writes — so the parsed
+    // shape the composition receives is identical to the two-call read's.
+    let bundle_json = serde_json::to_string(&bundle).ok()?;
+    let attestation_json = serde_json::to_string(&attestation).ok()?;
+    let combined = serde_json::json!({
+        "receipts": serde_json::from_str::<serde_json::Value>(&bundle_json).ok()?,
+        "governedConsumers": serde_json::from_str::<serde_json::Value>(&attestation_json).ok()?,
+    });
+    let json = serde_json::to_string(&combined).ok()?;
+    let output_fp = data::fingerprint::sha256_hex(&json);
+    data::provenance::record(
+        "statistics_evidence_governed_capture",
+        serde_json::json!({ "schemaVersion": "1" }),
+        &input_fp,
+        &output_fp,
+    );
+    Some(json)
+}
+
 #[wasm_bindgen]
 pub fn data_compute_spectral_facts(
     handle: u32,
@@ -1938,6 +2003,147 @@ mod tests {
         dealloc(json_ptr, json_len);
         dataset_destroy(handle);
         dataset_destroy(handle2);
+    }
+
+    fn governed_capture_row(values: &[(&str, data::value::Value)]) -> std::collections::HashMap<String, data::value::Value> {
+        values
+            .iter()
+            .map(|(key, value)| ((*key).to_string(), value.clone()))
+            .collect()
+    }
+
+    fn governed_capture_register(
+        name: &str,
+        columns: Vec<data::column::Column>,
+        rows: Vec<std::collections::HashMap<String, data::value::Value>>,
+    ) -> u32 {
+        let handle = data::register_dataset(data::dataset::Dataset::new(name, columns, rows));
+        assert!(handle > 0, "falsifier fixture must register a live handle");
+        handle
+    }
+
+    #[test]
+    fn governed_capture_combine_is_one_computation_and_wire_identical_each_call() {
+        use crate::data::statistics_evidence::compute_statistics_evidence_receipt_bundle;
+
+        let handle = governed_capture_register(
+            "governed-capture-combined",
+            vec![
+                data::column::Column::new("x", data::column::ColumnType::Numeric),
+                data::column::Column::new("g", data::column::ColumnType::Categorical),
+            ],
+            vec![
+                governed_capture_row(&[
+                    ("x", data::value::Value::Number(1.0)),
+                    ("g", data::value::Value::Text("a".into())),
+                ]),
+                governed_capture_row(&[
+                    ("x", data::value::Value::Number(2.0)),
+                    ("g", data::value::Value::Text("a".into())),
+                ]),
+                governed_capture_row(&[
+                    ("x", data::value::Value::Number(3.0)),
+                    ("g", data::value::Value::Text("b".into())),
+                ]),
+            ],
+        );
+
+        let first = compute_statistics_evidence_governed_capture_result(handle)
+            .expect("row-backed dataset must capture");
+        let first: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert!(first.get("receipts").is_some());
+        assert!(first.get("governedConsumers").is_some());
+
+        // The embedded receipts payload is the same value the standalone bundle
+        // computation for this dataset serializes — parsed, not re-derived.
+        let standalone = data::with_dataset(handle, |ds| {
+            compute_statistics_evidence_receipt_bundle(ds, &ds.fingerprint(), data::provenance::KERNEL_VERSION)
+        })
+        .expect("registered handle")
+        .expect("receipt families accept a row-backed dataset");
+        let standalone_value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&standalone).unwrap()).unwrap();
+        assert_eq!(first["receipts"], standalone_value);
+
+        // The attestation is the one minted over that same bundle: identity
+        // copied from it, coverage equal to its receipt ids, and valid against
+        // it — a mint from anywhere else would not validate.
+        let minted = data::governed_consumer::GovernedConsumerAttestationV1::for_receipt_bundle(
+            &standalone,
+        )
+        .expect("kernel-minted attestation");
+        assert!(minted.validate_for_bundle(&standalone).is_ok());
+        assert_eq!(
+            first["governedConsumers"],
+            serde_json::to_value(&minted).unwrap()
+        );
+        let embedded_ids: Vec<&str> = first["governedConsumers"]["consumers"][0]["receiptIds"]
+            .as_array()
+            .expect("attested consumer carries receiptIds")
+            .iter()
+            .map(|id| id.as_str().expect("receipt id"))
+            .collect();
+        let bundle_ids: Vec<&str> = standalone
+            .receipts
+            .iter()
+            .map(|receipt| receipt.receipt_id.as_str())
+            .collect();
+        assert_eq!(embedded_ids, bundle_ids);
+
+        // Counted, per the established prepared-results idiom: exactly one
+        // bundle computation per capture call, and a second call over the same
+        // dataset is another single computation with a structurally identical
+        // payload — not a cache hit, not a recomputed duplicate inside one call.
+        let before = prepared_results::prepared_computation_count(
+            prepared_results::STATISTICS_EVIDENCE_GOVERNED_CAPTURE as u32,
+        );
+        let second_json = compute_statistics_evidence_governed_capture_result(handle)
+            .expect("second capture over the same dataset");
+        assert_eq!(
+            prepared_results::prepared_computation_count(
+                prepared_results::STATISTICS_EVIDENCE_GOVERNED_CAPTURE as u32,
+            ) - before,
+            1,
+            "one governed capture must attempt exactly one bundle computation"
+        );
+        let second: serde_json::Value = serde_json::from_str(&second_json).unwrap();
+        assert_eq!(first, second);
+
+        data::destroy_dataset(handle);
+    }
+
+    #[test]
+    fn governed_capture_of_an_empty_receipt_bundle_carries_the_refusal_shape() {
+        // A dataset no receipt family claims (Text columns produce no
+        // statistics receipts) still serializes: the bundle is empty and the
+        // attestation names no consumer. The composition refuses that shape —
+        // a governed use must name a receipt — so falsifying the kernel here
+        // means the refusal shape reaches composition intact, not that the
+        // ABI refuses first.
+        let handle = governed_capture_register(
+            "governed-capture-empty",
+            vec![data::column::Column::new("note", data::column::ColumnType::Text)],
+            vec![governed_capture_row(&[("note", data::value::Value::Text("n".into()))])],
+        );
+
+        let json = compute_statistics_evidence_governed_capture_result(handle).expect("capture");
+        let combined: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(combined["receipts"]["receipts"], serde_json::json!([]));
+        assert_eq!(combined["governedConsumers"]["consumers"], serde_json::json!([]));
+
+        data::destroy_dataset(handle);
+    }
+
+    #[test]
+    fn governed_capture_unknown_or_destroyed_handle_yields_none() {
+        let destroyed = governed_capture_register(
+            "governed-capture-destroyed",
+            vec![data::column::Column::new("x", data::column::ColumnType::Numeric)],
+            vec![governed_capture_row(&[("x", data::value::Value::Number(1.0))])],
+        );
+        data::destroy_dataset(destroyed);
+        assert_eq!(compute_statistics_evidence_governed_capture_result(destroyed), None);
+        assert_eq!(compute_statistics_evidence_governed_capture_result(0), None);
     }
 }
 

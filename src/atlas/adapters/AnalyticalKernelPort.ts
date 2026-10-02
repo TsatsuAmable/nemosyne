@@ -54,6 +54,17 @@ export interface AnalyticalKernelPort {
    * consumer uses without the kernel attestation.
    */
   statisticsGovernedConsumers?(handle: number): unknown | null;
+  /**
+   * RFC 0009 tranche 3 slice 2 follow-up: the single-pass governed capture —
+   * receipt bundle computed once and the consumer attestation minted from that
+   * same in-kernel bundle value. Companion capability of
+   * `statisticsGovernedConsumers`; a kernel contract that offers it replaces
+   * the two-call read, while one that does not carries the two-call path
+   * unchanged (narrow kernel contracts, older wasm builds).
+   */
+  statisticsGovernedCapture?(
+    handle: number,
+  ): { rawBundle: unknown; governedConsumers: unknown } | null;
   inferSchema?(handle: number): unknown;
   computeMapperGraph?(handle: number, params: Record<string, unknown>): TdaMapperGraph | null;
   computePersistenceIntervals?(

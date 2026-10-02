@@ -229,6 +229,44 @@ describe('InlineAnalyticalPort governed-evidence capture (issue #834)', () => {
     expect(produce).toHaveBeenCalledTimes(1);
     expect(produce).toHaveBeenCalledWith(11);
   });
+
+  it('prefers a single-pass governed capture and never mints from the two-call reads', async () => {
+    // RFC 0009 tranche 3 slice 2 follow-up: a kernel contract offering the
+    // single-pass read is authoritative for both halves — the two-call reads
+    // must not run, or a capture could be composed out of bytes the kernel
+    // minted across two separate dataset reads.
+    const callsTwoCallReads = vi.fn();
+    const kernel = {
+      ...inlineKernel().kernel,
+      statisticsGovernedCapture: vi.fn(() => ({
+        rawBundle: { schemaVersion: '1', receipts: [] },
+        governedConsumers: { schemaVersion: '1', consumers: [] },
+      })),
+      statisticsEvidenceReceiptBundle: callsTwoCallReads,
+      statisticsGovernedConsumers: callsTwoCallReads,
+    } as unknown as AnalyticalKernelPort;
+    const port = new InlineAnalyticalPort(kernel);
+
+    const result = await port.captureGovernedEvidenceReceipt(captureRequest());
+    expect(result).not.toBeNull();
+    expect(result!.rawBundle).toEqual({ schemaVersion: '1', receipts: [] });
+    expect(result!.governedConsumers).toEqual({ schemaVersion: '1', consumers: [] });
+    expect(callsTwoCallReads).not.toHaveBeenCalled();
+  });
+
+  it('refuses, rather than falling back, when a single-pass capture yields nothing', async () => {
+    // A kernel that offers the single-pass read but returns null half-attests:
+    // its two-call exports may describe a different dataset read than the one
+    // the pass refused, so the capture must refuse outright, never re-mint
+    // from the two-call bytes.
+    const kernel = {
+      ...inlineKernel().kernel,
+      statisticsGovernedCapture: vi.fn(() => null),
+    } as unknown as AnalyticalKernelPort;
+    expect(
+      await new InlineAnalyticalPort(kernel).captureGovernedEvidenceReceipt(captureRequest())
+    ).toBeNull();
+  });
 });
 
 interface PostedMessage {

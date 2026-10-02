@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 const MAX_RESULTS: usize = 4;
 const MAX_RESULT_BYTES: usize = crate::MAX_MEMORY_PAGES as usize * 65536;
-static COMPUTATIONS: [AtomicU32; 13] = [const { AtomicU32::new(0) }; 13];
+static COMPUTATIONS: [AtomicU32; 14] = [const { AtomicU32::new(0) }; 14];
 pub const STATISTICS: usize = 3;
 pub const DATASET_JSON: usize = 4;
 pub const AGGREGATE: usize = 5;
@@ -16,6 +16,14 @@ pub const GRAPH: usize = 9;
 pub const SEMANTIC_DETAIL: usize = 10;
 pub const SPECTRAL_FACTS: usize = 11;
 pub const STATISTICS_EVIDENCE_RECEIPTS: usize = 12;
+// RFC 0009 tranche 3 slice 2 follow-up (#866 residual): one receipt-bundle
+// computation attempted inside the single-pass governed capture. A new slot
+// under the existing counted-operations idiom, never the receipts slot —
+// governed captures must not corrupt what the receipts counter is proven to
+// mean (`prepared_computation_count(12)` moves exactly once per receipts
+// prepare), and the falsifier for "the bundle is computed exactly once per
+// capture call" reads this slot instead.
+pub const STATISTICS_EVIDENCE_GOVERNED_CAPTURE: usize = 13;
 
 pub fn record_computation(operation: usize) {
     COMPUTATIONS[operation].fetch_add(1, Ordering::Relaxed);

@@ -475,6 +475,63 @@ export function statisticsGovernedConsumers(handle: number): unknown | null {
   }
 }
 
+/**
+ * The two halves of one governed capture, read from the kernel in a single
+ * pass. `rawBundle` is exactly the value `statisticsEvidenceReceiptBundle`
+ * parses, and `governedConsumers` exactly the value `statisticsGovernedConsumers`
+ * parses — the kernel embeds each standalone export's wire shape — so callers
+ * switch between the single-pass and two-call reads without reshaping anything.
+ */
+export interface StatisticsGovernedCaptureResult {
+  rawBundle: unknown;
+  governedConsumers: unknown;
+}
+
+/**
+ * RFC 0009 tranche 3 slice 2 follow-up (#866 residual): the governed capture
+ * computed in one kernel pass — the receipt bundle is computed exactly once and
+ * the consumer attestation is minted from that same in-kernel bundle value,
+ * inside one dataset read. Two-call string-out ABI, mirroring
+ * `statisticsGovernedConsumers`.
+ *
+ * Feature-detecting is the same deliberate fail-closed behaviour: a wasm build
+ * older than this export returns null here, and the governed-capture ports fall
+ * back to the two-call read instead of refusing outright. The result's shape is
+ * enforced here so the ports never see a half-parsed capture.
+ */
+export function statisticsGovernedCapture(handle: number): StatisticsGovernedCaptureResult | null {
+  const wasm: DatasetHandleExports = getRuntimeExports();
+  // The runtime feature-detect guards a wasm build that predates the
+  // single-pass capture; the typed access below stays on the declared export
+  // contract.
+  if (typeof wasm.data_statistics_evidence_governed_capture !== 'function') return null;
+  const json = readStringExport((ptr, len) =>
+    wasm.data_statistics_evidence_governed_capture(handle, ptr, len)
+  );
+  if (!json) return null;
+  try {
+    // The kernel wraps the two standalone wire shapes under these keys; an
+    // absent (or null) half is a shape mismatch, and the ports refuse it.
+    const parsed = JSON.parse(json) as {
+      receipts?: unknown;
+      governedConsumers?: unknown;
+    } | null;
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      parsed.receipts === undefined ||
+      parsed.receipts === null ||
+      parsed.governedConsumers === undefined ||
+      parsed.governedConsumers === null
+    ) {
+      return null;
+    }
+    return { rawBundle: parsed.receipts, governedConsumers: parsed.governedConsumers };
+  } catch {
+    return null;
+  }
+}
+
 export function computeSpectralFacts(
   handle: number,
   timeColumn?: string,
