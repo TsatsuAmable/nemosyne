@@ -116,6 +116,18 @@ An agent may be told simply: **“Find the next READY task assigned to you in `d
 - **Claude:** retains CMS ownership from the preceding section. ERA agents may read CMS findings but must not edit CMS-owned paths while those sprints are active.
 - **Integration:** discoveries do not become roadmap obligations merely because an agent reports them. Material architectural changes require the normal RFC/ADR/evidence process; small demonstrated defects can enter ERA-CX directly after review.
 
+### RFL support stream — OpenCode / Muse Spark
+
+**Status:** DURABLE support stream. **Base:** `main@91ba42aa` (2 October 2026). RFL generates falsification experiments; it does not implement product features or repair production code.
+
+- An empty `governance/rfl/findings.jsonl` means begin discovery, never "nothing to do."
+- Continuously survey unclaimed surfaces, choose high-information invariants, construct the cheapest useful falsifier, run it, record the evidence, and choose another target. Prefer real production-path questions involving lifecycle/resource ownership, determinism/replay, serialization, malformed inputs, state machines, persistence, WebXR/browser boundaries, representation stability, collaboration, ingestion, and other under-tested seams.
+- Refresh active leases, open PRs, and roadmap state before every target. Do not compete with Claude: the TEC1/RFC 0009 evidence/platform spine is Claude's; never mutate its claimed paths.
+- RFL may create tests, fixtures, simulations, property/metamorphic tests, benchmarks, harnesses, and narrowly isolated developer tooling. Do not repair production code.
+- A reproducible failure becomes a candidate `RFL-*` finding with invariant, exact reproduction command, affected paths, base/head SHAs, observed evidence, and suggested owner. RFL cannot accept or close its own findings; accepted findings intersecting Claude's work become falsifiers for Claude's tranche, and RFL independently reruns the reproducer after fixes.
+- A passing experiment means only that this falsifier did not break the invariant; preserve useful coverage where appropriate and continue.
+- `STOP_NO_NOVEL_TARGET` is permitted only after a genuine broad survey demonstrates that no worthwhile non-colliding experiment remains — never a busy forward lane, an empty ledger, or a missing roadmap ticket. Do not manufacture low-information tests merely to remain active.
+
 ## Historical status snapshot - 16 September 2026
 
 **Current integration base for this planning update:** `main@8adb2c7899d749be5c2676551ed0f5b8a757168e` (#754). Stream A remains closed. Stream B's first selected structural family, source-authoritative Relationship Graph V1, remains `VERIFIED COMPLETE / STOP`. Stream C's bounded C1-C4 software path remains landed, with physical XR fitness still an empirical qualification boundary. PT0-PT8 remain landed at their bounded exits. P1-UXR remains the active pre-PT9 product-development programme: UXR0's bounded software contract and UXR1's canonical UI migration plus purpose/comprehension treatment-v3 fix-forward are landed. #745 remains open because software, browser and simulator evidence cannot establish the required physical human comprehension outcome. The forward engineering frontier is again the UXR2 resource lifecycle governor at its UXR3 bounded-semantic-working-set seam, followed by UXR4/UXR5 evidence, while the #745 Quest retest runs when physical-human evidence is available. PT9 Moneta learning evidence, PT10 private-preview learning, and post-PT9 compositional/full-Moneta work remain downstream. Experimental Full-Moneta work may be preserved off the integration path but may not jump those prerequisites.
