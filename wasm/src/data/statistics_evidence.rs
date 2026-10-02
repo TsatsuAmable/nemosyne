@@ -216,6 +216,96 @@ mod tests {
     }
 
     #[test]
+    fn correlation_claims_record_the_untestable_independence_assumption() {
+        // MA1 K-3 receipt-side control: observation independence is recorded
+        // as the constant NotTestableFromData on every correlation claim —
+        // the wrapper must surface that record, never swallow or re-grade it.
+        // The fixture is a four-row perfect fit (r = 1.0), which doubles as
+        // the small-n confound companion: the receipt rides a claim whose
+        // number is statistically meaningless at this n.
+        let rows: Vec<HashMap<String, Value>> = (0..4)
+            .map(|index| {
+                HashMap::from([
+                    ("x".to_string(), Value::Number(index as f64)),
+                    ("y".to_string(), Value::Number(index as f64 * 2.0)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "correlation-assumption-control",
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            rows,
+        );
+
+        let evidence = compute_statistics_evidence(&dataset, "fp", "kernel");
+        assert_eq!(evidence.correlation.len(), 1);
+        let claim = &evidence.correlation[0];
+        assert_eq!(claim.claim_id, "pearson:x:y");
+        assert_eq!(claim.result.value, 1.0);
+        assert_eq!(claim.sample_support.policy, SupportPolicy::PairwiseComplete);
+        assert_eq!(claim.sample_support.rows_used, 4);
+        assert_eq!(claim.assumptions.len(), 2);
+        assert_eq!(
+            claim.assumptions[0].assumption,
+            "observation independence for inferential interpretation"
+        );
+        assert_eq!(
+            claim.assumptions[0].status,
+            AssumptionStatus::NotTestableFromData
+        );
+        assert_eq!(
+            claim.assumptions[0].detail,
+            "requires observation-structure or study-design metadata"
+        );
+        assert_eq!(
+            claim.assumptions[1].assumption,
+            "Pearson r describes linear association only"
+        );
+        assert_eq!(claim.assumptions[1].status, AssumptionStatus::Satisfied);
+        assert!(claim.has_unresolved_assumptions());
+        assert!(
+            claim
+                .limitations
+                .iter()
+                .any(|limitation| limitation.contains("no hypothesis test")),
+        );
+        assert!(claim
+            .limitations
+            .iter()
+            .any(|limitation| limitation.contains("nonlinear dependence")));
+
+        // The same record rides the rust-issued receipt bundle unchanged:
+        // the NotTestableFromData status must be present in the wrapper's
+        // serialized receipt, not only on the in-kernel claim object.
+        let _guard = crate::prepared_results::COUNTER_TESTS.lock().unwrap();
+        let bundle = compute_statistics_evidence_receipt_bundle(&dataset, "fp", "kernel")
+            .expect("receipt bundle");
+        let receipt = bundle
+            .receipts
+            .iter()
+            .find(|receipt| receipt.claim_id == "pearson:x:y")
+            .expect("correlation receipt");
+        assert_eq!(receipt.receipt_id, "pearson:x:y");
+        assert_eq!(receipt.sample_support.rows_used, 4);
+        assert_eq!(receipt.sample_support.policy, SupportPolicy::PairwiseComplete);
+        let independence = receipt
+            .assumptions
+            .iter()
+            .find(|check| check.status == AssumptionStatus::NotTestableFromData)
+            .expect("the untestable independence record must ride the receipt");
+        assert!(independence.assumption.contains("observation independence"));
+        let linear_only = receipt
+            .assumptions
+            .iter()
+            .find(|check| check.status == AssumptionStatus::Satisfied)
+            .expect("the linear-association restriction must ride the receipt");
+        assert!(linear_only.assumption.contains("linear association"));
+    }
+
+    #[test]
     fn receipt_bundle_is_rust_issued_and_preserves_unknown_axes() {
         // Computes a receipt bundle, which moves the process-global
         // computation counters: serialized on the shared test guard (see its
