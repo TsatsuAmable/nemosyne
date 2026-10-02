@@ -47,7 +47,7 @@ describe('F1 falsifier 10: the surfacing layer cannot overclaim what was enforce
     );
 
     // A reader who sees only "Replay verified" infers the investigation's
-    // claims were checked against the consumers that require them. A run that
+    // claims were checked against the consumers that require them. This run
     // enforced none, and this string is the only place that is said.
     expect(message).not.toBe('Replay verified (4 events)');
     expect(message).toContain('no consumer policy enforced');

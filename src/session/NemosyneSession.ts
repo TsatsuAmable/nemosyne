@@ -30,7 +30,7 @@ import {
   parsePersistedEvidenceReceiptsV1,
   type PersistedEvidenceReceiptsV1,
 } from '../data/evidence/PersistedEvidenceReceipts.ts';
-import { governedConsumerPolicyV1 } from '../data/evidence/index.ts';
+import { bindConsumerUsesV1, governedConsumerPolicyV1 } from '../data/evidence/index.ts';
 import { strToU8 } from 'fflate';
 
 export interface PresentationState {
@@ -274,43 +274,35 @@ export class NemosyneSession {
   /**
    * RFC 0009 tranche 3 slice 2: an export may commit `uses` only when they
    * bind under the authority-owned policy against this very bundle. This is
-   * the same test the replay loader applies at its binding step, applied here
-   * so a carrier minted under a policy this build no longer governs fails
-   * closed at export instead of writing a package its own loader would refuse.
-   * It is not duplication-without-purport: the loader test runs over committed
-   * package bytes; this one runs over bytes we are about to commit. Consumers
-   * that the current policy governs but that no use names are refused for the
-   * same reason ("emptiness cannot bypass policy").
+   * literally the same test the replay loader applies at its binding step —
+   * `bindConsumerUsesV1` over the live authority policy, with the loader's
+   * wider-than-"not BOUND" predicate: identity agreement alone does not
+   * suffice, the receipt must also resolve under its recorded profile. Running
+   * the binder here (rather than a hand-rolled subset) is what keeps a carrier
+   * restored from foreign bytes from being re-exported as a package this
+   * build's own loader would refuse. It is not duplication-without-purport:
+   * the loader test runs over committed package bytes; this one runs over
+   * bytes we are about to commit. Consumers that the current policy governs
+   * but that no use names are refused for the same reason ("emptiness cannot
+   * bypass policy").
    */
   private _validateGovernedUseRecords(envelope: PersistedEvidenceReceiptsV1): void {
-    const policy = governedConsumerPolicyV1();
-    const receiptIds = new Set(envelope.bundle.receipts.map((receipt) => receipt.receiptId));
-    const namedConsumers = new Set<string>();
-    for (const use of envelope.uses) {
-      const requiredProfileId = policy.get(use.consumerId);
-      if (requiredProfileId === undefined) {
-        throw new Error(
-          'Governed evidence export refuses consumer-use assertions naming a consumer the authority-owned policy does not govern'
-        );
+    const bindings = bindConsumerUsesV1({
+      envelope,
+      requiredConsumers: governedConsumerPolicyV1(),
+    });
+    for (const binding of bindings) {
+      if (binding.status === 'BOUND' && binding.resolution.status === 'RESOLVED') {
+        continue;
       }
-      if (use.requirementProfileId !== requiredProfileId) {
-        throw new Error(
-          'Governed evidence export refuses consumer-use assertions recorded under a profile the authority does not require for that consumer'
-        );
-      }
-      if (!receiptIds.has(use.receiptId)) {
-        throw new Error(
-          'Governed evidence export refuses consumer-use assertions naming a receipt absent from the committed bundle'
-        );
-      }
-      namedConsumers.add(use.consumerId);
-    }
-    for (const consumerId of policy.keys()) {
-      if (!namedConsumers.has(consumerId)) {
+      if (binding.status === 'MISSING_USE') {
         throw new Error(
           'Governed evidence export refuses an envelope that leaves a governed consumer without any consumer-use assertion'
         );
       }
+      throw new Error(
+        'Governed evidence export refuses consumer-use assertions that fail to bind under the authority-owned policy (an ungoverned consumer, a profile disagreement, an unresolvable profile, a receipt absent from the bundle, or a receipt that does not resolve under the recorded profile)'
+      );
     }
   }
 

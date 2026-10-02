@@ -233,6 +233,42 @@ describe('TEC1 governed evidence session carrier', () => {
     ).rejects.toThrow(/leaves a governed consumer/);
   });
 
+  it('refuses a governed export whose carrier use binds by identity but does not resolve under its profile', async () => {
+    // The adversarial-review widening (RFC 0009 tranche 3 slice 2): the loader's
+    // binding predicate is deliberately wider than "not BOUND" — a use whose
+    // consumer and profile identities agree still refuses when the receipt does
+    // not resolve under the recorded profile, and `descriptive-summary/v1`
+    // refuses a violated assumption. The session validator used to check only
+    // identity agreement, so a carrier restored from foreign bytes whose use
+    // exists-but-does-not-resolve could be re-exported as a V3 package this
+    // build's own loader would refuse with CONSUMER_POLICY_REFUSED.
+    const envelope: Record<string, unknown> = JSON.parse(
+      JSON.stringify(validSyntheticEnvelope()),
+    );
+    envelope.uses = [
+      {
+        consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+        receiptId: 'descriptive:x',
+        requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+      },
+    ];
+    const bundle = envelope.bundle as { receipts: Array<Record<string, unknown>> };
+    bundle.receipts[0].assumptions = [
+      {
+        assumption: 'value independence across rows',
+        status: 'violated',
+        detail: 'fabricated for the falsifier; the receipt otherwise conforms',
+      },
+    ];
+    const json = {
+      ...minimalSessionJson(),
+      evidenceReceiptSnapshot: carrierFor(JSON.stringify(envelope)),
+    };
+    await expect(
+      NemosyneSession.exportPortableSnapshot(json, {}, undefined, { governedEvidence: true })
+    ).rejects.toThrow(/consumer-use assertions/);
+  });
+
   it('re-exports a governed V3 package from a carrier whose uses conformed at capture', async () => {
     // The kernel-less counterpart of the production-path falsifier: a carrier
     // minted under the same governing consumer/profile this build still governs,
