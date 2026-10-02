@@ -25,6 +25,12 @@ export const FAST_NODE_TESTS = [
   'tests/tec1-f1-governed-replay.test.ts',
   'tests/tec1-f1-replay-attestation-text.test.ts',
   'tests/tec1-f1-continuity-attestation.test.ts',
+  // TEC3-MA2 first slice: deterministic control fixtures over the fitness
+  // model's boost gate (MA1 F-1), the anomaly-score floor (MA1 K-8) and the
+  // periodicity null closure (MA1 K-5), with kernel-mock profiles.
+  'tests/tec3-ma2-fitness-model-controls.test.ts',
+  'tests/tec3-ma2-anomaly-floor-readback.test.ts',
+  'tests/tec3-ma2-spectral-null-closure.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',

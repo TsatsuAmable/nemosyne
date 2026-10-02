@@ -1536,4 +1536,260 @@ mod tests {
             "retired two-valued density_variation proxy must not be transported: {json}"
         );
     }
+
+    // TEC3-MA2 controls (deterministic, no RNG). Each pair holds a positive
+    // control carrying the target property and a negative control from the
+    // same kernel rules; values asserted here were verified against an exact
+    // transcription of these kernels before being written because the cargo
+    // lane does not run on the Windows authoring host.
+
+    struct FixtureLcg {
+        state: u32,
+    }
+
+    impl FixtureLcg {
+        fn new(seed: u32) -> Self {
+            let mut s = seed % 2_147_483_647;
+            if s == 0 {
+                s = 1;
+            }
+            Self { state: s }
+        }
+
+        fn next(&mut self) -> f64 {
+            self.state = (self.state as u64 * 16_807 % 2_147_483_647) as u32;
+            (self.state - 1) as f64 / 2_147_483_646.0
+        }
+    }
+
+    #[test]
+    fn unit_rescaling_flips_high_variance_classification_for_identical_information() {
+        // MA1 F-10/K-10: `global_high_variance = var > 100.0` is an absolute
+        // raw-unit threshold. The same 100 observations expressed in metres
+        // (variance 833.25) and in kilometres (8.3325e-4) carry identical
+        // information but must disagree under the classifier, while the
+        // scale-invariant facts stay agreed.
+        let metres: Vec<f64> = (0..100).map(|i| i as f64).collect();
+        let kilometres: Vec<f64> = metres.iter().map(|value| value / 1000.0).collect();
+        let profile_for = |name: &str, values: &[f64]| {
+            let rows: Vec<HashMap<String, Value>> = values
+                .iter()
+                .map(|value| HashMap::from([("distance".to_string(), Value::Number(*value))]))
+                .collect();
+            let dataset = Dataset::new(
+                name,
+                vec![Column::new("distance", ColumnType::Numeric)],
+                rows,
+            );
+            compute_dataset_structure_profile(&dataset, "fp", "0.1.0")
+        };
+        let metres_profile = profile_for("unit-scale-metres", &metres);
+        let km_profile = profile_for("unit-scale-km", &kilometres);
+
+        assert_eq!(metres_profile.row_count, km_profile.row_count);
+        assert_eq!(metres_profile.column_count, km_profile.column_count);
+        assert_ne!(
+            metres_profile.distributions.global_high_variance,
+            km_profile.distributions.global_high_variance,
+            "the classification differs for identical information purely by unit scaling"
+        );
+        assert!(metres_profile.distributions.global_high_variance);
+        assert!(!km_profile.distributions.global_high_variance);
+        // Scale-invariant facts must agree: the MAD/IQR outlier rule and the
+        // skew of an arithmetic progression do not depend on the unit.
+        assert!(!metres_profile.distributions.global_has_outliers);
+        assert!(!km_profile.distributions.global_has_outliers);
+        assert!(metres_profile.distributions.max_skewness.abs() < 1e-9);
+        assert!(km_profile.distributions.max_skewness.abs() < 1e-9);
+        assert_eq!(
+            metres_profile.distributions.numeric_summaries.len(),
+            km_profile.distributions.numeric_summaries.len()
+        );
+        let metres_var = metres_profile.distributions.numeric_summaries[0].variance;
+        let km_var = km_profile.distributions.numeric_summaries[0].variance;
+        assert!((metres_var / km_var - 1_000_000.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn planted_extreme_outlier_scores_near_ceiling_not_at_the_floor() {
+        // MA1 K-8 positive control: 24 identical rows and one planted outlier.
+        // With population std, the score is max_deviation/std/5 = sqrt(24)/5,
+        // so the 0.2 floor is NOT the binding term for a wildly extreme
+        // planted outlier; the floor only binds through the std > 1e-9 guard
+        // (see the degenerate control below). Pinning the honest value.
+        let rows: Vec<HashMap<String, Value>> = (0..25)
+            .map(|index| {
+                let value = if index == 24 { 1000.0 } else { 0.0 };
+                HashMap::from([("signal".to_string(), Value::Number(value))])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "planted-outlier-positive",
+            vec![Column::new("signal", ColumnType::Numeric)],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(profile.anomalies.has_anomalies);
+        assert_eq!(profile.anomalies.total_anomalies, 1);
+        assert_eq!(profile.distributions.global_has_outliers, true);
+        assert!((profile.anomalies.anomaly_fraction - 0.04).abs() < 1e-12);
+        let expected = 24f64.sqrt() / 5.0;
+        let score = profile.anomalies.max_anomaly_score;
+        assert!(
+            (score - expected).abs() < 1e-9,
+            "planted-outlier score {score} must be the deviation-normalized {expected}, not the 0.2 floor"
+        );
+        assert!(score > 0.9, "an extreme planted outlier saturates the clamp, it does not sit on the floor");
+    }
+
+    #[test]
+    fn anomaly_floor_binds_only_through_the_std_guard_and_flags_the_column_constant() {
+        // MA1 K-8: the only reachable route to an exactly-0.2 score is a
+        // degenerate column whose std (1.96e-13) is below the 1e-9 guard that
+        // excludes it from the deviation-normalized max. The same column is
+        // simultaneously classified "constant" (range 1e-12 < 1e-9) and
+        // outlier-carrying, which is itself the diagnostic: ordinary data
+        // never lands on the floor.
+        let rows: Vec<HashMap<String, Value>> = (0..25)
+            .map(|index| {
+                let value = if index == 24 { 1e-12 } else { 0.0 };
+                HashMap::from([("signal".to_string(), Value::Number(value))])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "anomaly-floor-degenerate",
+            vec![Column::new("signal", ColumnType::Numeric)],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.anomalies.total_anomalies, 1);
+        assert_eq!(profile.anomalies.max_anomaly_score, 0.2);
+        assert_eq!(profile.dimensionality.constant_columns, 1,
+            "the outlier-carrying column is also constant-classified under the same kernel rules");
+    }
+
+    #[test]
+    fn clean_dataset_reports_no_anomalies() {
+        // MA1 K-8 negative control: an arithmetic progression carries no MAD
+        // outlier (max modified z = 0.6745 * 12 / 6 = 1.349 < 3.5).
+        let rows: Vec<HashMap<String, Value>> = (0..25)
+            .map(|index| HashMap::from([("signal".to_string(), Value::Number(index as f64))]))
+            .collect();
+        let dataset = Dataset::new(
+            "anomaly-negative",
+            vec![Column::new("signal", ColumnType::Numeric)],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(!profile.anomalies.has_anomalies);
+        assert_eq!(profile.anomalies.total_anomalies, 0);
+        assert_eq!(profile.anomalies.max_anomaly_score, 0.0);
+        assert!(!profile.distributions.global_has_outliers);
+    }
+
+    #[test]
+    fn five_separated_clusters_collapse_into_the_three_cluster_cap() {
+        // MA1 K-1 confound control: five well-separated planar clusters are
+        // detected as a partition worth reporting, but the reported
+        // estimated_count cannot exceed MAX_CANDIDATE_CLUSTERS, so five true
+        // groups are admitted as three. The positive control proves detection
+        // fires; the reported count is a capped estimate, not a recovered k.
+        let rows: Vec<HashMap<String, Value>> = (0..5)
+            .flat_map(|cluster| {
+                (0..12).map(move |index| {
+                    let jitter_x = ((index % 4) as f64 - 1.5) * 0.2;
+                    let jitter_y = (((index / 4) % 4) as f64 - 1.5) * 0.2;
+                    HashMap::from([
+                        ("x".to_string(), Value::Number(10.0 * cluster as f64 + jitter_x)),
+                        ("y".to_string(), Value::Number(10.0 * cluster as f64 + jitter_y)),
+                    ])
+                })
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "five-cluster-cap-control",
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(profile.clusters.has_clusters,
+            "control fixture must actually detect a partition for this test to falsify anything");
+        assert_eq!(profile.clusters.estimated_count, 3);
+        assert!(profile.clusters.estimated_count <= MAX_CANDIDATE_CLUSTERS);
+        assert!(profile.clusters.separation_score > 0.35);
+        assert!(profile.clusters.separation_score <= 1.0);
+        assert_eq!(profile.density.mode_count, 3);
+    }
+
+    #[test]
+    fn uniform_lattice_reports_no_clusters() {
+        // MA1 K-1 negative control: a perfect 20x20 lattice has no partition
+        // structure, and every candidate split leaves most points symmetric
+        // between their own and the neighbouring block. The best-silhouette
+        // verdict is 0.2832 against the 0.35 threshold — a fixture margin,
+        // not a calibration claim. (Uniform RANDOM noise is not usable as a
+        // negative control: with the kernel's hash-ordered silhouette
+        // subsample it classifies as clustered, which is recorded as a
+        // subsample-ordering confound of this metric family.)
+        let rows: Vec<HashMap<String, Value>> = (0..400)
+            .map(|index| {
+                HashMap::from([
+                    ("x".to_string(), Value::Number((index % 20) as f64)),
+                    ("y".to_string(), Value::Number((index / 20) as f64)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "uniform-lattice-negative",
+            vec![
+                Column::new("x", ColumnType::Numeric),
+                Column::new("y", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(!profile.clusters.has_clusters);
+        assert_eq!(profile.clusters.estimated_count, 1);
+        assert_eq!(profile.clusters.separation_score, 0.0);
+    }
+
+    #[test]
+    fn deterministic_bell_noise_reports_no_periodicity() {
+        // MA1 K-5 negative control. The positive control for this metric
+        // family lives in tests/uxr3-spectral-transfer-wasm.test.ts (TS wasm
+        // lane); this kernel-side negative control closes the missing piece
+        // recorded in the TEC3 falsifier inventory. The noise is an
+        // Irwin-Hall (12-lap) sum with a fixed seed, so it is bell-shaped,
+        // spectrum-flat and reproducible.
+        let mut rng = FixtureLcg::new(0x4e4d_5359);
+        let rows: Vec<HashMap<String, Value>> = (0..256)
+            .map(|index| {
+                let noise: f64 = (0..12).map(|_| rng.next()).sum::<f64>() - 6.0;
+                HashMap::from([
+                    ("time".to_string(), Value::Number(index as f64)),
+                    ("value".to_string(), Value::Number(noise)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "bell-noise-periodicity-negative",
+            vec![
+                Column::new("time", ColumnType::Temporal),
+                Column::new("value", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        let spectral = profile.spectral.as_ref().expect("regular sampling must emit spectral facts");
+        assert_eq!(spectral.method, "regular-time-fft");
+        assert!(!spectral.has_periodicity,
+            "flat bell-shaped noise must not classify periodic: peak={}, entropy={}",
+            spectral.power_spectrum_peak, spectral.spectral_entropy);
+        assert!(spectral.power_spectrum_peak < 0.35);
+        assert!(spectral.spectral_entropy > 0.75);
+        assert!(!profile.temporal.as_ref().unwrap().has_seasonality);
+    }
 }
