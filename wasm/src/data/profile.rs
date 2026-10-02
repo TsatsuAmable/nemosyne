@@ -2175,4 +2175,516 @@ mod tests {
             "retired claim-shaped name must not be aliased back onto the ABI"
         );
     }
+
+    // TEC3-MA2 sixth-slice controls: the final Rust K-family tranche — K-9
+    // (graph family), K-10 (scale/density proxies), K-11 (geospatial name
+    // sniff) and K-12 (effective dimensions). K-13 is deliberately NOT
+    // re-tested here: its numerics are already pinned by the existing Rust
+    // authority tests in `wasm/src/moneta/evidence.rs` (an authority pin, not
+    // a calibration — see the MA2 report §10). The graph, band and spatial
+    // assertions below are structural (booleans and integer counts, verified
+    // by direct deterministic code-read); the mode_count, separation_score and
+    // max_correlation doubles were verified first by an exact TypeScript
+    // transcription of the invoked kernels (`evaluate_clusters_from_accessor`
+    // including the bit-exact u64 `cluster_sample_key`/`mix_cluster_hash`
+    // ordering, `pearson_pairwise` and `iqr_and_multimodality`), because the
+    // cargo lane does not run on the Windows authoring host; the Rust
+    // assertions execute in the CI "Rust kernel" job only.
+
+    fn ramp_column_profile(name: &str, row_count: usize) -> DatasetStructureProfile {
+        let rows: Vec<HashMap<String, Value>> = (0..row_count)
+            .map(|index| HashMap::from([("signal".to_string(), Value::Number(index as f64))]))
+            .collect();
+        let dataset = Dataset::new(
+            name,
+            vec![Column::new("signal", ColumnType::Numeric)],
+            rows,
+        );
+        compute_dataset_structure_profile(&dataset, "fp", "0.1.0")
+    }
+
+    fn spatial_columns_cell(column_type: ColumnType, index: usize, base: f64) -> Value {
+        match column_type {
+            ColumnType::Numeric => Value::Number(base + index as f64),
+            ColumnType::Categorical => Value::Text(
+                if index % 2 == 0 { "r" } else { "b" }.to_string(),
+            ),
+            ColumnType::Temporal => Value::Number(base + index as f64 * 60.0),
+            ColumnType::Text => Value::Text("t".to_string()),
+            ColumnType::Unknown => Value::Null,
+        }
+    }
+
+    /// Two-or-more-column spatial-name fixture; cell values follow the column
+    /// type so name-keyed behaviour can be separated from value-shaped data.
+    fn spatial_fixture(name: &str, columns: &[(&str, ColumnType)]) -> DatasetStructureProfile {
+        let rows: Vec<HashMap<String, Value>> = (0..18)
+            .map(|index| {
+                columns
+                    .iter()
+                    .enumerate()
+                    .map(|(position, (column_name, column_type))| {
+                        let base = if position == 0 { 0.0 } else { -7.0 };
+                        (
+                            column_name.to_string(),
+                            spatial_columns_cell(*column_type, index, base),
+                        )
+                    })
+                    .collect()
+            })
+            .collect();
+        let dataset = Dataset::new(
+            name,
+            columns
+                .iter()
+                .map(|(column_name, column_type)| Column::new(*column_name, *column_type))
+                .collect(),
+            rows,
+        );
+        compute_dataset_structure_profile(&dataset, "fp", "0.1.0")
+    }
+
+    #[test]
+    fn directed_triangle_pins_the_full_graph_family_result() {
+        // MA1 K-9 positive control: a three-node directed cycle observed
+        // through the production profile path. The family is boolean/count
+        // only — is_graph, node_count, edge_count, has_cycles (directed
+        // source/target semantics) and is_connected (weak semantics) — so the
+        // exact GraphProfile is pinned by struct equality, plus its wire form:
+        // a Some graph serializes as a boolean/count object.
+        let rows: Vec<HashMap<String, Value>> = (0..3)
+            .map(|index| HashMap::from([("value".to_string(), Value::Number(index as f64))]))
+            .collect();
+        let mut dataset = Dataset::new(
+            "triangle-graph-positive",
+            vec![Column::new("value", ColumnType::Numeric)],
+            rows,
+        );
+        dataset.edges = Some(vec![
+            Edge::new_id("A", "B"),
+            Edge::new_id("B", "C"),
+            Edge::new_id("C", "A"),
+        ]);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(
+            profile.graph,
+            Some(GraphProfile {
+                is_graph: true,
+                node_count: 3,
+                edge_count: 3,
+                has_cycles: true,
+                is_connected: true,
+            })
+        );
+        let json = serde_json::to_string(&profile).expect("profile serialization");
+        assert!(
+            json.contains("\"graph\":{\"isGraph\":true"),
+            "a Some graph transports as an explicit object carrying its booleans: {json}"
+        );
+    }
+
+    #[test]
+    fn two_disjoint_edges_report_an_acyclic_disconnected_graph() {
+        // MA1 K-9 negative control: two disjoint edge pairs. The family still
+        // reports a declared graph (edge presence is the only admission
+        // criterion), while both booleans report absence of their own
+        // properties — is_connected false under weak connectivity, has_cycles
+        // false with no directed back-edge reachable.
+        let rows: Vec<HashMap<String, Value>> = (0..4)
+            .map(|index| HashMap::from([("value".to_string(), Value::Number(index as f64))]))
+            .collect();
+        let mut dataset = Dataset::new(
+            "disconnected-graph-negative",
+            vec![Column::new("value", ColumnType::Numeric)],
+            rows,
+        );
+        dataset.edges = Some(vec![Edge::new_id("A", "B"), Edge::new_id("C", "D")]);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(
+            profile.graph,
+            Some(GraphProfile {
+                is_graph: true,
+                node_count: 4,
+                edge_count: 2,
+                has_cycles: false,
+                is_connected: false,
+            })
+        );
+    }
+
+    #[test]
+    fn graph_connectivity_requires_the_edge_nodes_to_cover_every_row() {
+        // Observed coupling of the family to the dataset beyond its edge set:
+        // node_count is max(distinct edge endpoints, row_count) and
+        // is_connected additionally requires the edge-node set to cover every
+        // row (visited == nodes && nodes >= row_count), so a one-edge graph
+        // over ten rows reports is_connected FALSE even though its two
+        // endpoints are mutually connected. (The BFS start node is whatever
+        // the HashSet hands out first, but connectivity of the visited set is
+        // start-order-invariant, so the assertion is unaffected.)
+        let rows: Vec<HashMap<String, Value>> = (0..10)
+            .map(|index| HashMap::from([("value".to_string(), Value::Number(index as f64))]))
+            .collect();
+        let mut dataset = Dataset::new(
+            "row-coverage-connectivity",
+            vec![Column::new("value", ColumnType::Numeric)],
+            rows,
+        );
+        dataset.edges = Some(vec![Edge::new(0, 1)]);
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(
+            profile.graph,
+            Some(GraphProfile {
+                is_graph: true,
+                node_count: 10,
+                edge_count: 1,
+                has_cycles: false,
+                is_connected: false,
+            })
+        );
+    }
+
+    #[test]
+    fn edgeless_datasets_report_null_graph_profiles_on_the_wire() {
+        // MA1 K-9 null-path control: analyze_graph returns None for an empty
+        // edge slice, so BOTH an absent edge list and an explicitly empty one
+        // produce profile.graph == None. The wire form is an explicit JSON
+        // null KEY (no skip_serializing_if), which the TS adapter then turns
+        // into an omitted topology:graph evidence item; "no graph" and "a
+        // graph whose booleans are false" are therefore distinguishable exact
+        // states, not a boolean/absence blur.
+        let rows: Vec<HashMap<String, Value>> = (0..3)
+            .map(|index| HashMap::from([("value".to_string(), Value::Number(index as f64))]))
+            .collect();
+        let absent = Dataset::new(
+            "graph-absent",
+            vec![Column::new("value", ColumnType::Numeric)],
+            rows.clone(),
+        );
+        let profile = compute_dataset_structure_profile(&absent, "fp", "0.1.0");
+        assert_eq!(profile.graph, None);
+        let json = serde_json::to_string(&profile).expect("profile serialization");
+        assert!(
+            json.contains("\"graph\":null"),
+            "graph must transport as an explicit null key, not an omitted field: {json}"
+        );
+
+        let mut empty = Dataset::new(
+            "graph-empty-edge-list",
+            vec![Column::new("value", ColumnType::Numeric)],
+            rows,
+        );
+        empty.edges = Some(Vec::new());
+        let profile = compute_dataset_structure_profile(&empty, "fp", "0.1.0");
+        assert_eq!(profile.graph, None, "an explicitly empty edge list is the same None");
+        let json = serde_json::to_string(&profile).expect("profile serialization");
+        assert!(json.contains("\"graph\":null"));
+    }
+
+    #[test]
+    fn density_bands_and_the_sparse_flag_pin_the_row_count_thresholds() {
+        // MA1 K-10: heuristic_scale_density_proxy is banded on RAW row count
+        // (>= 50 -> 0.7, >= 20 -> 0.4, else 0.15) and
+        // heuristic_sparse_by_row_count is the row_count < 15 threshold —
+        // size heuristics, per the struct's own comment: not a density
+        // estimand and not a statistical confidence. The band edges are
+        // pinned adjacent on both sides of 20 and 50, the sparse boundary on
+        // both sides of 15, and the density row is pinned to be exactly the
+        // cluster estimate (its provenance — see the mode_count control
+        // below).
+        let arms: [(usize, f64, bool); 6] = [
+            (14, 0.15, true),
+            (15, 0.15, false),
+            (19, 0.15, false),
+            (20, 0.4, false),
+            (49, 0.4, false),
+            (50, 0.7, false),
+        ];
+        for (row_count, expected_proxy, expected_sparse) in arms {
+            let profile = ramp_column_profile("density-band-boundary", row_count);
+            assert_eq!(
+                profile.density.heuristic_scale_density_proxy,
+                expected_proxy,
+                "row_count {row_count} must land in its recorded band"
+            );
+            assert_eq!(
+                profile.density.heuristic_sparse_by_row_count,
+                expected_sparse,
+                "row_count {row_count} must land on its recorded side of the sparse threshold"
+            );
+            assert_eq!(
+                profile.density.mode_count,
+                profile.clusters.estimated_count,
+                "density.mode_count is the cluster estimate, not a per-column mode count"
+            );
+        }
+    }
+
+    #[test]
+    fn density_mode_count_tracks_the_cluster_estimate_not_the_column_modes() {
+        // MA1 K-10: mode_count is clusters.estimated_count (profile.rs:1011),
+        // so the density family reads the capped K-1 k-means estimate, NOT the
+        // per-column multimodality machinery (numeric_summaries[0]
+        // .is_multimodal from iqr_and_multimodality lives separately). Observed
+        // arms, all through the production profile path:
+        // - a column with THREE evenly spaced IQR-visible modes (is_multimodal
+        //   true, 3 binned peaks) reports mode_count 3 — the cluster estimate
+        //   coincides with MAX_CANDIDATE_CLUSTERS (the five-separated-clusters
+        //   cap control above already pins the same cap),
+        // - a monotone ramp whose IQR binning reports ZERO peaks
+        //   (is_multimodal false) still reports mode_count 2 — the k-means
+        //   estimate classifies a uniformly spaced ramp as two clusters at
+        //   every probed ramp length 14..=50, so the density family's mode
+        //   count and the kernel's own multimodality flag disagree in both
+        //   directions,
+        // - two exactly separated blocks report mode_count 2 at silhouette 1.0,
+        // - a constant column reports the degenerate estimate 1 with
+        //   has_clusters false (matching the existing uniform-lattice negative
+        //   control's estimated_count 1).
+        let mut rows: Vec<HashMap<String, Value>> = Vec::new();
+        for block in 0..3 {
+            for _ in 0..10 {
+                rows.push(HashMap::from([(
+                    "mode".to_string(),
+                    Value::Number(block as f64 * 0.5),
+                )]));
+            }
+        }
+        let dataset = Dataset::new(
+            "three-block-mode-count",
+            vec![Column::new("mode", ColumnType::Numeric)],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(
+            profile.distributions.numeric_summaries[0].is_multimodal,
+            "the fixture's column must be IQR-multimodal for the decoupling arms to mean anything"
+        );
+        assert!(profile.clusters.has_clusters);
+        assert_eq!(profile.clusters.separation_score, 1.0);
+        assert_eq!(profile.density.mode_count, 3);
+        assert_eq!(profile.density.mode_count, profile.clusters.estimated_count);
+
+        let ramp = ramp_column_profile("density-mode-ramp", 16);
+        assert!(
+            !ramp.distributions.numeric_summaries[0].is_multimodal,
+            "the ramp's IQR binning must report zero peaks for the decoupling arm to mean anything"
+        );
+        assert!(ramp.clusters.has_clusters);
+        assert_eq!(ramp.density.mode_count, 2,
+            "the k-means estimate reads two clusters into a uniformly spaced ramp");
+
+        let mut rows: Vec<HashMap<String, Value>> = Vec::new();
+        for block in 0..2 {
+            for _ in 0..10 {
+                rows.push(HashMap::from([(
+                    "mode".to_string(),
+                    Value::Number(block as f64 * 100.0),
+                )]));
+            }
+        }
+        let dataset = Dataset::new(
+            "two-block-mode-count",
+            vec![Column::new("mode", ColumnType::Numeric)],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(profile.clusters.has_clusters);
+        assert_eq!(profile.clusters.separation_score, 1.0);
+        assert_eq!(profile.density.mode_count, 2);
+
+        let constant_rows: Vec<HashMap<String, Value>> = (0..16)
+            .map(|_| HashMap::from([("mode".to_string(), Value::Number(7.0))]))
+            .collect();
+        let dataset = Dataset::new(
+            "constant-column-mode-count",
+            vec![Column::new("mode", ColumnType::Numeric)],
+            constant_rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert!(!profile.clusters.has_clusters);
+        assert_eq!(profile.clusters.separation_score, 0.0);
+        assert_eq!(profile.density.mode_count, 1);
+        assert!(
+            !profile.distributions.numeric_summaries[0].is_multimodal,
+            "a constant column carries no IQR-visible mode"
+        );
+    }
+
+    #[test]
+    fn geospatial_sniff_matches_exact_lowercase_names_and_preserves_their_case() {
+        // MA1 K-11 positive control: the spatial family keys on EXACT
+        // lowercase equality of the column NAME against {lat, latitude} x
+        // {lon, lng, longitude} — "Lat"/"LNG" match through the lowercasing
+        // and the original spelling is reported back. coordinate_dimensions is
+        // the constant 2: the family reports a fixed coordinate pair, never a
+        // measured dimension count.
+        let profile = spatial_fixture(
+            "geospatial-name-positive",
+            &[("Lat", ColumnType::Numeric), ("LNG", ColumnType::Numeric)],
+        );
+        assert_eq!(
+            profile.spatial,
+            Some(SpatialProfile {
+                is_geospatial: true,
+                coordinate_dimensions: 2,
+                lat_column: Some("Lat".to_string()),
+                lon_column: Some("LNG".to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn geospatial_sniff_is_name_only_type_blind_and_unreachable_without_exact_names() {
+        // MA1 K-11 boundary/decoy controls, all observed through the
+        // production profile path:
+        // - numeric columns carrying latitude/longitude-shaped VALUES under
+        //   non-matching names never fire — the sniffer reads names only,
+        //   never values or column types;
+        // - prefix/suffix decoys (latitude_deg / lng_offset) do not match the
+        //   exact-equality sniff;
+        // - a HALF pair (latitude without longitude, or vice versa) stays None;
+        // - the sniffer is type-blind: two CATEGORICAL columns named lat/lng
+        //   report is_geospatial true with no numeric coordinates at all;
+        // - when two columns match the latitude list, the later-declared
+        //   column overwrites earlier matches (lat then latitude -> the
+        //   profile reports the categorical "latitude").
+        let decoy_values = spatial_fixture(
+            "geospatial-value-decoy",
+            &[("x", ColumnType::Numeric), ("y", ColumnType::Numeric)],
+        );
+        assert_eq!(decoy_values.spatial, None);
+        let decoy_names = spatial_fixture(
+            "geospatial-prefix-decoy",
+            &[("latitude_deg", ColumnType::Numeric), ("lng_offset", ColumnType::Numeric)],
+        );
+        assert_eq!(decoy_names.spatial, None);
+        let lat_only = spatial_fixture(
+            "geospatial-lat-only",
+            &[("latitude", ColumnType::Numeric), ("signal", ColumnType::Numeric)],
+        );
+        assert_eq!(lat_only.spatial, None);
+        let lon_only = spatial_fixture(
+            "geospatial-lon-only",
+            &[("signal", ColumnType::Numeric), ("lon", ColumnType::Numeric)],
+        );
+        assert_eq!(lon_only.spatial, None);
+        let type_blind = spatial_fixture(
+            "geospatial-type-blind",
+            &[("lat", ColumnType::Categorical), ("lng", ColumnType::Categorical)],
+        );
+        assert_eq!(
+            type_blind.spatial,
+            Some(SpatialProfile {
+                is_geospatial: true,
+                coordinate_dimensions: 2,
+                lat_column: Some("lat".to_string()),
+                lon_column: Some("lng".to_string()),
+            })
+        );
+        let later_match_wins = spatial_fixture(
+            "geospatial-last-match-wins",
+            &[
+                ("lat", ColumnType::Numeric),
+                ("latitude", ColumnType::Categorical),
+                ("lng", ColumnType::Numeric),
+            ],
+        );
+        assert_eq!(
+            later_match_wins.spatial,
+            Some(SpatialProfile {
+                is_geospatial: true,
+                coordinate_dimensions: 2,
+                lat_column: Some("latitude".to_string()),
+                lon_column: Some("lng".to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn effective_dimensions_subtracts_exactly_the_numeric_constant_columns() {
+        // MA1 K-12: effective_dimensions = total_columns - constant_columns,
+        // where "constant" is the numeric-range classification (max - min
+        // < 1e-9) over the numeric summaries only (profile.rs:900-901/:965).
+        // One exactly-constant column among four: total 4, constant 1,
+        // effective 3 — pinning the subtraction itself; the existing
+        // duplicate-rank/linear-dependence/noisy-low-rank controls in this
+        // module pin the family under dependence and are not duplicated.
+        // redundant_columns stays 0 because the transcribed max |r| of the
+        // three varying columns is 0.29411764705882354, far below the > 0.95
+        // constant; the double is transcribed exactly (pearson_pairwise
+        // two-pass, plain IEEE-754 f64 arithmetic).
+        let rows: Vec<HashMap<String, Value>> = (0..16)
+            .map(|i| {
+                HashMap::from([
+                    ("ramp".to_string(), Value::Number(i as f64)),
+                    ("mod7".to_string(), Value::Number(((i * 7) % 16) as f64)),
+                    ("mod13".to_string(), Value::Number(((i * 13) % 16) as f64)),
+                    ("constant".to_string(), Value::Number(7.0)),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "effective-dimensions-constant-column",
+            vec![
+                Column::new("ramp", ColumnType::Numeric),
+                Column::new("mod7", ColumnType::Numeric),
+                Column::new("mod13", ColumnType::Numeric),
+                Column::new("constant", ColumnType::Numeric),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.dimensionality.total_columns, 4);
+        assert_eq!(profile.dimensionality.numeric_columns, 4);
+        assert_eq!(profile.dimensionality.constant_columns, 1,
+            "the (max - min) < 1e-9 numeric-range rule must classify one column constant");
+        assert_eq!(profile.dimensionality.effective_dimensions, 3,
+            "the subtraction is exactly total minus the numerically-constant columns");
+        assert_eq!(profile.correlations.max_correlation, 0.29411764705882354);
+        assert_eq!(profile.dimensionality.redundant_columns, 0,
+            "the transcribed max |r| sits far below the 0.95 redundant-columns constant");
+    }
+
+    #[test]
+    fn constant_categorical_columns_do_not_decrement_effective_dimensions() {
+        // Honest observed caveat of the K-12 family: "constant" is a NUMERIC
+        // -range classification over the numeric summaries only, so a
+        // categorical column carrying a single repeated value is invisible to
+        // it — constant_columns stays 0 and effective_dimensions equals the
+        // raw column count even though the schema's real variation breadth is
+        // three columns. The family remains what the protocol says it is
+        // (MONETA_EVIDENCE_PROTOCOL.md: not an intrinsic-dimensionality
+        // estimate); this pin records the exact shape of that descriptive
+        // count rather than implying otherwise.
+        let rows: Vec<HashMap<String, Value>> = (0..16)
+            .map(|i| {
+                HashMap::from([
+                    ("ramp".to_string(), Value::Number(i as f64)),
+                    ("mod7".to_string(), Value::Number(((i * 7) % 16) as f64)),
+                    ("mod13".to_string(), Value::Number(((i * 13) % 16) as f64)),
+                    ("flag".to_string(), Value::Text("A".to_string())),
+                ])
+            })
+            .collect();
+        let dataset = Dataset::new(
+            "constant-categorical-effective-dimensions",
+            vec![
+                Column::new("ramp", ColumnType::Numeric),
+                Column::new("mod7", ColumnType::Numeric),
+                Column::new("mod13", ColumnType::Numeric),
+                Column::new("flag", ColumnType::Categorical),
+            ],
+            rows,
+        );
+        let profile = compute_dataset_structure_profile(&dataset, "fp", "0.1.0");
+        assert_eq!(profile.dimensionality.total_columns, 4);
+        assert_eq!(profile.dimensionality.numeric_columns, 3);
+        assert_eq!(profile.dimensionality.categorical_columns, 1);
+        assert_eq!(profile.dimensionality.constant_columns, 0,
+            "the constant-columns field counts only numeric-range constancy");
+        assert_eq!(profile.dimensionality.effective_dimensions, 4,
+            "a categorically-constant column does not decrement the descriptive count");
+        assert_eq!(profile.dimensionality.redundant_columns, 0);
+    }
 }
