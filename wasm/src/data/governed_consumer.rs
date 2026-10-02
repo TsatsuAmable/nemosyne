@@ -182,7 +182,10 @@ mod tests {
 
     /// A receipt shaped like a family-issued one, over a caller-chosen claim
     /// id — used to test refusal paths the statistics claim families cannot
-    /// produce.
+    /// produce. `EvidenceReceiptBundleV1::new` validates receipt provenance
+    /// against the bundle, so this carries the "fp"/"kernel" identity the test
+    /// bundles commit to; a mismatched fixture would refuse at `bundle_with`,
+    /// not at the behavior it exists to test.
     fn synthetic_receipt(
         claim_id: &str,
         assumptions: Vec<AssumptionCheck>,
@@ -195,8 +198,8 @@ mod tests {
                 method_provenance: MethodProvenance {
                     method: "test/method".to_string(),
                     method_version: "test-v1".to_string(),
-                    kernel_version: "test-kernel".to_string(),
-                    dataset_fingerprint: "test-fingerprint".to_string(),
+                    kernel_version: "kernel".to_string(),
+                    dataset_fingerprint: "fp".to_string(),
                     parameters: Vec::new(),
                 },
                 geometry: None,
