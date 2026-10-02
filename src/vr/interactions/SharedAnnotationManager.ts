@@ -131,6 +131,11 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
   networkManager: NetworkManager | null = null;
   currentTourStep: number = 0;
   private _remoteDeltaTimes: number[] = [];
+  private readonly _onStateDelta = (event: Event): void => {
+    const customEvt = event as CustomEvent;
+    const { topic, data } = customEvt.detail || {};
+    if (topic) this.handleRemoteDelta(topic, data);
+  };
 
   constructor(networkManager?: NetworkManager | null) {
     super();
@@ -145,6 +150,7 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
    * Connect network event listeners for state deltas.
    */
   setNetworkManager(net: NetworkManager | null): void {
+    this._unwireNetwork();
     this.networkManager = net;
     if (net) {
       this._wireNetwork();
@@ -325,13 +331,11 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
 
   private _wireNetwork(): void {
     if (!this.networkManager) return;
-    this.networkManager.addEventListener('stateDelta', (event: Event) => {
-      const customEvt = event as CustomEvent;
-      const { topic, data } = customEvt.detail || {};
-      if (topic) {
-        this.handleRemoteDelta(topic, data);
-      }
-    });
+    this.networkManager.addEventListener('stateDelta', this._onStateDelta);
+  }
+
+  private _unwireNetwork(): void {
+    this.networkManager?.removeEventListener('stateDelta', this._onStateDelta);
   }
 
   private _renderAnnotationMesh(annotation: SpatialAnnotation): void {
@@ -416,6 +420,8 @@ export class SharedAnnotationManager extends THREE.Group<AnnotationManagerEventM
   }
 
   dispose(): void {
+    this._unwireNetwork();
+    this.networkManager = null;
     for (const [_id, mesh] of this.annotationMeshes) {
       this.remove(mesh);
       this._disposeGroup(mesh);

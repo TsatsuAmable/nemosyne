@@ -27,6 +27,8 @@ export class AsymmetricDesktopCompanion {
   isFollowingVR: boolean = true;
   followingPeerId: string | null = null;
   private _visible = true;
+  private readonly _onPeerJoined = (): void => this.render();
+  private readonly _onPeerLeft = (): void => this.render();
 
   constructor({
     container,
@@ -202,11 +204,13 @@ export class AsymmetricDesktopCompanion {
 
   private _wireNetwork(): void {
     if (!this.networkManager) return;
-    this.networkManager.addEventListener('peerJoined', () => this.render());
-    this.networkManager.addEventListener('peerLeft', () => this.render());
+    this.networkManager.addEventListener('peerJoined', this._onPeerJoined);
+    this.networkManager.addEventListener('peerLeft', this._onPeerLeft);
   }
 
   dispose(): void {
+    this.networkManager?.removeEventListener('peerJoined', this._onPeerJoined);
+    this.networkManager?.removeEventListener('peerLeft', this._onPeerLeft);
     this.element.remove();
   }
 }

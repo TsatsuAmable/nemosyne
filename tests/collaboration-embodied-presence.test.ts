@@ -174,6 +174,7 @@ describe('Sprint 22.5 Collaboration Embodied Presence', () => {
 
       await coordinator.joinCollaborationRoom('test-room');
       const nm = coordinator.networkManager as unknown as NetworkManager;
+      const removeListenerSpy = vi.spyOn(nm, 'removeEventListener');
       nm._connected = true;
 
       expect(coordinator.peerAvatarManager).toBeDefined();
@@ -221,6 +222,7 @@ describe('Sprint 22.5 Collaboration Embodied Presence', () => {
 
       // Leave room
       coordinator.leaveCollaborationRoom();
+      expect(removeListenerSpy).toHaveBeenCalled();
       expect(coordinator.peerAvatarManager).toBeNull();
       expect(coordinator.desktopCompanion).toBeNull();
       expect(coordinator.isConnected()).toBe(false);

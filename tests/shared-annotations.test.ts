@@ -202,4 +202,19 @@ describe('Sprint 10B.5: Shared Annotations, Bookmarks & Synchronized Tours', () 
     expect(annotationManager.bookmarks.size).toBe(1);
     expect(annotationManager.bookmarks.get('legacy-bm')?.cameraRotation).toEqual([0, 0, 0, 1]);
   });
+
+  it('unsubscribes stateDelta when replacing or disposing the network manager', () => {
+    const first = new EventTarget() as unknown as NetworkManager;
+    const second = new EventTarget() as unknown as NetworkManager;
+    const firstRemove = vi.spyOn(first, 'removeEventListener');
+    const secondRemove = vi.spyOn(second, 'removeEventListener');
+    const manager = new SharedAnnotationManager(first);
+
+    manager.setNetworkManager(second);
+    expect(firstRemove).toHaveBeenCalledWith('stateDelta', expect.any(Function));
+
+    manager.dispose();
+    expect(secondRemove).toHaveBeenCalledWith('stateDelta', expect.any(Function));
+  });
+
 });
