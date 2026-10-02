@@ -7,7 +7,26 @@
  */
 
 import * as THREE from 'three';
-import type { PeerState } from './CollaborativeStateSync.ts';
+
+/**
+ * Neutral input contract for the avatar renderer's per-peer transform update.
+ *
+ * This is NOT a collaboration state authority: it is the smallest shape the
+ * avatar renderer consumes. Peer state authority remains Room / NetworkManager
+ * (and the coordinator that forwards remote camera poses); this interface only
+ * describes what this renderer needs to draw a peer (the call sites' timestamp
+ * field is carried for drop-in compatibility with the production caller, not
+ * consumed). The superseded legacy collaboration synchronizer is deliberately
+ * not imported here.
+ */
+export interface PeerAvatarState {
+  peerId: string;
+  cameraPose?: {
+    position: [number, number, number];
+    rotation: [number, number, number, number];
+  };
+  lastUpdatedMs?: number;
+}
 
 export interface AvatarMeshGroup {
   peerId: string;
@@ -74,7 +93,7 @@ export class PeerAvatarManager {
     return existing;
   }
 
-  updatePeerTransforms(peerState: PeerState): void {
+  updatePeerTransforms(peerState: PeerAvatarState): void {
     if (!peerState.cameraPose) return;
     const avatar = this.getOrCreateAvatar(peerState.peerId);
 
