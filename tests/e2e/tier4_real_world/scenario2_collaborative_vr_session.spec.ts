@@ -2,29 +2,31 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { NetworkManager } from '../../../src/network/NetworkManager.ts';
 import {
-  datasetToFlatBuffer,
-  flatBufferToDataset,
-} from '../../../src/data/serializers/FlatBuffersSerializer.ts';
+  datasetToMessagePack,
+  messagePackToDataset,
+} from '../../../src/data/serializers/MessagePackSerializer.ts';
 import { WorldSceneComposer } from '../../../src/vr/coordinators/WorldSceneComposer.ts';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { disposeObject } from '../../../src/utils/Dispose.ts';
 
 describe('Tier 4 — Scenario 2: Collaborative WebXR Spatial Analytics Session with Stable Body Frame', () => {
-  it('Executes collaborative session workflow: peer network init, pose sync, FlatBuffer state transmission, body-frame update, and clean disposal', () => {
+  it('Executes collaborative session workflow: peer network init, pose sync, MessagePack state transmission, body-frame update, and clean disposal', () => {
     // Step 1: Initialize NetworkManager for local analyst
     const netManager = new NetworkManager({ peerName: 'Analyst_1', roomId: 'collab-room-alpha' });
     expect(netManager.roomId).toBe('collab-room-alpha');
 
-    // Step 2: Binary FlatBuffer state serialization
+    // Step 2: Binary MessagePack state serialization (CMS-2: the canonical
+    // serializer for collaboratively shared state payloads).
     const sharedDataset = new Dataset(
       'CollabDS',
       [{ name: 'metric', type: 'NUMERIC' }],
       [{ metric: 99.5 }]
     );
-    const binaryBuffer = datasetToFlatBuffer(sharedDataset);
-    expect(binaryBuffer.byteLength).toBeGreaterThan(10);
+    const binaryBuffer = datasetToMessagePack(sharedDataset);
+    expect(binaryBuffer.length).toBeGreaterThan(10);
 
-    const receivedDataset = flatBufferToDataset(binaryBuffer);
+    const receivedDataset = messagePackToDataset(binaryBuffer);
+    expect(receivedDataset.name).toBe('CollabDS');
     expect(receivedDataset.rows[0].metric).toBe(99.5);
 
     // Step 3: Physical headset pose informs body height/heading, but X/Z lean

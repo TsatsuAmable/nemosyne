@@ -36,7 +36,7 @@ Moneta consumes Rust-owned temporal evidence, selects a feasible **TIME_SERIES**
 
 ## Bring your own stream
 
-For local development the Vite server already hosts `/__demo-stream`. In production, point `WebSocketAdapter` at your own secure WebSocket endpoint and supply a `parseMessage` or `binaryParser` callback to convert your payload into `{ rows, topology?, name? }` rows. The runtime ships with a JSON parser; bring your own parser for MessagePack, Apache Arrow, or FlatBuffers frames.
+For local development the Vite server already hosts `/__demo-stream`. In production, point `WebSocketAdapter` at your own secure WebSocket endpoint and supply a `parseMessage` or `binaryParser` callback to convert your payload into `{ rows, topology?, name? }` rows. The runtime ships with a JSON parser, and canonical MessagePack and Apache Arrow IPC serializers are available from `src/data/serializers`; bring your own parser for other frame formats.
 
 ## Export
 

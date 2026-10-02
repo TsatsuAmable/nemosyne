@@ -60,6 +60,14 @@ export const FAST_NODE_TESTS = [
   // streamer module refuses to initialize outside DEV, and that the DEV
   // tooling itself survives the boundary.
   'tests/cms3-debug-bundling.test.ts',
+  // CMS-2 "false flat-buffer surface retirement" (Claude parallel maintenance
+  // sprint, base 67a60a22): exit-criterion falsifiers pinning that no test file
+  // or production source still references the retired misnamed serializer, that
+  // src/data/serializers/ holds only the two truthful canonical serializers
+  // plus their barrel, that the barrel exports exactly the two canonical
+  // serializer pairs, and that the governance capability registry no longer
+  // carries a development-only entry for the retired surface.
+  'tests/cms2-serializer-truthfulness.test.ts',
   'tests/analyst-judgement-controller.test.ts',
   'tests/collaboration-recovery.test.ts',
   'tests/coordinator-consumer-contracts.test.ts',

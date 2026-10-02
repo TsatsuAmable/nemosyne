@@ -86,12 +86,3 @@ export function generateCorruptedBinaryArrow(): ArrayBuffer {
   view.setInt32(8, 0x7fffffff, true); // Extremely large length overflow
   return buf.buffer;
 }
-
-export function generateCorruptedFlatBuffers(): ArrayBuffer {
-  // Returns truncated buffer missing root table offset
-  const buf = new Uint8Array(8);
-  const view = new DataView(buf.buffer);
-  view.setUint32(0, 100, true); // Root table offset past end of buffer
-  view.setUint32(4, 0x464c4154, true); // Identifier
-  return buf.buffer;
-}
