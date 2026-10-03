@@ -17,6 +17,27 @@ import type { InvestigationIntentV1 } from '../src/atlas/domain/InvestigationInt
 
 const SNAPSHOT_ID = 'sha256-semantic-snapshot-v1-fixedcoverage';
 
+test('the ledger owns node binding: a mismatched content nodeId cannot redirect a commit', () => {
+  const ledger = new CommittedInvestigationContextLedger();
+  const activation = ledger.commit('n-authoritative', contextOf('n-somewhere-else', ['a']));
+
+  expect(activation.nodeId).toBe('n-authoritative');
+  expect(ledger.getCommitted('n-somewhere-else')).toBeUndefined();
+  expect(ledger.getCommitted('n-authoritative')!.nodeId).toBe('n-authoritative');
+});
+
+test('a perspective carries no snapshot input, so snapshot identity is not its concern', () => {
+  expect(SNAPSHOT_ID).toMatch(/^sha256-semantic-snapshot-v1-/);
+  const keys = Object.keys(
+    canonicalizeInvestigationPerspective({
+      schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      temporalForegrounding: 'recency',
+      uncertaintyForegrounding: 'interval',
+    })
+  );
+  expect(keys.some((k) => /snapshot|population|derivation|dataset/i.test(k))).toBe(false);
+});
+
 function intentOf(variables: string[]): InvestigationIntentV1 {
   return {
     schemaVersion: 1,
@@ -43,21 +64,24 @@ function contextOf(nodeId: string, variables: string[], temporal?: 'recency' | '
 
 describe('InvestigationPerspective V1', () => {
   test('A27-0: a view-only perspective leaves snapshot identity unchanged', () => {
-    const before = SNAPSHOT_ID;
     const recency = computePerspectiveIdentity({
       schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
       temporalForegrounding: 'recency',
     });
-    const historical = computePerspectiveIdentity({
+
+    // The perspective contract holds no snapshot, population or derivation input at all, so it
+    // has no channel through which it could alter the analysed snapshot's identity.
+    expect(Object.keys(canonicalizeInvestigationPerspective({
       schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
-      temporalForegrounding: 'historical',
-    });
+      temporalForegrounding: 'recency',
+    })).sort()).toEqual(['schemaVersion', 'temporalForegrounding']);
 
-    // Foregrounding is a view concern: the analysed snapshot it describes is byte-identical.
-    expect(SNAPSHOT_ID).toBe(before);
-    expect(recency).not.toBe(historical);
+    // Foregrounding is a view concern: the analysed coverage it describes is untouched.
+    const a = canonicalizeCommittedInvestigationContext(contextOf('n1', ['x', 'y']));
+    const b = canonicalizeCommittedInvestigationContext(contextOf('n1', ['x', 'y'], 'recency'));
+    expect(b.intent).toEqual(a.intent);
 
-    // Distinct perspective must not be reachable by mutating the snapshot.
+    // Distinct perspective identity, reachable only by changing the view.
     expect(recency).toMatch(/^sha256-perspective-v1-[0-9a-f]{64}$/);
   });
 
@@ -68,7 +92,7 @@ describe('InvestigationPerspective V1', () => {
           schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
           [field]: 'anything',
         })
-      ).toThrow(/narrow the analysed population|Unsupported/);
+      ).toThrow(/narrow the analysed population/);
     }
   });
 
@@ -205,11 +229,21 @@ describe('CommittedInvestigationContextLedger', () => {
     ledger.commit('n2', contextOf('n2', ['b']));
 
     // The late A result must not be adoptable.
+    const revisionBefore = ledger.revision;
+    const epochBefore = ledger.activationEpoch;
     const verdict = checkContextCompatibility(captured, ledger.current());
     expect(verdict.ok).toBe(false);
     if (!verdict.ok) {
       expect(verdict.code).toBe(CONTEXT_INCOMPATIBLE);
     }
+
+    // F05 requires refusal BEFORE mutation: the committed state is untouched by the check.
+    expect(ledger.activeNodeId).toBe('n2');
+    expect(ledger.revision).toBe(revisionBefore);
+    expect(ledger.activationEpoch).toBe(epochBefore);
+    expect(ledger.getCommitted('n1')).toEqual(
+      canonicalizeCommittedInvestigationContext(contextOf('n1', ['a']))
+    );
 
     // Positive control: a binding that still matches is adoptable, so refusal is not universal.
     const fresh = ledger.currentBinding()!;
@@ -241,6 +275,24 @@ describe('CommittedInvestigationContextLedger', () => {
     );
     expect(verdict.ok).toBe(false);
     if (!verdict.ok) expect(verdict.code).toBe(CONTEXT_INCOMPATIBLE);
+  });
+
+  test('A27-0 section 9: same-content revisit alone increments the activation epoch', () => {
+    const ledger = new CommittedInvestigationContextLedger();
+    ledger.commit('n1', contextOf('n1', ['a']));
+
+    const first = ledger.currentBinding()!;
+    ledger.activate('n1');
+    const second = ledger.getActivation('n1')!;
+    expect(second.activationEpoch).toBe(first.activationEpoch + 1);
+
+    ledger.activate('n1');
+    const third = ledger.getActivation('n1')!;
+    expect(third.activationEpoch).toBe(second.activationEpoch + 1);
+
+    // Same content throughout: identity is stable while the epoch keeps advancing.
+    expect(third.contextId).toBe(first.contextId);
+    expect(ledger.revision).toBe(1);
   });
 
   test('activating an uncommitted node throws rather than inventing context', () => {
