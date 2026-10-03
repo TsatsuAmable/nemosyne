@@ -58,6 +58,8 @@ The ladder explicitly restores product ideas that remain part of Nemosyne's iden
 - **Cross-investigation recurrence/resonance** becomes eligible once enough governed discovery history exists; recurrence must remain visually and semantically distinct from validation.
 - **Sparse cyberspace / Datum Plane identity** remains the visual doctrine: the dataset and evidence are protagonist, and every persistent spatial object must earn its volume.
 
+**Semantic embodiment clarification / future review:** [`SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md`](SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md) makes explicit that Moneta Forma is a semantic-to-perceptual responsibility, not merely a 3D renderer: dataset semantics may be encoded through governed geometry, motion, sound, interaction and perturbation when the mapping is meaningful and explainable. Review this clarification at the **FM3 STOP / CONTINUE / REVISE gate** against P1-MCR and multimodal evidence, and again before **FM7 representation search** is promoted; preserve, revise or retire mappings according to measured comprehension/discovery value rather than novelty.
+
 Each increment ends with a **STOP / CONTINUE / REVISE** product assessment in addition to its normal software/scientific promotion evidence.
 
 
