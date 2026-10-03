@@ -7,13 +7,14 @@
 **Governing vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`  
 **Dataset-first design:** `docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`  
 **Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`  
-**Capability integration plan:** `docs/roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`
+**Capability integration plan:** `docs/roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`  
+**Full-Moneta semantic embodiment architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`
 
 ## 1. Mission
 
-Expand Moneta from a compatibility graph around one fixed representation winner into a governed **compositional representation capability** in which several evidence-bound semantic phenomena can coexist in one representation and be embodied by several coordinated spatial elements.
+Expand Moneta from a compatibility graph around one fixed representation winner into a governed **compositional semantic-embodiment capability** in which several evidence-bound semantic phenomena can coexist in one representation and be compiled into coordinated perceptual channels.
 
-This workstream owns the representation architecture and production embodiment path. It is deliberately **separate from the evolutionary synthesis algorithm**.
+This workstream owns the representation architecture and production embodiment path. It is deliberately **separate from the evolutionary synthesis algorithm**. Following the Full-Moneta semantic-embodiment preflight, spatial geometry is the first backend rather than the terminal representation ontology.
 
 The intended stable layering is:
 
@@ -23,8 +24,12 @@ Rust/WASM DatasetEvidence + governed semantic payloads
        evidence-bound semantic truth and refinement identity
   -> RepresentationGraph
        Moneta's compositional representation hypothesis
-  -> SpatialEmbodimentPlan
-       disposable spatial phenotype / presentation plan
+  -> Moneta Forma semantic-to-perceptual compiler
+       typed perceptual bindings / behaviour / interaction policy
+  -> PerceptualEmbodimentPlan
+       modality-independent terminal plan
+       -> SpatialEmbodimentPlan
+       -> optional qualified audio/haptic/behaviour backends
   -> desktop / WebXR runtime
 ```
 
@@ -213,19 +218,24 @@ Add relation-specific validation for the composition relations actually admitted
 
 **Exit:** malformed, dangling, evidence-incompatible, abstraction-illegal and unsupported compositions fail closed before spatial compilation.
 
-### MCR2 — general semantic-to-spatial compiler
+### MCR2 — Moneta Forma semantic-to-perceptual compiler, spatial backend first
 
-Implement one production compiler that consumes the validated semantic graph + representation graph and emits a bounded `SpatialEmbodimentPlan`.
+Before renderer implementation, land the bounded contract preflight described by **L2-FORMA-0** in the Full-Moneta architecture plan: typed perceptual channel IDs, `PerceptualBindingV1`, `PerceptualEmbodimentPlanV1`, provenance/fidelity/explanation requirements and fail-closed validators.
+
+Then implement one deterministic/reference production compiler that consumes the validated semantic graph + representation graph and emits a bounded `PerceptualEmbodimentPlan`. The first qualified backend is the existing `SpatialEmbodimentPlanV1`; this is intentionally an evolution of the old semantic-to-spatial tranche, not a second semantic authority.
 
 Requirements:
 
 - no analytical inference in TypeScript;
-- one semantic node may produce several presentation elements when explicitly allowed;
+- every data-bearing perceptual property binds to governed semantic/evidence identity;
+- one semantic node may produce several perceptual/spatial elements when explicitly allowed;
 - one representation may contain several semantic nodes;
-- layout/geometry parameters cannot rewrite semantic/evidence identity;
-- alternative spatial plans for the same semantic graph remain distinguishable phenotype choices rather than new analytical claims.
+- geometry, colour, motion, sound or haptic parameters cannot rewrite semantic/evidence identity;
+- the compiler may ABSTAIN or simplify when no justified binding exists;
+- alternative backend plans for the same semantic graph remain distinguishable phenotype choices rather than new analytical claims;
+- `SemanticEmbodimentGraphV1.presentationHints` are not expanded into a shadow Forma API.
 
-**Exit:** the same semantic graph can be compiled into at least two valid spatial phenotypes without changing dataset/decision/evidence identity.
+**Exit:** the same semantic graph can be compiled through the perceptual plan into at least two valid spatial phenotypes without changing dataset/decision/evidence identity, and every embodied property in the reference slice can be reverse-traced to its binding and semantic source.
 
 ### MCR3 — multi-element runtime and lifecycle
 
@@ -286,11 +296,11 @@ P1-MCR is complete only when all of the following are true:
 
 1. A `RepresentationGraph` with two or more governed semantic phenomena is production-reachable.
 2. Every embodied primitive binds to a valid semantic/evidence identity; unsupported bindings fail closed.
-3. `SpatialEmbodimentPlan` is the authoritative presentation phenotype boundary; geometry cannot create analytical meaning.
+3. `PerceptualEmbodimentPlan` is the terminal embodiment boundary; `SpatialEmbodimentPlan` is its first backend and no perceptual channel can create analytical meaning.
 4. Multi-element rendering no longer requires flattening to one legacy `MonetaSpec`.
 5. Dataset-level composition cannot silently enter a whole-row presentation path.
 6. At least one composed representation survives refine/collapse/evict/reconstruct without semantic or selection drift.
-7. The same semantic representation can support multiple spatial phenotypes without changing the underlying claim set.
+7. The same semantic representation can support multiple perceptual/spatial phenotypes without changing the underlying claim set.
 8. Fixed candidate decisions remain supported through the compatibility adapter during migration.
 9. Persistence/replay either reconstructs the same composition under pinned ontology/evidence versions or refuses explicitly.
 10. Evidence Protocol feasibility/admissibility gates run before representation utility/fitness ranking.
@@ -299,8 +309,8 @@ P1-MCR is complete only when all of the following are true:
 
 ## 7. First implementation slice after promotion
 
-MCR0 authority/schema bounds are landed by #800 and MCR1 cross-contract validation is landed by #801. When the live roadmap promotes the production expansion, the next promoted slice is **MCR2 general semantic-to-spatial compilation**, gated by the relevant P1-TEC closure and the intervening PT9/PT10 prerequisites.
+MCR0 authority/schema bounds are landed by #800 and MCR1 cross-contract validation is landed by #801. When the live roadmap promotes the production expansion, the next promoted slice is **MCR2 Moneta Forma semantic-to-perceptual compilation (spatial backend first)**, gated by the relevant P1-TEC closure and the active Full-Moneta capability prerequisites.
 
-Do not begin by teaching Moneta to search a larger space. First prove that a hand-authored/deterministic two-phenomenon `RepresentationGraph` can bind only admissible evidence, compile into a bounded `SpatialEmbodimentPlan`, and survive the production lifecycle without weakening P1-TEC evidence identity or abstention semantics.
+Do not begin by teaching Moneta to search a larger space. First prove that a hand-authored/deterministic two-phenomenon `RepresentationGraph` can bind only admissible evidence, compile through a bounded `PerceptualEmbodimentPlan` into `SpatialEmbodimentPlanV1`, and survive the production lifecycle without weakening P1-TEC evidence identity or abstention semantics.
 
 Search can arrive after the road exists.
