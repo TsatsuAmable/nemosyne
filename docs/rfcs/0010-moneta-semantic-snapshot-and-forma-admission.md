@@ -8,7 +8,7 @@
 
 **Acceptance:** 3 October 2026 — project owner explicitly reviewed and accepted the A27-0 decision and RFC in the Codex task for [PR #927](https://github.com/TsatsuAmable/nemosyne/pull/927), instructing: “reviewed and accpted. Update the records so that it is implementation ready”. Acceptance applies to the contracts reviewed at `4cc007827e9103d0e8efd2ddcef8e025e5372dd6`; this update records that decision without changing the technical contract. Implementation starts from fresh main after this PR is integrated and remains subject to the lane prerequisites and evidence gates.
 
-> **Subsequent proposal:** [RFC 0011](0011-dual-epistemic-embodiment-and-preservation.md) addresses dual epistemic purposes introduced by PR #929. This RFC remains accepted for its reviewed scope; the amendment is not yet accepted. Consult ROADMAP before freezing affected contracts.
+> **Accepted amendment:** [RFC 0011](0011-dual-epistemic-embodiment-and-preservation.md) addresses dual epistemic purposes introduced by PR #929. This RFC remains accepted for its reviewed scope; RFC 0011 is accepted as amended by delegated adjudication and governs the changed context/binding/preservation contracts. Consult ROADMAP before freezing affected contracts.
 
 ## Context
 
