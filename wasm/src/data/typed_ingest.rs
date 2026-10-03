@@ -335,4 +335,62 @@ mod tests {
         trailing.push(0xff);
         assert!(parse(&trailing).is_err());
     }
+
+    #[test]
+    fn rejects_invalid_magic_and_truncated_headers() {
+        assert!(parse(b"").is_err());
+        assert!(parse(b"NTC").is_err());
+        assert!(parse(b"NTC2\x01\x00\x00\x00\x01\x00\x00\x00").is_err());
+        assert!(parse(b"NTC1\x01\x00\x00\x00").is_err()); // Truncated before column count
+    }
+
+    #[test]
+    fn rejects_validity_vector_and_code_mismatches() {
+        // Primitive column payload with truncated validity vector
+        let mut bytes = MAGIC.to_vec();
+        push_u32(&mut bytes, 2); // 2 rows
+        push_u32(&mut bytes, 1); // 1 col
+        bytes.push(1);           // numeric
+        push_string(&mut bytes, "x");
+        bytes.extend_from_slice(&1.0f64.to_le_bytes());
+        bytes.extend_from_slice(&2.0f64.to_le_bytes());
+        bytes.push(1); // Only 1 validity byte instead of 2
+        assert!(parse_with_schema(&bytes).is_err());
+
+        // Categorical column with truncated codes
+        let mut cat_bytes = MAGIC.to_vec();
+        push_u32(&mut cat_bytes, 2);
+        push_u32(&mut cat_bytes, 1);
+        cat_bytes.push(3);
+        push_string(&mut cat_bytes, "c");
+        push_u32(&mut cat_bytes, 2);
+        push_string(&mut cat_bytes, "a");
+        push_string(&mut cat_bytes, "b");
+        push_u32(&mut cat_bytes, 0); // Only 1 code instead of 2
+        cat_bytes.extend_from_slice(&[1, 1]);
+        assert!(parse_with_schema(&cat_bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_column_kinds() {
+        let mut bytes = MAGIC.to_vec();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(99); // Unsupported column kind
+        push_string(&mut bytes, "invalid");
+        assert!(parse_with_schema(&bytes).is_err());
+    }
+
+    #[test]
+    fn typed_ingest_survives_fuzzed_payload_mutations() {
+        let valid = one_categorical_payload(0);
+        for i in 0..valid.len() {
+            let mut mutated = valid.clone();
+            mutated[i] ^= 0xff;
+            let _ = parse(&mutated);
+        }
+        for split in 0..valid.len() {
+            let _ = parse(&valid[..split]);
+        }
+    }
 }

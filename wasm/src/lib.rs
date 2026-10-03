@@ -1503,6 +1503,8 @@ fn log_error(msg: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::typed_ingest::{data_load_typed_columns, data_load_typed_columns_named};
+    use crate::data::compatibility::compatibility_dataset_to_json;
 
     #[test]
     fn ping_returns_42() {
@@ -2259,6 +2261,76 @@ mod tests {
             }
             dealloc(ptr, len);
         }
+    }
+
+    /// RF-043: Systematic ABI boundary coverage ensuring foreign, boundary, and
+    /// overflowing pointers across all exported WASM APIs fail closed with 0 or
+    /// safe refusal, never dereferencing invalid memory or trapping.
+    #[test]
+    fn abi_exported_entries_reject_hostile_pointers_and_lengths() {
+        let hostile_ranges: &[(u32, u32)] = &[
+            (u32::MAX, 1),
+            (u32::MAX, u32::MAX),
+            (u32::MAX - 1, 2),
+            (1, u32::MAX),
+            (0xffff_0000, 1024),
+            (0x7fff_ffff, 1024),
+            (0xffff_fff0, 16),
+        ];
+
+        let req_version = kernel_version(0, 0);
+        assert!(req_version > 0);
+
+        for &(ptr, len) in hostile_ranges {
+            assert_eq!(data_load_csv(ptr, len), 0);
+            assert_eq!(data_load_json(ptr, len), 0);
+            assert_eq!(data_load_dataset_json(ptr, len), 0);
+            assert_eq!(data_load_sample(ptr, len), 0);
+            assert_eq!(data_load_typed_columns(ptr, len), 0);
+            assert_eq!(data_load_typed_columns_named(ptr, len, ptr, len), 0);
+            assert_eq!(data_operation(1, ptr, len), 0);
+            assert_eq!(data_compute_structure_profile(1, ptr, len), 0);
+            assert_eq!(compatibility_dataset_to_json(1, ptr, len), 0);
+            assert_eq!(fill_pattern(ptr, len), 0);
+            // With an unbacked output pointer (> cap or overflowing), kernel_version must fail closed with 0
+            if ptr >= 0x7fff_ffff {
+                assert_eq!(kernel_version(ptr, req_version), 0);
+            }
+        }
+    }
+
+    /// RF-043: Extreme floating-point values and degenerate data ingested through ABI
+    /// must not trap structure profiling, row counting, or JSON compatibility paths.
+    #[test]
+    fn abi_extreme_numerics_roundtrip_and_safety() {
+        let extreme_json = br#"[
+            {"name": "extremes", "val": 1e308},
+            {"name": "subnormal", "val": 1e-324},
+            {"name": "large_neg", "val": -1e308}
+        ]"#;
+        let (ptr, len) = allocator::copy_bytes(extreme_json);
+        let handle = data_load_json(ptr, len);
+        dealloc(ptr, len);
+        assert_ne!(handle, 0);
+
+        assert_eq!(dataset_row_count(handle), 3);
+        assert_eq!(dataset_column_count(handle), 2);
+
+        // Computing structure profile must succeed safely
+        let req_profile = data_compute_structure_profile(handle, 0, 0);
+        assert!(req_profile > 0);
+        let out_buf = alloc(req_profile);
+        assert_eq!(data_compute_structure_profile(handle, out_buf, req_profile), req_profile);
+        dealloc(out_buf, req_profile);
+
+        // Compatibility JSON write must succeed safely
+        let req_json = compatibility_dataset_to_json(handle, 0, 0);
+        assert!(req_json > 0);
+        let json_buf = alloc(req_json);
+        assert_eq!(compatibility_dataset_to_json(handle, json_buf, req_json), req_json);
+        dealloc(json_buf, req_json);
+
+        dataset_destroy(handle);
     }
 }
 

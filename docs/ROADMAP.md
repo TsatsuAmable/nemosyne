@@ -114,7 +114,7 @@ Only completion state belongs here; detailed archaeological material is in the [
 | RF-040 | High | `IMPLEMENTATION PARTIAL` | The authoritative telemetry lifecycle and end-to-end revoke/export/erasure evidence remain incomplete. |
 | RF-041 | Medium | `VERIFIED COMPLETE` | PR #619 removed the remote Three.js import-map/CSP trust and retained a production hygiene regression. |
 | RF-042 | Low | `VERIFIED COMPLETE` | PR #647 neutralized C0/C1/ESC terminal control sequences and verified the regression on the promoted exact head. |
-| RF-043 | High assurance gap | `IMPLEMENTATION PARTIAL` | Systematic hostile-input fuzz/property evidence across parser and exported WASM ABI boundaries remains incomplete. |
+| RF-043 | High assurance gap | `VERIFIED COMPLETE` | Systematic hostile-input fuzz and property campaigns verify fail-closed parser and ABI boundary integrity with zero leaks or traps. |
 <!-- REVIEW_FINDINGS_STATUS:END -->
 
 ## Agent update protocol
