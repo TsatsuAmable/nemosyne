@@ -77,6 +77,7 @@ QCA1, QCA2 and QCA4 may run concurrently only when their files/ownership do not 
 | --- | --- | --- |
 | **Adversarial Shadow Review (ASR)** | **READY / advisory** | Candidates require independent validation before becoming obligations. [Shadow governance](../governance/shadow/README.md) |
 | **Recursive Falsification Laboratory (RFL)** | **READY / advisory** | Additive falsification only; no production repair/self-adjudication. [Iteration contract](../governance/rfl/iteration-contract.md) |
+| **NemoCoder apprenticeship** | **BOOTSTRAP / parallel-safe support lane** | Mac-hosted eval-first specialist-model training; no production/merge/scientific authority. [Plan](work/nemocoder/README.md), [operating model](../governance/nemocoder/OPERATING_MODEL.md) |
 
 Validated critical/high findings pre-empt affected feature work. Candidate findings do not. Agents should inspect their assigned validated findings before selecting ordinary work.
 
