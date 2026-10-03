@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "project": "nemocoder",
+  "baseHost": "mac",
+  "serving": {
+    "preferredRuntime": "ollama",
+    "firstCandidate": "gpt-oss-20b",
+    "alternates": ["gemma-4-small", "qwen-coder-small", "other-evidence-selected-open-model"]
+  },
+  "training": {
+    "preferredLocalBackend": "mlx-lm",
+    "portableBackend": "transformers-trl-peft",
+    "requireEvalBeforeTraining": true,
+    "allowPaidExternalComputeWithoutPriorPolicy": false
+  },
+  "evaluation": {
+    "minimumTasksForLevelPromotion": 20,
+    "levelSuccessRate": 0.8,
+    "maximumPriorLevelRegression": 0.05,
+    "minimumAggregateImprovement": 0.03,
+    "criticalViolationTolerance": 0,
+    "insufficientEvidenceOutcome": "ABSTAIN_INSUFFICIENT_EVIDENCE"
+  },
+  "supervision": {
+    "maxConcurrentTrainingJobsOnMac": 1,
+    "maxConcurrentHeavyEvalJobsOnMac": 1,
+    "repeatFailureCircuitBreaker": 3,
+    "userUpdateMaxFrequencyHours": 6
+  },
+  "forbidden": [
+    "train_on_secret_holdout",
+    "mutate_canonical_main_during_eval",
+    "weaken_tests_or_governance_for_score",
+    "self_grant_production_or_merge_authority",
+    "expose_credentials_or_private_data"
+  ]
+}
