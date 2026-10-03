@@ -31,6 +31,7 @@ test('a perspective carries no snapshot input, so snapshot identity is not its c
   const keys = Object.keys(
     canonicalizeInvestigationPerspective({
       schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      mode: 'foreground',
       temporalForegrounding: 'recency',
       uncertaintyForegrounding: 'interval',
     })
@@ -56,6 +57,7 @@ function contextOf(nodeId: string, variables: string[], temporal?: 'recency' | '
       : {
           perspective: {
             schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+            mode: 'foreground',
             temporalForegrounding: temporal,
           },
         }),
@@ -66,6 +68,7 @@ describe('InvestigationPerspective V1', () => {
   test('A27-0: a view-only perspective leaves snapshot identity unchanged', () => {
     const recency = computePerspectiveIdentity({
       schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      mode: 'foreground',
       temporalForegrounding: 'recency',
     });
 
@@ -73,8 +76,9 @@ describe('InvestigationPerspective V1', () => {
     // has no channel through which it could alter the analysed snapshot's identity.
     expect(Object.keys(canonicalizeInvestigationPerspective({
       schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      mode: 'foreground',
       temporalForegrounding: 'recency',
-    })).sort()).toEqual(['schemaVersion', 'temporalForegrounding']);
+    })).sort()).toEqual(['mode', 'schemaVersion', 'temporalForegrounding']);
 
     // Foregrounding is a view concern: the analysed coverage it describes is untouched.
     const a = canonicalizeCommittedInvestigationContext(contextOf('n1', ['x', 'y']));
@@ -90,6 +94,7 @@ describe('InvestigationPerspective V1', () => {
       expect(() =>
         canonicalizeInvestigationPerspective({
           schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+          mode: 'foreground',
           [field]: 'anything',
         })
       ).toThrow(/narrow the analysed population/);
@@ -100,6 +105,7 @@ describe('InvestigationPerspective V1', () => {
     expect(() =>
       canonicalizeInvestigationPerspective({
         schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+        mode: 'foreground',
         notAViewField: 1,
       })
     ).toThrow(/Unsupported InvestigationPerspective field/);
@@ -109,16 +115,21 @@ describe('InvestigationPerspective V1', () => {
     expect(() =>
       canonicalizeInvestigationPerspective({
         schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+        mode: 'foreground',
         temporalForegrounding: 'newest-ten',
       })
     ).toThrow(/must be one of/);
   });
 
-  test('absence is preserved rather than defaulted', () => {
+  test('absent optional foregrounding stays absent rather than becoming a default', () => {
     const canonical = canonicalizeInvestigationPerspective({
       schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      mode: 'foreground',
     });
-    expect(Object.keys(canonical)).toEqual(['schemaVersion']);
+    // Only the mandatory mode is present; no empty/undefined foregrounding is invented.
+    expect(Object.keys(canonical).sort()).toEqual(['mode', 'schemaVersion']);
+    expect('temporalForegrounding' in canonical).toBe(false);
+    expect('uncertaintyForegrounding' in canonical).toBe(false);
     expect(computePerspectiveIdentity(canonical)).toMatch(/^sha256-perspective-v1-/);
   });
 
@@ -191,6 +202,68 @@ describe('CommittedInvestigationContext V1', () => {
       computeCommittedContextIdentity(canonical)
     );
     expect('perspective' in canonical).toBe(false);
+  });
+});
+
+describe('InvestigationPerspective mode (ERA-ASTRA1 section 4.2)', () => {
+  test('a perspective must declare whether it foregrounds or requests a new operation', () => {
+    expect(() =>
+      canonicalizeInvestigationPerspective({
+        schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+        temporalForegrounding: 'recency',
+      })
+    ).toThrow(/must declare mode/);
+  });
+
+  test('an unknown mode refuses rather than defaulting to a view', () => {
+    expect(() =>
+      canonicalizeInvestigationPerspective({
+        schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+        mode: 'analyse',
+      })
+    ).toThrow(/must be one of/);
+  });
+
+  test('mode participates in identity', () => {
+    const foreground = computePerspectiveIdentity({
+      schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      mode: 'foreground',
+      temporalForegrounding: 'recency',
+    });
+    const requested = computePerspectiveIdentity({
+      schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+      mode: 'request_derivation',
+      temporalForegrounding: 'recency',
+    });
+    expect(foreground).not.toBe(requested);
+  });
+
+  test('request_derivation still cannot narrow the population: requesting is not filtering', () => {
+    for (const field of ['filter', 'threshold', 'subset', 'limit']) {
+      expect(() =>
+        canonicalizeInvestigationPerspective({
+          schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+          mode: 'request_derivation',
+          [field]: 'anything',
+        })
+      ).toThrow(/narrow the analysed population/);
+    }
+  });
+
+  test('a derivation request still leaves the analysed intent untouched', () => {
+    const plain = canonicalizeCommittedInvestigationContext(contextOf('n1', ['x', 'y']));
+    const requested = canonicalizeCommittedInvestigationContext({
+      schemaVersion: COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V1,
+      nodeId: 'n1',
+      intent: intentOf(['x', 'y']),
+      perspective: {
+        schemaVersion: INVESTIGATION_PERSPECTIVE_SCHEMA_V1,
+        mode: 'request_derivation',
+      },
+    });
+    // ERA-ASTRA1: the request is scheduled by Atlas and returns a new immutable snapshot, so the
+    // request itself must not mutate the analysed scope.
+    expect(requested.intent).toEqual(plain.intent);
   });
 });
 
