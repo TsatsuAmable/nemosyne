@@ -192,7 +192,7 @@ Quickly propose promising representation primitives, bounded compositions, metap
 
 ### 5.2 Inputs
 
-Only canonical governed inputs may be consumed:
+Only canonical governed inputs may be consumed. The durable metaphor knowledge itself lives in the versioned Forma Knowledge Base defined by the canonical Full-Moneta architecture; System-1 consumes bounded features/IDs from that knowledge but is never its sole store.
 
 - candidate raw fitness components;
 - dataset structure/evidence references already admitted by Moneta;
@@ -202,7 +202,8 @@ Only canonical governed inputs may be consumed:
 - qualified `PerceptualBinding` / metaphor-template features once FM3 Forma contracts exist;
 - information-preservation/loss descriptors;
 - device/perceptual budget and channel availability;
-- explicit researcher-context fields allowed by policy.
+- explicit researcher-context fields allowed by policy;
+- versioned Forma case/template/contraindication features once L2-FORMA-KB0 is qualified.
 
 The model must not traverse raw datasets independently or manufacture analytical features in TypeScript.
 
@@ -241,7 +242,7 @@ Permitted FM5 training evidence:
 
 A useful FM5 experiment is **distillation from System-2 + deterministic Forma**: run slower governed reasoning/search and binding admission over a bounded corpus and train System-1 to predict which representation/binding/template candidates are worth exploring first. The student proposal does not inherit System-2 or Forma authority.
 
-New product judgement/discovery-outcome adaptation belongs to FM6/PT9.
+New product judgement/discovery-outcome adaptation belongs to FM6/PT9. FM6 may additionally distil qualified `HumanMeaningJudgmentV1` / `EmbodimentCritiqueV1` outcomes into proposal priors, but those records remain durable scoped knowledge independently of the model weights.
 
 ## 6. System-2 Moneta
 
@@ -432,7 +433,7 @@ Any later personalized model must be separately versioned, reversible, attributa
 
 - wait for the FM3 `PerceptualBinding` / `PerceptualEmbodimentPlan` grammar to stabilize before pinning proposal outputs;
 - define FM1-FM4 semantic/intent/device proposal feature schema;
-- define bounded `FormaProposalSet` outputs over registered representation primitives, templates, bindings and search-order hints;
+- define bounded `FormaProposalSetV1` outputs over registered case/template IDs, representation primitives, bindings, resolution variants and search-order hints;
 - retain deterministic policy + linear learned ranker as baselines;
 - build System-2 + deterministic Forma distillation/evaluation corpus;
 - test tiny nonlinear ranker only if the bounded proposal task justifies it;
@@ -447,7 +448,7 @@ Any later personalized model must be separately versioned, reversible, attributa
 - research freeze/replay tests;
 - STOP / CONTINUE / REVISE review against deterministic baselines.
 
-FM6 may then add governed researcher/discovery-outcome learning to the qualified System-1 Forma/representation lane.
+FM6 may then add governed human-meaning/discovery-outcome learning to the qualified System-1 Forma/representation lane. System-1 remains a compiled intuition over durable Forma knowledge, not the authority or memory of that knowledge.
 
 ## 14. Falsifiers
 
@@ -457,11 +458,12 @@ Revise or stop this architecture if any of the following occurs:
 - the deterministic cue resolver cannot preserve input-modality semantic parity;
 - the small temporal model is not materially better than deterministic interaction logic;
 - ONNX Runtime footprint or scheduling measurably harms XR stability;
-- the representation proposal model fails to reduce search work or improve candidate coverage;
+- the Forma proposal model fails to reduce retrieval/search work or improve useful candidate coverage over deterministic case/rule retrieval;
 - System-1 advice causes hard-constraint or evidence-admission bypass;
 - replay requires rerunning mutable inference to reproduce investigation meaning;
 - model versioning/promotion complexity exceeds the product value;
-- a single shared model is empirically simpler and safer after independent specialist baselines exist.
+- a single shared model is empirically simpler and safer after independent specialist baselines exist;
+- retaining human metaphor expertise requires opaque model weights rather than inspectable cases/rules, in which case the design must be revised rather than accepting the opacity.
 
 ## 15. External runtime constraints checked
 
