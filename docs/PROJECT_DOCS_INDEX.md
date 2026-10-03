@@ -39,6 +39,9 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 - [`STATISTICAL_METHOD_REGISTER.md`](STATISTICAL_METHOD_REGISTER.md) - governed statistical method inventory.
 - [`GETTING_STARTED.md`](GETTING_STARTED.md) - user/developer setup reference.
 - [`../README.md`](../README.md) - repository entry point.
+- [`work/nemocoder/README.md`](work/nemocoder/README.md) - autonomous local specialist-model apprenticeship programme and phase plan.
+- [`work/nemocoder/CURRICULUM_AND_EVAL.md`](work/nemocoder/CURRICULUM_AND_EVAL.md) - progressive task curriculum, hidden-evaluation and promotion contract.
+- [`../governance/nemocoder/OPERATING_MODEL.md`](../governance/nemocoder/OPERATING_MODEL.md) - autonomous controller, isolation, supervision, data-safety and reporting contract.
 
 These documents may describe current implementation but must not override the governing authorities above. Historical stream labels retained in active evidence/reference documents are provenance, not current execution ownership.
 
