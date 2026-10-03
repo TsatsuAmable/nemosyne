@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { renderProductionReadiness } from './render-production-readiness.mjs';
 import {
@@ -201,6 +202,7 @@ function checkMarkdownLinks(path) {
 for (const path of [
   'docs/PROJECT_DOCS_INDEX.md',
   'docs/PRODUCTION_READINESS.md',
+  'docs/ROADMAP.md',
   'CONTRIBUTING.md',
   'SECURITY.md',
   'docs/OWNERSHIP.md',
@@ -208,6 +210,47 @@ for (const path of [
   'docs/architecture/decisions/README.md',
 ]) {
   checkMarkdownLinks(path);
+}
+
+// Bounded roadmap base-identity check. Every `main@<sha>` claim in the
+// canonical roadmap must resolve to a real commit that is an ancestor of (or
+// equal to) HEAD. This detects stale/diverged base identity and dangling
+// canonical references without inferring semantic milestone completion from
+// merges: a merged SHA stays valid history, while an unknown or
+// newer-than-HEAD SHA fails closed until the snapshot is reconciled.
+try {
+  const roadmap = read('docs/ROADMAP.md');
+  const bases = new Set(
+    [...roadmap.matchAll(/main@([0-9a-f]{7,40})/g)].map((match) => match[1]),
+  );
+  for (const sha of bases) {
+    let resolved = '';
+    try {
+      resolved = execFileSync('git', ['rev-parse', '--verify', `${sha}^{commit}`], {
+        cwd: root,
+        encoding: 'utf8',
+      }).trim();
+    } catch {
+      fail(
+        `docs/ROADMAP.md references unknown commit main@${sha}; use a SHA present in this repository`,
+      );
+      continue;
+    }
+    try {
+      execFileSync('git', ['merge-base', '--is-ancestor', resolved, 'HEAD'], {
+        cwd: root,
+        stdio: 'ignore',
+      });
+    } catch {
+      fail(
+        `docs/ROADMAP.md base main@${sha} is not an ancestor of HEAD; reconcile the snapshot with current main`,
+      );
+    }
+  }
+} catch (error) {
+  fail(
+    `roadmap base-identity check failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }
 
 if (failures.length > 0) {
