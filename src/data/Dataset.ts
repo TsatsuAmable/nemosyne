@@ -156,7 +156,7 @@ export class Dataset {
     rowIds?: string[]
   ) {
     this.name = name;
-    this.columns = columns;
+    this.columns = columns.filter((c) => !DANGEROUS_ROW_KEYS.has(c.name));
     this.rows = rows.map(sanitizeRow);
     this.edges = edges?.map(cloneEdge);
     this._setRowIds(rowIds);
