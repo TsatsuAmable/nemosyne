@@ -4,9 +4,9 @@ import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.ts';
-import type { AccessibilityOptions, MovablePanelOptions, UserMode } from '../coordinators/types.ts';
+import type { AccessibilityOptions, PanelOptions, UserMode } from '../coordinators/types.ts';
 
-export interface InteractionCoachOptions extends MovablePanelOptions {
+export interface InteractionCoachOptions extends PanelOptions {
   userMode?: UserMode;
   maxEntries?: number;
 }

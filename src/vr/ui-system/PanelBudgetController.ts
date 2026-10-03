@@ -15,7 +15,7 @@ interface PanelSlot {
  * Pinned panels are exempt from automatic replacement.
  *
  * This controller governs ONLY SpatialPanel-based surfaces.
- * Legacy MovablePanel instances remain under PanelRolesManager until P1-U8.
+ * legacy canvas-panel instances remain under PanelRolesManager until P1-U8.
  */
 export class PanelBudgetController {
   private _slots: Map<SpatialPanel, PanelSlot> = new Map();

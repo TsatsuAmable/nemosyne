@@ -24,7 +24,7 @@ export interface StatusStripPanelOptions {
 /**
  * Persistent, analyst-anchored investigation grounding surface.
  *
- * UXR1 migrates the C2 status strip from the legacy CanvasTexture/MovablePanel
+ * UXR1 migrates the C2 status strip from the legacy canvas-texture panel
  * renderer to the shared SpatialPanel + UIKit substrate. The strip remains a
  * presentation-only projection: it owns no analytical, investigation or
  * recovery authority and is deliberately non-interactive.

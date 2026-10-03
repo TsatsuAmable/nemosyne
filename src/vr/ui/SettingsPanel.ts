@@ -30,7 +30,7 @@ import type {
  * SegmentedControl / Button) so they are readable and usable with both hand
  * pointers (direct touch) and ray interaction on the Meta Quest 3S.
  *
- * Migration note (P1-U3): the previous `MovablePanel` / Canvas2D hit-test model
+ * Migration note (P1-U3): the previous legacy canvas-panel / Canvas2D hit-test model
  * is replaced by UIKit component construction. The public data contract —
  * `STORAGE_KEY`, `DEFAULTS`, `settings`, `onChange`, `getSetting`,
  * `setSetting`, `getAllSettings`, `applyAccessibility`, `show`/`hide`/`toggle`,

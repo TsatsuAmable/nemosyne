@@ -37,7 +37,7 @@ export interface PanelChromeProperties {
  *  - **Replacement**: governed by `PanelBudgetController` (max 1 primary + 1
  *    inspector + 1 reference; a fourth replaces the oldest non-pinned).
  *
- * Legacy `MovablePanel` chrome standardisation is deferred to P1-U8.
+ * Legacy canvas-panel chrome standardisation is deferred to P1-U8.
  */
 export class PanelChrome extends Container {
   private _titleText: Text;

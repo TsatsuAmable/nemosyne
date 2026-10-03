@@ -26,7 +26,7 @@ const PAGE_SIZE = 4;
 /**
  * Evidence archive/recovery surface.
  *
- * UXR1 migrates this panel from MovablePanel/CanvasTexture to SpatialPanel +
+ * UXR1 migrates this panel from the legacy canvas substrate to SpatialPanel +
  * UIKit while preserving VaultArchiveStore as the archive authority and
  * retaining the explicit destructive restore confirmation step.
  */

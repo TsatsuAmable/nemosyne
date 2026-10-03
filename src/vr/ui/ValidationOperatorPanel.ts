@@ -8,7 +8,7 @@ import { WorldTopics } from '../../utils/EventBus.ts';
 import type {
   AccessibilityOptions,
   WorldEventBusLike,
-  MovablePanelOptions,
+  PanelOptions,
 } from '../coordinators/types.ts';
 import type { BrowserValidationContext } from '../../validation/browser-validation-session.ts';
 import type {
@@ -44,7 +44,7 @@ export type ValidationDeliveryUiState =
   | { status: 'downloaded'; message: string; receivedAt: string }
   | { status: 'failed'; message: string };
 
-interface ValidationOperatorPanelOptions extends MovablePanelOptions {
+interface ValidationOperatorPanelOptions extends PanelOptions {
   context: BrowserValidationContext;
   eventBus: WorldEventBusLike;
   onStartPerformance: () => void;

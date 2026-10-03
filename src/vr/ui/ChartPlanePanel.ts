@@ -1,7 +1,7 @@
 /**
  * A draggable dashboard panel that hosts a ChartPlane.
  *
- * UXR1 removes the legacy MovablePanel canvas-copy layer. ChartPlane keeps
+ * UXR1 removes the legacy canvas-copy substrate layer. ChartPlane keeps
  * authority over its own CanvasTexture/rendering; SpatialPanel/UIKit provides
  * the panel chrome and dashboard-compatible spatial container.
  */
@@ -13,9 +13,9 @@ import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { ChartPlane, ChartType, type ChartKind } from '../artifacts/ChartPlane.ts';
 import type { Dataset } from '../../data/Dataset.ts';
-import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions, PanelOptions } from '../coordinators/types.ts';
 
-interface ChartPlanePanelOptions extends MovablePanelOptions {
+interface ChartPlanePanelOptions extends PanelOptions {
   chartType?: ChartKind;
   column?: string;
   xColumn?: string;

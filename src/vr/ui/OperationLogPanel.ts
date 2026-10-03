@@ -25,8 +25,8 @@ const BASE_FONT_SIZE = 16;
 /**
  * Read-only panel showing a chronological list of applied analysis operations.
  *
- * UXR1 migrates this passive provenance projection from MovablePanel/
- * CanvasTexture to SpatialPanel + UIKit. Operation history remains owned by
+ * UXR1 migrates this passive provenance projection from the legacy
+ * canvas-texture substrate to SpatialPanel + UIKit. Operation history remains owned by
  * the existing world/analysis-history path; the panel only renders supplied
  * entries.
  */

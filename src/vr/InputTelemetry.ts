@@ -12,7 +12,7 @@ const PANEL_HEIGHT = 640;
 /**
  * Developer-facing live WebXR input diagnostic.
  *
- * UXR1 moves the final production MovablePanel consumer onto SpatialPanel/UIKit.
+ * UXR1 moves the final production legacy-substrate consumer onto SpatialPanel/UIKit.
  * InputTelemetry remains a pure projection of engine/input state and owns no
  * input authority.
  */

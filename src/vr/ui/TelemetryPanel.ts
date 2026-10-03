@@ -37,7 +37,7 @@ const BASE_FONT_SIZE = 16;
 /**
  * Local-only telemetry and review-export surface.
  *
- * UXR1 migrates this panel from MovablePanel/CanvasTexture to SpatialPanel +
+ * UXR1 migrates this panel from the legacy canvas substrate to SpatialPanel +
  * UIKit. Telemetry collection, privacy policy and review-bundle construction
  * remain owned by their existing authorities; UIKit only renders and dispatches
  * the two explicit user actions.

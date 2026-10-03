@@ -4,10 +4,10 @@ import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
-import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions, PanelOptions } from '../coordinators/types.ts';
 import type { AnalysisHistory, HistoryFrame } from '../../data/AnalysisHistory.ts';
 
-export interface NarrativeStripOptions extends MovablePanelOptions {
+export interface NarrativeStripOptions extends PanelOptions {
   analystAnchor?: THREE.Group | null;
   history?: AnalysisHistory;
   onSeek?: (index: number) => void;
@@ -19,7 +19,7 @@ const PANEL_HEIGHT = 220;
 /**
  * Analyst-anchored breadcrumb strip for AnalysisHistory.
  *
- * UXR1 migrates the timeline from MovablePanel/CanvasTexture to SpatialPanel +
+ * UXR1 migrates the timeline from the legacy canvas substrate to SpatialPanel +
  * UIKit. AnalysisHistory remains authoritative; this surface only projects the
  * current stack and forwards explicit seek requests through onSeek.
  */

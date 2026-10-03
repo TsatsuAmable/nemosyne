@@ -14,9 +14,9 @@ import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
-import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions, PanelOptions } from '../coordinators/types.ts';
 
-interface DataSourcePanelOptions extends MovablePanelOptions {
+interface DataSourcePanelOptions extends PanelOptions {
   onLoadDataset?: (entry: {
     name: string;
     topology: SampleDatasetEntry['topology'];

@@ -129,7 +129,7 @@ interface AdaptiveAssistLike {
 
 /**
  * Apply a PANEL_LAYOUT default to a constructed panel: both the live mesh
- * position and MovablePanel's `defaultPosition` (reset-to-home) follow the
+ * position and legacy panel's `defaultPosition` (reset-to-home) follow the
  * layout. See docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md.
  */
 function applyPanelLayout(
@@ -748,7 +748,7 @@ export class WorldUIManager {
       if (panel?.applyAccessibility) panel.applyAccessibility(full);
     }
     // UIKit surfaces still need explicit accessibility propagation while
-    // MovablePanel implementations expose applyAccessibility through the registry.
+    // legacy panel implementations expose applyAccessibility through the registry.
     this.statusStripPanel?.applyAccessibility(full);
     this.settingsPanel?.applyAccessibility(full);
     this.handWheelMenu?.applyAccessibility?.(full);

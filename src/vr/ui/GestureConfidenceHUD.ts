@@ -25,7 +25,7 @@ const DEFAULT_GESTURES = [
 /**
  * Live gesture-confidence diagnostic.
  *
- * UXR1 migrates this passive assist surface from MovablePanel/CanvasTexture to
+ * UXR1 migrates this passive assist surface from the legacy canvas substrate to
  * SpatialPanel + UIKit. Gesture recognition remains authoritative upstream in
  * AdaptiveAssistController/EventBus; this class only clamps and projects the
  * confidence values supplied to it.
