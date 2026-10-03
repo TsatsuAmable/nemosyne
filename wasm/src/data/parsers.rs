@@ -325,6 +325,89 @@ mod tests {
         let json = parse_json(&json_bytes, "column-bomb-json");
         assert!(json.is_err());
     }
+
+    #[test]
+    fn pathological_unicode_and_deeply_nested_structures_fail_or_bound_cleanly() {
+        let pathological_strings = [
+            "normal_header",
+            "\u{202E}reversed_text\u{202C}", // Bidirectional RTL override
+            "👨‍👩‍👧‍👦_family_zwj",              // Zero-width joiner emoji sequence
+            "\u{FFFF}\u{FFFE}_non_characters",
+            "\u{FEFF}_with_bom",
+            "embedded\x00null\x01control",
+            "zalgo_t̸e̸x̸t̸",
+        ];
+
+        let csv_content = format!(
+            "{}\n{}",
+            pathological_strings.join(","),
+            pathological_strings.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(",")
+        );
+        let csv_res = parse_csv(csv_content.as_bytes(), "pathological-unicode-csv");
+        assert_parsers_do_not_panic(csv_content.as_bytes());
+        if let Ok(ds) = csv_res {
+            assert_eq!(ds.row_count(), 1);
+            assert_eq!(ds.column_count(), pathological_strings.len());
+        }
+
+        let json_obj = serde_json::Value::Object(
+            pathological_strings
+                .iter()
+                .map(|s| (s.to_string(), serde_json::Value::String(s.to_string())))
+                .collect(),
+        );
+        let json_bytes = serde_json::to_vec(&vec![json_obj]).unwrap();
+        assert_parsers_do_not_panic(&json_bytes);
+
+        // Deeply nested JSON array structure (governed recursion limit)
+        let mut nested = String::from("1");
+        for _ in 0..50 {
+            nested = format!("[{}]", nested);
+        }
+        let nested_payload = format!("[{{\"val\": {}}}]", nested);
+        assert_parsers_do_not_panic(nested_payload.as_bytes());
+    }
+
+    #[test]
+    fn extreme_numerics_and_degenerate_datasets_handle_without_trapping() {
+        let extreme_csv = b"val,name\nNaN,nan_row\nInfinity,pos_inf\n-Infinity,neg_inf\n1e308,large_pos\n-1e308,large_neg\n1e-324,subnormal\n1.7976931348623157e+308,f64_max\n";
+        let ds = parse_csv(extreme_csv, "extreme-numerics-csv").expect("CSV with extreme floats should parse");
+        assert_eq!(ds.row_count(), 7);
+        assert_eq!(ds.column_count(), 2);
+        for row in &ds.rows {
+            if let Some(val) = row.get("val") {
+                let js_val = val.to_js_json_value();
+                let serialized = serde_json::to_string(&js_val);
+                assert!(serialized.is_ok(), "Serialization of Value must never fail");
+            }
+        }
+
+        // Degenerate datasets: 0 rows, single cell, all nulls
+        let empty_json = b"[]";
+        let ds_empty = parse_json(empty_json, "empty-json").expect("empty json array should parse");
+        assert_eq!(ds_empty.row_count(), 0);
+        assert_eq!(ds_empty.column_count(), 0);
+
+        let single_cell_json = b"[{\"single\": null}]";
+        let ds_single = parse_json(single_cell_json, "single-cell").expect("single cell should parse");
+        assert_eq!(ds_single.row_count(), 1);
+        assert_eq!(ds_single.column_count(), 1);
+    }
+
+    #[test]
+    fn truncated_and_mutated_csv_and_json_property_campaign() {
+        let valid_csv = b"id,val,category\n1,42.5,alpha\n2,-17.2,beta\n3,0.0,gamma\n";
+        for split_idx in 0..valid_csv.len() {
+            let truncated = &valid_csv[..split_idx];
+            assert_parsers_do_not_panic(truncated);
+        }
+
+        let valid_json = b"[{\"id\": 1, \"val\": 42.5, \"cat\": \"alpha\"}, {\"id\": 2, \"val\": -17.2, \"cat\": \"beta\"}]";
+        for split_idx in 0..valid_json.len() {
+            let truncated = &valid_json[..split_idx];
+            assert_parsers_do_not_panic(truncated);
+        }
+    }
 }
 
 fn json_to_value(v: Option<&serde_json::Value>) -> Value {

@@ -316,4 +316,307 @@ describe('WASM ABI hardening', () => {
     expect(callNumber('fill_pattern', allocation.ptr, allocation.len)).toBe(0);
     expect(() => bridge.deallocBuffer(allocation.ptr, allocation.len)).not.toThrow();
   });
+
+  it('survives systematic malformed and truncated CSV/JSON property fuzz campaign without leaking host buffers', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+    const csvSeed = new TextEncoder().encode('id,val,name\n1,3.14,alpha\n2,-42.0,beta\n3,0.0,gamma\n');
+    const jsonSeed = new TextEncoder().encode('[{"id":1,"val":3.14,"name":"alpha"},{"id":2,"val":-42.0,"name":"beta"}]');
+
+    // Truncation fuzzing across every single byte boundary
+    for (let i = 0; i < csvSeed.length; i += 2) {
+      const truncated = csvSeed.slice(0, i);
+      const alloc = bridge.allocBytes(truncated);
+      let handle = 0;
+      try {
+        expect(() => {
+          handle = callNumber('data_load_csv', alloc.ptr, alloc.len);
+        }).not.toThrow();
+      } finally {
+        bridge.deallocBytes(alloc.ptr, alloc.len);
+        if (handle !== 0) bridge.destroyDataset(handle);
+      }
+      expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+    }
+
+    for (let i = 0; i < jsonSeed.length; i += 3) {
+      const truncated = jsonSeed.slice(0, i);
+      const alloc = bridge.allocBytes(truncated);
+      let handle = 0;
+      try {
+        expect(() => {
+          handle = callNumber('data_load_json', alloc.ptr, alloc.len);
+        }).not.toThrow();
+      } finally {
+        bridge.deallocBytes(alloc.ptr, alloc.len);
+        if (handle !== 0) bridge.destroyDataset(handle);
+      }
+      expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+    }
+
+    // Mutational fuzzing: byte flips, boundary injection, null byte injection
+    for (let mutation = 0; mutation < 64; mutation += 1) {
+      const mutated = csvSeed.slice();
+      const pos = (mutation * 13) % mutated.length;
+      mutated[pos] = (mutation % 3 === 0) ? 0 : (mutated[pos] ^ 0xff);
+      const alloc = bridge.allocBytes(mutated);
+      let handle = 0;
+      try {
+        expect(() => {
+          handle = callNumber('data_load_csv', alloc.ptr, alloc.len);
+        }).not.toThrow();
+      } finally {
+        bridge.deallocBytes(alloc.ptr, alloc.len);
+        if (handle !== 0) bridge.destroyDataset(handle);
+      }
+      expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+    }
+  });
+
+  it('survives pathological Unicode and deeply nested structures without trapping', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+    const pathologicalStrings = [
+      '\u202Ereversed_rtl_text\u202C',
+      '👨‍👩‍👧‍👦_family_zwj',
+      '\uFFFF\uFFFE_non_characters',
+      '\uFEFF_bom_marker',
+      'null\x00inside\x01control',
+      'zalgo_t̸e̸x̸t̸',
+    ];
+
+    const datasetWithUnicode = {
+      name: 'pathological-unicode',
+      columns: [
+        { name: 'str', type: 'TEXT' as const },
+        { name: 'val', type: 'NUMERIC' as const },
+      ],
+      rows: pathologicalStrings.map((s, idx) => ({ str: s, val: idx })),
+    };
+
+    const handle = bridge.loadDatasetJson(datasetWithUnicode);
+    expect(handle).toBeGreaterThan(0);
+    try {
+      expect(callNumber('dataset_row_count', handle)).toBe(pathologicalStrings.length);
+      expect(callNumber('dataset_column_count', handle)).toBe(2);
+      const req = callNumber('data_compute_structure_profile', handle, 0, 0);
+      expect(req).toBeGreaterThan(0);
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+
+    // Deeply nested JSON object
+    let nestedObj: Record<string, unknown> = { depth: 0 };
+    for (let d = 1; d <= 30; d += 1) {
+      nestedObj = { child: nestedObj, depth: d };
+    }
+    const nestedPayload = new TextEncoder().encode(JSON.stringify([{ col: nestedObj }]));
+    const alloc = bridge.allocBytes(nestedPayload);
+    let nestedHandle = 0;
+    try {
+      expect(() => {
+        nestedHandle = callNumber('data_load_json', alloc.ptr, alloc.len);
+      }).not.toThrow();
+    } finally {
+      bridge.deallocBytes(alloc.ptr, alloc.len);
+      if (nestedHandle !== 0) bridge.destroyDataset(nestedHandle);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+  });
+
+  it('handles extreme floating-point magnitudes, non-finites, and degenerate datasets safely', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+    const extremeDataset = {
+      name: 'extreme-floats',
+      columns: [{ name: 'v', type: 'NUMERIC' as const }],
+      rows: [
+        { v: Number.NaN },
+        { v: Number.POSITIVE_INFINITY },
+        { v: Number.NEGATIVE_INFINITY },
+        { v: 1e308 },
+        { v: -1e308 },
+        { v: Number('1e-324') },
+        { v: Number.MAX_VALUE },
+        { v: Number.MIN_VALUE },
+        { v: Number.EPSILON },
+      ],
+    };
+
+    const handle = bridge.loadDatasetJson(extremeDataset);
+    expect(handle).toBeGreaterThan(0);
+    try {
+      expect(callNumber('dataset_row_count', handle)).toBe(9);
+      expect(callNumber('dataset_column_count', handle)).toBe(1);
+
+      // Structure profile must succeed safely without NaN crashes
+      const reqProfile = callNumber('data_compute_structure_profile', handle, 0, 0);
+      expect(reqProfile).toBeGreaterThan(0);
+      const bufProfile = bridge.allocBuffer(reqProfile);
+      try {
+        expect(callNumber('data_compute_structure_profile', handle, bufProfile.ptr, reqProfile)).toBe(reqProfile);
+      } finally {
+        bridge.deallocBuffer(bufProfile.ptr, reqProfile);
+      }
+
+      // JSON export must succeed and safely map non-finites to null
+      const reqJson = callNumber('compatibility_dataset_to_json', handle, 0, 0);
+      expect(reqJson).toBeGreaterThan(0);
+      const bufJson = bridge.allocBuffer(reqJson);
+      try {
+        expect(callNumber('compatibility_dataset_to_json', handle, bufJson.ptr, reqJson)).toBe(reqJson);
+        const jsonStr = new TextDecoder().decode(new Uint8Array(bridge.memory().buffer, bufJson.ptr, reqJson));
+        expect(() => JSON.parse(jsonStr)).not.toThrow();
+      } finally {
+        bridge.deallocBuffer(bufJson.ptr, reqJson);
+      }
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+
+    // Degenerate empty dataset
+    const emptyDataset = {
+      name: 'empty',
+      columns: [],
+      rows: [],
+    };
+    const emptyHandle = bridge.loadDatasetJson(emptyDataset);
+    expect(emptyHandle).toBeGreaterThan(0);
+    try {
+      expect(callNumber('dataset_row_count', emptyHandle)).toBe(0);
+      expect(callNumber('dataset_column_count', emptyHandle)).toBe(0);
+    } finally {
+      bridge.destroyDataset(emptyHandle);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+  });
+
+  it('rejects corrupted typed-column metadata, validity vectors, and mismatched shapes', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+
+    // Helper to build typed binary payload: NTC1 magic (4), rowCount (4), colCount (4)
+    function buildTypedPayload(rowCount: number, colCount: number, body: Uint8Array): Uint8Array {
+      const header = new Uint8Array(12);
+      header.set(new TextEncoder().encode('NTC1'), 0);
+      new DataView(header.buffer).setUint32(4, rowCount, true);
+      new DataView(header.buffer).setUint32(8, colCount, true);
+      const res = new Uint8Array(header.length + body.length);
+      res.set(header, 0);
+      res.set(body, header.length);
+      return res;
+    }
+
+    // 1. Invalid magic
+    const badMagic = new Uint8Array(16);
+    badMagic.set(new TextEncoder().encode('XXXX'), 0);
+    const allocBadMagic = bridge.allocBytes(badMagic);
+    try {
+      expect(callNumber('data_load_typed_columns', allocBadMagic.ptr, allocBadMagic.len)).toBe(0);
+    } finally {
+      bridge.deallocBytes(allocBadMagic.ptr, allocBadMagic.len);
+    }
+
+    // 2. Truncated headers (0 to 11 bytes)
+    for (let len = 0; len < 12; len += 1) {
+      const truncated = new Uint8Array(len);
+      truncated.set(new TextEncoder().encode('NTC1').slice(0, len), 0);
+      const alloc = bridge.allocBytes(truncated);
+      try {
+        expect(callNumber('data_load_typed_columns', alloc.ptr, alloc.len)).toBe(0);
+      } finally {
+        bridge.deallocBytes(alloc.ptr, alloc.len);
+      }
+    }
+
+    // 3. Row count mismatch: claims 10 rows but only supplies bytes for 1 row
+    const truncatedBody = new Uint8Array(1 + 2 + 1 + 8 + 1); // kind(1) + nameLen(2) + name(1) + f64(8) + validity(1)
+    const view = new DataView(truncatedBody.buffer);
+    truncatedBody[0] = 1; // numeric
+    view.setUint16(1, 1, true); // name len 1
+    truncatedBody[3] = 0x78; // 'x'
+    view.setFloat64(4, 42.0, true);
+    truncatedBody[12] = 1; // validity byte
+    const mismatchedPayload = buildTypedPayload(10, 1, truncatedBody); // Claims 10 rows!
+    const allocMismatched = bridge.allocBytes(mismatchedPayload);
+    try {
+      expect(callNumber('data_load_typed_columns', allocMismatched.ptr, allocMismatched.len)).toBe(0);
+    } finally {
+      bridge.deallocBytes(allocMismatched.ptr, allocMismatched.len);
+    }
+
+    // 4. Out-of-bounds categorical dictionary code
+    // kind(3) + nameLen(2) + name(1) + dictCount(4) + dictEntryLen(2) + dictEntry(1) + code(4) + validity(1)
+    const catBody = new Uint8Array(1 + 2 + 1 + 4 + 2 + 1 + 4 + 1);
+    const catView = new DataView(catBody.buffer);
+    catBody[0] = 3; // categorical
+    catView.setUint16(1, 1, true);
+    catBody[3] = 0x63; // 'c'
+    catView.setUint32(4, 1, true); // dictionary length 1 ("a")
+    catView.setUint16(8, 1, true);
+    catBody[10] = 0x61; // 'a'
+    catView.setUint32(11, 999, true); // Code 999 is out of bounds for dictionary length 1!
+    catBody[15] = 1; // validity = 1
+    const catPayload = buildTypedPayload(1, 1, catBody);
+    const allocCat = bridge.allocBytes(catPayload);
+    try {
+      expect(callNumber('data_load_typed_columns', allocCat.ptr, allocCat.len)).toBe(0);
+    } finally {
+      bridge.deallocBytes(allocCat.ptr, allocCat.len);
+    }
+
+    // 5. Named typed columns with invalid UTF-8 name
+    const validNamedPayload = buildTypedPayload(0, 0, new Uint8Array(0));
+    const allocPayload = bridge.allocBytes(validNamedPayload);
+    const invalidUtf8Name = new Uint8Array([0xff, 0xfe]);
+    const allocName = bridge.allocBytes(invalidUtf8Name);
+    try {
+      expect(
+        callNumber(
+          'data_load_typed_columns_named',
+          allocPayload.ptr,
+          allocPayload.len,
+          allocName.ptr,
+          allocName.len
+        )
+      ).toBe(0);
+    } finally {
+      bridge.deallocBytes(allocPayload.ptr, allocPayload.len);
+      bridge.deallocBytes(allocName.ptr, allocName.len);
+    }
+
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+  });
+
+  it('survives allocation exhaustion and repeated allocate/deallocate/reinit stress cycles', () => {
+    const baseline = bridge.hostBufferAllocationCount();
+
+    // Rapid allocation & deallocation of varying chunk sizes
+    for (let cycle = 0; cycle < 128; cycle += 1) {
+      const size = (cycle * 97) % 4096 + 1;
+      const alloc = bridge.allocBuffer(size);
+      expect(callNumber('fill_pattern', alloc.ptr, alloc.len)).toBe(size);
+      bridge.deallocBuffer(alloc.ptr, alloc.len);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+
+    // Interleaved allocations
+    const held: { ptr: number; len: number }[] = [];
+    for (let i = 0; i < 32; i += 1) {
+      held.push(bridge.allocBuffer((i + 1) * 32));
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline + 32);
+
+    // Free in reverse
+    while (held.length > 0) {
+      const item = held.pop()!;
+      bridge.deallocBuffer(item.ptr, item.len);
+    }
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline);
+
+    // Reinitialization mid-cycle
+    const orphan = bridge.allocBuffer(64);
+    expect(orphan.ptr).toBeGreaterThan(0);
+    expect(bridge.hostBufferAllocationCount()).toBe(baseline + 1);
+    expect(callNumber('init', 0x9999n)).toBe(1);
+    expect(bridge.hostBufferAllocationCount()).toBe(0);
+  });
 });

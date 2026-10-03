@@ -75,10 +75,11 @@
       "id": "RF-043",
       "title": "Rust parser/WASM ABI hostile-input fuzz evidence gap",
       "severity": "High assurance gap",
-      "status": "IMPLEMENTATION PARTIAL",
-      "statusNote": "Systematic hostile-input fuzz/property evidence across parser and exported WASM ABI boundaries remains incomplete.",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "Systematic hostile-input fuzz and property campaigns verify fail-closed parser and ABI boundary integrity with zero leaks or traps.",
       "evidence": [
-        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-043"
+        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-043",
+        "docs/review-plans/RF043_HOSTILE_INPUT_ABI_FUZZ_2026-10-03.md"
       ]
     }
   ]
