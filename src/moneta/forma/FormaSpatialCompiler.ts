@@ -63,27 +63,11 @@ export interface FormaExecutionRecordV1 {
   readonly inputDigest: string;
 }
 
-export interface EmbodimentCritiqueInputV1 {
-  readonly planId: string;
-  readonly sliceId: string;
-  readonly contextId: string;
-  readonly semanticNodeId: string;
-  readonly critiqueText: string;
-  readonly proposedAlternativePhenotype?: SpatialPhenotype;
-  readonly confirmed: boolean;
-}
+export type {
+  EmbodimentCritiqueInputV1,
+  EmbodimentCritiqueRecordV1,
+} from './FormaHumanFeedback.js';
 
-export interface EmbodimentCritiqueRecordV1 {
-  readonly critiqueId: string;
-  readonly planId: string;
-  readonly sliceId: string;
-  readonly contextId: string;
-  readonly semanticNodeId: string;
-  readonly critiqueText: string;
-  readonly proposedAlternativePhenotype?: SpatialPhenotype;
-  readonly confirmed: boolean;
-  readonly timestamp: number;
-}
 
 /**
  * Compiles an authoritative semantic snapshot, committed context, and pinned KB0 manifest
@@ -318,30 +302,5 @@ export function replayFormaExecution(
   return { success: true, slice: result.slice };
 }
 
-/**
- * Records an attributable, confirmed human critique without mutating production priors.
- */
-export function recordEmbodimentCritique(
-  input: EmbodimentCritiqueInputV1,
-): EmbodimentCritiqueRecordV1 {
-  const timestamp = Date.now();
-  const critiqueId = `critique-v1:${canonicalSha256Hex({
-    planId: input.planId,
-    sliceId: input.sliceId,
-    contextId: input.contextId,
-    semanticNodeId: input.semanticNodeId,
-    critiqueText: input.critiqueText,
-  })}`;
+export { recordEmbodimentCritique } from './FormaHumanFeedback.js';
 
-  return {
-    critiqueId,
-    planId: input.planId,
-    sliceId: input.sliceId,
-    contextId: input.contextId,
-    semanticNodeId: input.semanticNodeId,
-    critiqueText: input.critiqueText,
-    proposedAlternativePhenotype: input.proposedAlternativePhenotype,
-    confirmed: input.confirmed,
-    timestamp,
-  };
-}

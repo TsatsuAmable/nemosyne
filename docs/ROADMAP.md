@@ -34,7 +34,9 @@ P1-TEC / FM0 evidence closure
   -> L2-FORMA-1 first static Forma vertical slice
   -> FM3/4 composition + resolution qualification
   -> FM5 System-1 assistance
-  -> FM6/7 governed learning + search
+  -> FM6 human refinement / Forma knowledge
+  -> FM7 searching / synthesizing Moneta
+
 
 parallel when evidence/collision rules allow: UXR4/5 physical qualification + QCA0-QCA5
 then: P1-WP -> P1-WQ -> PT9/PT10
@@ -49,8 +51,9 @@ then: P1-WP -> P1-WQ -> PT9/PT10
 | **FM2 alternative-aware / Road Not Taken** | **VERIFIED COMPLETE** | Promoted alternative candidates to inspectable identities with preserved semantic anchors; landed non-mutating preview/compare and DAG-preserving branchToAlternative with fail-closed disqualified refusal. | [Full Moneta plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md), [FM2 record](review-plans/FM2_ALTERNATIVES_ROAD_NOT_TAKEN_2026-10-03.md) |
 | **FM3 Forma first vertical slice / L2-FORMA-1** | **VERIFIED COMPLETE** | Compiler + one spatial backend + exact capture/replay + reverse explanation; no adaptive learning yet. | [Forma architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md), [RFC 0010](rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md) |
 | **FM3/4 composition + resolution adaptation / L2-FORMA-2 + L4-RUNTIME-BUDGET** | **VERIFIED COMPLETE** | Multi-element runtime + stickman ↔ Mona Lisa broker; independent cooling/eviction/reconstruction; budget-adapted plan variants preserving mandatory obligations. | [Forma architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md), [MCR plan](roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md) |
-| **FM5 System-1 assistance / L3-S1-FORMA** | **VERIFIED COMPLETE** | Transparent rule/case retrieval + linear ranking baseline; bounded FormaProposalSetV1 with explicit abstention; no unvetted ONNX complexity. | [System-1/System-2 architecture](architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md) |
-| **FM6/7 human refinement + search/synthesis** | **DOWNSTREAM** | Requires qualified Forma and governed human/learning evidence; no self-promotion. | [Full Moneta plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+| **FM6 human refinement / Forma knowledge** | **VERIFIED COMPLETE** | Landed confirmed EmbodimentCritiqueV1 and HumanMeaningJudgmentV1 records, Forma Knowledge Base promotion and contraindication tracking, PT9 curated multi-evidence learning corpus, and Model Registry holdout promotion/rollback gates with anti-self-labeling protection. | [Full Moneta plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md), [FM6 record](review-plans/FM6_HUMAN_REFINEMENT_FORMA_KNOWLEDGE_2026-10-03.md) |
+| **FM7 searching / synthesizing Moneta** | **DOWNSTREAM** | Requires qualified grammar, representation objective model, and Pareto multi-objective search without analytical mutation. | [Full Moneta plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+
 | **UXR4/UXR5 device qualification** | **EVIDENCE ACQUISITION OPEN** | Capture attributable Quest interaction/render/resource/comfort evidence when hardware is available. | [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) |
 | **P1-WP → P1-WQ** | **BLOCKED BY REQUIRED UXR/ASSURANCE CLOSURE** | Productionize web surfaces, then ordinary-browser investigator qualification. | [Product transition plan](roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md) |
 | **PT9/PT10 learned/private-preview work** | **DOWNSTREAM** | Requires WQ and finite evidence closure appropriate to the promoted claims. | [Product transition plan](roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md) |

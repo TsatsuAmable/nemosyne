@@ -4,6 +4,8 @@ import type { CommittedInvestigationContextV2 } from '../../atlas/domain/Committ
 import type { DeviceCapabilityBudgetV1 } from './FormaResolutionBroker.js';
 import type { KB0ManifestV1 } from './KB0Manifest.js';
 
+import type { FormaKnowledgeStore } from './FormaKnowledgeBase.js';
+
 export const FORMA_SYSTEM1_PROPOSAL_SCHEMA_VERSION = 1 as const;
 
 export interface FormaProposalCandidateV1 {
@@ -13,6 +15,8 @@ export interface FormaProposalCandidateV1 {
   readonly targetResolutionTier: 'STICKMAN_SPARSE' | 'BALANCED_STANDARD' | 'MONA_LISA_EXPANSIVE';
   readonly score: number;
   readonly rationale: string;
+  readonly contraindications?: readonly string[];
+  readonly formaKnowledgeCaseId?: string;
 }
 
 export type FormaProposalSetV1 =
@@ -50,16 +54,22 @@ export const DEFAULT_SYSTEM1_WEIGHTS: System1RankingWeights = {
 };
 
 /**
- * System-1 Metaphor Retrieval and Proposal Engine (L3-S1-FORMA / FM5).
+ * System-1 Metaphor Retrieval and Proposal Engine (L3-S1-FORMA / FM5 / FM6).
  * Generates transparent, deterministic candidate proposals or explicit abstentions.
  * Never acts as admission authority or emits arbitrary renderer parameters.
  */
 export class FormaSystem1Proposer {
   private readonly weights: System1RankingWeights;
+  private readonly knowledgeStore?: FormaKnowledgeStore;
 
-  public constructor(weights: System1RankingWeights = DEFAULT_SYSTEM1_WEIGHTS) {
+  public constructor(
+    weights: System1RankingWeights = DEFAULT_SYSTEM1_WEIGHTS,
+    knowledgeStore?: FormaKnowledgeStore
+  ) {
     this.weights = weights;
+    this.knowledgeStore = knowledgeStore;
   }
+
 
   /**
    * Generates a bounded FormaProposalSetV1 from governed inputs.
@@ -129,13 +139,38 @@ export class FormaSystem1Proposer {
         : (t.targetResolutionTier === 'MONA_LISA_EXPANSIVE' ? 1.0 : 0.7);
       const templateScore = t.baseScore;
 
-      const finalScore = Number(
-        (
-          this.weights.intentRelevanceWeight * intentScore +
-          this.weights.budgetFitnessWeight * budgetScore +
-          this.weights.templateParityWeight * templateScore
-        ).toFixed(4),
-      );
+      let scoreDelta = 0;
+      let candidateRationale = t.rationale;
+      let contraindications: readonly string[] | undefined;
+      let formaKnowledgeCaseId: string | undefined;
+
+      if (this.knowledgeStore) {
+        const contra = this.knowledgeStore.findContraindications(t.templateId, t.bindingId);
+        if (contra.length > 0) {
+          contraindications = contra;
+          scoreDelta -= 0.30;
+          candidateRationale += ` [CONTRAINDICATED: ${contra.join(', ')}]`;
+        }
+
+        const matchedCases = this.knowledgeStore.findQualifiedCases({
+          task: context.intent?.currentTask,
+        });
+
+        const matched = matchedCases.find((c) => c.templateId === t.templateId && c.bindingId === t.bindingId);
+        if (matched) {
+          formaKnowledgeCaseId = matched.caseId;
+          scoreDelta += 0.15;
+          candidateRationale += ` [Forma Knowledge Base prior applied: ${matched.caseId}]`;
+        }
+      }
+
+      const rawScore =
+        this.weights.intentRelevanceWeight * intentScore +
+        this.weights.budgetFitnessWeight * budgetScore +
+        this.weights.templateParityWeight * templateScore +
+        scoreDelta;
+
+      const finalScore = Number(Math.max(0, Math.min(1.0, rawScore)).toFixed(4));
 
       if (finalScore >= confidenceThreshold) {
         candidates.push({
@@ -144,7 +179,9 @@ export class FormaSystem1Proposer {
           bindingId: t.bindingId,
           targetResolutionTier: t.targetResolutionTier,
           score: finalScore,
-          rationale: t.rationale,
+          rationale: candidateRationale,
+          contraindications,
+          formaKnowledgeCaseId,
         });
       }
     }
@@ -172,6 +209,14 @@ export class FormaSystem1Proposer {
       candidates: candidates.map((c) => ({ id: c.candidateId, score: c.score })),
     })}`;
 
+    const searchHints = [
+      'PRIORITIZE_PRIMARY_AXIS',
+      isConstrained ? 'SUPPRESS_SECONDARY_CHANNELS' : 'PERMIT_VOXEL_SURFACE',
+    ];
+    if (this.knowledgeStore?.isStoreFrozen) {
+      searchHints.push('RESEARCH_MODE_FROZEN_PRIORS');
+    }
+
     return {
       schemaVersion: FORMA_SYSTEM1_PROPOSAL_SCHEMA_VERSION,
       proposalSetId,
@@ -179,10 +224,8 @@ export class FormaSystem1Proposer {
       snapshotId: snapshot.snapshotId,
       contextId: context.nodeId,
       candidates,
-      searchHints: [
-        'PRIORITIZE_PRIMARY_AXIS',
-        isConstrained ? 'SUPPRESS_SECONDARY_CHANNELS' : 'PERMIT_VOXEL_SURFACE',
-      ],
+      searchHints,
     };
   }
 }
+

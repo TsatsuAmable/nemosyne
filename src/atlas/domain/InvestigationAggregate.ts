@@ -38,6 +38,26 @@ import {
   type DiscoveryEpisodeStoreSnapshot,
   type NoFeasibleRepresentationRecord,
 } from '../../investigation/index.ts';
+import {
+  recordEmbodimentCritique as recordCritiqueHelper,
+  recordHumanMeaningJudgment as recordJudgmentHelper,
+  assertNotSelfLabeled,
+  type EmbodimentCritiqueInputV1,
+  type EmbodimentCritiqueRecordV1,
+  type HumanMeaningJudgmentInputV1,
+  type HumanMeaningJudgmentRecordV1,
+} from '../../moneta/forma/FormaHumanFeedback.ts';
+import {
+  FormaKnowledgeStore,
+  type FormaKnowledgeBaseV1,
+  type FormaMetaphorCaseV1,
+  type PromoteCaseCandidateInputV1,
+} from '../../moneta/forma/FormaKnowledgeBase.ts';
+import type {
+  DiscoveryOutcomeLinkJudgement,
+  JudgementOutcome,
+} from '../../judgement/RepresentationJudgement.ts';
+
 
 export interface InvestigationDigestIdentityOptions {
   /**
@@ -95,7 +115,11 @@ export class InvestigationAggregate {
   readonly context: ResearchContext;
   readonly graph: InvestigationGraph;
   readonly discoveries: DiscoveryEpisodeStore;
+  readonly formaKnowledge: FormaKnowledgeStore;
   readonly contextLedger: CommittedInvestigationContextLedger;
+  private readonly embodimentCritiques: EmbodimentCritiqueRecordV1[] = [];
+  private readonly humanMeaningJudgments: HumanMeaningJudgmentRecordV1[] = [];
+  private readonly discoveryLinks: DiscoveryOutcomeLinkJudgement[] = [];
 
   constructor(options: ResearchContextOptions = {}) {
     this.analytical = new AnalyticalState();
@@ -106,7 +130,9 @@ export class InvestigationAggregate {
     this.graph = new InvestigationGraph();
     this.discoveries = new DiscoveryEpisodeStore();
     this.contextLedger = new CommittedInvestigationContextLedger();
+    this.formaKnowledge = new FormaKnowledgeStore();
   }
+
 
   get sessionId(): string {
     return this.context.sessionId;
@@ -435,7 +461,90 @@ export class InvestigationAggregate {
     return childNode;
   }
 
+  /**
+   * FM6: Records an attributable, confirmed human critique of an embodiment plan or mapping.
+   * Fails closed if the critique was generated from automated or self-labeling events.
+   * Does not mutate underlying scientific analytical data or dataset state.
+   */
+  recordEmbodimentCritique(input: EmbodimentCritiqueInputV1): EmbodimentCritiqueRecordV1 {
+    assertNotSelfLabeled(input as unknown as { automated?: boolean; passiveClick?: boolean; systemDefault?: boolean; source?: string });
+    const record = recordCritiqueHelper(input);
+    this.embodimentCritiques.push(record);
+    return record;
+  }
+
+  /**
+   * FM6: Records an attributable, confirmed human meaning judgment testing recovery of intended meaning.
+   * Fails closed if the judgment was generated from automated or self-labeling events.
+   * Does not mutate underlying scientific analytical data or dataset state.
+   */
+  recordHumanMeaningJudgment(input: HumanMeaningJudgmentInputV1): HumanMeaningJudgmentRecordV1 {
+    assertNotSelfLabeled(input as unknown as { automated?: boolean; passiveClick?: boolean; systemDefault?: boolean; source?: string });
+    const record = recordJudgmentHelper(input);
+    this.humanMeaningJudgments.push(record);
+    return record;
+  }
+
+  getEmbodimentCritiques(): readonly EmbodimentCritiqueRecordV1[] {
+    return Object.freeze([...this.embodimentCritiques]);
+  }
+
+  getHumanMeaningJudgments(): readonly HumanMeaningJudgmentRecordV1[] {
+    return Object.freeze([...this.humanMeaningJudgments]);
+  }
+
+  /**
+   * FM6: Links a validated DiscoveryEpisode to the representation that framed it.
+   */
+  linkDiscoveryOutcomeToRepresentation(
+    discoveryId: string,
+    graphId: string,
+    outcome: JudgementOutcome,
+    researcherId: string = 'researcher-unspecified',
+    rationale?: string
+  ): DiscoveryOutcomeLinkJudgement {
+    const judgementId = `disc-link-v1:${this.context.now()}-${discoveryId}-${graphId}`;
+    const link: DiscoveryOutcomeLinkJudgement = {
+      schemaVersion: '1.0.0',
+      judgementId,
+      investigationId: this.context.studyId || 'investigation-default',
+      researcherId,
+      sequence: this.discoveryLinks.length + 1,
+      recordedAt: this.context.now(),
+      kind: 'DISCOVERY_OUTCOME_LINK',
+      discoveryId,
+      graphId,
+      outcome,
+      rationale,
+      provenance: {
+        datasetFingerprint: this.analytical.getFingerprint() ?? '',
+        kernelVersion: '1.0.0',
+        monetaVersion: '1.0.0',
+        fitnessModelVersion: '1.0.0',
+        ontologyVersion: '1.0.0',
+        nilVersion: '1.0.0',
+        representationGraphId: graphId,
+        discoveryId,
+      },
+    };
+    this.discoveryLinks.push(link);
+    return link;
+  }
+
+  getDiscoveryOutcomeLinks(): readonly DiscoveryOutcomeLinkJudgement[] {
+    return Object.freeze([...this.discoveryLinks]);
+  }
+
+  getFormaKnowledgeBase(): FormaKnowledgeBaseV1 {
+    return this.formaKnowledge.toSnapshot();
+  }
+
+  promoteFormaMetaphorCase(candidate: PromoteCaseCandidateInputV1): FormaMetaphorCaseV1 {
+    return this.formaKnowledge.promoteCase(candidate);
+  }
+
   /** Export the serialisable state snapshot of the aggregate. */
+
   toState(): AtlasCoreState {
     const space = this.analytical.getDatasetSpace();
     return {
