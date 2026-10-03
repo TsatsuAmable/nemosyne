@@ -5,6 +5,7 @@
 **Governing vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3.1  
 **Live execution authority:** `docs/ROADMAP.md`  
 **Representation architecture:** `docs/roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`  
+**Full-Moneta semantic embodiment architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`  
 **Product/UX doctrine:** `docs/Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md` and `docs/Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`  
 **Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`
 
@@ -32,9 +33,9 @@ The governing progression is:
 | FM0 | Trustworthy | Representation decisions are provenance-complete, replayable and bound to one analytical authority. |
 | FM1 | Question-aware | Different research questions and hypotheses can legitimately produce different representation decisions for the same dataset. |
 | FM2 | Alternative-aware | Researchers can inspect, compare, challenge, reject and branch from meaningful representation alternatives. |
-| FM3 | Compositional | Several governed semantic phenomena can coexist in one representation. |
+| FM3 | Compositional / Forma | Several governed semantic phenomena can coexist and compile into explainable perceptual embodiment. |
 | FM4 | Resolution-adaptive | The same semantic meaning can be embodied at different levels of richness according to hardware and perceptual budget: the “stickman ↔ Mona Lisa” principle. |
-| FM5 | Intuitive / System-1-assisted | A small fast model can propose representation/composition decisions from typed intent and evidence without becoming analytical authority. |
+| FM5 | Intuitive / System-1-assisted | Small fast specialists may propose interaction cues and bounded Forma/representation candidates without becoming analytical or representation authority. |
 | FM6 | Human-refined | Researcher judgement and validated discovery outcomes improve future representation priors through governed learning. |
 | FM7 | Searching | Moneta searches a bounded representation grammar rather than choosing only from a fixed catalogue. |
 | FM8 | Full Moneta | Evidence, intent, context, learned priors, search and hardware budget jointly produce inspectable adaptive representations under explicit scientific constraints. |
@@ -179,35 +180,42 @@ Memory Palace extension:
 
 **STOP/REVISE question:** Are alternatives genuinely useful hypotheses about the data, or merely different-looking layouts?
 
-### FM3 — Compositional Moneta
+### FM3 — Compositional Moneta / Forma Foundation
 
-**Product promise:** “Nemosyne can express several relevant structures together instead of forcing me to choose one representation family.”
+**Product promise:** “Nemosyne can express several relevant structures together and embody their meaning through inspectable perceptual mappings rather than forcing me to choose one chart family.”
 
 Required implementation:
 
-- advance P1-MCR MCR2 general semantic-to-spatial compiler;
+- run **L0-SEM-NORM** to reconcile governed payload families into one versioned semantic vocabulary/graph adapter;
+- run **L2-FORMA-0** to define typed perceptual channels, `PerceptualBindingV1` and `PerceptualEmbodimentPlanV1`;
+- advance P1-MCR MCR2 as a semantic-to-perceptual compiler with `SpatialEmbodimentPlanV1` as its first backend;
 - MCR3 multi-element runtime and lifecycle;
 - MCR4 composed interaction/detail semantics;
-- initially use a small qualified composition grammar rather than open-ended generation;
-- prove evidence-bound semantic identity across every primitive;
+- add reverse explanation from perceptual property -> binding -> representation primitive -> semantic node -> evidence;
+- initially use a small qualified composition/binding grammar rather than open-ended generation;
+- prove evidence-bound semantic identity across every primitive and binding;
 - support deterministic/reference composition before search.
 
 Researcher-visible experience:
 
 - one world can coordinate, for example, distribution + clusters + uncertainty or temporal structure + anomalies;
-- semantic relations determine meaningful spatial coordination;
+- semantic relations determine meaningful spatial/motion/other perceptual coordination;
+- every data-bearing visual, spatial, auditory or haptic property can be explained;
 - detail on one phenomenon does not destroy siblings;
 - Compare and Challenge can operate across the composition;
-- TechnoCore explains the composition as a set of claims/phenomena, not as a single named chart.
+- perturbation can produce an evidence-bound semantic delta and a visible/audible transition without animation becoming evidence;
+- TechnoCore explains the composition as a set of claims/phenomena and bindings, not as a single named chart.
 
-Spatial epistemology checkpoint:
+Semantic embodiment checkpoint:
 
-- explicitly test which spatial relations users actually understand as intended;
-- reject attractive mappings that imply unsupported analytical relationships.
+- explicitly test which perceptual mappings users understand as intended;
+- reject attractive mappings that imply unsupported analytical relationships;
+- do not reintroduce archived decorative spatial-audio or heuristic multimodal prototypes;
+- a first non-visual channel experiment is optional and only follows the governed channel contract.
 
-**Exit:** at least one production-reachable representation contains two or more independently governed semantic phenomena with preserved evidence identity and usable composed interaction.
+**Exit:** at least one production-reachable representation contains two or more independently governed semantic phenomena, compiles through a `PerceptualEmbodimentPlan`, preserves evidence identity through lifecycle/interaction, and supports reverse explanation of its embodied properties.
 
-**STOP/REVISE question:** Does composition improve understanding, or does it increase cognitive clutter?
+**STOP/REVISE question:** Does semantically congruent composition improve understanding, or does it increase cognitive clutter or misleading salience?
 
 ### FM4 — Resolution-Adaptive Moneta / Stickman ↔ Mona Lisa
 
@@ -219,7 +227,7 @@ Required implementation:
 
 - formalise a semantic-resolution contract distinct from polygon LOD;
 - define hardware/perceptual capability budgets for CPU, GPU, memory, analytical residency, model residency and scene complexity;
-- extend SpatialEmbodimentPlan to express phenotype/resource intent without mutating analytical semantics;
+- extend the planned `PerceptualEmbodimentPlan` with resource/perceptual budget intent while keeping `SpatialEmbodimentPlanV1` as a backend; adaptation may reduce richness across channels but may not mutate analytical semantics;
 - generate multiple valid phenotypes from the same semantic graph;
 - use UXR2/UXR3 lifecycle/admission/eviction machinery;
 - implement progressive crystallisation and reversible semantic refinement/collapse;
@@ -253,9 +261,9 @@ Required implementation:
 - define one provider-neutral, typed System-1 model/artifact contract with explicit feature schema, calibration state, ABSTAIN, runtime provider and content-addressed provenance;
 - implement two independently promotable specialist lanes rather than one fused model:
   - **object-centric perception**, producing typed physical interaction cues that a deterministic resolver converts to `InteractionIntent -> NIL`;
-  - **representation proposal**, producing bounded candidate/composition advice from governed Moneta features and intent;
+  - **Forma/representation proposal**, producing bounded representation primitive, metaphor/template, perceptual-binding or search-order advice from governed semantic/Moneta features, intent and device/perceptual budget;
 - keep named symbolic gesture recognition experimental rather than a core command vocabulary;
-- retain the current transparent learned ranker as the representation baseline; require ONNX only when a nonlinear candidate demonstrates bounded benefit;
+- retain deterministic/reference Forma policy and the current transparent learned ranker as baselines; require ONNX only when a nonlinear proposal model demonstrates bounded benefit;
 - keep System-2 Moneta explicit: hard constraints, evidence admission, alternatives, challenge, search and final `RepresentationDecision` remain outside ONNX authority;
 - persist the exact System-1 result consumed by the product; replay uses the recorded result rather than silently rerunning mutable inference;
 - qualify ONNX Runtime Web WASM as the baseline small-model execution path, with WebGPU used only after feature detection and target-device measurement;
@@ -395,9 +403,9 @@ Recovered product ideas and dormant/legacy code are assigned to the increment wh
 | **FM0 — Trustworthy** | TechnoCore provenance/explanation; Evidence Vault governed freeze/export/reopen; explicit failure/recovery states; sparse world hierarchy remains intact. | **FM0-CLEAN:** finish the declared Draco compatibility exit where safe; remove/retire misleading evidence/hash aliases that can contaminate new work; decide/delete legacy `ShareableSessionURL` in favour of governed `.nemosyne` portability; delete or truthfully rename the hand-rolled `FlatBuffersSerializer` if no real product consumer remains. | Can a researcher inspect, preserve and replay the reason a representation exists without encountering a second authority or misleading legacy vocabulary? |
 | **FM1 — Question-Aware** | Memory Palace records question/hypothesis/task context; TechnoCore answers “why this for this question?”; branch/revisit from investigation state; first bounded voice-to-NIL intent-entry experiment where useful. | **FM1-MEM RESOLVED (PR #855, merged 1 October 2026 at `a55edaf`):** the dormant `MemoryPalaceController` was retired in full — the 405-line class deleted from the executable tree with its barrel export line, never reactivated or replaced, so no random-ID/placeholder-provenance authoring path can return through it. The alias-removal clause of this row remains open and owner-gated (RFC 0007). | Does intent meaningfully improve representation choice and does the researcher understand the connection between question, representation and investigation history? |
 | **FM2 — Alternative-Aware** | Full Road Not Taken flow; ghost/side-by-side alternatives; synchronized semantic selection; representation branching; Farcaster navigation between branches/saved states; visible refutation; first collaboration/peer-challenge pilot. | **FM2-COLLAB-CLEAN:** delete superseded `CollaborativeStateSync` and network `SharedAnnotationManager` after test/caller migration; preserve only NetworkManager/CollaborationCoordinator and canonical annotation authority. | Are alternatives and branches cognitively useful rather than decorative, and does collaboration add genuine challenge/comparison value? |
-| **FM3 — Compositional** | Spatial epistemology becomes explicit and testable; composed Challenge flow; sonification/haptics experiments as versioned representation channels; optional live-stream/River-Tethys prototype only where a governed live semantic structure exists. | **FM3-PERCEPT:** re-evaluate `ColorPaletteEngine`; absorb useful CVD/perceptual logic into the canonical representation/encoding path or delete it. Re-evaluate `SpatialAudioSynthesizer`; promote through RepresentationGraph/SpatialEmbodimentPlan or archive/delete. | Do multiple simultaneous semantic structures and multimodal encodings improve understanding without inventing relationships or overwhelming the user? |
+| **FM3 — Compositional / Forma** | Semantic embodiment becomes explicit and testable: typed perceptual bindings, deterministic Forma compilation, composed Challenge, reverse explanation, perturbation response, and only then narrow sonification/haptic experiments through governed channels. | **FM3-PERCEPT is resolved:** the old palette/audio prototypes are gone. New non-visual channels must be built through `PerceptualEmbodimentPlan`, not revived as side systems. | Do multiple simultaneous semantic structures and semantically congruent multimodal mappings improve understanding without inventing relationships or overwhelming the user? |
 | **FM4 — Resolution-Adaptive** | Stickman ↔ Mona Lisa semantic resolution; progressive crystallisation; preserved spatial memory across eviction/reconstruction; explicit information-loss inspection; sparse cyberspace visual identity across hardware classes. | **FM4-UI-CLEAN:** audit and retire the remaining `MovablePanel` canvas substrate once physical/diagnostic dependencies permit. **Rust scene command buffer remains dormant** unless measured device evidence shows a real bottleneck that the existing renderer cannot solve. | Does hardware adaptation alter richness rather than meaning, and can the user retain orientation and comprehension across resolution changes? |
-| **FM5 — System-1 / Intuitive** | Qualified representation proposal reflex plus object-centric interaction cues; voice/gaze remain modality inputs through NIL; named gestures are experimental; fast “why / alternatives / simplify” interactions. | **FM5-PERCEPTION:** replace the `MultimodalPerceptionEngine` string-action/heuristic-confidence prototype with typed cue contracts or archive it. Follow the [System-1/System-2 ONNX architecture](../architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md). | Do small learned reflexes improve responsiveness, targeting or candidate coverage enough to justify their complexity while preserving replay and explicit authority boundaries? |
+| **FM5 — System-1 / Intuitive** | Qualified Forma/representation proposal reflex plus object-centric interaction cues; voice/gaze remain modality inputs through NIL; named gestures are experimental; fast “why / alternatives / simplify” interactions. | **FM5-PERCEPTION is resolved ARCHIVE:** future work uses typed cue contracts. Representation proposal targets the qualified Forma grammar after FM3 rather than legacy fixed layouts. | Do small learned reflexes improve responsiveness, targeting or Forma candidate coverage enough to justify their complexity while preserving replay and explicit authority boundaries? |
 | **FM6 — Human-Refined** | Researcher preference + validated discovery outcome learning; Memory Palace shows outcome/learning lineage; cross-investigation recurrence/resonance prototype; collaboration matures toward independent-convergence views without consensus-as-truth. | Keep learning/study infrastructure development-only until promoted artifacts and evidence contracts justify runtime composition. Do **not** promote federated learning merely because multiple investigations now exist. | Is learning improving discovery support rather than reinforcing popularity, salience or researcher-specific habits? |
 | **FM7 — Searching** | Generated representation hypotheses; true Road Not Taken search siblings/ancestors; inspectable Pareto trade-offs; Memory Palace search lineage where useful; evolutionary/adversarial improvement through the governed MCR7 handoff. | Reassess whether a larger generative/neural representation model is needed. Prefer transparent bounded search unless evidence shows it is insufficient. Autonomous representation agents remain laboratory-only. | Is search producing useful new representation hypotheses rather than combinatorial novelty, and can researchers understand why they exist? |
 | **FM8 — Integrated Full Moneta** | Coherent end-to-end product experience: Memory Palace, TechnoCore, Vault, Farcasters, challenge, alternatives, adaptive resolution, qualified multimodality, collaboration and recurrence operate as one instrument rather than separate demos. | Final compatibility/prototype purge. Any live experimental surface must have a declared production owner, evidence basis and user journey, otherwise archive/remove it. | Does the integrated instrument improve meaningful investigation under scoped human evidence, and which features deserve to survive as permanent product identity? |
@@ -419,18 +427,19 @@ Cleanup packages may run earlier when a fresh reachability audit proves they are
 
 ## 6. Workstream mapping
 
-The capability ladder does not replace specialist programmes.
+The capability ladder does not replace specialist programmes. Machine dispatch is organized through the durable thematic lanes in the Full-Moneta architecture plan:
 
-- **P1-TEC** supplies trustworthy evidence closure for FM0 and remains a hard boundary for later promotion.
-- **P1-MCR** supplies composition/compiler/runtime machinery for FM3 and parts of FM4/FM7.
-- **P1-UXR** supplies bounded runtime, device and human evidence needed throughout.
-- **PT9** supplies FM6 learning-evidence and promotion infrastructure.
-- **PT10 / P1-WQ** supplies real researcher/product/discovery evidence.
-- **Future MCI work** supplies FM1 intent/context integration.
-- **Future HSR work** supplies FM4 hardware-adaptive semantic resolution.
-- **Future System-1 work** supplies FM5 proposal assistance.
-- **Future representation-algorithm/search work** supplies FM7.
-- **Evolutionary/adversarial laboratory work** improves representation/search algorithms downstream of governed production contracts rather than becoming a second production authority.
+- **L0 — Truth & Evidence:** P1-TEC, evidence receipts/admissibility, semantic normalization and evidence binding.
+- **L1 — Investigation & Alternatives:** FM1/F2 intent, Memory Palace, Road Not Taken, Challenge, TechnoCore and branching.
+- **L2 — Forma & Semantic Embodiment:** P1-MCR, perceptual bindings/plans, compiler/runtime, behaviour, reverse explanation and FM4 semantic resolution.
+- **L3 — Intuitive Interaction & Reflexes:** FM5 System-1 perception and Forma proposal, deterministic resolvers, gaze/voice/NIL boundaries.
+- **L4 — Runtime & Device Efficiency:** P1-UXR runtime/resource work, Quest MAC-Q0..Q5 and scriptc experiments.
+- **L5 — Learning & Search:** PT9/FM6 learning, RepresentationGenome adapter, bounded grammar/search and FM7.
+- **L6 — Product Validation & Integration:** PT10/P1-WQ, user/device evidence, semantic-embodiment studies and FM STOP reviews.
+
+These are product/architecture lanes, not machine ownership. Machines claim concrete tranches and file surfaces under the live roadmap lease rules.
+
+Specialist programmes remain authoritative for their own contracts. Evolutionary/adversarial laboratory work improves representation/search algorithms downstream of governed production contracts rather than becoming a second production authority.
 
 ## 7. Increment rhythm
 
