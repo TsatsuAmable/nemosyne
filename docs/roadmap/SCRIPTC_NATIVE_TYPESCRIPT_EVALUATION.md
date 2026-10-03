@@ -1,14 +1,14 @@
 # scriptc Native TypeScript Evaluation Plan
 
 **Status:** planned experiment, not an architectural commitment  
-**Owner lane:** Mac / FM5 System-1 experimental lane  
+**Owner lane:** L4 Runtime & Device Efficiency (currently Mac experimental capacity)  
 **Decision rule:** no production migration until semantic parity, authority boundaries, portability, debugging and measured benefit are demonstrated.
 
 ## Purpose
 
 Evaluate whether selected non-UI TypeScript can be compiled to small native artifacts with scriptc without creating a second analytical authority or weakening Nemosyne's replay/provenance guarantees.
 
-Rust/WASM remains the sole analytical authority. Browser/WebXR rendering, device lifecycle and UI remain outside this experiment.
+This is a **runtime/tooling optimization experiment, not a Full-Moneta architectural dependency**. Rust/WASM remains the sole analytical authority. Browser/WebXR rendering, device lifecycle and UI remain outside this experiment. Any direct Quest/browser use would require a separately justified native-host topology and therefore belongs to the MAC-Q5 escape-hatch class, not ordinary FM5.
 
 ## T0 — Toolchain and baseline
 
@@ -50,9 +50,9 @@ Use differential/property tests: Node implementation is the comparison implement
 
 **Exit:** classify each module STATIC / DYNAMIC-REMAINDER / REJECT, with measured costs.
 
-## T3 — System-1 native sidecar prototype
+## T3 — bounded native sidecar/tool prototype
 
-Only after T1/T2 PASS, prototype a native FM5 proposal-side executable around System-1 orchestration. It may:
+Only after T1/T2 PASS **and only if there is an actual deployable native sidecar/tool target**, prototype a native executable around provider-neutral System-1/Forma proposal orchestration or another measured dependency-light utility. It may:
 - validate proposal contracts;
 - transform bounded feature vectors;
 - invoke an already-approved model/runtime only through the existing pinned proposal contract where feasible;
@@ -61,11 +61,11 @@ Only after T1/T2 PASS, prototype a native FM5 proposal-side executable around Sy
 It may **not**:
 - compute authoritative DatasetEvidence;
 - bypass Rust/WASM;
-- choose/promote a representation outside Moneta governance;
+- choose/promote a representation or perceptual binding outside Moneta/Forma governance;
 - mutate Investigation state directly;
 - silently fall back to a semantically different dynamic path.
 
-Compare native sidecar vs current TS runtime for startup, RSS, proposal latency, packaging friction and replay equivalence.
+Compare native sidecar vs current TS runtime for startup, RSS, proposal latency where applicable, packaging friction and replay equivalence. If no real native deployment topology exists, record T3 as NOT-APPLICABLE rather than inventing one.
 
 ## T4 — Native utility/agent census
 
