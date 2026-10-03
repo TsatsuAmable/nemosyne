@@ -6,6 +6,10 @@
 >
 > This file is the single roadmap-history entry point. Older archive files remain immutable provenance/evidence artifacts and need not be re-listed in the live roadmap.
 
+## Future completion ledger
+
+When a live task is completed and removed from `docs/ROADMAP.md`, append one concise record here: **date · task id · final status · PR/evidence · linked task/spec**. Do not copy the task narrative into this ledger. The frozen snapshot below remains unchanged.
+
 ---
 
 # Nemosyne Roadmap & Implementation Status
