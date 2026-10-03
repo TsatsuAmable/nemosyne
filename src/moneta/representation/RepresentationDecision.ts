@@ -51,12 +51,92 @@ export interface RejectedAlternative {
   hardPassed: boolean;
 }
 
+/**
+ * FM2: Semantic eligibility of an alternative representation candidate.
+ */
+export type AlternativeEligibility =
+  | 'ELIGIBLE'
+  | 'NEAR_MISS'
+  | 'AMBIGUOUS'
+  | 'ABSTAIN'
+  | 'DISQUALIFIED';
+
+/**
+ * FM2: Bounded inspectable candidate identity for the Road Not Taken flow.
+ * Promotes passive RejectedAlternative metadata into an actionable representation candidate
+ * with preserved spatial embodiment and shared semantic anchors.
+ */
+export interface AlternativeCandidate {
+  readonly candidateId: SemanticRepresentationId;
+  readonly family: RepresentationFamily;
+  readonly layout: VRLayout;
+  readonly geometry: VRGeometry;
+  readonly behavior: VRBehavior;
+  readonly interaction: VRInteraction;
+  readonly score: number;
+  readonly scoreMarginToWinner: number;
+  readonly eligibility: AlternativeEligibility;
+  readonly reason: string;
+  readonly hardPassed: boolean;
+  readonly sharedSemanticAnchors?: readonly string[];
+}
+
 export interface DecisionEmbodiment {
   primaryLayout: VRLayout;
   primaryGeometry: VRGeometry;
   primaryBehavior: VRBehavior;
   primaryInteraction: VRInteraction;
   spatialStrategy: SpatialStrategy;
+}
+
+/**
+ * FM2: Construct a DecisionEmbodiment for an AlternativeCandidate.
+ */
+export function createEmbodimentForAlternative(
+  candidate: AlternativeCandidate,
+  datasetFingerprint: string
+): DecisionEmbodiment {
+  const positionSemantics =
+    candidate.layout === 'GEO_SURFACE'
+      ? 'SEMANTIC'
+      : candidate.layout === 'FORCE_DIRECTED_3D' || candidate.layout === 'RADIAL_ORBITAL'
+        ? 'STRUCTURAL'
+        : 'ALGORITHMIC_LAYOUT';
+  const detailLens =
+    candidate.layout === 'TIME_RIBBON'
+      ? 'TIME_DIAL'
+      : candidate.candidateId === 'CLUSTER_REGIONS'
+        ? 'CLUSTER_ZONE'
+        : candidate.candidateId === 'DISTRIBUTION_FIELD'
+          ? 'OUTLIER_HALO'
+          : 'INSPECTOR_SLATE';
+
+  const spatialStrategy: SpatialStrategy = {
+    id: `strat:${candidate.candidateId}_${candidate.layout}`,
+    worldType: candidate.layout === 'RADIAL_ORBITAL' ? 'FOCUSED_CHAMBER' : 'ANALYST_COCKPIT',
+    macroLayout: { layout: candidate.layout, parameters: {}, positionSemantics },
+    datumEncoding: { geometry: candidate.geometry, mappings: {}, behavior: candidate.behavior },
+    interactionStrategy: { primaryInteraction: candidate.interaction, supportedGestures: [], detailLens },
+    score: candidate.score,
+    rationale: candidate.reason,
+    rejectionLog: [],
+    provenance: {
+      generatedAt: 0,
+      engine: 'MonetaHypothesisEngine',
+      version: 'moneta-hypothesis-engine-v2',
+      datasetFingerprint,
+      requirementsHash: '',
+      fitnessModelVersion: 'bootstrap-fitness-v5',
+    },
+  };
+
+  return {
+    primaryLayout: candidate.layout,
+    primaryGeometry: candidate.geometry,
+    primaryBehavior: candidate.behavior,
+    primaryInteraction: candidate.interaction,
+    spatialStrategy,
+  };
 }
 
 export interface DecisionProvenance {
@@ -124,6 +204,8 @@ export interface RepresentationDecision {
   embodiment: DecisionEmbodiment;
   evidence: DecisionEvidenceItem[];
   rejectedAlternatives: RejectedAlternative[];
+  /** FM2: Promoted inspectable alternative candidates for Road Not Taken comparison and branching. */
+  alternatives?: AlternativeCandidate[];
   provenance: DecisionProvenance;
   datasetSignature: DatasetSignature;
   scalePolicy?: Record<string, unknown>;

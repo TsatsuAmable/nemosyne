@@ -19,6 +19,8 @@ import type {
   ScoreComponent,
   DecisionEvidenceItem,
   RejectedAlternative,
+  AlternativeCandidate,
+  AlternativeEligibility,
   DecisionEmbodiment,
   DecisionProvenance,
 } from './RepresentationDecision.ts';
@@ -471,6 +473,79 @@ export class MonetaHypothesisEngine {
       }
     }
 
+    // FM2: Promote alternatives into inspectable AlternativeCandidate identities
+    const sharedAnchors: string[] = [];
+    if (signature.schema.numericCount > 0) sharedAnchors.push('numeric_dimensions');
+    if (signature.schema.categoricalCount > 0) sharedAnchors.push('categorical_dimensions');
+    if (signature.temporalStructure?.isTimeSeries) sharedAnchors.push('temporal_sequence');
+    if (signature.topologicalStructure?.topology === 'GRAPH') sharedAnchors.push('graph_topology');
+    if (signature.clusterStructure?.hasClusters) sharedAnchors.push('cluster_partitions');
+
+    const alternatives: AlternativeCandidate[] = [];
+    for (const candidate of scoredCandidates) {
+      const isWinner =
+        candidate.candidateId === winner.candidateId &&
+        candidate.layout === winner.layout;
+      if (isWinner && assessment.status !== 'AMBIGUOUS') {
+        continue;
+      }
+
+      const scoreMargin = Math.max(0, winner.score - candidate.score);
+      let eligibility: AlternativeEligibility;
+      let reason: string;
+
+      if (candidate.disqualified) {
+        eligibility = 'DISQUALIFIED';
+        reason = candidate.disqualificationReason ?? 'Disqualified by hard constraint';
+      } else if (assessment.status === 'ABSTAIN') {
+        eligibility = 'ABSTAIN';
+        reason = 'Engine abstained from promoting a decision';
+      } else if (
+        assessment.status === 'AMBIGUOUS' &&
+        (isWinner || scoreMargin <= (assessment.margin ?? 0.08))
+      ) {
+        eligibility = 'AMBIGUOUS';
+        reason = `Ambiguous alternative within decisive margin (${scoreMargin.toFixed(3)})`;
+      } else if (scoreMargin <= 0.15) {
+        eligibility = 'NEAR_MISS';
+        reason = `Near-miss alternative with competitive utility (margin ${scoreMargin.toFixed(3)})`;
+      } else {
+        eligibility = 'ELIGIBLE';
+        reason = `Eligible representation alternative (${candidate.score.toFixed(3)} utility)`;
+      }
+
+      const geom = geometryForLayout(candidate.layout, candidate.candidateId);
+      const beh: VRBehavior =
+        candidate.layout === 'TIME_RIBBON'
+          ? 'PULSE_QUANTITATIVE'
+          : candidate.layout === 'RADIAL_ORBITAL'
+            ? 'ORBITAL_SPIN'
+            : 'STATIC';
+      const inter: VRInteraction =
+        candidate.layout === 'TIME_RIBBON'
+          ? 'HARVEST_STREAM'
+          : candidate.layout === 'FORCE_DIRECTED_3D'
+            ? 'TRAVERSE_EDGE'
+            : candidate.layout === 'RADIAL_ORBITAL'
+              ? 'DRILL_DOWN'
+              : 'INSPECT_CELL';
+
+      alternatives.push({
+        candidateId: candidate.candidateId,
+        family: candidate.family,
+        layout: candidate.layout,
+        geometry: geom,
+        behavior: beh,
+        interaction: inter,
+        score: candidate.score,
+        scoreMarginToWinner: scoreMargin,
+        eligibility,
+        reason,
+        hardPassed: !candidate.disqualified,
+        sharedSemanticAnchors: sharedAnchors,
+      });
+    }
+
     const now = 0;
     const effectiveContext = reqs.context;
     const effectiveIntent = reqs.intent ?? effectiveContext?.intent;
@@ -528,6 +603,7 @@ export class MonetaHypothesisEngine {
       embodiment,
       evidence,
       rejectedAlternatives,
+      alternatives,
       provenance,
       datasetSignature: signature,
     };

@@ -57,6 +57,8 @@ import type {
   DatasetSignature,
   RepresentationDecision,
   SpectralFacts,
+  AlternativeCandidate,
+  DecisionEmbodiment,
 } from '../moneta/index.ts';
 import { createRequirementsFromContext } from '../moneta/representation/RepresentationRequirements.ts';
 import {
@@ -72,6 +74,7 @@ import {
   EvidenceLedger,
   type CommittedInvestigationContextV2,
   type CommittedContextActivation,
+  type InvestigationNode,
 } from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
@@ -1589,6 +1592,43 @@ export class AtlasCore {
    */
   setInvestigationPerspective(perspective: unknown): CommittedContextActivation {
     return this._aggregate.setPerspective(perspective);
+  }
+
+  /**
+   * FM2: Retrieve alternative candidate representations evaluated during the active decision.
+   */
+  getRepresentationAlternatives(): readonly AlternativeCandidate[] {
+    return this._aggregate.getRepresentationAlternatives();
+  }
+
+  /**
+   * FM2: Preview an alternative representation candidate as an embodiment without mutating active state.
+   */
+  previewAlternative(candidateId: string): {
+    embodiment: DecisionEmbodiment;
+    candidate: AlternativeCandidate;
+  } {
+    return this._aggregate.previewAlternative(candidateId);
+  }
+
+  /**
+   * FM2: Compare an alternative representation candidate with the active decision,
+   * returning shared semantic anchors across the representations.
+   */
+  compareAlternative(candidateId: string): {
+    current: RepresentationDecision;
+    alternative: AlternativeCandidate;
+    sharedAnchors: readonly string[];
+  } {
+    return this._aggregate.compareAlternative(candidateId);
+  }
+
+  /**
+   * FM2: Branch the investigation to an alternative representation candidate (Road Not Taken),
+   * creating a child node with 'branches_from' lineage in the investigation graph.
+   */
+  branchToAlternative(candidateId: string, intentOverride?: unknown): InvestigationNode {
+    return this._aggregate.branchToAlternative(candidateId, intentOverride);
   }
 
   arbitrateSpatialStrategy(
