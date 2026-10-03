@@ -6,8 +6,10 @@ import {
   COLOR_TOKENS,
   CSS_VARIABLES,
   TOKEN_SET_VERSION,
+  contrastRatio,
   injectCssVariables,
 } from '../../src/vr/ui-system/tokens.ts';
+import { HIGH_CONTRAST_THEME } from '../../src/vr/ui-system/theme.ts';
 
 const repoRoot = path.resolve(__dirname, '../..');
 const srcDir = path.join(repoRoot, 'src');
@@ -59,6 +61,35 @@ describe('B-V1 canonical token authority', () => {
       { cwd: repoRoot, encoding: 'utf8' }
     ).trim();
     expect(tracked).toBe('');
+  });
+});
+
+describe('B-V1 executable contrast evidence (WCAG)', () => {
+  it('measures WCAG 2.x luminance/contrast with boundary pins and clears AA on rendered token pairs', () => {
+    // Math anchors: the ratio range is 1..21 and the thresholds are 4.5 / 3.0.
+    expect(contrastRatio(0xffffff, 0x000000)).toBeCloseTo(21, 1);
+    expect(contrastRatio(0x777777, 0xffffff)).toBeCloseTo(4.5, 1);
+    expect(contrastRatio(0x595959, 0x000000)).toBeCloseTo(3.0, 1);
+    expect(contrastRatio(0x111a24, 0xf2f6fa)).toBe(contrastRatio(0xf2f6fa, 0x111a24));
+
+    // Rendered text token pairs clear AA normal text (4.5:1) on both panel surfaces.
+    expect(contrastRatio(COLOR_TOKENS.text.primary, COLOR_TOKENS.surface.base)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(COLOR_TOKENS.text.primary, COLOR_TOKENS.surface.raised)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(COLOR_TOKENS.text.secondary, COLOR_TOKENS.surface.base)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(COLOR_TOKENS.text.secondary, COLOR_TOKENS.surface.raised)).toBeGreaterThanOrEqual(4.5);
+
+    // High-contrast theme pairs clear AA on their deep-black background.
+    expect(contrastRatio(HIGH_CONTRAST_THEME.textPrimary, HIGH_CONTRAST_THEME.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(HIGH_CONTRAST_THEME.textSecondary, HIGH_CONTRAST_THEME.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(HIGH_CONTRAST_THEME.textMuted, HIGH_CONTRAST_THEME.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(HIGH_CONTRAST_THEME.accentColor, HIGH_CONTRAST_THEME.backgroundColor)).toBeGreaterThanOrEqual(3.0);
+    expect(contrastRatio(HIGH_CONTRAST_THEME.dangerColor, HIGH_CONTRAST_THEME.backgroundColor)).toBeGreaterThanOrEqual(3.0);
+
+    // Interaction/epistemic accents are at least large-text/graphics scale (3:1) on panel surfaces.
+    expect(contrastRatio(COLOR_TOKENS.interaction.focus, COLOR_TOKENS.surface.base)).toBeGreaterThanOrEqual(3.0);
+    expect(contrastRatio(COLOR_TOKENS.danger.destructive, COLOR_TOKENS.surface.base)).toBeGreaterThanOrEqual(3.0);
+    expect(contrastRatio(COLOR_TOKENS.epistemic.uncertain, COLOR_TOKENS.surface.base)).toBeGreaterThanOrEqual(3.0);
+    expect(contrastRatio(COLOR_TOKENS.epistemic.contradiction, COLOR_TOKENS.surface.base)).toBeGreaterThanOrEqual(3.0);
   });
 });
 
