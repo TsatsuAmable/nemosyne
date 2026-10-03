@@ -2,8 +2,10 @@
 
 **Date:** 3 October 2026<br>
 **Reviewed main:** `5926da8b9c071bc5eeff02b104d63c8602d6abb0`.<br>
-**Disposition:** architecture reassessment delivered; [RFC 0011](../rfcs/0011-dual-epistemic-embodiment-and-preservation.md) is **proposed**, not accepted. No runtime capability is delivered.<br>
+**Disposition:** architecture reassessment delivered; [RFC 0011](../rfcs/0011-dual-epistemic-embodiment-and-preservation.md) is **accepted as amended by delegated adjudication**; its normative adjudication supersedes unresolved proposals below. No runtime capability is delivered.<br>
 **Authority:** the [governing vision](../Nemosyne_Definitive_Vision_and_Roadmap.md) defines the destination; [ROADMAP](../ROADMAP.md) controls execution.
+
+> **Adjudication:** RFC 0011 now resolves purpose/context V2, grounded versus conjectural bindings, validation and V4 static inspection. The text below preserves the original reassessment; references to proposed status or awaiting adjudication describe that earlier stage. ROADMAP records current clearance.
 
 ## 1. Finding and source reconciliation
 
