@@ -167,12 +167,6 @@
       "forbiddenPublicExports": [{ "path": "src/observability/index.ts", "symbols": ["remoteDebugStreamer"] }]
     },
     {
-      "id": "multimodal-perception-engine",
-      "classification": "development-only",
-      "sources": ["src/vr/perception/MultimodalPerceptionEnvelope.ts"],
-      "reason": "Dormant experimental perception model awaiting an evidence-backed product integration."
-    },
-    {
       "id": "rust-scene-command-buffer",
       "classification": "development-only",
       "sources": ["src/wasm/CommandApplier.ts", "wasm/src/command_buffer.rs"],

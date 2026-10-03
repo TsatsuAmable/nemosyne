@@ -1,24 +1,16 @@
 /**
  * Perception Subsystem — Barrel Export
+ *
+ * Re-pointed at PerceptualFitnessSampler-only content by the CMS-6 ARCHIVE
+ * package (docs/review-plans/CMS6_MULTIMODAL_PERCEPTION_AUDIT_2026-10-02.md §8):
+ * `MultimodalPerceptionEngine` and `GeometricGestureRecognizer` were deleted as
+ * production-unreachable heuristic prototypes. `PerceptualFitnessSampler` stays:
+ * it is production-reachable (src/app/*EvidenceDiagnostics.ts) and governed
+ * (Moneta F-7, tests/tec3-ma2-f5-f7-controls.test.ts).
  */
 
-export { MultimodalPerceptionEngine } from './MultimodalPerceptionEnvelope.ts';
+export { PerceptualFitnessSampler } from './PerceptualFitnessSampler.ts';
 export type {
-  PerceptionSource,
-  GazeCandidate,
-  GestureCandidate,
-  VoiceIntentCandidate,
-  MultimodalPerceptionSnapshot,
-} from './MultimodalPerceptionEnvelope.ts';
-export {
-  GeometricGestureRecognizer,
-  type Point3D,
-  type GestureTemplate,
-  type GestureMatchResult,
-} from './GeometricGestureRecognizer.ts';
-export {
-  GESTURE_MAP,
-  gesturesForAction,
-  getGestureMeta,
-  type GestureMeta,
-} from '../../utils/GestureMapping.ts';
+  PerceptualSamplerPose,
+  PerceptualSamplingTarget,
+} from './PerceptualFitnessSampler.ts';
