@@ -5,6 +5,7 @@
 **Baseline audited:** `b22559c22d9cc0d41cb99468c512d4d3baecbf5d`
 **Vision clarification:** [`../SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md`](../SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md)  
 **Full-Moneta implementation architecture:** [`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md)  
+**Role:** supporting dataset-first design detail. The linked Full-Moneta document is the canonical target-architecture synthesis; this document must not independently redefine the target.  
 
 ## 1. Problem
 
