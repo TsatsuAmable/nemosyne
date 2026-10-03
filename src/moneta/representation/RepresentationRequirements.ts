@@ -10,6 +10,9 @@ import * as v from 'valibot';
 import type { InformationType } from './RepresentationCandidate.ts';
 import type { SourceRelationshipGraphAuthority } from './RelationshipGraphAuthority.ts';
 import type { AggregateFunctionV1 } from './SemanticEmbodimentPayload.ts';
+import type { CommittedInvestigationContextV2 } from '../../atlas/domain/CommittedInvestigationContext.ts';
+import type { InvestigationIntentV1 } from '../../atlas/domain/InvestigationIntent.ts';
+import type { InvestigationPerspectiveV1 } from '../../atlas/domain/InvestigationPerspective.ts';
 
 export type AnalyticalTask =
   | 'overview'
@@ -160,6 +163,12 @@ export interface RepresentationRequirements {
    */
   maxFrustumExclusionTolerance: number;
   interactionBudget: 'LOW' | 'MEDIUM' | 'HIGH';
+  /** FM1: Optional committed investigation context framing the requirements. */
+  context?: CommittedInvestigationContextV2;
+  /** FM1: Optional canonical intent framing the requirements. */
+  intent?: InvestigationIntentV1;
+  /** FM1: Optional canonical perspective framing the requirements. */
+  perspective?: InvestigationPerspectiveV1;
 }
 
 export const AnalyticalTaskSchema = v.picklist([
@@ -566,3 +575,52 @@ export function createDefaultRequirements(
     interactionBudget: 'MEDIUM',
   };
 }
+
+/**
+ * FM1: Creates canonical RepresentationRequirements bound to an authoritative CommittedInvestigationContextV2.
+ * Translates intent task and variables of interest into representation requirements while preserving defaults.
+ */
+export function createRequirementsFromContext(
+  context: CommittedInvestigationContextV2,
+  base?: Partial<RepresentationRequirements>
+): RepresentationRequirements {
+  let resolvedTask: AnalyticalTask = 'explore';
+  if (context.intent?.currentTask) {
+    const rawTask = context.intent.currentTask.toLowerCase().trim();
+    if (
+      rawTask === 'overview' ||
+      rawTask === 'distribution-analysis' ||
+      rawTask === 'cluster-comparison' ||
+      rawTask === 'relationship-discovery' ||
+      rawTask === 'anomaly-detection' ||
+      rawTask === 'temporal-analysis' ||
+      rawTask === 'spatial-analysis' ||
+      rawTask === 'hierarchical-exploration' ||
+      rawTask === 'individual-inspection' ||
+      rawTask === 'group-comparison' ||
+      rawTask === 'pattern-discovery' ||
+      rawTask === 'trace-lineage' ||
+      rawTask === 'explore' ||
+      rawTask === 'temporal-trend' ||
+      rawTask === 'compare-clusters' ||
+      rawTask === 'identify-outliers'
+    ) {
+      resolvedTask = rawTask;
+    }
+  }
+
+  const req: RepresentationRequirements = {
+    ...createDefaultRequirements(resolvedTask),
+    ...base,
+    context,
+    intent: context.intent,
+    perspective: context.perspective,
+  };
+
+  if (context.intent?.variablesOfInterest && context.intent.variablesOfInterest.length > 0) {
+    req.primaryDimensions = [...context.intent.variablesOfInterest];
+  }
+
+  return req;
+}
+

@@ -216,6 +216,13 @@ export class CommittedInvestigationContextLedger {
     return this._epoch;
   }
 
+  reset(): void {
+    this._entries.clear();
+    this._revision = 0;
+    this._epoch = 0;
+    this._activeNodeId = null;
+  }
+
   commit(nodeId: string, context: unknown): CommittedContextActivation {
     const canonical = canonicalizeCommittedInvestigationContext({ ...(context as object), nodeId });
     const contextId = computeCommittedContextIdentity(canonical);

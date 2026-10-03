@@ -19,6 +19,12 @@ import { DecisionHistory } from './DecisionHistory.ts';
 import { ResearchContext, type ResearchContextOptions } from './ResearchContext.ts';
 import { InvestigationGraph } from './InvestigationGraph.ts';
 import {
+  CommittedInvestigationContextLedger,
+  type CommittedInvestigationContextV2,
+  type CommittedContextActivation,
+} from './CommittedInvestigationContext.ts';
+import { canonicalizeInvestigationPerspective } from './InvestigationPerspective.ts';
+import {
   computeGovernedInvestigationDigest,
   computeInvestigationDigest,
   computeSemanticInvestigationDigest,
@@ -83,6 +89,7 @@ export class InvestigationAggregate {
   readonly context: ResearchContext;
   readonly graph: InvestigationGraph;
   readonly discoveries: DiscoveryEpisodeStore;
+  readonly contextLedger: CommittedInvestigationContextLedger;
 
   constructor(options: ResearchContextOptions = {}) {
     this.analytical = new AnalyticalState();
@@ -92,6 +99,7 @@ export class InvestigationAggregate {
     this.context = new ResearchContext(options);
     this.graph = new InvestigationGraph();
     this.discoveries = new DiscoveryEpisodeStore();
+    this.contextLedger = new CommittedInvestigationContextLedger();
   }
 
   get sessionId(): string {
@@ -143,13 +151,26 @@ export class InvestigationAggregate {
       this.sessionId
     );
 
+    const rootNodeId = `${this.sessionId}:v${this.analytical.datasetVersion}`;
     this.graph.addNode({
-      id: `${this.sessionId}:v${this.analytical.datasetVersion}`,
+      id: rootNodeId,
       parentId: null,
       datasetVersion: this.analytical.datasetVersion,
       datasetFingerprint: fp,
       label: 'Initial Dataset',
       timestamp: this.context.now(),
+    });
+
+    this.contextLedger.reset();
+    this.contextLedger.commit(rootNodeId, {
+      schemaVersion: 2,
+      nodeId: rootNodeId,
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: this.context.researchQuestion,
+        hypothesis: this.context.hypothesis,
+      },
     });
   }
 
@@ -174,14 +195,68 @@ export class InvestigationAggregate {
       this.sessionId
     );
 
+    const rootNodeId = `${this.sessionId}:v${this.analytical.datasetVersion}`;
     this.graph.addNode({
-      id: `${this.sessionId}:v${this.analytical.datasetVersion}`,
+      id: rootNodeId,
       parentId: null,
       datasetVersion: this.analytical.datasetVersion,
       datasetFingerprint: fp,
       label: 'Initial Dataset (Columnar)',
       timestamp: this.context.now(),
     });
+
+    this.contextLedger.reset();
+    this.contextLedger.commit(rootNodeId, {
+      schemaVersion: 2,
+      nodeId: rootNodeId,
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: this.context.researchQuestion,
+        hypothesis: this.context.hypothesis,
+      },
+    });
+  }
+
+  /**
+   * FM1: Commit an authoritative investigation context bound to an investigation node.
+   */
+  commitContext(nodeId: string, context: unknown): CommittedContextActivation {
+    return this.contextLedger.commit(nodeId, context);
+  }
+
+  /**
+   * FM1: Get the current active committed investigation context.
+   */
+  getActiveContext(): CommittedInvestigationContextV2 | undefined {
+    const current = this.contextLedger.current();
+    if (!current) return undefined;
+    return this.contextLedger.getCommitted(current.nodeId);
+  }
+
+  /**
+   * FM1: Activate an existing committed investigation node/context.
+   */
+  activateContext(nodeId: string): CommittedContextActivation {
+    return this.contextLedger.activate(nodeId);
+  }
+
+  /**
+   * FM1: Foreground a new perspective over the currently active investigation context,
+   * returning a fresh activation epoch and updating context identity without modifying
+   * analytical dataset state.
+   */
+  setPerspective(perspective: unknown): CommittedContextActivation {
+    const active = this.getActiveContext();
+    if (!active) {
+      throw new Error('Cannot set perspective: no committed investigation context is active');
+    }
+    const canonicalPerspective = canonicalizeInvestigationPerspective(perspective);
+    const updatedContext: CommittedInvestigationContextV2 = {
+      ...active,
+      perspective: canonicalPerspective,
+    };
+    return this.contextLedger.commit(active.nodeId, updatedContext);
   }
 
   /** Export the serialisable state snapshot of the aggregate. */

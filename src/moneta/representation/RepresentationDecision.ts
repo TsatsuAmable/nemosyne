@@ -78,6 +78,12 @@ export interface DecisionProvenance {
   stabilityCertificateDigest?: string;
   /** RFC 0006 tranche is deliberately verified but non-promotable. */
   stabilityAdmissionDisposition?: 'VERIFIED_NON_PROMOTABLE';
+  /** FM1: exact committed context identity framing this decision. */
+  contextIdentity?: string;
+  /** FM1: exact canonical intent identity framing this decision. */
+  intentIdentity?: string;
+  /** FM1: exact canonical perspective identity framing this decision. */
+  perspectiveIdentity?: string;
 }
 
 export interface RepresentationDecision {

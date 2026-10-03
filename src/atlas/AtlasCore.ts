@@ -58,6 +58,7 @@ import type {
   RepresentationDecision,
   SpectralFacts,
 } from '../moneta/index.ts';
+import { createRequirementsFromContext } from '../moneta/representation/RepresentationRequirements.ts';
 import {
   mapClusterStructures,
   mapMapperStructures,
@@ -66,7 +67,12 @@ import {
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
 import { KernelAbiError, KernelUnavailableError, UnsupportedAtScaleError } from '../wasm/RuntimeBridge.ts';
-import { InvestigationAggregate, EvidenceLedger } from './domain/index.ts';
+import {
+  InvestigationAggregate,
+  EvidenceLedger,
+  type CommittedInvestigationContextV2,
+  type CommittedContextActivation,
+} from './domain/index.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
@@ -1546,10 +1552,43 @@ export class AtlasCore {
     _input?: DracoDataInput,
     _spectralFacts?: SpectralFacts | null
   ): RepresentationDecision {
+    const activeContext = this._aggregate.getActiveContext();
+    const effectiveReq =
+      requirements ??
+      (activeContext ? createRequirementsFromContext(activeContext) : undefined);
     return this._aggregate.representation.arbitrateRepresentationFromEvidence(
       this.datasetEvidence(),
-      requirements
+      effectiveReq
     );
+  }
+
+  /**
+   * FM1: Get the current active committed investigation context.
+   */
+  getActiveInvestigationContext(): CommittedInvestigationContextV2 | undefined {
+    return this._aggregate.getActiveContext();
+  }
+
+  /**
+   * FM1: Commit an authoritative investigation context bound to an investigation node.
+   */
+  commitInvestigationContext(nodeId: string, context: unknown): CommittedContextActivation {
+    return this._aggregate.commitContext(nodeId, context);
+  }
+
+  /**
+   * FM1: Activate an existing committed investigation node/context.
+   */
+  activateInvestigationContext(nodeId: string): CommittedContextActivation {
+    return this._aggregate.activateContext(nodeId);
+  }
+
+  /**
+   * FM1: Foreground a new perspective over the currently active investigation context
+   * without mutating underlying analytical truth.
+   */
+  setInvestigationPerspective(perspective: unknown): CommittedContextActivation {
+    return this._aggregate.setPerspective(perspective);
   }
 
   arbitrateSpatialStrategy(
