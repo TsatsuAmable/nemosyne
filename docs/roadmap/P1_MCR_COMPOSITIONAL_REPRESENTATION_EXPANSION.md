@@ -141,7 +141,7 @@ P1-MCR owns:
 
 - representation-graph composition semantics;
 - binding representation primitives to semantic objects and evidence;
-- the semantic-to-spatial compiler boundary;
+- the Moneta Forma semantic-to-perceptual compiler boundary, with spatial embodiment as the first backend;
 - multi-element spatial embodiment;
 - composed selection/detail semantics;
 - composed lifecycle/replay/resource correctness;
@@ -184,7 +184,7 @@ Planning and contract work may proceed while the current product stream continue
 
 ### Trustworthy-evidence dependency
 
-P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` defines **FM0 / P1-TEC trustworthy-evidence closure** as the hard scientific prerequisite for promoting FM3 composition. PT9 learning is **not** a universal prerequisite for deterministic/reference composition. Before MCR2 creates the production semantic-to-spatial compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
+P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` defines **FM0 / P1-TEC trustworthy-evidence closure** as the hard scientific prerequisite for promoting FM3 composition. PT9 learning is **not** a universal prerequisite for deterministic/reference composition. Before MCR2 creates the production semantic-to-perceptual Forma compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
 
 - semantic/measurement admissibility and analytical geometry are not discarded before representation binding;
 - assumptions, sample support, uncertainty, stability, sensitivity and limitations remain distinguishable where the representation claim depends on them;
