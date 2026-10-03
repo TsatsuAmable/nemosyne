@@ -45,10 +45,11 @@
       "id": "RF-040",
       "title": "Telemetry consent/GDPR helper is off-path and cannot substantiate its current claims",
       "severity": "High",
-      "status": "IMPLEMENTATION PARTIAL",
-      "statusNote": "The authoritative telemetry lifecycle and end-to-end revoke/export/erasure evidence remain incomplete.",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "Client-wide TelemetryCollector and UXTraceRecorder default-off, revocation halt, and full-erasure contracts are verified; research study helper claims are honestly bounded.",
       "evidence": [
-        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-040"
+        "docs/review-plans/RF040_TELEMETRY_LIFECYCLE_ASSURANCE_2026-10-03.md",
+        "tests/telemetry-lifecycle-assurance.test.ts"
       ]
     },
     {

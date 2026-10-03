@@ -324,6 +324,23 @@ export class UXTraceRecorder {
   }
 
   /**
+   * Complete client-side trace erasure.
+   * Disables recording, resets active trace state, and purges all buffered
+   * trace records, drop counters, sequence numbers, and cached spatial contexts.
+   */
+  erase(): void {
+    this._disabled = true;
+    this._traceOpen = false;
+    this._buffer = [];
+    this._droppedCount = 0;
+    this._seq = 0;
+    this._ctxCache = null;
+    this._ctxCacheFrame = -1;
+    this._uiCache = {};
+    this._uiCacheFrame = -1;
+  }
+
+  /**
    * Local-only snapshot of buffered records for user-initiated download.
    * Non-destructive; never transmits. Versioned metadata makes truncation,
    * misassociation and accidental record corruption detectable.

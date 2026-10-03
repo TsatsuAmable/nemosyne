@@ -1,10 +1,14 @@
 /**
- * Telemetry Consent & GDPR Right-to-Erasure Manager.
+ * In-memory Research Study Participant Consent Registry.
  *
  * Enforces explicit participant consent, pseudonymous subject hashing, and
- * full scrubbing/deletion hooks for study and performance logs.
+ * in-memory record scrubbing for research study sessions.
  *
- * Privacy contract:
+ * Privacy contract & boundary notice:
+ * - This is a development/research-study helper scoped strictly to in-memory
+ *   participant consent tracking. It is NOT the live client telemetry authority
+ *   (which is `TelemetryCollector`) nor the backend governed data-plane authority
+ *   (which is `ProductAnalyticsConsentAuthority`).
  * - The pseudonym is a real cryptographic SHA-256 (Web Crypto) digest of
  *   `salt:subjectId`, so the raw subject identifier cannot be recovered from
  *   the record.
@@ -13,6 +17,10 @@
  * - A non-empty per-deployment salt is REQUIRED; construction without one
  *   fails closed so a deployment can never silently fall back to a public
  *   default that weakens the pseudonym.
+ * - Erasure is bounded strictly to this local in-memory registry: deleting
+ *   a participant record does not traverse external databases, persistence
+ *   adapters, or physical media. Broad statutory GDPR claims must not be made
+ *   for this component alone.
  */
 
 export type ConsentStatus = 'unspecified' | 'granted' | 'revoked';
@@ -88,9 +96,18 @@ export class TelemetryConsentManager {
   }
 
   /**
-   * GDPR Right-to-Erasure: permanently erase subject record and all linked mapping.
+   * Erase participant consent record from this in-memory registry.
+   * Bounded to this local registry: removes the pseudonym token mapping and consent record.
+   * Does not traverse external data stores or physical media.
    */
   async executeRightToErasure(rawSubjectId: string): Promise<boolean> {
+    return this.deleteConsentRecord(rawSubjectId);
+  }
+
+  /**
+   * Delete participant record from local registry by raw subject ID.
+   */
+  async deleteConsentRecord(rawSubjectId: string): Promise<boolean> {
     const pseudonymToken = await this.generatePseudonymToken(rawSubjectId);
     return this._records.delete(pseudonymToken);
   }
