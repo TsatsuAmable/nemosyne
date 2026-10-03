@@ -1,3 +1,10 @@
+/**
+ * CommittedInvestigationContext — the domain-owned committed meaning of an investigation step,
+ * and the activation epoch that makes stale asynchronous adoption detectable.
+ *
+ * Authority: A27-0 §5, A27-1 / RFC 0011 (dual epistemic context V2 identity and epistemic purpose).
+ */
+
 import { canonicalSha256Hex } from '../../security/CryptoHash.ts';
 import {
   canonicalizeInvestigationIntent,
@@ -35,6 +42,7 @@ export interface CommittedInvestigationContextV2 {
   readonly perspective?: InvestigationPerspectiveV1;
 }
 
+/** Mutable activation state. Never hashed, never used as scientific meaning. */
 export interface CommittedContextActivation {
   readonly contextId: string;
   readonly nodeId: string;
@@ -42,6 +50,7 @@ export interface CommittedContextActivation {
   readonly activationEpoch: number;
 }
 
+/** The bindings an asynchronous result must still hold to be adoptable. */
 export interface ContextBinding {
   readonly contextId: string;
   readonly nodeId: string;

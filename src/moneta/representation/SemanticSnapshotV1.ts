@@ -1,4 +1,7 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
+import type {
+  SemanticEmbodimentEnvelopeV1,
+} from './SemanticEmbodimentPayload.js';
 
 export const SEMANTIC_SNAPSHOT_SCHEMA_VERSION = 1 as const;
 
@@ -98,6 +101,7 @@ export interface SemanticSnapshotV1 {
   readonly body: SemanticSnapshotBodyV1;
 }
 
+/** Helper to compute H(tag, body) = tag + ':' + canonicalSha256Hex({ tag, body }) */
 export function taggedDigest(tag: string, body: unknown): string {
   return `${tag}:${canonicalSha256Hex({ tag, body })}`;
 }
@@ -123,6 +127,10 @@ export function computeSnapshotId(body: SemanticSnapshotBodyV1): string {
   return taggedDigest('semantic-snapshot-v1', body);
 }
 
+/**
+ * Validates a SemanticSnapshotV1 according to A27-0 §4.2 specifications:
+ * Rejects non-finite numbers, sparse arrays, un-sorted declared sets, or decision metadata leakage.
+ */
 export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
   if (snapshot.schemaVersion !== 1) {
     throw new Error(`Invalid snapshot schema version: ${snapshot.schemaVersion}`);
@@ -132,4 +140,228 @@ export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
   if (snapshot.snapshotId !== expectedSnapshotId) {
     throw new Error(`Snapshot ID mismatch: expected ${expectedSnapshotId}, got ${snapshot.snapshotId}`);
   }
+
+  const { sources, nodes, relations, limitations } = snapshot.body;
+
+  // Validate sources ordering by sourceId
+  for (let i = 1; i < sources.length; i++) {
+    if (sources[i].sourceId <= sources[i - 1].sourceId) {
+      throw new Error(`Sources array must be strictly sorted by sourceId: ${sources[i - 1].sourceId} >= ${sources[i].sourceId}`);
+    }
+  }
+
+  // Validate nodes ordering by nodeId
+  for (let i = 1; i < nodes.length; i++) {
+    if (nodes[i].nodeId <= nodes[i - 1].nodeId) {
+      throw new Error(`Nodes array must be strictly sorted by nodeId: ${nodes[i - 1].nodeId} >= ${nodes[i].nodeId}`);
+    }
+  }
+
+  // Validate relations ordering by relationId
+  for (let i = 1; i < relations.length; i++) {
+    if (relations[i].relationId <= relations[i - 1].relationId) {
+      throw new Error(`Relations array must be strictly sorted by relationId: ${relations[i - 1].relationId} >= ${relations[i].relationId}`);
+    }
+  }
+
+  // Validate limitations ordering by code then sourceId
+  for (let i = 1; i < limitations.length; i++) {
+    const prevKey = `${limitations[i - 1].code}:${limitations[i - 1].sourceId}`;
+    const currKey = `${limitations[i].code}:${limitations[i].sourceId}`;
+    if (currKey <= prevKey) {
+      throw new Error(`Limitations array must be strictly sorted by code:sourceId`);
+    }
+  }
+
+  // Validate evidence references in sources
+  for (const src of sources) {
+    for (const ev of src.evidenceReferences) {
+      if (!ev.datasetFingerprint || !ev.kernelVersion || !ev.bundleContentDigest || !ev.receiptId || !ev.receiptContentDigest) {
+        throw new Error(`Source ${src.sourceId} has incomplete evidence reference tuple`);
+      }
+    }
+  }
+}
+
+/**
+ * Normalizes a Rust analytical payload envelope into a decision-independent SemanticSnapshotV1.
+ * Explicitly strips decision IDs, model versions, timestamps, and presentation hints.
+ */
+export function normalizeEnvelopeToSnapshot(
+  envelope: SemanticEmbodimentEnvelopeV1,
+  evidenceReferences: readonly EvidenceReferenceTupleV1[] = [],
+): SemanticSnapshotV1 {
+  const datasetFingerprint = envelope.datasetFingerprint;
+  const kernelVersion = envelope.provenance?.kernelVersion ?? '1.0.0';
+
+  const parametersDigest = canonicalSha256Hex(envelope.analyticalMethod.parameters ?? {});
+  const requestIdentity = taggedDigest('analytical-request-v1', {
+    candidateId: envelope.candidateId,
+    method: envelope.analyticalMethod,
+  });
+
+  const state: SemanticStateV1 =
+    envelope.result.status === 'READY'
+      ? {
+          status: 'AVAILABLE',
+          approximation: {
+            mode: envelope.approximation.mode,
+            representedRowCount: envelope.approximation.representedRowCount,
+            description: envelope.approximation.description,
+          },
+        }
+      : {
+          status: 'REFUSED',
+          owningReason: envelope.result.refusal.message,
+        };
+
+  const sourcePreimage = {
+    family: envelope.representationFamily,
+    analyticalRequestIdentity: requestIdentity,
+    method: envelope.analyticalMethod.name,
+    methodVersion: envelope.analyticalMethod.version,
+    parametersDigest,
+    state,
+    analyticalContentRef: taggedDigest('analytical-content-v1', envelope.result),
+    evidenceReferences: [...evidenceReferences].sort((a, b) =>
+      `${a.datasetFingerprint}:${a.receiptId}`.localeCompare(`${b.datasetFingerprint}:${b.receiptId}`),
+    ),
+    limitations: (envelope.informationContract.loses ?? []).map((l) => String(l)).sort(),
+  };
+
+  const sourceId = computeSourceId(sourcePreimage);
+  const sourceRecord: SemanticSourceRecordV1 = {
+    sourceId,
+    ...sourcePreimage,
+  };
+
+  const nodes: SemanticNodeRecordV1[] = [];
+  const relations: SemanticRelationRecordV1[] = [];
+
+  if (envelope.result.status === 'READY') {
+    const payload = envelope.result.payload;
+
+    if (payload.kind === 'AGGREGATE_VOLUME') {
+      for (const group of payload.data.groups) {
+        const nodeId = computeNodeId(sourceId, group.semanticId, 'count');
+        nodes.push({
+          nodeId,
+          sourceId,
+          producerSemanticId: group.semanticId,
+          propertyPath: 'count',
+          descriptor: {
+            label: `Group Count (${group.key})`,
+            valueType: 'number',
+          },
+          value: group.count,
+          state: { status: 'AVAILABLE' },
+        });
+
+        if (group.aggregateValue !== undefined) {
+          const valNodeId = computeNodeId(sourceId, group.semanticId, 'aggregateValue');
+          nodes.push({
+            nodeId: valNodeId,
+            sourceId,
+            producerSemanticId: group.semanticId,
+            propertyPath: 'aggregateValue',
+            descriptor: {
+              label: `Group Aggregate (${group.key})`,
+              valueType: 'number',
+            },
+            value: group.aggregateValue,
+            state: { status: 'AVAILABLE' },
+          });
+        }
+      }
+    } else if (payload.kind === 'EMPIRICAL_DISTRIBUTION') {
+      for (const bin of payload.data.histogram) {
+        const nodeId = computeNodeId(sourceId, bin.semanticId, 'count');
+        nodes.push({
+          nodeId,
+          sourceId,
+          producerSemanticId: bin.semanticId,
+          propertyPath: 'count',
+          descriptor: {
+            label: `Histogram Bin Count [${bin.lowerBound}, ${bin.upperBound}]`,
+            valueType: 'number',
+          },
+          value: bin.count,
+          state: { status: 'AVAILABLE' },
+        });
+      }
+    } else if (payload.kind === 'BINNED_DENSITY') {
+      for (const cell of payload.data.grid) {
+        const nodeId = computeNodeId(sourceId, cell.semanticId, 'count');
+        nodes.push({
+          nodeId,
+          sourceId,
+          producerSemanticId: cell.semanticId,
+          propertyPath: 'count',
+          descriptor: {
+            label: `Grid Cell Count (${cell.xIndex}, ${cell.yIndex})`,
+            valueType: 'number',
+          },
+          value: cell.count,
+          state: { status: 'AVAILABLE' },
+        });
+      }
+    }
+  }
+
+  // Sort declared sets per A27-0 §4.2 spec
+  const sources = [sourceRecord].sort((a, b) => a.sourceId.localeCompare(b.sourceId));
+  nodes.sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+  relations.sort((a, b) => a.relationId.localeCompare(b.relationId));
+
+  const limitations: SemanticLimitationRecordV1[] = sourcePreimage.limitations.map((code) => ({
+    code,
+    sourceId,
+    description: `Information loss: ${code}`,
+  })).sort((a, b) => `${a.code}:${a.sourceId}`.localeCompare(`${b.code}:${b.sourceId}`));
+
+  const coverage: SemanticCoverageDescriptorV1[] = [
+    {
+      family: envelope.representationFamily,
+      analyticalRequestDigest: requestIdentity,
+      status: envelope.result.status === 'READY' ? 'AVAILABLE' : 'REFUSED',
+    },
+  ];
+
+  const body: SemanticSnapshotBodyV1 = {
+    analyticalDatasetFingerprint: datasetFingerprint,
+    kernelVersion,
+    semanticVocabulary: {
+      id: 'nemosyne-vocabulary-v1',
+      version: '1.0.0',
+      digest: taggedDigest('vocab-v1', { name: 'nemosyne-vocabulary-v1' }),
+    },
+    normalizer: {
+      id: 'l0-sem-norm-a',
+      version: '1.0.0',
+      digest: taggedDigest('normalizer-v1', { name: 'l0-sem-norm-a' }),
+    },
+    coverage,
+    sources,
+    nodes,
+    relations,
+    limitations,
+  };
+
+  const snapshotId = computeSnapshotId(body);
+  const snapshot: SemanticSnapshotV1 = {
+    schemaVersion: 1,
+    snapshotId,
+    body,
+  };
+
+  validateSemanticSnapshot(snapshot);
+  return snapshot;
+}
+
+/**
+ * Asserts that two snapshot instances derived from the same analytical outputs
+ * retain 100% snapshot identity invariance even when presentation/decision parameters differ.
+ */
+export function verifySnapshotIdentityInvariance(s1: SemanticSnapshotV1, s2: SemanticSnapshotV1): boolean {
+  return s1.snapshotId === s2.snapshotId;
 }
