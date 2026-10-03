@@ -5,6 +5,7 @@
 **Governing vision:** [`Nemosyne_Definitive_Vision_and_Roadmap.md`](Nemosyne_Definitive_Vision_and_Roadmap.md)  
 **Live execution authority:** [`ROADMAP.md`](ROADMAP.md)  
 **Detailed dataset-first architecture:** [`architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md)
+**Full implementation architecture:** [`architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md)
 
 This note clarifies how Nemosyne turns abstract datasets into human-accessible perceptual structures. It does not create a new analytical authority, relax evidence gates, or require a new runtime subsystem.
 
