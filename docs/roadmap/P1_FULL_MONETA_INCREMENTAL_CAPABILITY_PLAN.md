@@ -6,6 +6,7 @@
 **Live execution authority:** `docs/ROADMAP.md`  
 **Representation architecture:** `docs/roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`  
 **Canonical Full-Moneta target architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`  
+**Role:** capability-ladder integration detail; architecture comes from the linked canonical document and sequencing/status comes from `docs/ROADMAP.md`.  
 **Product/UX doctrine:** `docs/Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md` and `docs/Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`  
 **Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`
 
