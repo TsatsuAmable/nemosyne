@@ -21,6 +21,8 @@ const pageByAuthority = new Map([
   ['semantic-embodiment-vision-clarification', 'Semantic-Embodiment-Vision-Clarification'],
   ['full-moneta-semantic-embodiment-architecture', 'Full-Moneta-Semantic-Embodiment-Architecture'],
   ['architecture-2027-review', 'Architecture-2027-Review'],
+  ['dual-epistemic-architecture-reassessment', 'A27-1-Dual-Epistemic-Reassessment'],
+  ['dual-epistemic-preservation-rfc', 'Dual-Epistemic-Preservation-RFC'],
   ['a27-0-authority-version-decision', 'A27-0-Authority-Version-Decision'],
   ['semantic-snapshot-forma-admission-rfc', 'Semantic-Snapshot-Forma-Admission-RFC'],
   ['product-ux-design-doctrine', 'User-Experience-Design-Doctrine'],
