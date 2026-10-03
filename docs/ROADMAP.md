@@ -16,7 +16,7 @@ This roadmap is an **index, not a diary or design document**.
 
 Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The historical ledger preserves the pre-compaction 259k-character roadmap verbatim, so compaction is not information deletion.
 
-## Current snapshot — 3 October 2026
+## Status snapshot - 3 October 2026
 
 **Integration base:** `main@767632df0a948491e49f76602e2d094e444fe359`.
 
@@ -26,6 +26,19 @@ Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The his
 - **Full Moneta is advancing incrementally.** The next production representation step is the first static Forma vertical slice after its applicable evidence gate. See [incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) and [architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
 - **Quest Compute Acceleration is active as a bounded parallel performance lane.** QCA0 baseline comes first. See [QCA index](work/quest-compute/README.md).
 - **scriptc is parked for Quest/WebXR.** It may be reconsidered only for a real native CLI/sidecar/tool deployment with measured benefit. See [scriptc evaluation](roadmap/SCRIPTC_NATIVE_TYPESCRIPT_EVALUATION.md).
+
+Current order:
+
+```text
+P1-TEC / FM0 evidence closure
+  -> L2-FORMA-1 first static Forma vertical slice
+  -> FM3/4 composition + resolution qualification
+  -> FM5 System-1 assistance
+  -> FM6/7 governed learning + search
+
+parallel when evidence/collision rules allow: UXR4/5 physical qualification + QCA0-QCA5
+then: P1-WP -> P1-WQ -> PT9/PT10
+```
 
 ## Forward dependency spine
 
