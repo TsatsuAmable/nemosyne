@@ -187,12 +187,13 @@ Memory Palace extension:
 
 Required implementation:
 
-- run **L0-SEM-NORM** to reconcile governed payload families into one versioned semantic vocabulary/graph adapter;
-- run **L2-FORMA-0** to define typed perceptual channels, `PerceptualBindingV1` and `PerceptualEmbodimentPlanV1`;
-- advance P1-MCR MCR2 as a semantic-to-perceptual compiler with `SpatialEmbodimentPlanV1` as its first backend;
+- settle **A27-0** first: decision-independent semantic snapshot identity, fixed-obligation ownership, admission-versus-use semantics and replay/version compatibility;
+- run **L0-SEM-NORM-A** to normalize governed family outputs into decision-independent semantic snapshots with explicit refused/partial/approximate states;
+- run **L2-FORMA-0 + bounded KB0** to define fixed obligations, typed perceptual bindings, immutable admission/result identity, execution-purpose semantics and a pinned knowledge manifest over distinct authorities;
+- advance P1-MCR MCR2 as the first static production Forma slice with `SpatialEmbodimentPlanV1` as its first backend;
+- include reverse explanation, exact capture/replay and non-adaptive critique/meaning capture in that first usable slice;
 - MCR3 multi-element runtime and lifecycle;
 - MCR4 composed interaction/detail semantics;
-- add reverse explanation from perceptual property -> binding -> representation primitive -> semantic node -> evidence;
 - initially use a small qualified composition/binding grammar rather than open-ended generation;
 - prove evidence-bound semantic identity across every primitive and binding;
 - support deterministic/reference composition before search.
@@ -229,10 +230,10 @@ Required implementation:
 - formalise a semantic-resolution contract distinct from polygon LOD;
 - define hardware/perceptual capability budgets for CPU, GPU, memory, analytical residency, model residency and scene complexity;
 - extend the planned `PerceptualEmbodimentPlan` with resource/perceptual budget intent while keeping `SpatialEmbodimentPlanV1` as a backend; adaptation may reduce richness across channels but may not mutate analytical semantics;
-- generate multiple valid phenotypes from the same semantic graph;
-- use UXR2/UXR3 lifecycle/admission/eviction machinery;
+- generate multiple **admitted applicable variants** from the same supported semantic snapshot and fixed obligations rather than assuming one linear richness ladder;
+- use UXR2/UXR3 lifecycle/admission/eviction machinery with stale-context adoption refusal;
 - implement progressive crystallisation and reversible semantic refinement/collapse;
-- qualify cross-hardware equivalence.
+- qualify cross-hardware semantic recoverability separately from mechanical obligation coverage.
 
 Researcher-visible experience:
 

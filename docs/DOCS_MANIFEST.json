@@ -56,6 +56,12 @@
       "owner": "architecture"
     },
     {
+      "path": "docs/architecture/ARCHITECTURE_2027_REVIEW.md",
+      "status": "active",
+      "authority": "architecture-2027-review",
+      "owner": "architecture"
+    },
+    {
       "path": "CONTRIBUTING.md",
       "status": "active",
       "authority": "contribution-process",

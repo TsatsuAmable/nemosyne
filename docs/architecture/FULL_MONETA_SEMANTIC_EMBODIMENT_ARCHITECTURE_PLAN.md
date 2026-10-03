@@ -6,6 +6,7 @@
 **Live execution authority:** [`ROADMAP.md`](../ROADMAP.md)  
 **Current technical reference:** [`ARCHITECTURE.md`](../ARCHITECTURE.md)  
 **Scientific admissibility:** [`MONETA_EVIDENCE_PROTOCOL.md`](../research/MONETA_EVIDENCE_PROTOCOL.md)
+**Architecture 2027 adjudication:** [`ARCHITECTURE_2027_REVIEW.md`](ARCHITECTURE_2027_REVIEW.md) — accepted integration corrections are incorporated here; the review is not a second target architecture.
 
 This document is the **single target-architecture synthesis for Full Moneta**. It consolidates the destination previously spread across the dataset-first semantic-embodiment design, MCR authority/schema work, compositional-representation plan, System-1/System-2 design, Full-Moneta capability ladder, UX doctrine, evidence protocol, Quest/runtime work, ScriptC evaluation and the product metaphors in the interaction specifications.
 
@@ -247,7 +248,7 @@ Its current fail-closed one-renderable-primitive rule is correct. MCR3 replaces 
 
 ## 6. New first-class contracts
 
-The architecture should add a small set of durable contracts rather than hide new semantics in renderer options.
+The architecture should add a small set of durable contracts rather than hide new semantics in renderer options. **Do not freeze the names below as thirteen independent persistent objects before A27-0 settles semantic snapshot identity, fixed-obligation ownership, admission/use semantics and replay/version compatibility.** Prefer subordinate immutable values inside existing owners over new registries/services.
 
 ### 6.1 `InvestigationPerspectiveV1`
 
@@ -270,7 +271,7 @@ InvestigationPerspectiveV1
 
 Examples: temporal, causal, uncertainty, provenance, population, anomaly, comparison.
 
-A Farcaster may embody transition between perspectives or branches, but the portal is presentation. The perspective object belongs to Investigation/representation context.
+A Farcaster may embody transition between perspectives or branches, but the portal is presentation. Perspective is a versioned value embedded in **committed Investigation context**, not a separate mutable authority. A field that changes the analyzed population or requests new computation is a governed analytical derivation, not merely a view preference.
 
 ### 6.2 `SemanticObligationV1`
 
@@ -288,7 +289,7 @@ SemanticObligationV1
   evidenceRefs[]
 ~~~
 
-Every admitted embodiment declares what meaning must survive simplification.
+Moneta derives the fixed obligation set from the evidence-bound semantic snapshot plus committed investigation context under pinned policy **before candidate comparison**. Forma may satisfy or refuse those obligations; neither a candidate nor a resource broker may weaken `MUST_PRESERVE` merely to make a plan fit.
 
 ### 6.3 `PerceptualChannelSpecV1`
 
@@ -303,7 +304,7 @@ Initial channel families may include:
 - haptic: pulse, resistance, intensity, texture, where device evidence permits;
 - interaction: selectable, movable, separable, traversable, deformable operations whose semantics are explicit.
 
-Each channel records capability, accessibility/fallback properties, contraindications and resource cost class. This registry is not evidence that a mapping is meaningful.
+Each channel records capability, accessibility/fallback properties, contraindications and resource cost class. Start this as a **closed, versioned compiler capability table**, not a new mutable registry/service. Mechanical channel capability is not evidence that a mapping is meaningful.
 
 ### 6.4 `PerceptualBindingV1`
 
@@ -399,7 +400,7 @@ PerceptualEmbodimentPlanV1
   provenance
 ~~~
 
-`SpatialEmbodimentPlanV1` remains the first qualified backend and can be nested/referenced rather than replaced immediately.
+`SpatialEmbodimentPlanV1` remains the first qualified backend and can be nested/referenced rather than replaced immediately. The durable admission result must pin the semantic snapshot, committed context, representation proposal/decision, fixed obligations, knowledge manifest, compiler/transform versions, evidence requirement profiles and permitted execution purpose; a parsed plan is not an approval token.
 
 ---
 
@@ -411,9 +412,9 @@ The compiler can be built deterministically. Knowledge of what metaphors actuall
 
 That knowledge must not live only inside model weights.
 
-### 7.1 `FormaKnowledgeBaseV1`
+### 7.1 `FormaKnowledgeBaseV1` as a pinned knowledge view
 
-This is a versioned, queryable representation-knowledge registry.
+Use one versioned, queryable **knowledge view/manifest**, but keep distinct record authorities and write permissions. The manifest may index rules, templates, cases, contraindications, human judgments and study results; it must not become a mutable source-of-truth copy of those authorities. A local manifest plus typed indexes is sufficient initially.
 
 ~~~text
 FormaKnowledgeBaseV1
@@ -432,10 +433,10 @@ Every entry has:
 - evidence basis;
 - provenance;
 - limitations;
-- status: `EXPERIMENTAL | QUALIFIED | RETIRED`;
-- no uncalibrated universal “confidence” scalar.
+- qualification attached to a versioned **claim + scope + use**, with explicit supersession/retraction lineage;
+- no uncalibrated universal “confidence” scalar and no template-wide status that silently strengthens weaker evidence.
 
-Possible evidence bases include `PRIOR_ART`, `DOMAIN_CONVENTION`, `HUMAN_JUDGMENT`, `CONTROLLED_STUDY` and `LEARNED_PRIOR`. A learned prior never promotes itself.
+Possible evidence bases include `PRIOR_ART`, `DOMAIN_CONVENTION`, `HUMAN_JUDGMENT`, `CONTROLLED_STUDY` and `LEARNED_PRIOR`. Original human judgments and study results remain in their existing custody; cases and the knowledge manifest reference them. A learned prior never promotes itself.
 
 ### 7.2 `MetaphorTemplateV1`
 
@@ -937,79 +938,62 @@ This is not a global serialization barrier. Parallel work is permitted when prer
 
 ## 19. Roadmap tranches
 
-These are the implementation-sized units the live roadmap should schedule.
+These are the implementation-sized units the live roadmap should schedule. ERA-ASTRA1 requires one authority/version decision before durable Forma schemas freeze.
 
-### L0-SEM-NORM — semantic vocabulary normalization
+### A27-0 — authority/version decision
 
-Reconcile `SemanticEmbodimentPayloadV1`, cluster/graph payloads, `SemanticEmbodimentGraphV1` and representation-kind compatibility into one versioned semantic normalization path.
+Resolve decision-independent semantic snapshot identity, fixed-obligation ownership, admission-versus-use semantics, replay/version compatibility and typed refusal taxonomy. This is a bounded documentation/RFC seam, not an implementation sprint.
 
-**Exit:** every production semantic family deterministically maps into the semantic graph vocabulary or explicitly refuses.
+**Exit:** accepted decision/RFC where required, with an explicit input tuple, version boundary, compatibility/adaptation rule and refusal table. STOP rather than silently replacing accepted Rust/WASM, evidence or NIL authority.
+
+### L0-SEM-NORM-A — semantic snapshot normalization
+
+Normalize authoritative family outputs into a **decision-independent semantic snapshot** while preserving family-specific typed leaves, evidence/profile identity, missing/refused/approximate state and limitations. Do not strengthen vocabulary merely to make enums align.
+
+**Exit:** the same analytical snapshot survives two decisions/perspectives; missing, retracted or wrong-profile evidence refuses; every supported family maps explicitly and unsupported families remain unavailable rather than guessed.
 
 ### L1-PERSPECTIVE-0 — investigation perspective contract
 
-Define `InvestigationPerspectiveV1` and its relation to InvestigationIntent, representation decisions, replay and Farcaster projection.
+Embed versioned perspective in committed Investigation context and define its relation to InvestigationIntent, representation decisions, replay and Farcaster projection. Distinguish foregrounding from operations that change the analyzed population or require new computation.
 
-**Exit:** two perspectives over the same evidence can foreground different supported semantics without changing evidence identity.
+**Exit:** draft perspective changes do not mutate history; commit/revisit/branch restores exact context; two foregrounding perspectives can share one evidence snapshot; filtering/recomputation crosses the governed analytical path.
 
-### L2-FORMA-0 — core Forma contracts
+### L2-FORMA-0 + bounded KB0 — minimum admission/compiler contracts
 
-Define and validate:
+After A27-0, define the smallest durable contract set needed for one static slice:
 
-- `SemanticObligationV1`;
-- `PerceptualChannelSpecV1` / channel IDs;
-- `PerceptualBindingV1`;
-- `SemanticResolutionProfileV1`;
-- `PerceptualEmbodimentPlanV1`;
-- backend references;
-- fidelity, provenance, bounds and explanation requirements.
+- fixed semantic obligations owned by the Moneta decision context;
+- typed perceptual channels/bindings as subordinate immutable values;
+- immutable admission/result and plan identity;
+- exact semantic snapshot/context/proposal/evidence/knowledge/compiler pinning;
+- typed refusal and execution-purpose semantics, including restricted study use;
+- reverse explanation requirements;
+- a pinned Forma knowledge manifest over distinct rule, judgment, study and promotion authorities;
+- deterministic seed recipes/templates with scoped qualification and contraindications.
 
-No renderer implementation.
+No renderer implementation, learned model, mutable knowledge service or duplicate judgment/study store.
 
-**Exit:** malformed/unsupported mappings fail closed; SpatialEmbodimentPlan is explicitly one backend.
+**Exit:** untrusted decoding and unsupported mappings fail closed; candidates cannot weaken obligations or choose weaker evidence profiles; study-only eligibility cannot become production promotion; the manifest retains provenance without becoming a second authority.
 
-### L2-FORMA-KB0 — knowledge schema and seed registry
+### L2-FORMA-1 — first static production vertical slice
 
-Define:
+Implement one deterministic admission/compiler path from authoritative semantic snapshot + committed context + RepresentationGraph + pinned knowledge manifest to a spatial backend. Include **exact capture/replay, reverse explanation and non-adaptive critique/meaning capture in this first usable slice** rather than postponing provenance until later MCR stages.
 
-- `FormaKnowledgeBaseV1`;
-- `MetaphorTemplateV1`;
-- `MetaphorCaseV1`;
-- contraindication/evidence-basis/status schema;
-- initial deterministic seed rules/templates from already accepted project knowledge.
+Use deterministic reference mappings only. Persist selected proposal/result identities; replay must not rerun mutable retrieval or synthesis.
 
-No learned model.
-
-**Exit:** seed knowledge is inspectable, versioned and scoped; no knowledge is hidden only in code branches or model weights.
-
-### L2-FORMA-1 — deterministic compiler / spatial backend
-
-Implement:
-
-~~~text
-SemanticEmbodimentGraph
-+ InvestigationIntent/Perspective
-+ RepresentationGraph
-+ Forma knowledge
-  -> admitted PerceptualBindings
-  -> PerceptualEmbodimentPlan
-  -> SpatialEmbodimentPlanV1
-~~~
-
-Use deterministic reference mappings only.
-
-**Exit:** the same semantic graph can compile into at least two valid spatial phenotypes without changing semantic/evidence identity.
+**Exit:** the same supported semantic snapshot can compile into at least two valid spatial phenotypes without changing analytical identity; evidence substitution/version drift refuses; every data-bearing property reverse-resolves to its binding/claim/evidence; a confirmed human feedback record binds the exact plan/binding/context without updating production priors.
 
 ### L2-FORMA-2 — multi-element runtime
 
 Execute existing MCR3 through the new plan. Preserve stable identity/lifecycle per element.
 
-### L2-FORMA-3 — behaviour + perturbation
+### L2-FORMA-3 — optional behaviour + perturbation
 
-Add deterministic BehaviourRule/Plan contracts and semantic-delta -> perceptual-transition plumbing.
+Add deterministic BehaviourRule/Plan contracts and semantic-delta -> perceptual-transition plumbing **only when a demonstrated product/research question requires dynamic semantics**. Generic behaviour is not a prerequisite for explanation, replay or human feedback.
 
-### L2-FORMA-4 — explanation + critique
+### L2-FORMA-4 — explanation + critique expansion
 
-Implement reverse explanation and structured critique:
+The minimum reverse explanation and non-adaptive feedback contract lands in L2-FORMA-1. This tranche expands the product surface and structured alternative workflow:
 
 ~~~text
 perceptual property
@@ -1026,13 +1010,13 @@ human comment
 
 TechnoCore is the primary product surface.
 
-### L2-FORMA-5 — feedback capture, non-adaptive
+### L2-FORMA-5 — feedback/study expansion, still non-adaptive
 
-Define `HumanMeaningJudgmentV1` and store attributable critique/judgment against exact plan/binding versions. Do **not** yet update production priors automatically.
+Expand attributable critique/judgment capture, frozen treatment/exposure metadata and purpose-restricted study routing against exact plan/binding/context versions. The first vertical slice already supports minimum capture. Do **not** update production priors automatically.
 
 ### L4-RUNTIME-BUDGET — stickman/Mona-Lisa broker
 
-Implement `SemanticResolutionProfileV1` selection under device/perceptual budgets. Prove that richness changes while `MUST_PRESERVE` obligations remain stable.
+Select only among **admitted, applicable plan variants** under device/perceptual budgets. Preserve fixed obligations, reject stale-context adoption and explicitly refuse when a mandatory semantic obligation has no qualified fallback. A global R0→R3 richness ladder is not itself proof of semantic preservation.
 
 ### L3-S1-FORMA — System-1 metaphor retrieval/proposal
 
@@ -1141,16 +1125,16 @@ Those remain `REQUIRES-HUMAN` until attributable evidence exists.
 1. Full Moneta is a **human-grounded semantic-to-perceptual system**, not a 3D chart selector.
 2. Moneta Forma is a deterministic, governed compiler/admission layer beneath representation reasoning.
 3. `SpatialEmbodimentPlanV1` is retained as the first backend.
-4. Human metaphor expertise accumulates in a **versioned Forma Knowledge Base**, not solely in model weights.
+4. Human metaphor expertise is exposed through a **versioned pinned Forma knowledge view/manifest** over separately governed rules, cases, judgments, studies and promotion decisions; it is not solely model weights and not a new monolithic truth authority.
 5. Rules and cases bootstrap the metaphor compiler.
 6. System-1 is a fast case/template/binding proposer, not the compiler authority.
 7. System-2/LLM reasoning is the appropriate place for novel analogical synthesis, still downstream of evidence and upstream of deterministic admission.
 8. A general world model is deferred and evidence-triggered.
 9. Explanation and structured human critique are core Forma interfaces.
-10. Human feedback is captured from FM3 onward; adaptive learning from it begins only under FM6 governance.
+10. Minimum explanation, exact plan/context replay identity and non-adaptive human feedback ship with the first usable FM3 Forma slice; adaptive learning from that feedback begins only under FM6 governance.
 11. Perspective is first-class investigation context and must not be confused with truth.
 12. Farcasters project perspective/branch/context transitions; they do not own semantics.
-13. Stickman ↔ Mona Lisa becomes a formal semantic-resolution contract based on explicit semantic obligations.
+13. Stickman ↔ Mona Lisa becomes a semantic-obligation invariant over a **set of admitted applicable variants**, not a universal linear R0→R3 quality ladder; human recoverability remains an empirical claim.
 14. Search/evolution operates only after the representation/perceptual grammar is stable.
 15. ScriptC remains a runtime optimization experiment, never a Full-Moneta dependency.
 
@@ -1161,34 +1145,38 @@ Those remain `REQUIRES-HUMAN` until attributable evidence exists.
 The shortest architecture-safe path from the current repository is:
 
 ~~~text
-L0-SEM-NORM
+A27-0 authority/version decision
+   |
+   +--> L0-SEM-NORM-A
    |
    +--> L1-PERSPECTIVE-0
    |
-   +--> L2-FORMA-0
+   +--> L2-FORMA-0 + bounded KB0
            |
-           +--> L2-FORMA-KB0
+           +--> L2-FORMA-1 static production slice
+           |       + explanation
+           |       + exact capture/replay
+           |       + non-adaptive human feedback
            |
-           +--> L2-FORMA-1
+           +--> L2-FORMA-2 / MCR3-4 multi-element runtime
                    |
-                   +--> L2-FORMA-2
-                   +--> L2-FORMA-3
-                   +--> L2-FORMA-4
-                   +--> L2-FORMA-5
-                           |
-                           +--> L4-RUNTIME-BUDGET
-                           +--> L3-S1-FORMA
-                           +--> L6-EMBODIMENT-STUDY
-                                      |
-                                      +--> L5-FORMA-KNOWLEDGE-1
-                                               |
-                                               +--> L5-FORMA-SYNTH-1
-                                               +--> L5-FORMA-SEARCH
+                   +--> optional L2-FORMA-3 behavior/modalities
+                   +--> L4-RUNTIME-BUDGET
+                   +--> L3-S1-FORMA
+
+L6 protocol/control design begins alongside L2 contracts,
+then supplies human/device evidence at each applicable promotion.
+
+L2/L6 qualified outcomes
+   |
+   +--> L5-FORMA-KNOWLEDGE-1 (FM6)
+           |
+           +--> L5-FORMA-SYNTH-1 / SEARCH (FM7)
 ~~~
 
 The first implementation work should therefore **not** be a neural metaphor generator or world model.
 
-Build the semantic normalization, perspective, obligations/bindings/plans and durable knowledge schema first. That creates a stable language in which humans, deterministic rules, System-1, System-2 and later search can all contribute without becoming competing authorities.
+First settle the A27-0 identity/admission/version seam. Then build decision-independent semantic normalization, committed perspective, fixed obligations/bindings, a pinned knowledge manifest and one static production compiler slice with explanation/replay/feedback. That creates a stable language in which humans, deterministic rules, System-1, System-2 and later search can contribute without becoming competing authorities.
 
 The architectural destination is then straightforward:
 
