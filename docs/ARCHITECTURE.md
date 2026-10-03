@@ -145,6 +145,27 @@ dataset, command log and optional representation/discovery/NIL provenance. Impor
 schema, entry count, compressed size, streaming decompression budgets and declared provenance before
 replay.
 
+
+## Dual persistence and replay contract
+
+Persistence must distinguish the **identity of a generated representation** from the **ability to rerun its generator**.
+
+Claim-bearing and research-treatment paths keep the existing fail-closed replay contract: authoritative input/evidence identity, committed investigation context, model/policy/schema artifacts and relevant parameters are pinned so that the governed semantic decision can be reproduced to the required evidence tier.
+
+Exploratory/abductive paths may intentionally use adaptive or evolving inference that cannot promise exact future regeneration. Those paths remain admissible only if they cannot masquerade as claim-bearing evidence and if the Memory Palace persists the materialised result itself.
+
+A future versioned persistence contract should therefore support the equivalent of these declared policies without prematurely freezing these names:
+
+- **EXACT_REPLAY** — generation identity is pinned and rerunnable;
+- **MATERIALIZED_PRESERVATION** — the experienced semantic/perceptual artefact is canonical for revisit, while rerunning the generator is not promised;
+- **DERIVED_REINTERPRETATION** — a new model/policy intentionally derives a new perspective from an older captured state without overwriting it.
+
+A durable perceptual snapshot must be sufficient to reconstruct what the researcher actually encountered, including the admitted semantic/perceptual graph or equivalent materialised scene, investigation/perspective context, spatial/view state needed for meaningful revisit, epistemic status of represented elements, uncertainty, annotations, alternatives, and all provenance that was available at capture time.
+
+At minimum the semantic layer must distinguish OBSERVED, DERIVED, IMPUTED, HYPOTHESIZED and COUNTERFACTUAL content. Renderers may encode those states perceptually but may not erase or upgrade them.
+
+This relaxes **generator reproducibility only for explicitly exploratory perception**. It does not relax Rust/WASM analytical authority, evidence admission, scientific claim provenance, study freezes or exact historical replay where those contracts apply.
+
 ## Embodiment and input
 
 Desktop, controller and hand input converge through shared semantic dispatch. The analyst anchor

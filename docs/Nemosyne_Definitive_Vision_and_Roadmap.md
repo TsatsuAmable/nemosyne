@@ -140,6 +140,44 @@ DiscoveryEpisode
 
 Validation states include `UNTESTED`, `UNDER_INVESTIGATION`, `SUPPORTED`, `REFUTED`, `INCONCLUSIVE`, and `EXTERNALLY_VALIDATED`.
 
+
+## 3.1 Dual epistemic contracts: reproducible findings and preserved perception
+
+Nemosyne serves two legitimate epistemic purposes and MUST NOT force them into one reproducibility contract.
+
+### Claim-bearing / verification mode
+
+When a representation, observation or conclusion is used to support a scientific claim, research treatment or promoted learning signal, the generating conditions remain governed and replayable. Dataset/evidence identity, policy, model artifact, feature schema, parameters, seeds where relevant and decision provenance are pinned strongly enough for the claim-appropriate reproduction contract.
+
+### Exploratory / abductive mode
+
+Nemosyne may also act as a machine perceptual instrument over incomplete, damaged, sparse or otherwise underdetermined data. In this mode a learned or adaptive model may propose **plausible missing structure** from the shape and semantics of what is present: for example, completing a partial geometric pattern, suggesting a missing relation, extending a trajectory, or exposing informative negative space.
+
+Such proposals are useful as hypotheses, not observations. Their value may be transient: a later model state may perceive the same evidence differently. Exact regeneration is therefore desirable but is not always the governing requirement.
+
+Every material semantic element MUST expose an epistemic type that distinguishes at least:
+
+- **OBSERVED** — directly grounded in source data or authoritative evidence;
+- **DERIVED** — deterministically computed from governed observations/evidence;
+- **IMPUTED** — an estimated value or structure filling missing data;
+- **HYPOTHESIZED** — model-generated plausible structure not established by the evidence;
+- **COUNTERFACTUAL** — deliberately altered or imagined structure for comparison or testing.
+
+Uncertainty, supporting/contradicting evidence and model provenance remain inspectable. No imputed, hypothesized or counterfactual structure may silently upgrade itself into claim-bearing evidence.
+
+### Generation reproducibility versus representation persistence
+
+Nemosyne therefore distinguishes two different durability properties:
+
+1. **generation reproducibility** — rerunning the governed generating process can reproduce the representation; and
+2. **representation persistence** — the exact representation experienced at time T can be faithfully revisited even if the generating model, data state or adaptive policy later changes.
+
+Claim-bearing work normally requires both. Exploratory work may require representation persistence even when generation reproducibility is unavailable or intentionally relaxed.
+
+The **Memory Palace is the durable perceptual memory boundary**. A captured palace state should preserve the materialised semantic/perceptual scene, its investigation context, epistemic typing, uncertainty, annotations, viewpoint/spatial organisation, alternatives and available provenance rather than storing only a recipe that assumes the original generator can be rerun forever.
+
+This makes model evolution itself investigable. If states P1, P2 and P3 embody different interpretations of related evidence, their differences are not automatically replay failures; they can become evidence about how the system's perspective changed. A later model may confirm, weaken or abandon an earlier hypothesis while the earlier perceptual artefact remains available for comparison.
+
 ---
 
 # 4. Five distinct ontologies

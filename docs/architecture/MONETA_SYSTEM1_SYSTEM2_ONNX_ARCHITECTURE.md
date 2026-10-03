@@ -35,6 +35,34 @@ governed evidence + intent + candidate features
           -> PerceptualEmbodimentPlan
 ```
 
+
+### 1.1 Re-opened research question: adaptive-depth System-1/System-2 substrate
+
+The specialist-model split above remains the implementation baseline for the claim-bearing path, but it is no longer the only architecture worth testing.
+
+A MiniAGI-inspired alternative should be evaluated in which fast intuition and slower reasoning are **different compute depths of a shared recurrent/sparse-expert substrate** rather than necessarily separate model families:
+
+~~~text
+same governed semantic input
+  -> shallow/adaptive early exit = System-1 proposal
+  -> additional recurrent depth / expert activation = System-2-like exploratory reasoning
+  -> deterministic Moneta/Forma authority boundaries still apply
+~~~
+
+This is particularly relevant to exploratory abductive perception, where the model may need to infer plausible missing structure and where its interpretation may legitimately evolve over time.
+
+The experiment must not collapse epistemic governance into model confidence. Even if a shared adaptive model performs both fast and deep inference:
+
+- Rust/WASM remains authoritative for analytical facts;
+- deterministic evidence admission and typed refusal remain outside the learned substrate;
+- model-produced missing structure is IMPUTED, HYPOTHESIZED or COUNTERFACTUAL, never silently OBSERVED;
+- claim-bearing and Research Mode execution must remain freezeable and artifact-pinned;
+- retained exploratory results must be materialised into Memory Palace so a later model state cannot erase the representation that was actually experienced.
+
+Continual/online learning is therefore **permitted as an experimental capability only for explicitly exploratory paths** under those constraints. Exact generator replay is not required for such a retained exploratory scene when the scene itself and its epistemic/provenance envelope are durably preserved.
+
+The first falsification study should compare the current specialist baseline against a small adaptive-depth recurrent model on bounded Forma/representation tasks, measuring proposal quality, calibration/abstention, added value from extra recurrence, latency, memory/energy cost, and whether a shared substrate reduces or increases governance/replay complexity. Quest deployment is not assumed; desktop/off-device prototyping is sufficient to test the architectural hypothesis first.
+
 ## 2. Architectural evaluation
 
 ### 2.1 Current assets
