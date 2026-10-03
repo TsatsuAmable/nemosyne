@@ -86,6 +86,13 @@ if (existsSync(resolve(root, 'docs/PRODUCTION_READINESS.md'))) {
   }
 }
 
+
+const roadmapForSizeGuard = read('docs/ROADMAP.md');
+const ROADMAP_MAX_CHARS = 20_000;
+if (roadmapForSizeGuard.length > ROADMAP_MAX_CHARS) {
+  fail(`docs/ROADMAP.md is ${roadmapForSizeGuard.length} characters; keep the live execution index at or below ${ROADMAP_MAX_CHARS} and move detail to linked docs/work files or the historical ledger`);
+}
+
 try {
   const ledger = loadReviewFindings(root);
   const roadmap = read('docs/ROADMAP.md');
