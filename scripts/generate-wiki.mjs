@@ -20,6 +20,7 @@ const pageByAuthority = new Map([
   ['product-research-architecture', 'Vision-and-Roadmap'],
   ['semantic-embodiment-vision-clarification', 'Semantic-Embodiment-Vision-Clarification'],
   ['full-moneta-semantic-embodiment-architecture', 'Full-Moneta-Semantic-Embodiment-Architecture'],
+  ['architecture-2027-review', 'Architecture-2027-Review'],
   ['product-ux-design-doctrine', 'User-Experience-Design-Doctrine'],
   ['implementation-status', 'Current-Status'],
   ['engineering-agent-contract', 'Engineering-Agent-Contract'],
