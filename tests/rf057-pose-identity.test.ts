@@ -231,6 +231,79 @@ describe('RF-057: channel-bound pose sequence identity and framing', () => {
     expect(onPose).toHaveBeenCalledTimes(1);
   });
 
+  it('broadcast frames carry the deterministic sha256-derived numeric identity of the local peer', () => {
+    // CMS-4 re-homing: the legacy CollaborativeStateSync falsifier for
+    // numeric-ID derivation now pins the production sender path. The
+    // uint32 wire field compresses the string peer identity via
+    // sha256Uint31 (NetworkManager constructor) — deterministic, non-negative,
+    // and distinct for distinct string identities.
+    const expected = sha256Uint31('sender-local');
+    expect(expected).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(expected)).toBe(true);
+
+    const manager = new NetworkManager({ peerId: 'sender-local', role: 'participant', iceServers: [] });
+    manager._connected = true;
+    const channel = new FakeChannel();
+    manager.channels.set('remote', channel as unknown as RTCDataChannel);
+    manager.broadcastCameraPose([1, 2, 3], [0, 0, 0, 1]);
+
+    const frame = BinaryPoseSerializer.deserialize(channel.sent[0] as ArrayBuffer);
+    expect(frame).not.toBeNull();
+    expect(frame!.peerId).toBe(expected);
+
+    // Deterministic: an identical string identity compresses identically on a
+    // fresh manager; a different identity compresses differently.
+    const twin = new NetworkManager({ peerId: 'sender-local', role: 'participant', iceServers: [] });
+    twin._connected = true;
+    const twinChannel = new FakeChannel();
+    twin.channels.set('remote', twinChannel as unknown as RTCDataChannel);
+    twin.broadcastCameraPose([0, 0, 0], [0, 0, 0, 1]);
+    const twinFrame = BinaryPoseSerializer.deserialize(twinChannel.sent[0] as ArrayBuffer);
+    expect(twinFrame!.peerId).toBe(expected);
+
+    const other = new NetworkManager({ peerId: 'sender-other', role: 'participant', iceServers: [] });
+    other._connected = true;
+    const otherChannel = new FakeChannel();
+    other.channels.set('remote', otherChannel as unknown as RTCDataChannel);
+    other.broadcastCameraPose([0, 0, 0], [0, 0, 0, 1]);
+    const otherFrame = BinaryPoseSerializer.deserialize(otherChannel.sent[0] as ArrayBuffer);
+    expect(otherFrame!.peerId).not.toBe(expected);
+  });
+
+  it('an unadmitted or revoked channel admits no binary pose state and never keys by payload identity', () => {
+    // CMS-4 re-homing: the legacy sync's fail-closed falsifier (no channel-bound
+    // identity -> no state, no untrusted-field fallback) pins the production
+    // analogue on NetworkManager: the sequence key is always the channel-bound
+    // string peer identity admitted by signalling, and the payload numeric ID
+    // is never a key. A peer without an admitted role cannot even get a live
+    // message listener, and a revoked role drops traffic mid-session.
+    const manager = new NetworkManager({ peerId: 'local-peer', role: 'participant', iceServers: [] });
+    const onPose = vi.fn();
+    manager.addEventListener('remoteCameraPose', onPose);
+
+    // No admitted role: _wireChannel refuses the channel outright.
+    const unadmitted = new FakeChannel();
+    manager._wireChannel('admissionless-peer', unadmitted as unknown as RTCDataChannel, 'participant');
+    expect(manager.channels.has('admissionless-peer')).toBe(false);
+
+    // A well-formed frame arriving on that dead channel can never contribute
+    // state: nothing is keyed by the payload numeric ID and no event fires.
+    deliver(unadmitted, poseBuffer(sha256Uint31('admissionless-peer'), 1, [7, 7, 7], [0, 0, 0, 1]));
+    expect(onPose).not.toHaveBeenCalled();
+    expect(manager.room.peers.has('admissionless-peer')).toBe(false);
+
+    // A channel wired while admitted fails closed once its signalling role is
+    // revoked — it does not fall back to a payload-supplied peer identity.
+    const channel = wireParticipant(manager, 'peer-b');
+    deliver(channel, poseBuffer(sha256Uint31('peer-b'), 1, [7, 7, 7], [0, 0, 0, 1]));
+    expect(onPose).toHaveBeenCalledTimes(1);
+
+    manager.peerRoles.delete('peer-b');
+    deliver(channel, poseBuffer(sha256Uint31('peer-b'), 2, [8, 8, 8], [0, 0, 0, 1]));
+    expect(onPose).toHaveBeenCalledTimes(1);
+    expect(manager.room.peers.has('admissionless-peer')).toBe(false);
+  });
+
   it('numeric-ID collision cannot merge sequence state across distinct string peers', () => {
     // 'victim-a' and 'victim-b' share the mocked numeric digest 424242.
     const manager = new NetworkManager({ peerId: 'local-peer', role: 'participant', iceServers: [] });
