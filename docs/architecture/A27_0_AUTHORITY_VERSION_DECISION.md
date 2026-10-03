@@ -6,6 +6,8 @@
 **Scope:** the identity/admission/version seam requested by [ERA-ASTRA1](ARCHITECTURE_2027_REVIEW.md), not a repeat architecture review.<br>
 **Governing authorities:** [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md), [ROADMAP](../ROADMAP.md), [Full-Moneta target](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). [RFC 0010](../rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md) records explicit project-owner acceptance of the contracts below on 3 October 2026, following review of PR #927 at `4cc007827e9103d0e8efd2ddcef8e025e5372dd6`. The architecture acceptance gate is satisfied; implementation starts from fresh main after integration of this PR, under the dependencies and exclusive ownership in §14.
 
+> **Subsequent vision reconciliation:** PR #929 added dual epistemic purposes. [A27-1](A27_1_DUAL_EPISTEMIC_REASSESSMENT.md) identifies affected context/admission/preservation contracts; [RFC 0011](../rfcs/0011-dual-epistemic-embodiment-and-preservation.md) proposes their amendment. Historical acceptance below is preserved; ROADMAP qualifies readiness at those seams.
+
 ## 1. Decision summary
 
 1. Introduce `SemanticSnapshotV1`: an immutable, bounded, decision-independent projection of authoritative analytical outputs and exact evidence references. It is a new contract, not a new analytical store or a renamed `SemanticEmbodimentGraphV1`.

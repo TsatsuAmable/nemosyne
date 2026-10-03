@@ -62,6 +62,18 @@
       "owner": "architecture"
     },
     {
+      "path": "docs/architecture/A27_1_DUAL_EPISTEMIC_REASSESSMENT.md",
+      "status": "active",
+      "authority": "dual-epistemic-architecture-reassessment",
+      "owner": "architecture"
+    },
+    {
+      "path": "docs/rfcs/0011-dual-epistemic-embodiment-and-preservation.md",
+      "status": "active",
+      "authority": "dual-epistemic-preservation-rfc",
+      "owner": "architecture"
+    },
+    {
       "path": "docs/architecture/A27_0_AUTHORITY_VERSION_DECISION.md",
       "status": "active",
       "authority": "a27-0-authority-version-decision",
