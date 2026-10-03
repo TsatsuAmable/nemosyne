@@ -1,14 +1,14 @@
 # scriptc Native TypeScript Evaluation Plan
 
-**Status:** planned experiment, not an architectural commitment  
+**Status:** DEFERRED for Quest/WebXR; conditional native-tool experiment only  
 **Owner lane:** L4 Runtime & Device Efficiency (currently Mac experimental capacity)  
 **Decision rule:** no production migration until semantic parity, authority boundaries, portability, debugging and measured benefit are demonstrated.
 
 ## Purpose
 
-Evaluate whether selected non-UI TypeScript can be compiled to small native artifacts with scriptc without creating a second analytical authority or weakening Nemosyne's replay/provenance guarantees.
+Evaluate scriptc only if Nemosyne acquires a real native CLI/sidecar/tool target where Node startup/RSS is a measured problem. It is no longer an active Quest-browser acceleration path.
 
-This is a **runtime/tooling optimization experiment, not a Full-Moneta architectural dependency**. Rust/WASM remains the sole analytical authority. Browser/WebXR rendering, device lifecycle and UI remain outside this experiment. Any direct Quest/browser use would require a separately justified native-host topology and therefore belongs to the MAC-Q5 escape-hatch class, not ordinary FM5.
+This is a **parked runtime/tooling experiment, not a Full-Moneta architectural dependency**. Rust/WASM remains the sole analytical authority. Browser/WebXR rendering, device lifecycle and UI are excluded. Quest optimization now proceeds through the QCA WebXR/WASM programme. Direct Quest use of scriptc would require a separately justified native-host topology and a measured reason to leave the browser/WASM path.
 
 ## T0 — Toolchain and baseline
 
@@ -111,7 +111,9 @@ Otherwise retain TypeScript and record why. A negative result is a successful ex
 
 ## Roadmap placement
 
-- **Now / L4 runtime experiment:** T0-T2. Non-blocking against FM0-FM4 and current P1-TEC work.
-- **Conditional L4 follow-up:** T3 only if T0-T2 expose a real native deployment/tool target with measurable value; it may consume the provider-neutral System-1/Forma proposal contract but is not an FM5 gate.
-- **Post-T3 only:** T4 census and selective native packaging.
-- **Never a prerequisite for Full Moneta:** scriptc is an implementation optimization path, not a scientific/product capability gate.
+- **DEFERRED:** do not spend Quest/WebXR optimization capacity on T0-T4.
+- **Re-open T0-T2 only** when a real native CLI/sidecar/tool deployment exists and has a measured Node startup/RSS/runtime problem.
+- **T3/T4 remain conditional** on T0-T2 demonstrating semantic parity and material value for that actual deployment.
+- **Never a prerequisite for Full Moneta:** scriptc is an optional implementation optimization, not a scientific/product capability gate.
+
+Quest/browser optimization is tracked separately in [Quest Compute Acceleration](../work/quest-compute/README.md).
