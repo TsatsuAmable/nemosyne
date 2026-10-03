@@ -188,6 +188,12 @@
       "owner": "archive"
     },
     {
+      "path": "docs/archive/ROADMAP_HISTORY_THROUGH_2026-10-03.md",
+      "status": "historical",
+      "authority": "roadmap-history-through-2026-10-03",
+      "owner": "archive"
+    },
+    {
       "path": "docs/archive/TEST_READY_2026-08-26.md",
       "status": "historical",
       "authority": "historical-test-readiness",
