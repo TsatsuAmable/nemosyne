@@ -111,7 +111,7 @@ Otherwise retain TypeScript and record why. A negative result is a successful ex
 
 ## Roadmap placement
 
-- **Now / Mac experimental lane:** T0-T2. Non-blocking against FM0-FM4 and current P1-TEC work.
-- **FM5 preflight:** T3, alongside the existing System-1/System-2 ONNX architecture and pinned proposal/provenance contract.
+- **Now / L4 runtime experiment:** T0-T2. Non-blocking against FM0-FM4 and current P1-TEC work.
+- **Conditional L4 follow-up:** T3 only if T0-T2 expose a real native deployment/tool target with measurable value; it may consume the provider-neutral System-1/Forma proposal contract but is not an FM5 gate.
 - **Post-T3 only:** T4 census and selective native packaging.
 - **Never a prerequisite for Full Moneta:** scriptc is an implementation optimization path, not a scientific/product capability gate.
