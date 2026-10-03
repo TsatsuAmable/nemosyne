@@ -93,7 +93,9 @@ describe('P1-W production capability registry', () => {
     expect(new Set(ids).size).toBe(ids.length);
     // CMS-4 deleted the two superseded `legacy-*` collaboration entries
     // (retained only for legacy tests), lowering the inventoried floor from 20.
-    expect(registry.capabilities.length).toBeGreaterThanOrEqual(19);
+    // CMS-6 deleted the dormant `multimodal-perception-engine` prototype entry
+    // with its surface (cms6-archive-perception), lowering the floor to 18.
+    expect(registry.capabilities.length).toBeGreaterThanOrEqual(18);
 
     for (const capability of registry.capabilities) {
       expect(['production', 'experimental-production', 'development-only']).toContain(
