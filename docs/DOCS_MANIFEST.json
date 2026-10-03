@@ -64,13 +64,13 @@
     {
       "path": "docs/architecture/A27_0_AUTHORITY_VERSION_DECISION.md",
       "status": "active",
-      "authority": "a27-0-authority-version-decision-proposal",
+      "authority": "a27-0-authority-version-decision",
       "owner": "architecture"
     },
     {
       "path": "docs/rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md",
       "status": "active",
-      "authority": "semantic-snapshot-forma-admission-rfc-proposal",
+      "authority": "semantic-snapshot-forma-admission-rfc",
       "owner": "architecture"
     },
     {

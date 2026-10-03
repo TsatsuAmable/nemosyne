@@ -1,20 +1,22 @@
 # RFC 0010 — Moneta semantic snapshot and Forma admission identity
 
-**Status:** proposed<br>
+**Status:** accepted<br>
 **Date:** 3 October 2026<br>
 **Reviewed base:** `8a5be7fdcb5b3c23ce11ea8cfd3db58f97b2e597`<br>
 **Decision specification:** [A27-0 authority/version decision](../architecture/A27_0_AUTHORITY_VERSION_DECISION.md).<br>
 **Dependencies:** RFC 0007, RFC 0009, ADR 0009 and the Moneta Evidence Protocol. ROADMAP owns execution order.
 
+**Acceptance:** 3 October 2026 — project owner explicitly reviewed and accepted the A27-0 decision and RFC in the Codex task for [PR #927](https://github.com/TsatsuAmable/nemosyne/pull/927), instructing: “reviewed and accpted. Update the records so that it is implementation ready”. Acceptance applies to the contracts reviewed at `4cc007827e9103d0e8efd2ddcef8e025e5372dd6`; this update records that decision without changing the technical contract. Implementation starts from fresh main after this PR is integrated and remains subject to the lane prerequisites and evidence gates.
+
 ## Context
 
 The existing semantic graph requires a representation decision ID. It cannot supply presentation-independent truth identity without a changed contract. RepresentationGraph V1 has loose encoding/policy strings, and parsed spatial plans are not evidence of admission. Current V3 persistence commits governed receipts but not the future context/obligation/Forma closure. Human-study execution also needs purpose-scoped authorization distinct from production qualification.
 
-A27-0 §2 records the source evidence. This RFC is an extension of accepted authorities, not a replacement analytical, evidence or NIL authority. It must be accepted through the repository process before implementing the new trust/public-format contracts. Authorship, merging a proposed document, or passing documentation checks does not constitute acceptance.
+A27-0 §2 records the source evidence. This RFC is an extension of accepted authorities, not a replacement analytical, evidence or NIL authority. Explicit project-owner acceptance is recorded above. The new trust/public-format contracts are authorized for implementation under the A27-0 handoff; acceptance does not bypass roadmap dependencies, exclusive leases or production-path verification.
 
 ## Decision requested
 
-Accept the following bounded contract, specified in A27-0 §§3–11:
+Accepted on 3 October 2026: the following bounded contract, specified in A27-0 §§3–11:
 
 1. New immutable `SemanticSnapshotV1` projects Rust analytical outputs and exact governed evidence. Its domain-separated hash includes analytical content, methods, receipt/profile/policy identity, vocabulary, availability, approximation and limitations. Decision, perspective, model and device metadata are excluded. Keep SemanticEmbodimentGraphV1 unchanged for legacy compatibility.
 2. Investigation owns committed context/perspective with stable DAG node IDs. Moneta derives fixed obligations from snapshot/context/pinned policy before candidate generation. Persist obligations inside the decision, not a separate mutable authority.
@@ -46,8 +48,8 @@ New Forma context/binding/purpose identity also requires a versioned study-freez
 
 A27-0 §12 defines F01–F14 and §14 assigns non-overlapping contract slices followed by serialized production integration. Required evidence includes real analytical port → snapshot identity metamorphisms, candidate/profile weakening refusal, study-to-production leakage attempts, stale-context/ABA adoption, mandatory-channel failure, and real export → pack → clean-room replay → adoption with artifact substitution/downgrade/partial-failure attacks. Each refusal campaign includes an admitted positive control. Legacy digest fixtures must remain exact. Human/device claims additionally need their applicable governed evidence; fixture answers do not satisfy them.
 
-Documentation checks validate this proposal's integrity, not the future runtime properties. RFC acceptance and production-path evidence remain separate gates.
+Documentation checks validate this accepted decision's integrity, not the future runtime properties. The acceptance gate is satisfied; production-path evidence remains required.
 
 ## Resulting ADR
 
-None yet. After explicit acceptance and implementation, record an immutable ADR linking this RFC and the implemented boundaries. ADR 0009 and RFC 0007/0009 remain in force meanwhile.
+None yet. After implementation, record an immutable ADR linking this RFC and the implemented boundaries. ADR 0009 and RFC 0007/0009 remain in force meanwhile.

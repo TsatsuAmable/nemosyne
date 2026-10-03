@@ -2,9 +2,9 @@
 
 **Date:** 3 October 2026<br>
 **Exact reviewed base:** `8a5be7fdcb5b3c23ce11ea8cfd3db58f97b2e597` (`origin/main`, merged PR #923).<br>
-**Disposition:** decision proposal delivered; **RFC acceptance pending**. No production capability or downstream tranche is complete.<br>
+**Disposition:** **ACCEPTED — implementation handoff ready** (project-owner acceptance, 3 October 2026). No production capability or downstream tranche is complete.<br>
 **Scope:** the identity/admission/version seam requested by [ERA-ASTRA1](ARCHITECTURE_2027_REVIEW.md), not a repeat architecture review.<br>
-**Governing authorities:** [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md), [ROADMAP](../ROADMAP.md), [Full-Moneta target](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). [RFC 0010](../rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md) requests acceptance of the new contracts below. Until acceptance, this artifact is a proposed handoff, not permission to replace accepted contracts.
+**Governing authorities:** [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md), [ROADMAP](../ROADMAP.md), [Full-Moneta target](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). [RFC 0010](../rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md) records explicit project-owner acceptance of the contracts below on 3 October 2026, following review of PR #927 at `4cc007827e9103d0e8efd2ddcef8e025e5372dd6`. The architecture acceptance gate is satisfied; implementation starts from fresh main after integration of this PR, under the dependencies and exclusive ownership in §14.
 
 ## 1. Decision summary
 
@@ -182,7 +182,7 @@ FormaInput = (
 
 S/C/O/G/K/P/B/U's declarative fields are durable inputs. E and U's runtime authorization are nonserializable capabilities, supplied by the relevant owners, not JSON booleans. Current evidence/qualification disposition revisions are captured in the admission record and rechecked before adoption. No ambient current model, knowledge lookup, UI state or hidden default is an input. Compiler binary/build digest and declared transform implementations are pinned.
 
-G carries an exact snapshot/context/O reference. The proposed graph V2 retains compositional primitives/edges and NIL/detail references; removes authoritative loose `visualEncoding`/free-form policy strings in favor of closed versioned references and typed binding proposals. Every data-bearing property references semantic source, evidence use, channel, transform/version/digest, domain/range/units, order/topology constraints and limitations. `generatedBy` is provenance only. Model/manual origin is never a waiver. Unknown transforms or composition relations refuse; shared evidence alone never proves comparability.
+G carries an exact snapshot/context/O reference. The accepted graph V2 retains compositional primitives/edges and NIL/detail references; removes authoritative loose `visualEncoding`/free-form policy strings in favor of closed versioned references and typed binding proposals. Every data-bearing property references semantic source, evidence use, channel, transform/version/digest, domain/range/units, order/topology constraints and limitations. `generatedBy` is provenance only. Model/manual origin is never a waiver. Unknown transforms or composition relations refuse; shared evidence alone never proves comparability.
 
 ### 6.2 Output
 
@@ -242,7 +242,7 @@ System-1 may propose/rank recipe IDs, primitive compositions, binding choices, b
 
 An exact admitted embodiment requires: source analytical dataset identity and reproducible dataset/derivation artifacts; semantic snapshot and its analytical leaves; exact receipts/consumer uses/profile/policy identities; committed C and relevant DAG lineage; fixed O; selected G and consumed proposal artifacts/provenance; K and its exact resolved binding/qualification artifacts; compiler/transform/backend/NIL implementation identities; complete admitted result and selected backend plan/variant; execution purpose and study freeze reference where used. Seeds and feature/model/runtime hashes are required where those mechanisms actually contributed. Recording model identity does not require rerunning the model to display its recorded proposal.
 
-Use existing session/package custody. Proposed V4 adds reserved `investigation/forma.json` (closed version-1 envelope), committed by an exact-byte member digest **and** the new semantic digest. Its envelope owns tables of the immutable values above, reference links to the existing receipt entry and recorded active result/variant. Package-local analytical/knowledge artifacts have bounded entries and content digests; path/name alone is not identity. Each referenced artifact must resolve once; duplicates, conflicting IDs, dangling refs and unknown required members refuse. Shared receipt bytes are referenced, not copied per plan.
+Use existing session/package custody. The accepted V4 contract adds reserved `investigation/forma.json` (closed version-1 envelope), committed by an exact-byte member digest **and** the new semantic digest. Its envelope owns tables of the immutable values above, reference links to the existing receipt entry and recorded active result/variant. Package-local analytical/knowledge artifacts have bounded entries and content digests; path/name alone is not identity. Each referenced artifact must resolve once; duplicates, conflicting IDs, dangling refs and unknown required members refuse. Shared receipt bytes are referenced, not copied per plan.
 
 V4 commits the existing V3 semantic projection unchanged as a nested historical component, plus the exact Forma envelope/member digest, committed context/DAG projection and all referenced artifact digests. The closed V4 manifest declares its format/digest, all required members and identities. No V4 data is placed inside RFC 0009's closed receipt V1 envelope. V1–V3 readers/digests stay unchanged and cannot issue Forma authorization. Older readers must reject V4; invalid V4 is never retried as V3. Adding new governed consumers activates only with the versioned consumer-policy contract for the new path, not by making every old V3 archive require new uses.
 
@@ -335,7 +335,7 @@ Newly inferred failure class from source review: adding a global Forma consumer 
 
 ## 13. RFC/ADR acceptance and unresolved INVESTIGATE items
 
-RFC 0010 is **proposed**, not accepted by authorship or by tests. It covers new snapshot identity, graph V2 mandatory bindings, context/O/admission identity, restricted study purpose, and V4 persistence/replay. Acceptance by the repository process is required before those public/trust contracts are implemented. An ADR follows accepted implementation, not this draft. No replacement of Rust, evidence protocol or NIL is requested. A request to let a study bypass analytical invalidity or mandatory mechanical semantics requires a separate replacement RFC and explicit human/project-owner adjudication.
+RFC 0010 is **accepted by the project owner on 3 October 2026**, as recorded in its acceptance statement. It covers new snapshot identity, graph V2 mandatory bindings, context/O/admission identity, restricted study purpose, and V4 persistence/replay. These public/trust contracts are authorized for implementation under §14 after this PR is integrated. An ADR follows implementation; acceptance alone is not an implemented-architecture claim. No replacement of Rust, evidence protocol or NIL is requested. A request to let a study bypass analytical invalidity or mandatory mechanical semantics requires a separate replacement RFC and explicit human/project-owner adjudication.
 
 | INVESTIGATE | Owner / gate / safe behavior meanwhile |
 | --- | --- |
@@ -346,16 +346,20 @@ RFC 0010 is **proposed**, not accepted by authorship or by tests. It covers new 
 | I05 Intermediate analytical states or multiple datasets in one investigation | Future persistence RFC, outside initial one-context V4; inspect lineage but refuse uncaptured execution. |
 | I06 Full graph/detail family projection into legacy spatial V1 | L0/L2 adapter test; if lossless binding cannot be expressed, refuse that family and request a bounded version decision before widening. |
 
-These are finite capability/evidence questions with an assigned owner and refusal behavior, not alternative authority answers. If implementation discovers that any cannot be resolved under these owners, return **REVISE** and reopen the affected RFC boundary. The architecture proposal is reviewable; A27-0's roadmap acceptance gate remains open until RFC acceptance.
+These are finite capability/evidence questions with an assigned owner and refusal behavior, not alternative authority answers. If implementation discovers that any cannot be resolved under these owners, return **REVISE** and reopen the affected RFC boundary. A27-0's architecture acceptance gate is satisfied. The INVESTIGATE items remain scoped implementation/evidence prerequisites with their stated refusal behavior; acceptance does not close them.
 
 ## 14. Machine-addressable implementation handoff
 
-The following is dispatch data, **not three concurrent leases**. Refresh ROADMAP, origin/main, claims and validated shadow findings before starting. Acquire an exclusive worktree lease. All lanes are high-risk. L0 and L1 may run disjoint contract slices only after RFC acceptance; L2 consumes their merged contracts. Shared capture/digest/adoption integration is serialized as L2-FORMA-1, not quietly assigned to all three.
+The following is dispatch data, **not three concurrent leases**. Refresh ROADMAP, origin/main, claims and validated shadow findings before starting. Acquire an exclusive worktree lease. All lanes are high-risk. RFC acceptance is recorded. After PR #927 is integrated, L0 may resolve I01 and start its first contract slice once the affected TEC handoff is satisfied; L1 may start its disjoint perspective contract slice. L2 consumes their merged contracts. Shared capture/digest/adoption integration is serialized as L2-FORMA-1, not quietly assigned to all three.
 
 ```yaml
 contract: A27-0-handoff-v1
 reviewed_base: 8a5be7fdcb5b3c23ce11ea8cfd3db58f97b2e597
-required_acceptance: docs/rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md
+accepted_rfc: docs/rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md
+acceptance_date: 2026-10-03
+acceptance_authority: project-owner-explicit-review
+integration_pr: 927
+dispatch_requires: [PR927_INTEGRATED, fresh_origin_main, exclusive_worktree_lease]
 shared_exclusive_later:
   tranche: L2-FORMA-1
   owner: Claude-after-L0-handoff
