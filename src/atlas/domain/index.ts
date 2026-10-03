@@ -22,9 +22,36 @@ export {
 } from './InvestigationGraph.ts';
 export { InvestigationAggregate } from './InvestigationAggregate.ts';
 export {
+  CommittedInvestigationContextLedger,
+  canonicalizeCommittedInvestigationContext,
+  computeCommittedContextIdentity,
+  checkContextCompatibility,
+  CONTEXT_INCOMPATIBLE,
+  type CommittedInvestigationContextV1,
+  type CommittedInvestigationContextV2,
+  type CommittedContextActivation,
+  type ContextBinding,
+  type EpistemicPurpose,
+} from './CommittedInvestigationContext.ts';
+export {
+  canonicalizeInvestigationIntent,
+  computeIntentIdentity,
+  type InvestigationIntentV1,
+} from './InvestigationIntent.ts';
+export {
+  canonicalizeInvestigationPerspective,
+  computePerspectiveIdentity,
+  ABSENT_PERSPECTIVE,
+  type InvestigationPerspectiveV1,
+  type PerspectiveMode,
+  type TemporalForegrounding,
+  type UncertaintyForegrounding,
+} from './InvestigationPerspective.ts';
+export {
   computeInvestigationDigest,
   computeSha256Hex,
   canonicalJsonStringify,
   type CanonicalInvestigationInput,
 } from '../../investigation/index.ts';
+
 

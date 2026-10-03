@@ -152,17 +152,58 @@ export function compileFormaSpatialSlice(
     }
 
     const elementId = `elem-${phenotype.toLowerCase()}-${node.nodeId.slice(0, 16)}`;
-    const channel = phenotype === 'SPATIAL_SCATTER_V1' ? 'spatial_radial_scatter' : 'spatial_elevation_grid';
+    let channel = phenotype === 'SPATIAL_SCATTER_V1' ? 'spatial_radial_scatter' : 'spatial_elevation_grid';
+    let colorHex = phenotype === 'SPATIAL_SCATTER_V1' ? '#38bdf8' : '#34d399';
+    let opacity = 0.95;
+    let scale: [number, number, number] = [0.15, 0.15, 0.15];
+    let rationale = `Perceptual element ${elementId} embodies semantic node ${node.producerSemanticId}.${node.propertyPath} via ${channel} [Phenotype ${phenotype}]`;
+
+    const perspective = context.perspective;
+    if (perspective) {
+      if (perspective.mode === 'foreground') {
+        if (perspective.temporalForegrounding === 'recency') {
+          const isRecent = index >= Math.floor(nodes.length * 0.5);
+          opacity = isRecent ? 1.0 : 0.45;
+          if (isRecent) {
+            colorHex = '#f59e0b';
+            scale = [0.18, 0.18, 0.18];
+          }
+          rationale += ' [Perspective: recency foregrounded]';
+        } else if (perspective.temporalForegrounding === 'historical') {
+          const isHistorical = index < Math.ceil(nodes.length * 0.5);
+          opacity = isHistorical ? 1.0 : 0.45;
+          if (isHistorical) {
+            colorHex = '#a855f7';
+            scale = [0.18, 0.18, 0.18];
+          }
+          rationale += ' [Perspective: historical foregrounded]';
+        }
+
+        if (perspective.uncertaintyForegrounding === 'interval') {
+          channel = `${channel}_interval_bounded`;
+          scale = [scale[0] * 1.2, scale[1] * 1.2, scale[2] * 1.2];
+          rationale += ' [Uncertainty: interval bounded]';
+        } else if (perspective.uncertaintyForegrounding === 'distribution') {
+          channel = `${channel}_distribution_cloud`;
+          rationale += ' [Uncertainty: distribution cloud]';
+        } else if (perspective.uncertaintyForegrounding === 'point') {
+          channel = `${channel}_point_estimate`;
+          rationale += ' [Uncertainty: point estimate]';
+        }
+      } else if (perspective.mode === 'request_derivation') {
+        rationale += ' [Perspective: derivation requested; current snapshot preserved]';
+      }
+    }
 
     elements.push({
       elementId,
       semanticNodeId: node.nodeId,
       channel,
       position,
-      scale: [0.15, 0.15, 0.15],
+      scale,
       visualEncoding: {
-        colorHex: phenotype === 'SPATIAL_SCATTER_V1' ? '#38bdf8' : '#34d399',
-        opacity: 0.95,
+        colorHex,
+        opacity,
         shape,
       },
     });
@@ -178,7 +219,7 @@ export function compileFormaSpatialSlice(
       producerSemanticId: node.producerSemanticId,
       propertyPath: node.propertyPath,
       evidenceReferences,
-      rationale: `Perceptual element ${elementId} embodies semantic node ${node.producerSemanticId}.${node.propertyPath} via ${channel} [Phenotype ${phenotype}]`,
+      rationale,
     });
   });
 
@@ -186,7 +227,7 @@ export function compileFormaSpatialSlice(
   const sliceBody = {
     planId,
     snapshotId: snapshot.snapshotId,
-    contextId: context.nodeId,
+    contextId: admissionOutcome.result.body.contextId,
     manifestId: manifest.manifestId,
     phenotype,
     elements,

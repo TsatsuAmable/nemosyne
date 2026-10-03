@@ -1,6 +1,9 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
 import type { SemanticSnapshotV1, SemanticSourceRecordV1, SemanticNodeRecordV1 } from '../representation/SemanticSnapshotV1.js';
-import type { CommittedInvestigationContextV2 } from '../../atlas/domain/CommittedInvestigationContext.js';
+import {
+  computeCommittedContextIdentity,
+  type CommittedInvestigationContextV2,
+} from '../../atlas/domain/CommittedInvestigationContext.js';
 
 export const FORMA_ADMISSION_SCHEMA_VERSION = 1 as const;
 
@@ -57,11 +60,12 @@ export function compileFormaAdmission(
     rationale: `Mapped semantic node ${node.producerSemanticId} (${node.propertyPath}) to spatial_position`,
   }));
 
-  const planId = `sha256-forma-plan-v1-${canonicalSha256Hex({ snapshotId: snapshot.snapshotId, contextId: context.nodeId })}`;
+  const contextId = computeCommittedContextIdentity(context);
+  const planId = `sha256-forma-plan-v1-${canonicalSha256Hex({ snapshotId: snapshot.snapshotId, contextId })}`;
 
   const body = {
     snapshotId: snapshot.snapshotId,
-    contextId: context.nodeId,
+    contextId,
     permittedUse: requestedUse === 'STUDY_ONLY' ? ('STUDY_ONLY' as PermittedExecutionUse) : ('PRODUCTION' as PermittedExecutionUse),
     planId,
     reverseExplanation: { mappings },

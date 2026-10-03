@@ -72,6 +72,9 @@ import {
   type StabilityRuntimeIdentityV1,
   type VerifiedStabilityAdmissionClaimV1,
 } from './StabilityCertificate.ts';
+import { computeCommittedContextIdentity } from '../../atlas/domain/CommittedInvestigationContext.ts';
+import { computeIntentIdentity } from '../../atlas/domain/InvestigationIntent.ts';
+import { computePerspectiveIdentity } from '../../atlas/domain/InvestigationPerspective.ts';
 
 /**
  * Backward-compatible weight envelope. New code should prefer
@@ -469,6 +472,10 @@ export class MonetaHypothesisEngine {
     }
 
     const now = 0;
+    const effectiveContext = reqs.context;
+    const effectiveIntent = reqs.intent ?? effectiveContext?.intent;
+    const effectivePerspective = reqs.perspective ?? effectiveContext?.perspective;
+
     const provenance: DecisionProvenance = {
       generatedAt: now,
       engine: 'MonetaHypothesisEngine',
@@ -485,7 +492,14 @@ export class MonetaHypothesisEngine {
         stabilityCertificateDigest: matchedAdmissionClaim.certificateDigest.value,
         stabilityAdmissionDisposition: matchedAdmissionClaim.promotionDisposition,
       } : {}),
+      ...(effectiveContext ? { contextIdentity: computeCommittedContextIdentity(effectiveContext) } : {}),
+      ...(effectiveIntent ? { intentIdentity: computeIntentIdentity(effectiveIntent) } : {}),
+      ...(effectivePerspective ? { perspectiveIdentity: computePerspectiveIdentity(effectivePerspective) } : {}),
     };
+
+    const effectiveExplanation = effectiveIntent?.researchQuestion
+      ? `Framed by research question: "${effectiveIntent.researchQuestion}". ${explanation}`
+      : explanation;
 
     return {
       id: `${assessment.status === 'ABSTAIN' ? 'abstention' : 'decision'}_${winner.candidateId}_${signature.provenance.datasetFingerprint.slice(0, 8)}`,
@@ -494,7 +508,7 @@ export class MonetaHypothesisEngine {
         chosenFamily: winner.family,
         chosenLayout: winner.layout,
       }),
-      explanation,
+      explanation: effectiveExplanation,
       rulesEvaluated: hardTraces,
       rankedCandidates: scoredCandidates,
       preserves: candidateDef.preserves,
