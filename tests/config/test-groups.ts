@@ -177,4 +177,5 @@ export const WASM_TESTS = [
   'tests/world-recreation-lifecycle.test.ts',
   'tests/world.test.ts',
   'tests/zero-alloc-instanced-buffer.test.ts',
+  'tests/upload-ingress-assurance.test.ts',
 ];

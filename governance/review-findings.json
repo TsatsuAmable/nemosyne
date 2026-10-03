@@ -34,10 +34,11 @@
       "id": "RF-039",
       "title": "Upload hardening policy is duplicated and production evidence targets the wrong module",
       "severity": "High",
-      "status": "IMPLEMENTATION PARTIAL",
-      "statusNote": "Production FileLoader -> Atlas -> Rust -> Dataset policy consolidation and hostile live-path evidence remain incomplete.",
+      "status": "VERIFIED COMPLETE",
+      "statusNote": "Production FileLoader -> Atlas -> Rust -> Dataset policy consolidation, pre-read gating, and adversarial live-path tests are verified.",
       "evidence": [
-        "docs/archive/STREAM_C_SECURITY_ASSURANCE.md#rf-039"
+        "docs/review-plans/RF039_UPLOAD_INGRESS_ASSURANCE_2026-10-03.md",
+        "tests/upload-ingress-assurance.test.ts"
       ]
     },
     {

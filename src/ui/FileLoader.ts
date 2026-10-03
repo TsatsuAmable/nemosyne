@@ -25,15 +25,15 @@ import type { AtlasCore } from '../atlas/AtlasCore.ts';
  * The same policy applies to local and corpus imports so remote loading cannot
  * become a back door around the product import envelope.
  */
-const MAX_IMPORT_BYTES = 256 * 1024 * 1024;
-const MAX_IMPORT_ROWS = 100_000;
-const MAX_IMPORT_COLUMNS = 1_000;
+export const MAX_IMPORT_BYTES = 256 * 1024 * 1024;
+export const MAX_IMPORT_ROWS = 100_000;
+export const MAX_IMPORT_COLUMNS = 1_000;
 
 /** Maximum length of a dataset label derived from an untrusted source. */
-const MAX_DATASET_NAME_LEN = 128;
+export const MAX_DATASET_NAME_LEN = 128;
 
 /** Neutralize an untrusted upload/catalog label before it becomes a dataset label. */
-function sanitizeDatasetName(rawName: string): string | null {
+export function sanitizeDatasetName(rawName: string): string | null {
   if (typeof rawName !== 'string') return null;
   const trimmed = rawName.trim();
   if (trimmed.length === 0) return 'unnamed_dataset';
@@ -457,16 +457,36 @@ export class FileLoaderUI {
       this._clearSchema();
       return;
     }
-    if (typeof file.size === 'number' && file.size > MAX_IMPORT_BYTES) {
+    if (typeof file.size !== 'number' || !Number.isFinite(file.size) || file.size < 0) {
+      this._status('File rejected: invalid file size.');
+      this._clearSchema();
+      return;
+    }
+    if (file.size > MAX_IMPORT_BYTES) {
       const mb = (file.size / (1024 * 1024)).toFixed(1);
       const maxMb = (MAX_IMPORT_BYTES / (1024 * 1024)).toFixed(0);
       this._status(`File too large (${mb} MB); import cap is ${maxMb} MB.`);
       this._clearSchema();
       return;
     }
-    let text: string;
+    const dotIndex = safeName.lastIndexOf('.');
+    const ext = dotIndex !== -1 ? safeName.slice(dotIndex + 1).toLowerCase() : '';
+    if (ext !== 'csv' && ext !== 'json') {
+      this._status('Unsupported file type; use .csv or .json');
+      this._clearSchema();
+      return;
+    }
+    let bytes: Uint8Array;
     try {
-      text = await file.text();
+      if (typeof file.arrayBuffer === 'function') {
+        const buffer = await file.arrayBuffer();
+        bytes = new Uint8Array(buffer);
+      } else if (typeof file.text === 'function') {
+        const text = await file.text();
+        bytes = new TextEncoder().encode(text);
+      } else {
+        throw new Error('File read API is unavailable');
+      }
     } catch (err: unknown) {
       if (!this._isCurrent(generation)) return;
       this._status(`Error reading file: ${err instanceof Error ? err.message : String(err)}`);
@@ -474,8 +494,13 @@ export class FileLoaderUI {
       return;
     }
     if (!this._isCurrent(generation)) return;
-    const ext = safeName.toLowerCase().split('.').pop() ?? '';
-    const bytes = new TextEncoder().encode(text);
+    if (bytes.byteLength > MAX_IMPORT_BYTES) {
+      const mb = (bytes.byteLength / (1024 * 1024)).toFixed(1);
+      const maxMb = (MAX_IMPORT_BYTES / (1024 * 1024)).toFixed(0);
+      this._status(`File too large (${mb} MB); import cap is ${maxMb} MB.`);
+      this._clearSchema();
+      return;
+    }
 
     let parsed: { dataset: Dataset; topology: TopologyType; encodings: Record<string, string> };
     try {
