@@ -3,6 +3,7 @@
 **Status:** design checkpoint for audit and experimentation  
 **Date:** 2026-09-18  
 **Baseline audited:** `b22559c22d9cc0d41cb99468c512d4d3baecbf5d`
+**Vision clarification:** [`../SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md`](../SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md)  
 
 ## 1. Problem
 
