@@ -95,9 +95,11 @@ A future `RepresentationGenome` may encode candidate representation/spatial choi
 laboratory synthesis/search programme. It is not a runtime or analytical authority. Nemosyne must not
 introduce a duplicate genome contract before the laboratory interface is versioned and promoted.
 
-`src/draco/` is a deliberate compatibility facade. Production imports must resolve directly through
-`src/moneta/`. The Rust ABI retains some `draco_*` export names for compatibility; names do not confer
-independent authority.
+`src/draco/` is a bounded compatibility re-export barrel (`src/draco/index.ts` only — "Backwards
+compatibility re-export for the legacy `src/draco` path"; the deep mirrors were collapsed in the
+Draco compatibility exit). Production imports must resolve directly through `src/moneta/`. The Rust
+ABI retains the `draco_solve`/`draco_evaluate_candidate` export names and the
+`pub use moneta as draco` alias for compatibility; names do not confer independent authority.
 
 ## Planned FM5 System-1 / System-2 boundary
 
