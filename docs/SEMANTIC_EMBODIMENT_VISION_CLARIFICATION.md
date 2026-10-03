@@ -87,7 +87,28 @@ A researcher should be able to disturb assumptions, parameters, evidence or repr
 
 This turns robustness, sensitivity and counterfactual structure into things that can be seen, heard and manipulated while retaining analytical provenance.
 
-## 6. Design commitments
+
+## 6. Abductive embodiment, missing data and negative space
+
+Semantic embodiment may expose not only what the dataset contains, but also **structured absence**.
+
+Incomplete records, destroyed observations, gaps in capture, missing intervals and absent relations should not all collapse to an undifferentiated null. Where the surrounding evidence constrains plausible completions, Moneta may generate provisional perceptual structure that makes those constraints available to human perception.
+
+The useful metaphor is perceptual completion: a partial square can strongly suggest the absent edges because the observed edges constrain what could occupy the gap. More generally, the shape of what is present can constrain the shape of what is missing. Negative space can therefore become an analytical object.
+
+This capability is explicitly abductive. Forma may embody candidate missing structure only when it preserves the distinction between:
+
+- observed or authoritative structure;
+- deterministic derivation;
+- imputation;
+- hypothesis;
+- counterfactual construction.
+
+The distinction must survive every perceptual channel. A highly plausible completion must not look indistinguishable from measured data merely because it is geometrically coherent. Uncertainty and evidential status should themselves be embodied where useful, for example through multiplicity, instability, translucency, bounded envelopes, competing branches or other qualified perceptual encodings.
+
+Exploratory abductive output may depend on an adaptive model whose future state produces a different completion. In that case the product requirement is not necessarily to regenerate the same inference forever. It is to preserve the experienced representation and its epistemic/provenance envelope in the Memory Palace so that the researcher can revisit, compare and challenge it later.
+
+## 7. Design commitments
 
 1. **Semantic fidelity** — perceptual properties must correspond consistently to underlying meaning.
 2. **Perceptual economy** — recruit additional sensory channels only when they improve understanding or expose otherwise-hidden structure.
@@ -97,7 +118,7 @@ This turns robustness, sensitivity and counterfactual structure into things that
 6. **Empirical fitness** — candidate embodiments must compete against simpler alternatives on comprehension, discovery, recall, calibration, error detection and task time.
 7. **Truth before vividness** — an attractive metaphor that implies unsupported structure must be revised or rejected.
 
-## 7. Research consequence
+## 8. Research consequence
 
 The governing research question is not simply whether 3D or VR is better than 2D.
 
@@ -109,7 +130,7 @@ Experiments should compare conventional representations, arbitrary spatial encod
 
 The aim is not to prove that embodiment always helps. It is to learn **which semantic-to-perceptual mappings help which analytical tasks, under which constraints, and when Moneta should abstain**.
 
-## 8. Review checkpoint
+## 9. Review checkpoint
 
 This clarification should be reviewed at the FM3 Compositional Moneta STOP/CONTINUE/REVISE gate and again before FM7 representation search is promoted. Evidence from P1-MCR, multimodal experiments, perturbation studies and user/device validation should be used to preserve, revise or retire the proposed mappings.
 
