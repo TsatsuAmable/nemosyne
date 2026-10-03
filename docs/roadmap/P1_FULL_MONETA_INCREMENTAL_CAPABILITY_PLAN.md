@@ -5,7 +5,8 @@
 **Governing vision:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3.1  
 **Live execution authority:** `docs/ROADMAP.md`  
 **Representation architecture:** `docs/roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`  
-**Full-Moneta semantic embodiment architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`  
+**Canonical Full-Moneta target architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`  
+**Role:** capability-ladder integration detail; architecture comes from the linked canonical document and sequencing/status comes from `docs/ROADMAP.md`.  
 **Product/UX doctrine:** `docs/Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md` and `docs/Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`  
 **Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`
 
@@ -31,13 +32,13 @@ The governing progression is:
 | Increment | Nemosyne becomes | Researcher-visible capability |
 |---|---|---|
 | FM0 | Trustworthy | Representation decisions are provenance-complete, replayable and bound to one analytical authority. |
-| FM1 | Question-aware | Different research questions and hypotheses can legitimately produce different representation decisions for the same dataset. |
+| FM1 | Question/perspective-aware | Different research questions and explicit perspectives can legitimately foreground different supported semantics over the same dataset without changing analytical truth. |
 | FM2 | Alternative-aware | Researchers can inspect, compare, challenge, reject and branch from meaningful representation alternatives. |
 | FM3 | Compositional / Forma | Several governed semantic phenomena can coexist and compile into explainable perceptual embodiment. |
 | FM4 | Resolution-adaptive | The same semantic meaning can be embodied at different levels of richness according to hardware and perceptual budget: the “stickman ↔ Mona Lisa” principle. |
 | FM5 | Intuitive / System-1-assisted | Small fast specialists may propose interaction cues and bounded Forma/representation candidates without becoming analytical or representation authority. |
-| FM6 | Human-refined | Researcher judgement and validated discovery outcomes improve future representation priors through governed learning. |
-| FM7 | Searching | Moneta searches a bounded representation grammar rather than choosing only from a fixed catalogue. |
+| FM6 | Human-refined | Human meaning judgments, embodiment critiques and validated discovery outcomes become scoped durable Forma knowledge and improve future proposal priors through governed learning. |
+| FM7 | Searching / synthesizing | Moneta searches a bounded representation/perceptual grammar and may use explicit System-2 analogical synthesis rather than choosing only from a fixed catalogue. |
 | FM8 | Full Moneta | Evidence, intent, context, learned priors, search and hardware budget jointly produce inspectable adaptive representations under explicit scientific constraints. |
 
 Advancement between increments is evidence-driven, not automatic.
@@ -121,7 +122,7 @@ Researcher-visible experience:
 
 **STOP/REVISE question:** Is evidence governance understandable enough that it increases trust rather than merely adding internal machinery?
 
-### FM1 — Question-Aware Moneta
+### FM1 — Question/Perspective-Aware Moneta
 
 **Architecture preflight:** trigger **AP-INV** before the first implementation that makes intent/branch state durable. The resulting contract must also govern FM2 rather than allowing FM1 and FM2 to invent separate history models.
 
@@ -283,7 +284,7 @@ Researcher-visible experience:
 **Exit:** at least one bounded System-1 lane demonstrates measurable value over its deterministic/reference baseline on held-out and target-device evaluation, while the other lane has an explicit CONTINUE/REVISE/STOP disposition; replay, provenance, NIL semantics and Moneta hard/evidence constraints remain intact.
 
 **STOP/REVISE question:** Do small learned reflexes reduce interaction/search cost enough to justify their runtime, data and governance complexity, or should Nemosyne remain deterministic at that seam?
-### FM6 — Human-Refined Moneta
+### FM6 — Human-Refined Moneta / Forma Knowledge
 
 **Architecture preflight:** trigger **AP-LEARN** before PT9/FM6 builds a new learning corpus or attributes discovery outcomes to representations. Trigger **AP-COLLAB** separately only when shared-branch/cross-investigation recurrence implementation reaches the frontier.
 
@@ -291,13 +292,15 @@ Researcher-visible experience:
 
 Required implementation:
 
-- PT9 curated learning corpus from pairwise judgement, feature snapshots and discovery outcomes;
+- retain confirmed `EmbodimentCritiqueV1` and `HumanMeaningJudgmentV1` records against exact representation/binding versions;
+- promote qualified mappings/cases into the versioned Forma Knowledge Base with domain/task/population scope and evidence basis;
+- PT9 curated learning corpus from pairwise judgement, meaning judgments, feature snapshots and discovery outcomes;
 - preserve telemetry vs research evidence vs training-data boundaries;
 - researcher/dataset-disjoint holdouts where appropriate;
 - transparent baseline model before opaque alternatives;
 - explicit promotion/rollback through Model Registry;
 - preserve evidence disposition as a hard gate;
-- distinguish preference learning from discovery-outcome learning.
+- distinguish preference learning, intended-vs-perceived meaning, discovery-outcome learning and scientific validation.
 
 Researcher-visible experience:
 
@@ -316,7 +319,7 @@ Memory Palace extension:
 
 **STOP/REVISE question:** Is learning improving discovery support rather than merely reproducing user preference?
 
-### FM7 — Searching Moneta
+### FM7 — Searching / Synthesizing Moneta
 
 **Architecture preflight:** trigger **AP-SEARCH** before implementing the grammar/search loop. MCR7 defines the production handoff seam but does not by itself define the search architecture.
 
@@ -430,11 +433,11 @@ Cleanup packages may run earlier when a fresh reachability audit proves they are
 The capability ladder does not replace specialist programmes. Machine dispatch is organized through the durable thematic lanes in the Full-Moneta architecture plan:
 
 - **L0 — Truth & Evidence:** P1-TEC, evidence receipts/admissibility, semantic normalization and evidence binding.
-- **L1 — Investigation & Alternatives:** FM1/F2 intent, Memory Palace, Road Not Taken, Challenge, TechnoCore and branching.
-- **L2 — Forma & Semantic Embodiment:** P1-MCR, perceptual bindings/plans, compiler/runtime, behaviour, reverse explanation and FM4 semantic resolution.
+- **L1 — Investigation, Perspective & Alternatives:** FM1/F2 intent + `InvestigationPerspectiveV1`, Memory Palace, Road Not Taken, Challenge, TechnoCore, Farcaster context transitions and branching.
+- **L2 — Forma & Semantic Embodiment:** P1-MCR, semantic obligations, perceptual bindings/plans, Forma knowledge schemas, deterministic compiler/runtime, behaviour, reverse explanation/critique and FM4 semantic resolution.
 - **L3 — Intuitive Interaction & Reflexes:** FM5 System-1 perception and Forma proposal, deterministic resolvers, gaze/voice/NIL boundaries.
 - **L4 — Runtime & Device Efficiency:** P1-UXR runtime/resource work, Quest MAC-Q0..Q5 and scriptc experiments.
-- **L5 — Learning & Search:** PT9/FM6 learning, RepresentationGenome adapter, bounded grammar/search and FM7.
+- **L5 — Human-Grounded Learning & Search:** Forma knowledge promotion, PT9/FM6 learning, System-1 distillation, RepresentationGenome/search, System-2 synthesis and evidence-triggered later model research.
 - **L6 — Product Validation & Integration:** PT10/P1-WQ, user/device evidence, semantic-embodiment studies and FM STOP reviews.
 
 These are product/architecture lanes, not machine ownership. Machines claim concrete tranches and file surfaces under the live roadmap lease rules.
