@@ -3,7 +3,11 @@
  * for cross-cutting concerns (interaction logging, auto-save, telemetry, UI refresh).
  *
  * Handlers are called synchronously and in registration order. Errors in one
- * handler do not prevent subsequent handlers from running.
+ * handler do not prevent subsequent handlers from running. Each emit delivers
+ * to the handlers registered when it started: unsubscribing during a dispatch
+ * (including a `once` handler retiring itself) does not skip any handler that
+ * was already registered, and handlers added during a dispatch receive
+ * subsequent emits rather than the in-flight one.
  */
 
 export interface WorldEventBusOptions {
@@ -131,7 +135,13 @@ export class WorldEventBus<TEvents extends object = NemosyneEventMap> {
     const list = this._handlers.get(topic);
     if (!list || list.length === 0) return;
 
-    for (const handler of list) {
+    // Dispatch over a snapshot of the live list. Handlers may unsubscribe
+    // themselves (or anyone else) while this emit is running; splicing the
+    // live array mid-iteration would shift indices and silently skip the
+    // handler registered after the remover. Removals therefore take effect
+    // from the next emit onward, and handlers registered during this emit
+    // wait for it rather than joining an in-flight dispatch.
+    for (const handler of list.slice()) {
       try {
         handler(payload);
       } catch (err) {
