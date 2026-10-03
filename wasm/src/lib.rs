@@ -2205,6 +2205,61 @@ mod tests {
         assert_eq!(compute_statistics_evidence_governed_capture_result(destroyed), None);
         assert_eq!(compute_statistics_evidence_governed_capture_result(0), None);
     }
+
+    /// RF-043: byte-ingest ABI entries must fail closed on ranges no live
+    /// allocation backs. Every (ptr, len) below either overflows u32 address
+    /// arithmetic or ends past any host allocation, so `try_view` yields
+    /// `None` and each entry must return the zero sentinel instead of
+    /// trapping or materialising unowned bytes.
+    #[test]
+    fn abi_byte_ingest_rejects_unbacked_ranges_with_zero_sentinel() {
+        let hostile_ranges: &[(u32, u32)] = &[
+            (u32::MAX, 1),
+            (u32::MAX, u32::MAX),
+            (u32::MAX - 1, 2),
+            (1, u32::MAX),
+        ];
+        for &(ptr, len) in hostile_ranges {
+            assert_eq!(data_load_csv(ptr, len), 0, "csv accepted unbacked range");
+            assert_eq!(data_load_json(ptr, len), 0, "json accepted unbacked range");
+            assert_eq!(
+                data_load_dataset_json(ptr, len),
+                0,
+                "dataset-json accepted unbacked range"
+            );
+            assert_eq!(data_parse_arrow(ptr, len), 0, "arrow accepted unbacked range");
+        }
+    }
+
+    /// RF-043: malformed bytes in a live allocation must never trap the
+    /// ingest entries nor produce an unbounded dataset. Refusal (zero
+    /// sentinel) and bounded success are both acceptable outcomes; the
+    /// bounds mirror `data::parsers` (`DEFAULT_MAX_ROWS`/`DEFAULT_MAX_COLUMNS`).
+    #[test]
+    fn abi_byte_ingest_refuses_or_bounds_malformed_content() {
+        let payloads: &[&[u8]] = &[
+            &[0xff; 32],
+            b"[{\"x\":",
+            b"a,b\n1,\"unterminated",
+            b"\x00\x01\x02",
+        ];
+        for payload in payloads {
+            let (ptr, len) = allocator::copy_bytes(payload);
+            for handle in [
+                data_load_csv(ptr, len),
+                data_load_json(ptr, len),
+                data_load_dataset_json(ptr, len),
+                data_parse_arrow(ptr, len),
+            ] {
+                if handle != 0 {
+                    assert!(dataset_row_count(handle) <= 100_000, "unbounded rows");
+                    assert!(dataset_column_count(handle) <= 1_000, "unbounded columns");
+                    dataset_destroy(handle);
+                }
+            }
+            dealloc(ptr, len);
+        }
+    }
 }
 
 #[no_mangle]
