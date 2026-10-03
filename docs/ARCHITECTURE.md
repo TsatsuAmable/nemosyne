@@ -71,8 +71,8 @@ version and artifact hash where applicable. When no candidate is feasible, Monet
 outcome rather than fabricating a recommendation.
 
 The dataset-first representation boundary is layered rather than collapsed into one renderer-facing
-specification. The Full-Moneta semantic-embodiment preflight is
-[`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
+specification. The canonical Full-Moneta target architecture is
+[`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). It consolidates the human-grounded Forma knowledge/feedback loop, semantic resolution, perspective, System-1/System-2 roles and machine-addressable build lanes.
 
 ```text
 Rust/WASM DatasetEvidence + governed semantic payloads
@@ -124,15 +124,17 @@ physical input
     -> deterministic InteractionIntent resolver
       -> NIL
 
-governed evidence + investigation intent + representation features
-  -> System-1 representation proposal
-    -> Moneta System-2 hard constraints / evidence / reasoning / search
-      -> RepresentationDecision
+governed evidence + investigation intent/perspective + qualified Forma knowledge features
+  -> System-1 Forma proposal (retrieval/ranking only)
+    -> Moneta System-2 hard constraints / evidence / reasoning / synthesis/search
+      -> RepresentationGraph candidate
+        -> deterministic Forma admission/compiler
+          -> PerceptualEmbodimentPlan
 ```
 
-System-1 perception must not emit domain commands directly. System-1 representation models must not
-traverse raw datasets or bypass hard constraints/evidence admission. System-2 remains explicit Moneta
-reasoning/search and has no ONNX requirement. ONNX is a qualified deployment format for small learned
+System-1 perception must not emit domain commands directly. System-1 Forma proposal models must not
+traverse raw datasets, serve as the durable store of metaphor knowledge, or bypass hard constraints/evidence admission. Human-grounded metaphor knowledge lives in versioned rules/templates/cases; System-1 may distil/retrieve from it. System-2 remains explicit Moneta
+reasoning/synthesis/search and has no ONNX requirement. ONNX is a qualified deployment format for small learned
 specialists where it demonstrates value; transparent deterministic or linear baselines remain valid
 implementations. Exact model/runtime/feature identity is pinned for research treatment and replay.
 ## Investigation and persistence
