@@ -18,6 +18,8 @@ if (!existsSync(manifestPath)) {
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const pageByAuthority = new Map([
   ['product-research-architecture', 'Vision-and-Roadmap'],
+  ['semantic-embodiment-vision-clarification', 'Semantic-Embodiment-Vision-Clarification'],
+  ['full-moneta-semantic-embodiment-architecture', 'Full-Moneta-Semantic-Embodiment-Architecture'],
   ['product-ux-design-doctrine', 'User-Experience-Design-Doctrine'],
   ['implementation-status', 'Current-Status'],
   ['engineering-agent-contract', 'Engineering-Agent-Contract'],

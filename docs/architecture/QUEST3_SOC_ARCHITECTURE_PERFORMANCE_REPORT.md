@@ -2,9 +2,9 @@
 
 **Date:** 3 October 2026  
 **Status:** PRE-FLIGHT / EXPERIMENT PLAN  
-**Owner lane:** Mac experimental lane, with physical Meta Quest 3 qualification when the headset is available  
+**Owner lane:** L4 Runtime & Device Efficiency (currently Mac experimental capacity), with physical Meta Quest 3 qualification when the headset is available  
 **Target runtime:** Nemosyne WebXR / Three.js / Rust-WASM on Meta Quest Browser  
-**Related:** `docs/architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md`, `docs/P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`, `docs/review-plans/P1Q_Q3B_RESOURCE_ENVELOPE_2026-08-28.md`
+**Related:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`, `docs/architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md`, `docs/P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`, `docs/review-plans/P1Q_Q3B_RESOURCE_ENVELOPE_2026-08-28.md`
 
 ## 1. Executive summary
 

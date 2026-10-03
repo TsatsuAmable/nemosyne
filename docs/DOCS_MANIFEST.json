@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-09-21",
+  "lastReviewed": "2026-10-03",
   "statuses": [
     "canonical",
     "active",
@@ -11,6 +11,12 @@
       "path": "docs/Nemosyne_Definitive_Vision_and_Roadmap.md",
       "status": "canonical",
       "authority": "product-research-architecture",
+      "owner": "product-research"
+    },
+    {
+      "path": "docs/SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md",
+      "status": "active",
+      "authority": "semantic-embodiment-vision-clarification",
       "owner": "product-research"
     },
     {
@@ -41,6 +47,12 @@
       "path": "docs/ARCHITECTURE.md",
       "status": "active",
       "authority": "architecture-reference",
+      "owner": "architecture"
+    },
+    {
+      "path": "docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md",
+      "status": "active",
+      "authority": "full-moneta-semantic-embodiment-architecture",
       "owner": "architecture"
     },
     {

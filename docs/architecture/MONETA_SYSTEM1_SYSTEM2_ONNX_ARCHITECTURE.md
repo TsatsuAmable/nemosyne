@@ -3,7 +3,7 @@
 **Status:** proposed architecture for FM5 implementation  
 **Date:** 29 September 2026  
 **Roadmap owner:** [FM5 - Intuitive Moneta / System-1 Decision Driver](../roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md#fm5--intuitive-moneta--system-1-decision-driver)  
-**Related:** [Product transition and learning plan](../roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md), [Architecture](../ARCHITECTURE.md), [PT8 gesture model review](../review-plans/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_2026-09-05.md)
+**Related:** [Full Moneta semantic embodiment architecture](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md), [Product transition and learning plan](../roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md), [Architecture](../ARCHITECTURE.md), [PT8 gesture model review](../review-plans/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_2026-09-05.md)
 
 ## 1. Decision summary
 
@@ -12,7 +12,7 @@ Nemosyne should not build one general "System-1 ONNX model", and System-2 should
 The architecture is:
 
 1. **System-1 Perception**: a small, fast, object-centric temporal model may infer bounded physical interaction cues from hand, gaze, object and runtime context.
-2. **System-1 Representation Proposal**: a small, fast model or transparent learned ranker may propose representation candidates/compositions from already-governed Moneta features and investigation intent.
+2. **System-1 Forma/Representation Proposal**: a small, fast model or transparent learned ranker may propose bounded representation primitives, template/binding candidates, compositions or search ordering from already-governed semantic/Moneta features, investigation intent and perceptual/device budget.
 3. **Deterministic resolvers** convert System-1 outputs into typed proposals. Perception does not directly emit NIL commands; representation learning does not bypass Moneta hard constraints.
 4. **System-2 Moneta** remains the explicit reasoning, evidence-admission, alternative-generation, search, challenge and representation-authority layer. It may consume System-1 proposals as heuristics but must be able to ignore, challenge, reproduce and replace them.
 5. **ONNX is a deployment/runtime format, not an architectural authority.** Use it where a learned nonlinear model demonstrates value. Do not force transparent linear ranking, deterministic interaction resolution, or System-2 reasoning into ONNX.
@@ -28,9 +28,11 @@ physical input
           -> Investigation / Atlas
 
 governed evidence + intent + candidate features
-  -> System-1 representation proposal
+  -> System-1 Forma/representation proposal
     -> Moneta System-2 constraints/reasoning/search
-      -> governed RepresentationDecision
+      -> governed RepresentationDecision / RepresentationGraph
+        -> deterministic Moneta Forma admission/compiler
+          -> PerceptualEmbodimentPlan
 ```
 
 ## 2. Architectural evaluation
@@ -41,7 +43,7 @@ The repository already has most of the required governance infrastructure:
 
 - PT6-PT8 provide governed collection, user-disjoint snapshots, reproducible training, ONNX candidate export, held-out evaluation, explicit promotion and rollback.
 - `modules/gesture-intelligence/` provides a standalone 56-feature gesture model specimen with heuristic and ONNX paths.
-- `src/vr/perception/MultimodalPerceptionEnvelope.ts` demonstrates freezeable perception metadata, but its fixed confidence thresholds and string `resolvedAction` synthesis are laboratory-only and are not an acceptable production semantic boundary.
+- The former `MultimodalPerceptionEnvelope` / `GeometricGestureRecognizer` prototypes were audited and archived on 3 October 2026. Their heuristic confidence and string-action semantics are explicitly **not** inherited. The reusable output of that audit is the future typed cue-contract requirement.
 - `src/fitness/` provides content-addressed learned fitness artifacts, pairwise feature snapshots, promotion policy and exact model pinning.
 - `LearnedMonetaRuntime` already constrains learned ranking to operate after bootstrap candidate generation and hard constraints.
 - NIL already defines the modality-independent interaction boundary.
@@ -56,8 +58,9 @@ The main gap is therefore not "add ONNX". It is to define a common, governed Sys
 | Named symbolic gesture vocabulary | System-1 perception | Experimental only | Optional | Advisory only |
 | Gaze target candidate | Perception/runtime | Usually geometric/deterministic | No | Advisory targeting |
 | Voice transcription / NLU | Separate modality provider | Provider-specific | No shared requirement | Advisory until NIL |
-| Representation candidate ranking | System-1 representation | Yes | **Not initially required** | Advisory only |
-| Representation/composition proposal | System-1 representation | Yes when bounded | Optional | Advisory only |
+| Representation candidate ranking | System-1 Forma/representation | Yes | **Not initially required** | Advisory only |
+| Representation/composition proposal | System-1 Forma/representation | Yes when bounded | Optional | Advisory only |
+| Perceptual binding/template proposal | System-1 Forma/representation | Only after deterministic FM3 grammar is qualified | Optional | Advisory only; Forma/System-2 admits |
 | Hard scientific constraints | System-2 Moneta | No learned authority | No | Moneta |
 | Evidence admissibility | System-2 / evidence protocol | No | No | Evidence authority |
 | Alternative generation/challenge | System-2 Moneta | Search/reasoning | No ONNX requirement | Moneta |
@@ -181,11 +184,11 @@ A deterministic, versioned resolver combines these cues with object affordances 
 
 This prevents a learned perception model from becoming a hidden second command system.
 
-## 5. System-1 Representation Proposal Model
+## 5. System-1 Forma / Representation Proposal Model
 
 ### 5.1 Product goal
 
-Quickly propose promising representation candidates or bounded composition choices so System-2 can spend expensive reasoning/search effort where it is useful.
+Quickly propose promising representation primitives, bounded compositions, metaphor/template IDs, perceptual-binding candidates or search ordering so System-2 and deterministic Moneta Forma can spend expensive reasoning/admission effort where it is useful. The model proposes where to look; it does not author the final perceptual plan.
 
 ### 5.2 Inputs
 
@@ -196,8 +199,9 @@ Only canonical governed inputs may be consumed:
 - versioned `InvestigationIntent`;
 - representation/ontology identity;
 - candidate/RepresentationGraph bounded features;
+- qualified `PerceptualBinding` / metaphor-template features once FM3 Forma contracts exist;
 - information-preservation/loss descriptors;
-- device/perceptual budget;
+- device/perceptual budget and channel availability;
 - explicit researcher-context fields allowed by policy.
 
 The model must not traverse raw datasets independently or manufacture analytical features in TypeScript.
@@ -213,14 +217,16 @@ Sequence:
 3. compare transparent linear ranking with a very small MLP/nonlinear ranker;
 4. export to ONNX only if the nonlinear candidate produces material held-out benefit or a runtime-portability benefit.
 
-Likely nonlinear candidate:
+Likely nonlinear candidate after deterministic Forma baselines exist:
 
 ```text
-10-64 canonical features
+bounded canonical semantic + intent + candidate/template features
   -> Dense 32
     -> Dense 16
-      -> candidate utility / pairwise preference / abstention head
+      -> proposal priority / pairwise preference / abstention head
 ```
+
+Do not train a model to emit raw renderer parameters. Proposal outputs must name bounded registered representation/template/binding choices that System-2/Forma can independently validate.
 
 ### 5.4 Training before FM6
 
@@ -233,7 +239,7 @@ Permitted FM5 training evidence:
 - synthetic/metamorphic task variants with explicit labels;
 - governed historical pairwise evidence already admissible under the existing learning contracts.
 
-A useful FM5 experiment is **distillation from System-2**: run slower governed reasoning/search over a bounded corpus and train System-1 to predict which candidates System-2 found worth exploring. The student proposal does not inherit System-2 authority.
+A useful FM5 experiment is **distillation from System-2 + deterministic Forma**: run slower governed reasoning/search and binding admission over a bounded corpus and train System-1 to predict which representation/binding/template candidates are worth exploring first. The student proposal does not inherit System-2 or Forma authority.
 
 New product judgement/discovery-outcome adaptation belongs to FM6/PT9.
 
@@ -418,17 +424,19 @@ Any later personalized model must be separately versioned, reversible, attributa
 - specify Perception Feature Schema V2;
 - build deterministic baseline;
 - build tiny TCN candidate;
-- replace `MultimodalPerceptionEngine` string-action semantics with typed cue contracts or archive it;
+- implement the typed cue contracts documented by the CMS-6 audit; the old heuristic engine/recognizer are already archived and must not be revived;
 - route cue resolver -> `InteractionIntent` -> NIL;
 - keep named gesture recognition behind an experimental flag.
 
-### FM5-S1C - representation proposal
+### FM5-S1C - Forma / representation proposal
 
-- define FM1-FM4 proposal feature schema;
-- retain linear learned ranker baseline;
-- build System-2 distillation/evaluation corpus;
-- test tiny nonlinear ranker;
-- adopt ONNX only if it materially improves bounded evaluation.
+- wait for the FM3 `PerceptualBinding` / `PerceptualEmbodimentPlan` grammar to stabilize before pinning proposal outputs;
+- define FM1-FM4 semantic/intent/device proposal feature schema;
+- define bounded `FormaProposalSet` outputs over registered representation primitives, templates, bindings and search-order hints;
+- retain deterministic policy + linear learned ranker as baselines;
+- build System-2 + deterministic Forma distillation/evaluation corpus;
+- test tiny nonlinear ranker only if the bounded proposal task justifies it;
+- adopt ONNX only if it materially improves proposal coverage/cost without reducing trustworthiness.
 
 ### FM5-S1D - qualification
 
@@ -439,7 +447,7 @@ Any later personalized model must be separately versioned, reversible, attributa
 - research freeze/replay tests;
 - STOP / CONTINUE / REVISE review against deterministic baselines.
 
-FM6 may then add governed researcher/discovery-outcome learning to the qualified System-1 representation lane.
+FM6 may then add governed researcher/discovery-outcome learning to the qualified System-1 Forma/representation lane.
 
 ## 14. Falsifiers
 
