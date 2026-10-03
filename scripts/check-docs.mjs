@@ -218,11 +218,38 @@ for (const path of [
 // canonical references without inferring semantic milestone completion from
 // merges: a merged SHA stays valid history, while an unknown or
 // newer-than-HEAD SHA fails closed until the snapshot is reconciled.
+//
+// Shallow or partial clones (such as default CI checkouts) cannot resolve
+// short SHAs or prove ancestry, so the check completes the history once via
+// `git fetch --unshallow` before judging. A clone that cannot be completed
+// (offline, or no `origin`) fails closed with guidance instead of guessing.
 try {
   const roadmap = read('docs/ROADMAP.md');
   const bases = new Set(
     [...roadmap.matchAll(/main@([0-9a-f]{7,40})/g)].map((match) => match[1]),
   );
+  let shallow = false;
+  try {
+    shallow =
+      execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+        cwd: root,
+        encoding: 'utf8',
+      }).trim() === 'true';
+  } catch {
+    shallow = false;
+  }
+  if (shallow) {
+    try {
+      execFileSync('git', ['fetch', '--quiet', '--unshallow', 'origin'], {
+        cwd: root,
+        stdio: 'ignore',
+      });
+    } catch {
+      fail(
+        'docs/ROADMAP.md base-identity check needs full history: this is a shallow clone and `git fetch --unshallow origin` failed.',
+      );
+    }
+  }
   for (const sha of bases) {
     let resolved = '';
     try {
