@@ -24,6 +24,10 @@ export class PollingAdapter extends DataConnector {
 
   private _timer: ReturnType<typeof setTimeout> | boolean | null;
   private _abortController: AbortController | null;
+  // Lifecycle generation. Every connect/disconnect retires the previous
+  // generation so a still-settling tick can never clear the live
+  // generation's AbortController or arm a duplicate timer (RFL-0005).
+  private _generation = 0;
 
   constructor({
     url,
@@ -53,12 +57,14 @@ export class PollingAdapter extends DataConnector {
 
   connect(): void {
     if (this._timer) return;
+    this._generation += 1;
     this._setStatus('connecting');
     this._timer = true; // loop active; _tick will replace with real timeout
     this._tick();
   }
 
   disconnect(): void {
+    this._generation += 1;
     this._clearTimer();
     this._abortController?.abort();
     this._abortController = null;
@@ -77,6 +83,7 @@ export class PollingAdapter extends DataConnector {
   }
 
   private async _tick(): Promise<void> {
+    const generation = this._generation;
     this._abortController = new AbortController();
     try {
       const res = await fetch(this.url, {
@@ -102,9 +109,13 @@ export class PollingAdapter extends DataConnector {
       if (e?.name === 'AbortError') return;
       this._setStatus('error', e?.message || String(err));
     } finally {
-      this._abortController = null;
-      if (this._timer != null || this.status === 'connecting') {
-        this._timer = setTimeout(() => this._tick(), this.intervalMs);
+      // A tick from a retired generation must not touch the live
+      // generation's controller or arm a second timer.
+      if (generation === this._generation) {
+        this._abortController = null;
+        if (this._timer != null || this.status === 'connecting') {
+          this._timer = setTimeout(() => this._tick(), this.intervalMs);
+        }
       }
     }
   }
