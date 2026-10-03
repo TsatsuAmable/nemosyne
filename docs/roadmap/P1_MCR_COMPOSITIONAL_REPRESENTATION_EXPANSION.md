@@ -9,7 +9,8 @@
 **Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`  
 **Capability integration plan:** `docs/roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`  
 **Full-Moneta semantic embodiment architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`
-**Role:** specialist MCR implementation detail subordinate to the canonical Full-Moneta target architecture and live roadmap.
+**Architecture 2027 adjudication:** `docs/architecture/ARCHITECTURE_2027_REVIEW.md`
+**Role:** specialist MCR implementation detail subordinate to the canonical Full-Moneta target architecture and live roadmap; ERA-ASTRA1 corrections are inputs, not a second authority.
 
 ## 1. Mission
 
@@ -20,18 +21,20 @@ This workstream owns the representation architecture and production embodiment p
 The intended stable layering is:
 
 ```text
-Rust/WASM DatasetEvidence + governed semantic payloads
-  -> SemanticEmbodimentGraph
-       evidence-bound semantic truth and refinement identity
-  -> RepresentationGraph
-       Moneta's compositional representation hypothesis
-  -> Moneta Forma semantic-to-perceptual compiler
-       typed perceptual bindings / behaviour / interaction policy
-  -> PerceptualEmbodimentPlan
-       modality-independent terminal plan
-       -> SpatialEmbodimentPlan
+Rust/WASM analytical outputs + governed evidence receipts
+  -> decision-independent semantic snapshot (target after A27-0)
+       evidence-bound entities/properties/relations + coverage/refusal/limitations
+       [SemanticEmbodimentGraphV1 remains a compatibility projection until versioned migration]
+  + committed Investigation intent/perspective/branch context
+  -> RepresentationGraph + fixed semantic obligations
+       Moneta's compositional representation proposal
+  -> Moneta Forma admission / deterministic compiler
+       typed perceptual bindings + scoped qualification + execution purpose
+  -> immutable admitted result / PerceptualEmbodimentPlan
+       exact explanation/replay identity
+       -> SpatialEmbodimentPlan first
        -> optional qualified audio/haptic/behaviour backends
-  -> desktop / WebXR runtime
+  -> context-checked desktop / WebXR adoption
 ```
 
 A future `RepresentationGenome` may encode candidate choices across these layers for search, mutation, recombination, lineage and laboratory evaluation. It is not an analytical authority, not the runtime representation contract, and not owned by this workstream.
@@ -55,7 +58,7 @@ The current compatibility adapter is valuable migration infrastructure and remai
 
 ### `SemanticEmbodimentGraphV1`
 
-Reuse as the evidence-bound semantic-object graph. Its dataset fingerprint, decision identity, node abstraction level, refinement relations, information preservation/loss and evidence references are the semantic truth that a representation consumes.
+`SemanticEmbodimentGraphV1` is useful compatibility infrastructure, but its required `decisionId` makes it unsuitable as the final upstream semantic identity. A27-0 must define the version boundary for a decision-independent semantic snapshot while preserving V1 replay/compatibility. Its evidence-bound node/refinement information remains useful input; do not silently reinterpret its decision-coupled identity as truth.
 
 It must remain independent of Three.js resources and of search strategy.
 
@@ -185,7 +188,7 @@ Planning and contract work may proceed while the current product stream continue
 
 ### Trustworthy-evidence dependency
 
-P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` defines **FM0 / P1-TEC trustworthy-evidence closure** as the hard scientific prerequisite for promoting FM3 composition. PT9 learning is **not** a universal prerequisite for deterministic/reference composition. Before MCR2 creates the production semantic-to-perceptual Forma compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
+P1-MCR does not own the statistical evidence architecture, but it depends on its closure. `docs/ROADMAP.md` defines **FM0 / P1-TEC trustworthy-evidence closure** as the hard scientific prerequisite for promoting FM3 composition, and **A27-0** as the authority/version decision required before durable Forma contracts freeze. PT9 learning is **not** a universal prerequisite for deterministic/reference composition. Before MCR2 creates the production semantic-to-perceptual Forma compiler, or any externally evolved `RepresentationGenome` is promoted into production, the relevant P1-TEC evidence handoff must establish that:
 
 - semantic/measurement admissibility and analytical geometry are not discarded before representation binding;
 - assumptions, sample support, uncertainty, stability, sensitivity and limitations remain distinguishable where the representation claim depends on them;
@@ -221,9 +224,9 @@ Add relation-specific validation for the composition relations actually admitted
 
 ### MCR2 — Moneta Forma semantic-to-perceptual compiler, spatial backend first
 
-Before renderer implementation, land the bounded contract preflight described by **L2-FORMA-0** in the Full-Moneta architecture plan: typed perceptual channel IDs, `PerceptualBindingV1`, `PerceptualEmbodimentPlanV1`, provenance/fidelity/explanation requirements and fail-closed validators.
+After **A27-0** and the affected L0/L1 identity seams, land the bounded **L2-FORMA-0 + KB0** preflight: fixed obligations, typed channels/bindings, immutable admission/result identity, execution-purpose semantics including restricted study use, reverse explanation and a pinned knowledge manifest over distinct authorities.
 
-Then implement one deterministic/reference production compiler that consumes the validated semantic graph + representation graph and emits a bounded `PerceptualEmbodimentPlan`. The first qualified backend is the existing `SpatialEmbodimentPlanV1`; this is intentionally an evolution of the old semantic-to-spatial tranche, not a second semantic authority.
+Then implement one deterministic/reference production compiler that consumes the authoritative semantic snapshot + committed context + RepresentationGraph and returns an immutable admitted result with a bounded `PerceptualEmbodimentPlan`. The first qualified backend is the existing `SpatialEmbodimentPlanV1`. The first usable slice also captures exact replay identity and non-adaptive critique/meaning evidence; this is an evolution of the old semantic-to-spatial tranche, not a second semantic authority.
 
 Requirements:
 
@@ -232,11 +235,11 @@ Requirements:
 - one semantic node may produce several perceptual/spatial elements when explicitly allowed;
 - one representation may contain several semantic nodes;
 - geometry, colour, motion, sound or haptic parameters cannot rewrite semantic/evidence identity;
-- the compiler may ABSTAIN or simplify when no justified binding exists;
-- alternative backend plans for the same semantic graph remain distinguishable phenotype choices rather than new analytical claims;
+- the compiler returns typed refusal/restricted-use outcomes when no justified binding exists; a candidate cannot select a weaker evidence profile or weaken fixed obligations;
+- alternative backend plans for the same supported semantic snapshot remain distinguishable phenotype choices rather than new analytical claims;
 - `SemanticEmbodimentGraphV1.presentationHints` are not expanded into a shadow Forma API.
 
-**Exit:** the same semantic graph can be compiled through the perceptual plan into at least two valid spatial phenotypes without changing dataset/decision/evidence identity, and every embodied property in the reference slice can be reverse-traced to its binding and semantic source.
+**Exit:** the same supported semantic snapshot can be compiled into at least two valid spatial phenotypes without changing analytical identity; evidence substitution/version drift refuses; every embodied property reverse-traces to its binding/claim/evidence; exact selected-plan replay does not rerun mutable inference; minimum confirmed human feedback binds the exact plan/binding/context without adapting priors.
 
 ### MCR3 — multi-element runtime and lifecycle
 

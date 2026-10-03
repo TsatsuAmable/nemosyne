@@ -27,6 +27,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 
 - [`roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md`](roadmap/P1_MCR_COMPOSITIONAL_REPRESENTATION_EXPANSION.md) - dedicated downstream Moneta compositional-representation workstream; reuses RepresentationGraph, semantic/spatial embodiment contracts and keeps evolutionary synthesis/search separate.
 - [`architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md) - **canonical Full-Moneta target architecture**: consolidates evidence/semantic authority, human-grounded metaphor knowledge, deterministic Forma compilation, perspective, semantic resolution, System-1/System-2 roles, feedback/evolution loops and machine-addressable build lanes.
+- [`architecture/ARCHITECTURE_2027_REVIEW.md`](architecture/ARCHITECTURE_2027_REVIEW.md) - ERA-ASTRA1 adjudication of the target architecture against actual source topology; records KEEP/CHANGE/INVESTIGATE decisions, falsifiers and RFC/ADR triggers. It is an active review artifact, not a second target architecture.
 - [`DEVELOPER_EXPLAINER.md`](DEVELOPER_EXPLAINER.md) - developer onboarding and codebase mental model.
 - [`MIGRATION.md`](MIGRATION.md) - migration reference where still applicable.
 - [`CI_TEST_ACCELERATION_STRATEGY.md`](CI_TEST_ACCELERATION_STRATEGY.md) - CI evidence/latency strategy and measured sharding work.

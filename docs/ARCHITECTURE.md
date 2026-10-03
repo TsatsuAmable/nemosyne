@@ -72,26 +72,26 @@ outcome rather than fabricating a recommendation.
 
 The dataset-first representation boundary is layered rather than collapsed into one renderer-facing
 specification. The canonical Full-Moneta target architecture is
-[`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). It consolidates the human-grounded Forma knowledge/feedback loop, semantic resolution, perspective, System-1/System-2 roles and machine-addressable build lanes.
+[`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). It consolidates the human-grounded Forma knowledge/feedback loop, semantic resolution, perspective, System-1/System-2 roles and machine-addressable build lanes. ERA-ASTRA1's [`ARCHITECTURE_2027_REVIEW.md`](architecture/ARCHITECTURE_2027_REVIEW.md) adjudicates that target against current source topology; its accepted corrections are folded into the target plan and roadmap rather than forming a second architecture.
 
 ```text
-Rust/WASM DatasetEvidence + governed semantic payloads
-  -> SemanticEmbodimentGraphV1
-       evidence-bound semantic world: objects, abstraction/refinement and information contracts
-  -> RepresentationGraph
-       Moneta-owned compositional representation hypothesis and coordination policy
-  -> Moneta Forma semantic-to-perceptual compiler
-       typed perceptual bindings + behaviour/interaction policy
-  -> PerceptualEmbodimentPlan (planned)
-       modality-independent terminal embodiment contract
-       -> SpatialEmbodimentPlanV1
-       -> visual/audio/haptic/behaviour backends as qualified
-  -> desktop / WebXR runtime
+Rust/WASM analytical outputs + governed evidence receipts
+  -> decision-independent semantic snapshot (planned target)
+       evidence-bound entities/properties/relations + coverage/refusal/limitations
+       [SemanticEmbodimentGraphV1 remains a compatibility projection until versioned migration]
+  + committed Investigation intent/perspective/branch context
+  -> Moneta RepresentationGraph + fixed semantic obligations
+       compositional representation proposal under pinned policy
+  -> Moneta Forma admission / deterministic compilation
+       typed perceptual bindings + scoped qualification + execution purpose
+  -> immutable admitted result / PerceptualEmbodimentPlan
+       exact explanation/replay identity
+       -> SpatialEmbodimentPlanV1 first
+       -> visual/audio/haptic/behaviour backends only as qualified
+  -> context-checked desktop / WebXR adoption
 ```
 
-`SemanticEmbodimentGraphV1` is therefore semantic truth, despite the word "Embodiment" in its name;
-new rendering/audio/haptic state must not accrete there. `SpatialEmbodimentPlanV1` remains a valid
-spatial backend rather than the terminal embodiment ontology.
+`SemanticEmbodimentGraphV1` currently carries evidence-bound semantic information but is also decision-coupled. It must **not** be silently reinterpreted as the final upstream truth identity. A27-0 must define the version boundary for a decision-independent semantic snapshot while preserving V1 as a legacy/compatibility projection. New rendering/audio/haptic state must not accrete in either semantic form. `SpatialEmbodimentPlanV1` remains a valid spatial backend rather than the terminal embodiment ontology.
 
 `RepresentationGraphAdapter` currently preserves compatibility with the fixed-candidate architecture,
 and `RepresentationGraphRuntimeAdapter` intentionally fails closed unless exactly one primitive is
