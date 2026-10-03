@@ -110,7 +110,11 @@ async function startWorkerThread(): Promise<ThreadedWorkerTransport> {
     // Vitest — transforms it: type stripping for the graph's TypeScript, and a
     // load hook that inlines the Vite env constant the bundler would supply.
     execArgv: [
-      '--experimental-transform-types',
+      ...(process.allowedNodeEnvironmentFlags.has('--experimental-strip-types')
+        ? ['--experimental-strip-types']
+        : process.allowedNodeEnvironmentFlags.has('--experimental-transform-types')
+          ? ['--experimental-transform-types']
+          : []),
       '--import',
       pathToFileURL(path.resolve(process.cwd(), 'tests/helpers/runtimeBridgeEnvRegister.mjs')).href,
     ],

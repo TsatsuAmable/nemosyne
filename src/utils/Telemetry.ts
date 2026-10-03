@@ -260,7 +260,7 @@ export class TelemetryCollector {
     };
   }
 
-  /** Reset all in-memory counters. Does not affect stored consent. */
+  /** Reset all in-memory counters and state. Does not affect stored consent. */
   reset(): void {
     this._startTime = performance.now?.() ?? Date.now();
     this._frameCount = 0;
@@ -268,13 +268,32 @@ export class TelemetryCollector {
     this._droppedFrameCount = 0;
     this._histogram = makeHistogram();
     this._lastFrameTime = 0;
+    this._datasetName = '-';
+    this._datasetTopology = '-';
     this._operationCounts = {};
     this._gestureCounts = {};
     this._errorCount = 0;
     this._warningCount = 0;
     this._lastError = null;
     this._unhandledRejections = 0;
+    this.frustrationAnalyzer = new UXFrustrationAnalyzer();
   }
+
+  /**
+   * Complete client-side telemetry erasure.
+   * Stops collection, purges all in-memory counters, histograms, frustration trails,
+   * active dataset context, and wipes stored consent from localStorage.
+   */
+  erase(): void {
+    this.setEnabled(false);
+    this.reset();
+    try {
+      localStorage.removeItem(this.storageKey);
+    } catch {
+      // Storage unavailable (private mode, test env).
+    }
+  }
+
 
   _attachGlobalListeners(): void {
     if (this._handlers.length > 0) return;

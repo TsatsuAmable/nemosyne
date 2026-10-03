@@ -163,6 +163,13 @@ class PolicyUXTraceRecorder extends UXTraceRecorder {
     super.setEnabled(this._alwaysEnabled || value);
   }
 
+  override erase(): void {
+    super.erase();
+    this._lockedBuildHash = null;
+    this._lockedValidationSession = null;
+    this._provenanceConflict = null;
+  }
+
   override recordSessionManifest(manifest: Partial<SessionManifestInfo> = {}): void {
     const canonical = canonicalizeManifest(manifest);
     this._lockProvenance(canonical);

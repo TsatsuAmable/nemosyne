@@ -31,15 +31,16 @@ export class KernelUnavailableError extends Error {
 export class KernelAbiError extends Error {
   readonly code = 'KERNEL_ABI_FAILURE';
   readonly fatal = true;
+  readonly operation: string;
+  readonly cause: unknown;
 
-  constructor(
-    readonly operation: string,
-    readonly cause: unknown
-  ) {
+  constructor(operation: string, cause: unknown) {
     super(
       `[KernelAbiFailure] ${operation}: ${cause instanceof Error ? cause.message : String(cause)}`
     );
     this.name = 'KernelAbiError';
+    this.operation = operation;
+    this.cause = cause;
     Object.setPrototypeOf(this, KernelAbiError.prototype);
   }
 }
