@@ -35,7 +35,7 @@ const BASE_FONT_SIZE = 20;
  * Collaboration status surface.
  *
  * UXR1 migrates this passive diagnostic surface from the legacy
- * CanvasTexture/MovablePanel renderer to SpatialPanel + UIKit. It remains
+ * canvas-texture panel renderer to SpatialPanel + UIKit. It remains
  * presentation-only: collaboration state continues to be owned by the
  * collaboration coordinator and semantic commands remain outside UIKit.
  */

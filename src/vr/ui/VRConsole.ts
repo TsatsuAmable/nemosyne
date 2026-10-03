@@ -30,7 +30,7 @@ const PANEL_HEIGHT = 720;
 /**
  * In-VR console/log panel.
  *
- * UXR1 migrates the presentation substrate from MovablePanel/CanvasTexture to
+ * UXR1 migrates the presentation substrate from the legacy canvas substrate to
  * SpatialPanel + UIKit. Browser console remains authoritative; this surface
  * mirrors the most recent log lines and restores the original console methods
  * when disposed.

@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import * as THREE from 'three';
 import { Dataset } from '../../../src/data/Dataset.ts';
 import { VRTopologyTranslator } from '../../../src/moneta/VRTopologyTranslator.ts';
 import { AdaptiveFrameGovernor } from '../../../src/vr/scalability/AdaptiveFrameGovernor.ts';
 import { WorldEventBus, WorldTopics } from '../../../src/utils/EventBus.ts';
-import { MovablePanel } from '../../../src/vr/ui/MovablePanel.ts';
+import { SpatialPanel } from '../../../src/vr/ui-system/SpatialPanel.ts';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 
 describe('Tier 4 — Scenario 1: Large-Scale High-Dimensional Topological Dataset Ingestion & Adaptive Rendering', () => {
@@ -60,9 +59,11 @@ describe('Tier 4 — Scenario 1: Large-Scale High-Dimensional Topological Datase
 
     expect(currentLOD).toBeLessThan(1.0);
 
-    // Step 5: Instantiate 3D inspector panel
-    const cameraGroup = new THREE.Group();
-    const panel = new MovablePanel(cameraGroup, { title: 'SCENARIO 1 ANALYTICS' });
+    // Step 5: Instantiate a live spatial analysis panel (the former inspector
+    // step exercised the retired canvas panel substrate; the SpatialPanel
+    // substrate is the live panel surface).
+    const panel = new SpatialPanel();
     expect(panel.mesh.visible).toBe(true);
+    panel.dispose();
   });
 });

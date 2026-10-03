@@ -4,12 +4,12 @@ import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
-import type { AccessibilityOptions, MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions, PanelOptions } from '../coordinators/types.ts';
 import type { AtlasRecommendation } from '../../atlas/types.ts';
 import type { InvestigatorActionableOutcome, RemedialAction } from '../../moneta/representation/ActionableNil.ts';
 import type { RepresentationDecision } from '../../moneta/representation/RepresentationDecision.ts';
 
-export interface RecommendationPanelOptions extends MovablePanelOptions {
+export interface RecommendationPanelOptions extends PanelOptions {
   getRecommendation: () => AtlasRecommendation | null;
   getOutcome?: () => InvestigatorActionableOutcome | null;
   onAccept?: () => void; onReject?: () => void; onOverride?: () => void; onGenerate?: () => void;

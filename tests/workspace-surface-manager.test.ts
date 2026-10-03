@@ -2,26 +2,51 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 import { WorkspaceSurfaceManager } from '../src/vr/ui/WorkspaceSurfaceManager.ts';
+import type { PanelLike } from '../src/vr/coordinators/types.ts';
 
-class TestPanel extends MovablePanel {
+/**
+ * Minimal substrate-neutral PanelLike fixture. It deliberately does NOT inherit
+ * from the legacy canvas panel class and carries only the lifecycle surface
+ * WorkspaceSurfaceManager adapts at registration (show/hide, default position,
+ * hide/drag-end hooks). Legacy canvas-only lifecycle methods (minimize flag
+ * handling, drag machinery) are intentionally absent beyond the pinned
+ * PanelLike surface.
+ */
+class TestPanel implements PanelLike {
+  mesh: THREE.Mesh;
+  title: string;
+  defaultPosition: THREE.Vector3;
+  isMinimized = false;
+  onHide: (() => void) | null = null;
+  onDragEnd: (() => void) | null = null;
+
   showCalls = 0;
 
   constructor(parent: THREE.Group, title: string, position: [number, number, number]) {
-    super(parent, {
-      title,
-      width: 400,
-      height: 300,
-      position,
-      worldSize: [0.5, 0.375],
-      titleBarHeight: 40,
-    });
+    this.title = title;
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.375));
+    this.mesh.position.set(...position);
+    this.mesh.updateMatrixWorld(true);
+    parent.add(this.mesh);
+    this.defaultPosition = new THREE.Vector3(...position);
   }
 
-  override show(): void {
+  show(): void {
     this.showCalls += 1;
-    super.show();
+    this.mesh.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide(): void {
+    this.mesh.visible = false;
+    this.isMinimized = true;
+    if (this.onHide) this.onHide();
+  }
+
+  resetToDefaultPosition(): void {
+    this.mesh.position.copy(this.defaultPosition);
+    this.mesh.updateMatrixWorld(true);
   }
 }
 

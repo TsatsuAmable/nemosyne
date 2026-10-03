@@ -109,17 +109,18 @@ export const DEFAULT_ACCESSIBILITY: AccessibilityOptions = {
   colorblindMode: 'none',
 };
 
-export interface MovablePanelOptions {
+/**
+ * Substrate-neutral shared option contract for the SpatialPanel-backed
+ * investigator panel surfaces (chart, data source, coach, load test, narrative
+ * strip, recommendation, validation operator).
+ */
+export interface PanelOptions {
   title?: string;
   width?: number;
   height?: number;
   position?: [number, number, number];
   worldSize?: [number, number];
-  titleBarHeight?: number;
-  contentPadding?: number;
   tilt?: number;
-  minDistance?: number;
-  maxDistance?: number;
   parentGroup?: Group | null;
   textScale?: number;
   highContrast?: boolean;
@@ -520,17 +521,6 @@ export interface TelemetryReport {
   };
 }
 
-/**
- * Typed handler interface for panel content click/interaction delegation.
- * Replaces dynamic reflection / duck-typing in MovablePanel subclasses.
- */
-export interface IPanelContentHandler {
-  handleContentClick?(worldRaycaster: Raycaster): void;
-  onPointerDown?(worldRaycaster: Raycaster, pointer: PointerLike): void;
-  onPointerMove?(worldRaycaster: Raycaster, pointer: PointerLike): void;
-  onPointerUp?(worldRaycaster: Raycaster, pointer: PointerLike): void;
-  renderContent?(ctx: CanvasRenderingContext2D, width: number, height: number): void;
-}
 
 export interface TelemetryCollectorLike {
   enabled: boolean;

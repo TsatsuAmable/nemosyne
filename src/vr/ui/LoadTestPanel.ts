@@ -6,7 +6,7 @@ import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { downloadText } from '../../utils/Download.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
-import type { AccessibilityOptions, WorldEventBusLike, MovablePanelOptions } from '../coordinators/types.ts';
+import type { AccessibilityOptions, WorldEventBusLike, PanelOptions } from '../coordinators/types.ts';
 import {
   DEFAULT_LOAD_TEST_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
@@ -43,7 +43,7 @@ interface LoadTestStepEvent {
   };
 }
 
-interface LoadTestPanelOptions extends MovablePanelOptions {
+interface LoadTestPanelOptions extends PanelOptions {
   driver: LoadTestDriver;
   eventBus: WorldEventBusLike;
   onStart?: (profile: LoadTestProfile) => void;

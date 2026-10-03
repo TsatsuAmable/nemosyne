@@ -3,12 +3,15 @@ import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { InstancedPointCloud } from '../src/vr/scalability/InstancedPointCloud.ts';
 import { MonetaTopologyNode as DracoTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
-import { CanvasTextureCacheManager } from '../src/vr/ui/CanvasTextureCacheManager.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
 
-describe('Sprint 20.1 & 20.2: Zero-Allocation Instanced GPU Buffer Pipeline & UI Texture Cache Suite', () => {
+// Note: the former 'bypasses MovablePanel GPU texture updates when UI content
+// state signature is static' its died with the retired canvas substrate
+// (FM4-UI-CLEAN); the texture-cache helper it exercised was reachable only
+// through the legacy panel class.
+
+describe('Sprint 20.1 & 20.2: Zero-Allocation Instanced GPU Buffer Pipeline', () => {
   it('enables depthWrite: true and depthTest: true on InstancedPointCloud for Early-Z culling', () => {
     const cloud = new InstancedPointCloud(100);
     expect(cloud.material.depthWrite).toBe(true);
@@ -30,22 +33,6 @@ describe('Sprint 20.1 & 20.2: Zero-Allocation Instanced GPU Buffer Pipeline & UI
     // Trigger re-solve & synthesis to test mesh pool release path
     node.reSolveAndSynthesize();
     expect(node.artifact).toBeDefined();
-  });
-
-  it('bypasses MovablePanel GPU texture updates when UI content state signature is static', () => {
-    const group = new THREE.Group();
-    const panel = new MovablePanel(group, { title: 'CacheTestPanel' });
-
-    // Initial render computes state signature and uploads
-    panel.render();
-
-    // Second render with unchanged state signature returns false (skipping GPU upload)
-    const stateSig = `${panel.title}:${panel.scrollOffset}:${panel.totalContentHeight}:${panel.textScale}:${panel.highContrast}:${panel.colorblindMode}:${panel.isMinimized}`;
-    const cacheManager = new CanvasTextureCacheManager();
-    cacheManager.shouldUpdateTexture('CacheTestPanel', stateSig, panel.texture);
-    const updated = cacheManager.shouldUpdateTexture('CacheTestPanel', stateSig, panel.texture);
-
-    expect(updated).toBe(false);
   });
 
   it('reuses the same instanceColor InstancedBufferAttribute across setPoints calls (zero allocation)', () => {

@@ -1,9 +1,14 @@
 // @ts-nocheck
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { StreamlineLayout } from '../src/moneta/layouts/StreamlineLayout.ts';
 import { GeoSurfaceLayout } from '../src/moneta/layouts/GeoSurfaceLayout.ts';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
+
+// Note: the former 'delegates clicks via typed IPanelContentHandler without
+// duck-typing errors' its re-hosted nowhere: implementing IPanelContentHandler
+// was the legacy substrate's only role, so this assertion died with the
+// substrate (FM4-UI-CLEAN). The two layout data-binding its below are live
+// contract coverage and survive unchanged.
 
 describe('Layout Data Binding & Typed Panel Content Handling', () => {
   describe('StreamlineLayout Data Binding', () => {
@@ -36,34 +41,6 @@ describe('Layout Data Binding & Typed Panel Content Handling', () => {
 
       expect(entries.length).toBe(2);
       expect(entries[0].position.y).toBeLessThan(entries[1].position.y);
-    });
-  });
-
-  describe('MovablePanel Content Handling', () => {
-    it('delegates clicks via typed IPanelContentHandler without duck-typing errors', () => {
-      class TestPanel extends MovablePanel {
-        clicked = false;
-        override handleContentClick(_raycaster: THREE.Raycaster) {
-          this.clicked = true;
-        }
-      }
-
-      const cameraGroup = new THREE.Group();
-      const panel = new TestPanel({
-        cameraGroup,
-        title: 'Test Panel',
-        width: 300,
-        height: 200,
-      });
-
-      const raycaster = new THREE.Raycaster();
-      raycaster.set(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1));
-
-      panel.handlePointerDown(raycaster, {
-        getRay: (r: THREE.Ray) => r.set(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)),
-      } as any);
-
-      expect(panel.clicked).toBe(true);
     });
   });
 });

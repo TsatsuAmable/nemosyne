@@ -2146,7 +2146,7 @@ export class World {
 
     // Delegate panel theming to the UI manager so the SpatialPanel-based
     // SettingsPanel is re-themed too, along
-    // with the registered MovablePanels and the hand wheel menu.
+    // with the registered legacy panels and the hand wheel menu.
     this.uiManager.applyAccessibility(options);
 
     this.engine.input.setDwellSelection?.(

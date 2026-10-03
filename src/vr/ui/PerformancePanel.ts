@@ -33,7 +33,7 @@ const BASE_FONT_SIZE = 16;
 /**
  * Live performance budget surface.
  *
- * UXR1 migrates this panel from MovablePanel/CanvasTexture to SpatialPanel +
+ * UXR1 migrates this panel from the legacy canvas substrate to SpatialPanel +
  * UIKit. PerformanceBudget and telemetry remain the data authorities; this
  * class is only a presentation projection.
  */
