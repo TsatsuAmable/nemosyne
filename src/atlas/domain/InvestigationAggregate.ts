@@ -17,13 +17,19 @@ import { EvidenceLedger } from './EvidenceLedger.ts';
 import { RepresentationState } from './RepresentationState.ts';
 import { DecisionHistory } from './DecisionHistory.ts';
 import { ResearchContext, type ResearchContextOptions } from './ResearchContext.ts';
-import { InvestigationGraph } from './InvestigationGraph.ts';
+import { InvestigationGraph, type InvestigationNode } from './InvestigationGraph.ts';
 import {
   CommittedInvestigationContextLedger,
   type CommittedInvestigationContextV2,
   type CommittedContextActivation,
 } from './CommittedInvestigationContext.ts';
 import { canonicalizeInvestigationPerspective } from './InvestigationPerspective.ts';
+import { canonicalizeInvestigationIntent } from './InvestigationIntent.ts';
+import {
+  type AlternativeCandidate,
+  type RepresentationDecision,
+  createEmbodimentForAlternative,
+} from '../../moneta/representation/RepresentationDecision.ts';
 import {
   computeGovernedInvestigationDigest,
   computeInvestigationDigest,
@@ -257,6 +263,176 @@ export class InvestigationAggregate {
       perspective: canonicalPerspective,
     };
     return this.contextLedger.commit(active.nodeId, updatedContext);
+  }
+
+  /**
+   * FM2: Retrieve inspectable alternative candidates from the active decision.
+   */
+  getRepresentationAlternatives(): readonly AlternativeCandidate[] {
+    return this.representation.activeDecision?.alternatives ?? [];
+  }
+
+  /**
+   * FM2: Preview an alternative representation without mutating active state or graph nodes.
+   */
+  previewAlternative(candidateId: string): {
+    embodiment: import('../../moneta/representation/RepresentationDecision.ts').DecisionEmbodiment;
+    candidate: AlternativeCandidate;
+  } {
+    const alternatives = this.getRepresentationAlternatives();
+    const candidate = alternatives.find((a) => a.candidateId === candidateId);
+    if (!candidate) {
+      throw new Error(
+        `[InvestigationAggregate] Alternative candidate "${candidateId}" not found in active decision`
+      );
+    }
+    const fp = this.analytical.getFingerprint() ?? '';
+    const embodiment = createEmbodimentForAlternative(candidate, fp);
+    return { embodiment, candidate };
+  }
+
+  /**
+   * FM2: Compare the active representation decision against an alternative candidate,
+   * preserving semantic correspondence anchors across representations.
+   */
+  compareAlternative(candidateId: string): {
+    current: RepresentationDecision;
+    alternative: AlternativeCandidate;
+    sharedAnchors: readonly string[];
+  } {
+    const current = this.representation.activeDecision;
+    if (!current) {
+      throw new Error(
+        '[InvestigationAggregate] No active representation decision to compare against'
+      );
+    }
+    const { candidate } = this.previewAlternative(candidateId);
+    return {
+      current,
+      alternative: candidate,
+      sharedAnchors: candidate.sharedSemanticAnchors ?? [],
+    };
+  }
+
+  /**
+   * FM2: Branch the investigation to an eligible alternative candidate via Road Not Taken.
+   * Promotes the alternative to the active representation on a newly committed child branch node
+   * in the InvestigationGraph, maintaining parent-child lineage while leaving parent node state
+   * and historical digests bitwise invariant. Fails closed against disqualified alternatives.
+   */
+  branchToAlternative(
+    candidateId: string,
+    intentOverride?: unknown
+  ): InvestigationNode {
+    const { embodiment, candidate } = this.previewAlternative(candidateId);
+    if (candidate.eligibility === 'DISQUALIFIED') {
+      throw new Error(
+        `[InvestigationAggregate] Cannot branch to disqualified alternative "${candidateId}": ${candidate.reason}`
+      );
+    }
+    if (candidate.eligibility === 'ABSTAIN') {
+      throw new Error(
+        `[InvestigationAggregate] Cannot branch to alternative "${candidateId}": engine abstained`
+      );
+    }
+
+    const parentNodeId = this.graph.activeNodeId;
+    if (!parentNodeId) {
+      throw new Error(
+        '[InvestigationAggregate] Cannot branch: no active investigation node in graph'
+      );
+    }
+
+    const currentDecision = this.representation.activeDecision;
+    if (!currentDecision) {
+      throw new Error(
+        '[InvestigationAggregate] Cannot branch: no active representation decision'
+      );
+    }
+
+    const fp = this.analytical.getFingerprint() ?? '';
+    const branchIndex =
+      this.graph.nodes.filter((n) => n.parentId === parentNodeId).length + 1;
+    const childNodeId = `${parentNodeId}:branch-rnt-${candidate.candidateId.toLowerCase()}-${branchIndex}`;
+
+    const childNode: InvestigationNode = {
+      id: childNodeId,
+      kind: 'representation_decision',
+      parentId: parentNodeId,
+      datasetVersion: this.analytical.datasetVersion,
+      datasetFingerprint: fp,
+      label: `Road Not Taken: ${candidate.family} (${candidate.layout})`,
+      timestamp: this.context.now(),
+      metadata: {
+        branchedFromAlternative: candidateId,
+        candidateId: candidate.candidateId,
+        family: candidate.family,
+        layout: candidate.layout,
+        score: candidate.score,
+        parentDecisionId: currentDecision.id,
+      },
+    };
+
+    this.graph.addNode(childNode);
+    this.graph.addEdge({
+      id: `edge:${parentNodeId}->${childNodeId}:branches_from`,
+      source: parentNodeId,
+      target: childNodeId,
+      relationship: 'branches_from',
+      metadata: { candidateId: candidate.candidateId },
+    });
+    this.graph.setActiveNode(childNodeId);
+
+    const activeContext = this.getActiveContext();
+    if (activeContext) {
+      const newContext: CommittedInvestigationContextV2 = {
+        schemaVersion: 2,
+        nodeId: childNodeId,
+        epistemicPurpose: activeContext.epistemicPurpose,
+        intent: intentOverride
+          ? canonicalizeInvestigationIntent(intentOverride)
+          : activeContext.intent,
+        perspective: activeContext.perspective,
+      };
+      this.contextLedger.commit(childNodeId, newContext);
+    }
+
+    const now = this.context.now();
+    const branchedDecision: RepresentationDecision = {
+      ...currentDecision,
+      id: `decision_rnt_${candidate.candidateId}_${fp.slice(0, 8)}_${now}`,
+      chosenCandidateId: candidate.candidateId,
+      chosenFamily: candidate.family,
+      chosenLayout: candidate.layout,
+      representationFamily: candidate.family,
+      utilityScore: candidate.score,
+      decisionStatus: 'DECISIVE',
+      explanation: `Branched via Road Not Taken from ${currentDecision.chosenCandidateId ?? currentDecision.representationFamily} to ${candidate.candidateId}. ${candidate.reason}`,
+      embodiment,
+      provenance: {
+        ...currentDecision.provenance,
+        generatedAt: now,
+      },
+    };
+
+    this.representation.activeDecision = branchedDecision;
+    this.representation.activeStrategy = embodiment.spatialStrategy;
+
+    this.ledger.appendEvent(
+      {
+        timestamp: now,
+        kind: 'embodiment',
+        command: {
+          op: 'embodiment',
+        },
+        datasetVersion: this.analytical.datasetVersion,
+        datasetFingerprint: fp,
+        stateHash: fp,
+      },
+      this.sessionId
+    );
+
+    return childNode;
   }
 
   /** Export the serialisable state snapshot of the aggregate. */
