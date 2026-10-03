@@ -60,6 +60,22 @@ import type {
   AlternativeCandidate,
   DecisionEmbodiment,
 } from '../moneta/index.ts';
+import type {
+  EmbodimentCritiqueInputV1,
+  EmbodimentCritiqueRecordV1,
+  HumanMeaningJudgmentInputV1,
+  HumanMeaningJudgmentRecordV1,
+} from '../moneta/forma/FormaHumanFeedback.ts';
+import type {
+  FormaKnowledgeBaseV1,
+  FormaMetaphorCaseV1,
+  PromoteCaseCandidateInputV1,
+} from '../moneta/forma/FormaKnowledgeBase.ts';
+import type {
+  DiscoveryOutcomeLinkJudgement,
+  JudgementOutcome,
+} from '../judgement/RepresentationJudgement.ts';
+
 import { createRequirementsFromContext } from '../moneta/representation/RepresentationRequirements.ts';
 import {
   mapClusterStructures,
@@ -1630,6 +1646,60 @@ export class AtlasCore {
   branchToAlternative(candidateId: string, intentOverride?: unknown): InvestigationNode {
     return this._aggregate.branchToAlternative(candidateId, intentOverride);
   }
+
+  /**
+   * FM6: Records an attributable, confirmed human critique of an embodiment plan or mapping.
+   */
+  recordEmbodimentCritique(input: EmbodimentCritiqueInputV1): EmbodimentCritiqueRecordV1 {
+    return this._aggregate.recordEmbodimentCritique(input);
+  }
+
+  /**
+   * FM6: Records an attributable, confirmed human meaning judgment testing recovery of intended meaning.
+   */
+  recordHumanMeaningJudgment(input: HumanMeaningJudgmentInputV1): HumanMeaningJudgmentRecordV1 {
+    return this._aggregate.recordHumanMeaningJudgment(input);
+  }
+
+  getEmbodimentCritiques(): readonly EmbodimentCritiqueRecordV1[] {
+    return this._aggregate.getEmbodimentCritiques();
+  }
+
+  getHumanMeaningJudgments(): readonly HumanMeaningJudgmentRecordV1[] {
+    return this._aggregate.getHumanMeaningJudgments();
+  }
+
+  /**
+   * FM6: Links a validated DiscoveryEpisode to the representation that framed it.
+   */
+  linkDiscoveryOutcomeToRepresentation(
+    discoveryId: string,
+    graphId: string,
+    outcome: JudgementOutcome,
+    researcherId?: string,
+    rationale?: string
+  ): DiscoveryOutcomeLinkJudgement {
+    return this._aggregate.linkDiscoveryOutcomeToRepresentation(
+      discoveryId,
+      graphId,
+      outcome,
+      researcherId,
+      rationale
+    );
+  }
+
+  getDiscoveryOutcomeLinks(): readonly DiscoveryOutcomeLinkJudgement[] {
+    return this._aggregate.getDiscoveryOutcomeLinks();
+  }
+
+  getFormaKnowledgeBase(): FormaKnowledgeBaseV1 {
+    return this._aggregate.getFormaKnowledgeBase();
+  }
+
+  promoteFormaMetaphorCase(candidate: PromoteCaseCandidateInputV1): FormaMetaphorCaseV1 {
+    return this._aggregate.promoteFormaMetaphorCase(candidate);
+  }
+
 
   arbitrateSpatialStrategy(
     requirements?: RepresentationRequirements,
