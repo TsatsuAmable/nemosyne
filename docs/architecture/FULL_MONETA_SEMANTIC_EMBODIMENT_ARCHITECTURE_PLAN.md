@@ -52,6 +52,59 @@ The Datum Plane / Datasphere inspiration is therefore functional rather than dec
 
 ---
 
+
+### 1.1 Exploratory perception is a first-class product mode
+
+Full Moneta must support a second useful contract alongside claim-bearing reproducible analysis: **exploratory abductive perception**.
+
+Large real datasets may be incomplete, damaged, sparsely captured or missing the very structure a researcher is trying to understand. A semantic model may nevertheless infer plausible continuations or missing relations from the constraints imposed by what remains. Full Moneta should be able to embody those possibilities without pretending they were observed.
+
+This creates a hard architectural distinction:
+
+~~~text
+CLAIM-BEARING PATH
+governed evidence
+  -> pinned model/policy/context
+  -> admitted representation
+  -> exact replay contract
+  -> validation / claim
+
+EXPLORATORY ABDUCTIVE PATH
+partial governed evidence
+  + learned priors / adaptive model state
+  -> one or more plausible completions
+  -> explicit IMPUTED / HYPOTHESIZED / COUNTERFACTUAL semantics
+  -> perceptual embodiment
+  -> materialised Memory Palace snapshot
+  -> later comparison / challenge / possible validation
+~~~
+
+The exploratory path may evolve between T1 and T2. A different later representation is not automatically a defect. The invariant is that P1 is not silently rewritten by P2 and that neither can hide which parts were observed, derived or conjectural.
+
+#### Consequences for Memory Palace
+
+Memory Palace is not only a command-log/replay projection. It must be capable of preserving a **materialised perceptual-epistemic artefact**. The minimum durable content is the representation/semantic structure actually experienced, epistemic typing, uncertainty, investigation/perspective/branch context, annotations, salient spatial/view organisation, alternatives and generator provenance when available.
+
+This yields two independent capabilities:
+
+- **generation reproducibility**: recreate the result by rerunning the same governed generator;
+- **representation persistence**: faithfully revisit the captured result even if the generator later changes or no longer exists.
+
+Scientific/research paths normally require generation reproducibility. Exploratory discovery may proceed with representation persistence alone, provided the output remains clearly non-authoritative until independently validated.
+
+#### Consequences for learning and System-1/System-2
+
+The architecture must no longer assume that all adaptive model change is forbidden merely because exact rerun would change. Online or continual adaptation can be investigated for the exploratory lane if:
+
+1. it cannot modify authoritative Rust/WASM evidence;
+2. claim-bearing and Research Mode paths remain freezeable/pinnable;
+3. every generated completion is epistemically typed and provenance-bearing;
+4. the resulting scene is materialised into Memory Palace when retained;
+5. later model states create new palace states rather than rewriting old ones;
+6. promotion into scientific evidence still passes the normal evidence protocol.
+
+This is an architectural permission to experiment, not a mandate to introduce uncontrolled online learning.
+
 ## 2. Constitutional invariants
 
 These rules constrain every implementation tranche.
