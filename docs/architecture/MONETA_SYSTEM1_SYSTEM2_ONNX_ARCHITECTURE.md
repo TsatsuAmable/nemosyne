@@ -43,7 +43,7 @@ The repository already has most of the required governance infrastructure:
 
 - PT6-PT8 provide governed collection, user-disjoint snapshots, reproducible training, ONNX candidate export, held-out evaluation, explicit promotion and rollback.
 - `modules/gesture-intelligence/` provides a standalone 56-feature gesture model specimen with heuristic and ONNX paths.
-- `src/vr/perception/MultimodalPerceptionEnvelope.ts` demonstrates freezeable perception metadata, but its fixed confidence thresholds and string `resolvedAction` synthesis are laboratory-only and are not an acceptable production semantic boundary.
+- The former `MultimodalPerceptionEnvelope` / `GeometricGestureRecognizer` prototypes were audited and archived on 3 October 2026. Their heuristic confidence and string-action semantics are explicitly **not** inherited. The reusable output of that audit is the future typed cue-contract requirement.
 - `src/fitness/` provides content-addressed learned fitness artifacts, pairwise feature snapshots, promotion policy and exact model pinning.
 - `LearnedMonetaRuntime` already constrains learned ranking to operate after bootstrap candidate generation and hard constraints.
 - NIL already defines the modality-independent interaction boundary.
@@ -424,7 +424,7 @@ Any later personalized model must be separately versioned, reversible, attributa
 - specify Perception Feature Schema V2;
 - build deterministic baseline;
 - build tiny TCN candidate;
-- replace `MultimodalPerceptionEngine` string-action semantics with typed cue contracts or archive it;
+- implement the typed cue contracts documented by the CMS-6 audit; the old heuristic engine/recognizer are already archived and must not be revived;
 - route cue resolver -> `InteractionIntent` -> NIL;
 - keep named gesture recognition behind an experimental flag.
 
