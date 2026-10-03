@@ -7,8 +7,8 @@ import { P_HAND_INPUT } from 'iwer';
 import { InputRouter } from '../../src/vr/InputRouter.ts';
 import { ControllerPointer } from '../../src/vr/Controllers.ts';
 import { HandPointer } from '../../src/vr/Hands.ts';
-import { MovablePanel } from '../../src/vr/ui/MovablePanel.ts';
 import { WorkspaceSurfaceManager } from '../../src/vr/ui/WorkspaceSurfaceManager.ts';
+import type { PanelLike, PointerLike } from '../../src/vr/coordinators/types.ts';
 import { SpatialErgonomicsLinter } from '../../dev/spatial-tools/SpatialErgonomicsLinter.ts';
 import {
   WebXRSimulatorAdapter,
@@ -19,6 +19,64 @@ import {
 } from '../../dev/xr-simulator/index.ts';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Substrate-neutral workspace panel fixture. The retired legacy canvas panel
+ * substrate used to stand in here; the simulator test exercises the real IWER
+ * runtime, InputRouter, PointerEventMachine and WorkspaceSurfaceManager, so the
+ * fixture only has to satisfy the production PanelLike pointer/lifecycle
+ * contract.
+ */
+class SimulatorPanelFixture implements PanelLike {
+  mesh: THREE.Mesh;
+  title: string;
+  isMinimized = false;
+  defaultPosition = new THREE.Vector3(0, 1.5, -1);
+  onDragEnd: (() => void) | null = null;
+  onHide: (() => void) | null = null;
+
+  constructor(cameraGroup: THREE.Group, title: string) {
+    this.title = title;
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.5));
+    this.mesh.position.copy(this.defaultPosition);
+    this.mesh.visible = true;
+    cameraGroup.add(this.mesh);
+  }
+
+  show(): void {
+    this.mesh.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide(): void {
+    this.mesh.visible = false;
+    this.isMinimized = true;
+    this.onHide?.();
+  }
+
+  resetToDefaultPosition(): void {
+    this.mesh.position.copy(this.defaultPosition);
+  }
+
+  handlePointerDown(raycaster: THREE.Raycaster, _pointer: PointerLike): string | null {
+    return raycaster.intersectObject(this.mesh, false).length > 0 ? 'content' : null;
+  }
+
+  handlePointerMove(raycaster: THREE.Raycaster, _pointer: PointerLike): void {
+    const hit = raycaster.intersectObject(this.mesh, false)[0]?.point;
+    if (hit) this.mesh.position.copy(hit);
+  }
+
+  handlePointerUp(_raycaster: THREE.Raycaster, _pointer: PointerLike): void {
+    /* release ends the capture at the machine level */
+  }
+
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.mesh.parent?.remove(this.mesh);
+  }
+}
 
 function makeRouter(adapter: WebXRSimulatorAdapter): {
   router: InputRouter;
@@ -161,11 +219,7 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
       });
 
       const surfaces = new WorkspaceSurfaceManager(cameraGroup, camera);
-      const panel = new MovablePanel(cameraGroup, {
-        title: 'IWER PANEL',
-        position: [0, 1.5, -1],
-        worldSize: [0.7, 0.5],
-      });
+      const panel = new SimulatorPanelFixture(cameraGroup, 'IWER PANEL');
       surfaces.registerPanel('iwer-panel', panel);
       router.addPanel(panel);
 

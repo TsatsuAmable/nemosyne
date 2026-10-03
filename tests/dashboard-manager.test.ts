@@ -4,21 +4,45 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { DashboardManager } from '../src/vr/ui/DashboardManager.ts';
-import { MovablePanel } from '../src/vr/ui/MovablePanel.ts';
 
-class TestPanel extends MovablePanel {
+/**
+ * Substrate-neutral dashboard panel fixture. The dashboard contract is purely
+ * PanelLike: a mesh, a drag state, and a mutable default position. The legacy
+ * canvas panel substrate is no longer reachable, so the fixture carries only
+ * what DashboardManager itself reads.
+ */
+class TestPanel {
+  title;
+  mesh;
+  defaultPosition;
+  drag;
+  isMinimized = false;
+  tilt = 0;
+
   constructor(cameraGroup, title, position = [0, 1.6, 1.5]) {
-    super(cameraGroup, {
-      title,
-      width: 512,
-      height: 384,
-      position,
-      worldSize: [0.8, 0.6],
-      titleBarHeight: 40,
-      tilt: 0,
-      minDistance: 0.2,
-      maxDistance: 3,
-    });
+    this.title = title;
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.6));
+    this.mesh.position.set(...position);
+    this.mesh.rotation.order = 'YXZ';
+    cameraGroup.add(this.mesh);
+    this.defaultPosition = new THREE.Vector3(...position);
+    this.drag = {
+      active: false,
+      pointer: null,
+      distance: 0,
+      offset: new THREE.Vector3(),
+      lastTarget: new THREE.Vector3(),
+    };
+  }
+
+  show() {
+    this.mesh.visible = true;
+    this.isMinimized = false;
+  }
+
+  hide() {
+    this.mesh.visible = false;
+    this.isMinimized = true;
   }
 }
 

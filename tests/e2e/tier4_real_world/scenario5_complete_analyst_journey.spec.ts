@@ -15,7 +15,7 @@ import { IntentCompiler } from '../../../src/atlas/intent/IntentCompiler.ts';
 import { StructureExplainer } from '../../../src/atlas/intent/StructureExplainer.ts';
 import { NemosyneSession } from '../../../src/session/NemosyneSession.ts';
 import { HandWheelMenu } from '../../../src/vr/ui/HandWheelMenu.ts';
-import { MovablePanel } from '../../../src/vr/ui/MovablePanel.ts';
+import { SpatialPanel } from '../../../src/vr/ui-system/SpatialPanel.ts';
 import { makeFactProvider } from '../../helpers/dracoFactsHelper.ts';
 import { makeKernelMockBridge } from '../../helpers/kernelMock.ts';
 
@@ -72,13 +72,9 @@ describe('Tier 4 — Scenario 5: Complete End-to-End Analyst Journey across Thre
     const wheelMenu = new HandWheelMenu(mockEngine, mockHand);
     expect(wheelMenu).toBeDefined();
 
-    const telemetryPanel = new MovablePanel(cameraGroup, {
-      title: 'Metrics HUD',
-      width: 400,
-      height: 300,
-    });
+    const telemetryPanel = new SpatialPanel();
     scene.add(telemetryPanel.mesh);
-    expect(telemetryPanel.mesh).toBeInstanceOf(THREE.Mesh);
+    expect(telemetryPanel.mesh).toBeInstanceOf(THREE.Object3D);
 
     // -------------------------------------------------------------------------
     // Phase 4: Analytical Authority & Dual-Hand Gesture Transformations
