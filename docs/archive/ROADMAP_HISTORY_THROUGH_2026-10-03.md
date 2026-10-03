@@ -1135,3 +1135,2378 @@ Each cycle starts from fresh `main` in a dedicated `rfl/cycle-*` worktree. Befor
 The controller imposes iteration/runtime budgets and stops after repeated blocked/invalid iterations or `STOP_NO_NOVEL_TARGET`. `STOP_NO_NOVEL_TARGET` is valid only after a broad survey; a busy forward lane, an empty findings ledger, or the absence of a pre-written roadmap ticket is not by itself a reason to stop. Conversely, the loop must not invent low-information work merely to remain busy.
 
 **Feedback into implementation:** candidate RFL findings become implementation obligations only after independent reproduction/acceptance. A finding that intersects Claude's current or future evidence/platform tranche is attached as a falsifier to that tranche; unrelated accepted findings route to the appropriate future owner. After a fix, RFL independently reruns the reproducer. This keeps discovery and implementation authority separate while allowing continuous machine-generated pressure on the forward streams.
+
+
+---
+
+# Earlier roadmap snapshots consolidated
+
+The sections below mirror older roadmap-history source files so historical roadmap archaeology has one reading entry point. The original files remain in place only to preserve existing links and provenance; they are not separate status authorities.
+
+
+---
+
+## Imported source: `ROADMAP_PRE_A_D_STREAMS_2026-08-31.md`
+
+# Nemosyne Roadmap & Implementation Status
+
+> **Canonical implementation-status and execution authority.** Product and research direction remain governed by `docs/Nemosyne_Definitive_Vision_and_Roadmap.md` V3. This file answers the operational questions: what is active now, which stream owns it, which PR comes next, what may run in parallel, what evidence is required, and what must wait. Detailed programme documents remain the specification/evidence authority for their own scope.
+
+## Status snapshot - 31 August 2026
+
+**Roadmap integration base:** `main@3cfbf41032a9760f467dd6a919b8b1fff882d61c` (#577 merged).
+
+The completed three-stream convergence wave established the next representation frontier:
+
+- #518 landed the RF-062A World composition-root guardrail;
+- #520 landed RF-062B typed semantic intents;
+- #523 landed RF-062C dataset/representation workflow ownership through `LoadDatasetUseCase` and `RepresentationSurface`;
+- #519 promoted RF-061 version-coalesced derived analysis to `VERIFIED COMPLETE` on current-main evidence;
+- #522 landed the first USIM-A XR lifecycle/async-race conformance scenario;
+- #524 planned P1-UV visible product convergence so UI substrate work cannot be mistaken for a visibly converged product;
+- #525 planned P1-R Rust-owned semantic embodiment convergence so dataset-level Moneta decisions stop collapsing into row-derived rendering;
+- #526 planned P1-QV Quest validation operations so routine headset sessions can produce attributable evidence without laundering evidence classes.
+- #528 measured the real browser/Worker/WASM envelope and exposed a presentation threshold cliff plus browser-observed Worker-port cost;
+- #529 made the representation inventory and non-observation raw-row falsifier executable;
+- #532 established the versioned bounded semantic embodiment payload boundary;
+- #533 and #538 made the aggregate candidate the first `VERIFIED COMPLETE` Rust-owned dataset-level embodiment slice;
+- #530, #534 and #536 completed the finite Stream C collaboration-authority wave at implementation/review level;
+- #531, #535, #539-#543 completed the finite Stream B validation/baseline/task-first/contextual-locus wave at implementation/review level.
+
+The previous A/B/C wave is closed to new scope. **Stream M - Moneta Distribution Truth** has also reached its finite exit: #544 established the stream and model routing, #547/#548 landed M1's governed contract and evidence, #549 landed the Rust/WASM builder, #550 landed the production cutover, #551 closed the density/outlier overclaim found in independent contract review, and #552 landed the visible product/scale/perceptual evidence handoff.
+
+The post-M **UI convergence wave** has completed its substrate and shell convergence:
+
+- #563 landed B-V1 visual system convergence (token canonicalisation, `MovablePanel` cleanup, palette deprecation, `VRMenu` retokenisation/retention pending a replacement for its curated live-source chooser, `SpatialAssetRegistry` removal, CSS variable injection);
+- #564 replaced feature-`World` hosts with ports (`World` no longer the service container);
+- #565 owned the analytical runtime lifecycle in `AnalyticalRuntimeOwner`;
+- #566 isolated dev evidence installation (UV0/RF-062h);
+- #567 retired `World` compatibility scaffolding (RF-062i);
+- #568 landed the modern unified UI system: shared design-system components (`Card`, `Button`, `Toast`, `Modal`, `Tooltip`, `CommandPalette`), `InvestigationShell` replacing `AnalystJourneyControls`, `PanelRolesManager` simplified to `primary | secondary | diagnostic | system` with `ANALYST | DEVELOPER` modes, and `CommandPalette` (⌘K) parity;
+- #572 railed P1-R2C Density Truth and recorded the post-UI/density adversarial findings;
+- #573 closed RF-063/RF-067/RF-068 in the unified UI path;
+- #576 closed RF-064/RF-065/RF-066 and versioned the truthful density ranking treatment;
+- #577 completed the remaining density M1R constant-domain contract and real-WASM proof.
+
+**P1-R2C Density Truth is the active finite representation programme.** M1 (#570), M2 (#571), and M1R (#576/#577) are landed. **M3 production cutover is next.** R2C must stop after M4 and independent review rather than continuing automatically into cluster, inferred topology, or another representation family.
+
+The dependency chain remains:
+
+```text
+preserved source data
+  -> truthful analytical evidence
+  -> reproducible identity/replay
+  -> bounded computation
+  -> faithful dataset-level representation
+  -> coherent investigator UX
+  -> simulator-testable XR proof
+  -> physical XR proof
+  -> production wiring
+  -> minimal private preview
+```
+
+## How to use this roadmap
+
+An agent may be told simply:
+
+```text
+Complete Stream A.
+Complete Stream B.
+Complete Stream C.
+```
+
+Each stream has:
+
+- a finite mission;
+- explicit source/file ownership;
+- ordered PR checkpoints;
+- collision rules;
+- evidence requirements;
+- a hard exit gate;
+- an explicit list of work it must not absorb.
+
+A stream must stop at its exit gate and report. It must not continue into the next attractive roadmap programme automatically.
+
+Detailed authorities used by this execution wave:
+
+- [`roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md`](roadmap/P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md) - P1-R semantic embodiment convergence;
+- [`roadmap/P1_R2C_DENSITY_TRUTH.md`](roadmap/P1_R2C_DENSITY_TRUTH.md) - active finite density truth checkpoint rail;
+- [`roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md`](roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md) - visible product convergence;
+- [`roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md`](roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md) - Quest validation operations;
+- [`review-plans/RF062_WORLD_COMPOSITION_ROOT_CONVERGENCE_2026-08-29.md`](review-plans/RF062_WORLD_COMPOSITION_ROOT_CONVERGENCE_2026-08-29.md) - World composition-root convergence;
+- [`STREAM_C_SECURITY_ASSURANCE.md`](STREAM_C_SECURITY_ASSURANCE.md) - security assurance programme;
+- [`STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`](STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md) - implementation quality contract;
+- [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md) - VR/UI design and interaction contract;
+- [`P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md`](P1_ANALYTICAL_RESPONSIVENESS_AND_SPATIAL_FITNESS.md) - analytical and spatial acceptance criteria.
+
+---
+
+# Completed execution wave: A/B/C convergence
+
+| Stream | Mission | Current finite exit |
+| --- | --- | --- |
+| **A - Analytical Scale & Representation Authority** | A1-A4 merged; A4 aggregate is `VERIFIED COMPLETE` for its bounded scope. | **EXITED** - do not reopen as a generic representation programme. |
+| **B - Product UX & Quest Validation Operations** | B1-B5 merged; Quest attribution, visible baseline, task-first shell and contextual locus are implementation-landed/review-active. | **FINITE CHECKPOINTS MERGED** - residual UV/device evidence remains separately gated. |
+| **C - Security & Collaboration Authority** | C1-C3 landed/reviewed; finite collaboration admission/framing/class-review exit is satisfied, with recorded residuals. | **EXITED** - later RF-039-RF-043 require a separately railed security wave. |
+
+The old rule prohibiting a fourth stream applied to this now-completed wave. It must not be used to restart A/B/C scope implicitly.
+
+---
+
+# Completed execution wave: Stream M - Moneta Distribution Truth
+
+## Mission and finite exit
+
+Replace the semantically overclaimed `DISTRIBUTION_FIELD -> DENSITY_FIELD` presentation alias with one truthful, Rust-owned, bounded empirical-distribution representation that survives the full production path:
+
+```text
+explicit distribution-analysis intent + measure
+  -> Moneta DISTRIBUTION_FIELD decision
+  -> resident Worker/WASM dataset capability
+  -> Rust empirical-distribution summary
+  -> bounded semantic payload
+  -> thin distribution-specific Three.js adapter
+  -> visibly distinct product artifact
+```
+
+Stream M stopped after the production `DISTRIBUTION_FIELD` candidate was classified `DATASET_LEVEL_VALID` and exact-head evidence proved that it renders from a bounded Rust-owned payload without source-row traversal or density/PDF overclaim. It does not proceed automatically into density, cluster, progressive disclosure, RepresentationGraph or learned-model expansion.
+
+| Checkpoint                                | Landed evidence                             | Status     |
+| ----------------------------------------- | ------------------------------------------- | ---------- |
+| **M1 - contract/falsifiers**              | #547 implementation; #548 governed evidence | **MERGED** |
+| **M2 - Rust/WASM builder**                | #549                                        | **MERGED** |
+| **M3 - production cutover**               | #550; #551 independent contract correction  | **MERGED** |
+| **M4 - product/scale/perceptual handoff** | #552; exact-head browser run 33278263468    | **MERGED** |
+
+**Finite exit:** satisfied for the reviewed browser scope. The typed user-facing `Show distribution` action, polished diagnostic composition, generic 100k/500k performance, connected ECDF/axes, progressive disclosure and physical Quest qualification remain explicit residuals rather than hidden completion claims.
+
+## P1 mathematical contract
+
+The first distribution object is a **univariate empirical distribution summary**, not a continuous density estimate. Its governed content is:
+
+- an explicit numeric measure field; no silent field substitution;
+- deterministic equal-width histogram bins with explicit domain and bin count;
+- deterministic bounded ECDF knots;
+- explicit quantiles at governed probabilities;
+- source, valid, missing and non-finite observation counts;
+- an explicit constant-domain policy;
+- recorded binning, interpolation, missingness and bounded-sampling parameters;
+- an information contract that preserves empirical-distribution shape while explicitly losing individual observation identity, exact per-observation values, continuous population-density semantics and formal outlier-boundary visibility.
+
+The V1 slice must not use the words PDF, probability density, continuous contour, KDE or density field. Weighted/categorical/multivariate distributions, smoothing and inferential uncertainty are out of scope unless separately governed.
+
+## Checkpoints
+
+### M1 - distribution contract and falsifiers
+
+- record the pre-implementation adversarial contract and independently calculable fixtures;
+- add the discriminated request/payload types and Rust validator rules with hard bounds;
+- split `DISTRIBUTION_FIELD` from density geometry in the candidate-to-embodiment contract;
+- make tests fail if distribution aliases density geometry, accepts an implicit measure, carries rows, exceeds bounds or claims density/PDF semantics.
+
+**Exit:** the cross-language contract is deterministic, fail-closed and mathematically reviewable; no production capability is claimed yet.
+
+**Suggested PR:** `feat(moneta): define empirical distribution payload`
+
+### M2 - Rust builder and real WASM proof
+
+- compute the empirical distribution from the canonical resident columnar dataset handle;
+- preserve missing/non-finite counts and legitimate zero values;
+- apply resource bounds before output allocation;
+- prove reference histograms, ECDF monotonicity/endpoints, quantiles, constant/empty/missing cases and deterministic serialization in Rust;
+- cross the real WASM boundary using parameters/provenance only, never rows.
+
+**Exit:** real WASM returns the truthful bounded envelope from a resident dataset capability; TypeScript contains no statistical implementation.
+
+**Suggested PR:** `feat(moneta): build Rust empirical distribution`
+
+### M3 - production cutover and thin embodiment
+
+- extend the semantic loader/Worker operation without weakening generation/version/fingerprint/decision fencing;
+- make `DISTRIBUTION_FIELD` consume only its payload through a small distribution adapter;
+- remove its density-geometry alias and prohibit row fallback on pending/refused/failed output;
+- preserve stable semantic IDs and artifact/payload provenance for selection and later drill-down;
+- keep aggregate behavior unchanged.
+
+**Exit:** task/requirements -> decision -> Worker/WASM -> payload -> visible artifact executes through the real production entry point and the A2 raw-row sentinel promotes only this candidate to `DATASET_LEVEL_VALID`.
+
+**Suggested PR:** `feat(moneta): render empirical distribution payload`
+
+### M4 - product, scale and perceptual handoff
+
+- add a canonical fixture and browser evidence in which distribution intent visibly produces a distribution rather than points, aggregate bars or density voxels;
+- record source N, payload elements/bytes proxy, rendered primitives and relevant browser timings at representative scales;
+- bind perceptual evidence to the actual distribution payload/artifact identity;
+- expose explicit pending/refused/unavailable state without fabricating a default visualization;
+- record the residual handoff for the UI-owned typed `Show distribution` action if that separate stream has not yet landed it.
+
+**Exit:** the visible result is distinct, truthful, bounded and inspectable; Quest/device qualification remains deferred.
+
+**Suggested PR:** `test(moneta): prove visible distribution path`
+
+## Advisory model routing for speed and quality
+
+Model choice is an execution aid, not evidence. Tests, production-path proof and independent adversarial review remain authoritative. Use the strongest currently available coding/reasoning model where an error could change scientific meaning, authority, lifecycle fencing or product claims; use balanced/fast models only where the work is mechanically bounded.
+
+Current mapping for the available Codex family:
+
+| Profile | Current model example | Appropriate use |
+| --- | --- | --- |
+| **Frontier** | `gpt-5.6-sol` at `high` or `xhigh` reasoning | Scientific contract, Rust/WASM authority, concurrency/lifecycle, production cutover, adversarial review |
+| **Balanced** | `gpt-5.6-terra` at `high` reasoning | Bounded fixtures, browser evidence plumbing, documentation and well-specified integration work |
+| **Fast support** | `gpt-5.6-luna` at `medium` or `high` reasoning | Repository inventory, mechanical test enumeration, log triage and formatting; never sole scientific implementer/reviewer |
+
+Recommended routing by checkpoint:
+
+| Checkpoint | Implementer | Independent post-review | Rationale |
+| --- | --- | --- | --- |
+| **M1 - contract/falsifiers** | **Frontier / high** | **Frontier / xhigh** | The ontology, missingness, quantile/binning semantics and cross-language validator become the durable scientific contract. |
+| **M2 - Rust/WASM builder** | **Frontier / high** | **Frontier / high** | Numerical correctness, bounds, canonical-handle authority and ABI behavior require strong systems and scientific reasoning. Fast support may enumerate fixtures only. |
+| **M3 - production cutover** | **Frontier / xhigh** | **Frontier / xhigh** | Highest-risk tranche: Worker/runtime identity, stale-result fencing, row-fallback prohibition and visible semantic identity cross several ownership boundaries. |
+| **M4 - product/scale evidence** | **Balanced / high** for evidence plumbing; **Frontier / high** for interpretation or fixes | **Frontier / high** | Much of the harness work is bounded, but interpreting performance/perceptual evidence and promoting claims requires frontier judgment. |
+
+Escalate from Balanced/Fast to Frontier immediately when a task reveals an ambiguous scientific definition, a new ABI/public-format decision, inconsistent authority, nondeterminism, a resource-envelope change, or a production-path defect. Do not downgrade reasoning merely to reduce wall-clock time after a tranche becomes high risk.
+
+## Parallel-work and collision rules
+
+Stream M may run beside a separately railed UI stream that adds the typed `Show distribution` task transition. The UI stream owns action presentation and semantic-intent dispatch; Stream M owns analytical method, candidate fidelity, payload, Worker/WASM execution and the thin representation adapter. UI code must not calculate statistics, and Stream M must not redesign the shell.
+
+Collision-sensitive integration files are `src/app/dataset/LoadDatasetUseCase.ts`, `src/app/dataset/SemanticEmbodimentLoader.ts`, `src/moneta/MonetaTopologyNode.ts`, `src/moneta/VRTopologyTranslator.ts`, `src/moneta/representation/RepresentationCandidate.ts`, and `src/vr/presentation/representation/RepresentationSurface.ts`. Only one open PR may change a given integration contract; dependent UI work must consume the merged contract or report `BLOCKED_BY_STREAM_M`.
+
+---
+
+# Universal stream rails
+
+## Branch and PR lifecycle
+
+Before every checkpoint PR:
+
+1. fetch live `origin/main`;
+2. record the exact base SHA;
+3. confirm the previous checkpoint in the same stream is merged or explicitly abandoned;
+4. create a fresh branch from current `main`;
+5. implement only that checkpoint;
+6. run focused falsifiers and required repository gates;
+7. perform post-implementation adversarial review;
+8. raise one PR;
+9. merge only through the governed repository process;
+10. after merge, fetch current `main` again before the next checkpoint.
+
+**No stacked long-lived checkpoint branches.** Checkpoint N+1 may not be based on an unmerged checkpoint N branch.
+
+## One open implementation PR per stream
+
+At most:
+
+```text
+0 open Stream M implementation PR (finite stream exited)
+1 open P1-R2C density implementation PR (M3 or M4)
+1 open Stream A implementation PR
+1 open Stream B implementation PR
+1 open Stream C implementation PR
+```
+
+Streams A/B/C currently have no active implementation checkpoint; their entries remain the reusable concurrency ceiling for future explicitly railed waves. P1-R2C is the active finite representation rail. Do not open speculative future checkpoint PRs. Finish, review, merge, resync, then advance.
+
+## Canonical roadmap ownership
+
+Implementation PRs in Streams A/B/C/M and P1-R2C do **not** edit `docs/ROADMAP.md`.
+
+After a complete wave of checkpoints merges, an integration scribe opens one tiny docs-only roadmap sync PR. This avoids recurring roadmap conflicts and keeps RF/status updates serial.
+
+Detailed checkpoint evidence may be recorded in the owning programme/review document when required.
+
+### Stream M primarily owns
+
+```text
+wasm/src/moneta/**
+src/moneta/**
+src/wasm/runtime/SemanticEmbodimentBridge.ts
+the semantic-embodiment Worker operation
+distribution request/payload contracts and tests
+the narrow dataset-loader and representation adapters required by M2-M3
+```
+
+Stream M must not alter general UI surfaces, `World.ts`, collaboration/security, Quest validation tooling, unrelated analytical operations or other candidate mathematics.
+
+## File ownership
+
+### Stream A primarily owns
+
+```text
+wasm/src/**
+src/moneta/**
+src/wasm/**
+src/atlas/**
+representation authority contracts/tests
+representation payload and ABI code
+representation-specific embodiment adapters
+analytical/browser resource-envelope measurement code
+```
+
+Stream A may change the narrow presentation adapter needed to consume its semantic payload. It must not redesign the general product shell, Quest validation tooling, signalling/collaboration, or generic UI.
+
+### Stream B primarily owns
+
+```text
+src/ui/**
+src/vr/ui/**
+src/vr/ui-system/**
+dev/xr-simulator/**
+Quest validation launcher/tooling
+validation evidence plumbing
+desktop analyst shell
+contextual task surfaces
+visible-product evidence
+```
+
+During B1/B2, Stream B also owns the necessary `package.json` and `vite.config.ts` validation-mode changes.
+
+Stream B must not implement analytical reductions, alter scientific candidate mathematics, or introduce JavaScript analytical fallbacks.
+
+### Stream C primarily owns
+
+```text
+signalling admission and ticket verification
+role parsing
+NetworkManager collaboration authority
+BinaryPoseSerializer / pose framing
+security-boundary tests for those paths
+```
+
+Stream C must not redesign UI, Moneta, representation rendering, analytical code, Quest validation infrastructure, or generic application architecture.
+
+## Collision-sensitive files
+
+These are hot files:
+
+```text
+docs/ROADMAP.md
+src/vr/World.ts
+src/app/bootstrap.ts
+package.json
+vite.config.ts
+```
+
+Rules:
+
+- `docs/ROADMAP.md`: integration checkpoint only;
+- `World.ts`: Stream A and Stream C must avoid it; Stream B may touch it only when no narrower landed seam can express the behavior, and must justify the exception in adversarial review;
+- `src/app/bootstrap.ts`: Stream B may use it for product/validation composition; other streams must prefer their existing narrow seams;
+- `package.json` and `vite.config.ts`: reserved to Stream B while B1/B2 are active.
+
+If another stream owns a required file, stop and report:
+
+```text
+BLOCKED_BY_STREAM_A | BLOCKED_BY_STREAM_B | BLOCKED_BY_STREAM_C
+file: <path>
+reason: <why it is required>
+minimum change: <smallest required contract change>
+```
+
+Do not solve merge pressure by combining streams into one broad PR.
+
+## Collision protocol after another stream merges
+
+Before final verification, fetch current `main` and classify external movement as:
+
+```text
+NO IMPACT
+REBASE ONLY
+CONTRACT CHANGED
+STREAM BLOCKED
+```
+
+If `CONTRACT CHANGED`, adapt only inside the current stream's ownership. If adaptation requires crossing ownership, stop and report the dependency.
+
+## No opportunistic cleanup
+
+Checkpoint PRs must not absorb unrelated:
+
+- renames;
+- folder reorganisations;
+- dependency upgrades;
+- formatting sweeps;
+- general lint cleanup;
+- unrelated UI restyling;
+- test-framework replacement.
+
+Record useful discoveries for a later owning checkpoint.
+
+---
+
+# Universal authority and evidence guardrails
+
+## Analytical authority
+
+Rust/WASM owns scale-sensitive and N-dependent analytical work. No stream may introduce a TypeScript/JavaScript statistical, clustering, density, scientific aggregate or scale-sensitive analytical fallback to keep a product path visually alive.
+
+Unknown analytical evidence remains unknown. A missing Rust-derived structure may not be replaced with a plausible presentation heuristic and then labelled measured.
+
+## Representation truth
+
+Representation names must match mathematics actually computed. Suggestive geometry may not be called density, distribution, cluster boundary, manifold, spectral structure or equivalent unless the owning analytical implementation provides that semantic object with provenance.
+
+Three.js embodies. It does not rediscover dataset-level analytical structure from source rows.
+
+## Evidence classes remain distinct
+
+Never collapse these into one generic `passed` state:
+
+```text
+unit/integration evidence
+real browser evidence
+desktop-simulator/IWER evidence
+physical Quest dev-runtime evidence
+governed physical Quest validation
+clean-production physical qualification
+```
+
+Automation may reduce ceremony. It may not upgrade evidence class.
+
+## Product-path evidence
+
+A helper, class or mock proving a property is not sufficient evidence that the normal product path has that property.
+
+Visible-product claims require the actual investigator entry path. Simulator evidence may prove simulator-testable spatial/input/lifecycle invariants, but it cannot qualify Quest frame pacing, through-lens legibility, real hand tracking, haptics, fatigue, comfort or target-device memory.
+
+## Security evidence
+
+A material security claim must prove:
+
+```text
+attacker-controlled input
+  -> real production ingress
+  -> authoritative check
+  -> protected production sink
+```
+
+A hardened helper that is not the live authority does not close the finding.
+
+## World/architecture rule
+
+> **World may know everybody; nobody else may know World.**
+
+RF-062A/B/C are landed guardrails/seams. Do not create `WorldContext`, `WorldServices`, `ApplicationManager`, `SystemManager`, `ServiceContainer`, a giant coordinator, giant renderer, or giant semantic payload as a disguised replacement god object.
+
+## Lifecycle ownership
+
+The owner that creates listeners, workers, interactables, updatables, panels or Three.js resources owns idempotent disposal. Repeated construct/start/stop/replace/restore cycles must not accumulate stale resources.
+
+## Failure semantics
+
+Unsupported scale, unavailable kernel, invalid evidence, malformed security input and unknown future schema versions fail explicitly. Do not convert refusal/failure into plausible substitute results.
+
+---
+
+# Mandatory adversarial review contract
+
+Before implementing a checkpoint, identify:
+
+```text
+authority being changed
+primary failure modes
+duplicate-authority risk
+real production entry point
+falsifying evidence required
+explicitly out-of-scope neighbouring work
+```
+
+After implementation, re-read the production path and answer:
+
+1. Did the new implementation become the production path or is it decorative?
+2. Did it create a second authority?
+3. Did it create a replacement god class/coordinator/service bag?
+4. Does the regression exercise the real authoritative boundary where the claim applies?
+5. Are failures, refusals and unknown states still explicit?
+6. Are lifecycle/disposal responsibilities owned and idempotent?
+7. Did the PR cross another stream's ownership?
+8. Is the acceptance claim narrower than or equal to the evidence?
+
+Every implementation PR body must contain the exact heading:
+
+```text
+## Post-implementation adversarial review
+```
+
+and an explicit disposition such as `High-risk change` or `Low-risk exemption`. The current promotion controller treats that evidence marker as part of exact-head promotion evidence.
+
+---
+
+# Required checkpoint reporting
+
+At every checkpoint, report:
+
+```text
+STREAM:
+CHECKPOINT:
+BASE SHA:
+HEAD SHA:
+PR:
+STATUS:
+WHAT LANDED:
+WHAT WAS PROVED:
+WHAT REMAINS UNPROVED:
+NEW FINDINGS:
+NEXT CHECKPOINT:
+BLOCKERS:
+```
+
+At stream exit additionally report:
+
+```text
+STREAM EXIT GATE: PASS | PARTIAL | BLOCKED
+SAFE NEXT PROGRAMMES:
+PROGRAMMES THAT MUST STILL WAIT:
+```
+
+---
+
+# Completed A/B/C parallel PR waves
+
+The checkpoint waves below are retained as the execution record of the completed convergence wave. They are not authorization to restart those streams.
+
+## Wave 1
+
+| Stream | Checkpoint | Primary surfaces |
+| --- | --- | --- |
+| A | **A1 - real browser/Worker/WASM resource envelope** | analytical/browser measurement, Worker/WASM observation; no `package.json`/Vite edits |
+| B | **B1 - QV0+QV1 validation manifest and Quest launcher** | validation types, launcher, `package.json`, Vite validation plumbing |
+| C | **C1 - RF-037/RF-038 signalling admission authority** | ticket verifier, room admission, role parser, live-path security tests |
+
+After all three merge, resync every stream from current `main`.
+
+## Wave 2
+
+| Stream | Checkpoint | Primary surfaces |
+| --- | --- | --- |
+| A | **A2 - P1-R0 representation inventory/falsifier** | representation tests/inventory, Moneta/translator call-path evidence |
+| B | **B2 - QV2+QV3 local device metadata and session evidence sink** | Quest telemetry/dev evidence plumbing, ignored validation directories |
+| C | **C2 - RF-057 channel-bound pose identity/framing** | NetworkManager, pose serializer, forged-sequence/frame adversaries |
+
+After all three merge, resync every stream.
+
+## Wave 3
+
+| Stream | Checkpoint | Primary surfaces |
+| --- | --- | --- |
+| A | **A3 - P1-R1 semantic embodiment payload contract** | Rust/ABI/TS semantic payload types and parity tests |
+| B | **B3 - P1-UV0 visible-product baseline** | screenshots/evidence/inventory; no broad visual redesign |
+| C | **C3 - RF-058 collaboration trust-boundary class review** | review plus only material residual fixes; no PR required if clean |
+
+After all three merge, resync every stream.
+
+## Wave 4
+
+| Stream | Checkpoint | Primary surfaces |
+| --- | --- | --- |
+| A | **A4 - Rust-owned aggregate representation vertical slice** | Rust aggregate builder, semantic payload transport, thin aggregate renderer |
+| B | **B4 - P1-UV1 task-first investigator shell** | desktop/XR product shell and navigation hierarchy |
+| C | **Review/idle** unless C3 found a material residual | no speculative expansion |
+
+After A4/B4 merge, Stream B may run B5. Stream A performs its stream-exit review.
+
+## Wave 5 - Stream B only
+
+**B5 - P1-UV2 contextual locus of work.** Make common investigator actions visibly selection/object-attached through the landed semantic-intent boundary.
+
+No other stream should begin a new broad programme merely because Stream B has one remaining checkpoint.
+
+---
+
+# Stream A - Analytical Scale & Representation Authority
+
+## Mission
+
+Establish measured whole-pipeline scale evidence and prove the first complete Rust-owned dataset-level semantic representation path. This stream deliberately stops after the aggregate vertical slice; it does not migrate every representation family.
+
+### A1 - Real browser / module Worker / real WASM resource envelope
+
+**Owners:** RF-015, RF-029, RF-035, RF-051, supporting RF-030/RF-031.
+
+Measure the production-shaped path before choosing another optimization:
+
+```text
+browser input preparation
+  -> Worker registration/transfer
+  -> WASM resident state
+  -> WASM transient work
+  -> kernel execution
+  -> result transfer
+  -> JS materialisation
+  -> presentation cost where relevant
+```
+
+Capture at least:
+
+- JS heap trend/peaks where available;
+- Worker transfer bytes and timing;
+- WASM resident/transient estimates or measurements that can be reconciled with RF-029;
+- kernel time;
+- serialization/deserialization/materialisation cost;
+- GC/scheduling observations where measurable;
+- workload shape, row count, numeric dimensions and operation/profile identity.
+
+**Guardrails:** measurement first; preserve kernel-inline refusal; preserve same-generation Worker residency; do not redesign the Worker protocol in this checkpoint; do not claim Quest/device qualification.
+
+**Suggested PR:** `perf(rf-029/rf-051): measure whole-pipeline browser envelope`
+
+**Exit:** evidence identifies the real dominant remaining costs and supplies a before baseline for P1-R/next optimization.
+
+### A2 - P1-R0 production-path inventory and row-first falsifier
+
+For every production-reachable semantic representation classify:
+
+```text
+OBSERVATION_LEVEL
+DATASET_LEVEL_VALID
+DATASET_LEVEL_ROW_DERIVED
+SEMANTICALLY_OVERCLAIMED
+NOT_PRODUCTION_REACHABLE
+```
+
+Trace:
+
+```text
+Moneta decision
+  -> runtime translation
+  -> embodiment
+  -> rendered artifact
+```
+
+Record source N, JS row traversal, transferred elements, rendered primitives, claimed semantics and actual semantics. Add a mechanical falsifier that would fail if a migrated non-observation representation silently reintroduces raw-row analytical construction.
+
+**Guardrails:** this is inventory/falsification work, not the renderer rewrite.
+
+**Suggested PR:** `test(p1-r0): inventory and falsify row-first embodiment`
+
+### A3 - P1-R1 bounded semantic embodiment payload contract
+
+Define the smallest useful versioned/discriminated contract binding:
+
+- schema version;
+- canonical dataset fingerprint;
+- candidate/family identity;
+- analytical method and parameters;
+- approximation/reduction mode;
+- information preserved/lost;
+- provenance/kernel/model identity as applicable;
+- stable semantic IDs needed for selection/drill-down;
+- representation-specific bounded payload.
+
+**Guardrails:** no mega-payload; unknown versions fail closed; no JavaScript analytical recomputation; no generic renderer god class; one payload must cross Rust -> WASM/Worker -> TypeScript deterministically without rows.
+
+**Suggested PR:** `feat(p1-r1): define bounded semantic embodiment payload`
+
+### A4 - First vertical slice: aggregate representation
+
+Move grouping/binning/aggregate calculation for the selected aggregate candidate completely into Rust and render only the bounded semantic result:
+
+```text
+canonical dataset
+  -> Rust aggregate builder
+  -> bounded semantic payload
+  -> Worker/WASM transport
+  -> thin Three.js adapter
+  -> production representation artifact
+```
+
+Required proof:
+
+- deleting source-row access from the aggregate renderer does not reduce aggregate functionality;
+- zero/missingness semantics are preserved;
+- no silent default measure is introduced;
+- TypeScript performs no scientific grouping/aggregation;
+- stable semantic IDs support interaction/provenance;
+- before/after transfer and rendered-complexity evidence is recorded.
+
+**Suggested PR:** `feat(p1-r): land Rust-owned aggregate embodiment`
+
+## Stream A exit gate
+
+Stream A stops when A1-A4 have merged and independent post-merge review agrees that:
+
+- the whole browser/Worker/WASM baseline is measured;
+- the row-first defect has a durable falsifier;
+- the semantic payload contract is production-capable;
+- one dataset-level aggregate representation is Rust-owned end to end and source-row-free at the renderer.
+
+**Do not automatically continue** into density, distribution, cluster, manifold, multiscale, broad R3 ABI cutover, P2 RepresentationGraph or another speculative memory rewrite. Recommend the next slice from A1/A4 evidence.
+
+---
+
+# Stream B - Product UX & Quest Validation Operations
+
+## Mission
+
+Make routine Quest sessions attributable and make the normal Nemosyne investigator shell visibly task-first/contextual, while consuming rather than replacing Stream A's scientific authority.
+
+### B1 - P1-QV QV0 + QV1 validation manifest and launcher
+
+Provide explicit validation modes such as:
+
+```text
+npm run dev:quest
+npm run dev:quest:perf
+npm run dev:quest:ux
+npm run dev:quest:10m
+npm run dev:quest:validate
+```
+
+The launcher derives truthfully:
+
+- exact Git/build SHA;
+- clean/dirty/unknown worktree state;
+- session/run ID;
+- selected validation mode;
+- owning gate/profile;
+- runtime class;
+- evidence class;
+- local evidence directory.
+
+**Guardrails:** ordinary `npm run dev`/`dev:wasm` remain unchanged; dirty runs remain useful but promotion-ineligible; Vite dev is not clean-production qualification; IWER is not physical evidence; current QUEST 10M cannot close PERF-04; launcher never edits source, roadmap or promotion state.
+
+**Suggested PR:** `feat(p1-qv): add validation manifest and Quest launch modes`
+
+### B2 - P1-QV QV2 + QV3 local device metadata and isolated evidence sink
+
+Add truthful reusable local declaration for facts the browser cannot infer reliably, for example Quest model, firmware and investigator label. Keep investigator-declared values distinct from runtime-measured browser/XR/WebGL facts.
+
+Validation runs receive per-session ignored storage such as:
+
+```text
+logs/validation/<session-id>/
+  manifest.json
+  loadtest-results.jsonl
+  analysis.json
+  disposition.json
+```
+
+**Guardrails:** never guess firmware; preserve failed/aborted evidence; remain git-ignored; do not add raw dataset rows, unrestricted camera trajectories or unnecessary sensitive interaction histories merely for convenience.
+
+**Suggested PR:** `feat(p1-qv): isolate attributable Quest validation evidence`
+
+### B3 - P1-UV0 canonical visible-product baseline
+
+Before redesigning, capture deterministic production-build screenshots/states and inventory every normal-mode persistent surface/object.
+
+Classify each:
+
+```text
+KEEP
+CONVERGE
+DEMOTE
+REPLACE
+REMOVE
+```
+
+Record the fresh-start/first-insight path and obvious subsystem/panel-first friction.
+
+**Guardrails:** B3 changes evidence/inventory, not product treatment. Do not call substrate migration a visible improvement.
+
+**Suggested PR:** `test(p1-uv0): establish visible-product baseline`
+
+### B4 - P1-UV1 task-first investigator shell
+
+Make fresh start visibly oriented around dataset/investigation context and the next meaningful investigator task rather than engineering subsystem controls.
+
+Use RF-062B semantic intents as the application-facing vocabulary. Demote diagnostics and redundant legacy navigation from normal analyst mode. Desktop becomes a deliberate Nemosyne counterpart rather than raw developer controls.
+
+**Guardrails:** no new analytical semantics; no Moneta ranking/candidate-math changes; no duplicate desktop/XR semantic command; data remains more salient than chrome; no persistent decorative object without a tested function.
+
+**Suggested PR:** `feat(p1-uv1): converge task-first investigator shell`
+
+### B5 - P1-UV2 contextual locus of work
+
+Move common tasks toward the selected object/region/context rather than global panel navigation. Canonical novice vocabulary includes:
+
+```text
+Inspect
+Compare
+Challenge
+Record
+Navigate
+More
+```
+
+Required operations must resolve to the same semantic intent across desktop, controller/ray and supported direct-touch paths. Disabled/unavailable actions expose reasons. Essential work may not depend on memorised expert gestures.
+
+**Guardrails:** preserve the three-surface budget; do not alter representation mathematics; do not create a second command authority.
+
+**Suggested PR:** `feat(p1-uv2): make investigator actions contextual`
+
+## Stream B exit gate
+
+Stream B stops when B1-B5 have merged and post-merge review agrees that:
+
+- normal Quest validation runs have attributable build/evidence metadata with isolated local evidence;
+- UV0 provides a trustworthy baseline;
+- normal startup is visibly task-first;
+- common investigator actions are contextual and semantically shared across applicable modalities.
+
+**Do not run final P1-U9/PERF-04/UX-03 qualification.** Do not claim final data-world visual convergence until Stream A/P1-R has supplied reviewed dataset-level semantic embodiments. UV3-UV7 and the remaining USIM/physical evidence belong to the next product convergence wave selected after A/B exit review.
+
+---
+
+# Stream C - Security & Collaboration Authority
+
+## Mission
+
+Fix the most immediate collaboration trust-boundary defects independently of product/UI and analytical work. This stream is deliberately narrow enough to delegate to a focused subagent.
+
+### C1 - RF-037 + RF-038 canonical signalling admission authority
+
+Converge to:
+
+- one versioned ticket schema;
+- one role ontology;
+- exact allowed roles (`observer`, `participant` unless the canonical contract deliberately says otherwise);
+- nonce/replay prevention enforced at successful real admission;
+- deterministic second-use rejection through `createRoomRegistry().handleConnection()` or the actual canonical live admission path;
+- removal/quarantine of the obsolete duplicate ticket authority.
+
+**Guardrails:** do not merely swap verifier imports; resolve schema/role/nonce-lifetime semantics; do not weaken authentication for tests; malformed/unknown roles fail closed; tests attack the real admission path.
+
+**Suggested PR:** `fix(rf-037/rf-038): converge signalling admission authority`
+
+### C2 - RF-057 channel-bound pose sequence identity and framing
+
+Move pose replay/staleness sequence ownership to the signalling-authenticated/channel-bound string peer identity. Embedded numeric identity is non-authoritative metadata or is removed.
+
+Required adversaries:
+
+- peer A forges numeric identity of B with a huge sequence, then B's legitimate next pose is still accepted;
+- duplicate same-peer frame rejected;
+- out-of-order same-peer frame rejected;
+- reconnect/generation reset is safe;
+- 39-byte and 41-byte frames rejected where the contract requires exactly 40 bytes;
+- NaN/Infinity and invalid bounded pose/quaternion values fail closed;
+- numeric-ID collision cannot merge peer sequence state.
+
+**Guardrails:** do not turn this into a collaboration rewrite; the authenticated channel identity remains authoritative.
+
+**Suggested PR:** `fix(rf-057): bind pose sequence authority to channel peer`
+
+### C3 - RF-058 collaboration trust-boundary class review
+
+After C1/C2 merge, search the affected collaboration/security class for duplicate authorities, alternate ingress/admission paths, compatibility bypasses, stale helpers and helper-only tests.
+
+Classify each finding as:
+
+```text
+security vulnerability
+integrity/robustness problem
+maintainability problem
+false positive / accepted harmless case
+```
+
+Add only material production-path regressions. If no material residual exists, **do not manufacture a PR**.
+
+If residual code work is needed, suggested title:
+
+`fix(rf-058): close collaboration trust-boundary bypasses`
+
+## Stream C exit gate
+
+Stream C stops when C1-C3 establish:
+
+- one authoritative signalling ticket/role protocol;
+- replay protection on the live admission path;
+- fail-closed role parsing;
+- channel-bound pose sequence/replay state;
+- exact/finite framing validation;
+- no material duplicate/bypass authority in the reviewed collaboration trust boundary.
+
+Do not start USIM-C before C1/C2 have merged and been independently re-read. RF-039/RF-040/RF-041/RF-042/RF-043 remain the candidate **next Stream C wave**, not scope creep for this one.
+
+---
+
+# Roadmap integration checkpoint after each wave
+
+When all checkpoint PRs in a wave are merged:
+
+1. integration scribe fetches current `main`;
+2. reads the merged evidence;
+3. adversarially checks that status claims match evidence;
+4. opens one tiny docs-only PR updating this file;
+5. records new RF findings without automatically expanding current scope;
+6. does not change scientific/device/security completion merely because CI is green.
+
+This integration PR contains no runtime/product code.
+
+---
+
+# Current programme mapping
+
+| Programme / RF | Current interpretation | Current stream/checkpoint |
+| --- | --- | --- |
+| RF-015 / RF-029 / RF-035 / RF-051 | A1 measured the current browser/Worker/WASM envelope; generic 10M claims and complete memory/transfer accounting remain blocked. | Consumed by later representation evidence; preserve A1 baseline |
+| RF-030 / RF-031 | Kernel-inline refusal exists; approximation/generic-operation residuals remain, and completed distribution work preserved explicit resource refusal. | Preserve through R2C M3/M4 |
+| RF-001 / RF-002 / P1-R semantic embodiment convergence | Aggregate and empirical distribution are Rust-owned dataset-level slices. Density M1/M2/M1R are now truthful, bounded, strict and row-free at the Rust/WASM boundary, but `DENSITY_FIELD` is not yet production-cut over. | **P1-R2C M3 NEXT** |
+| RF-036 topology/spatial evidence authority | Still open; it must not be silently declared solved by empirical distribution or density work. | Preserve; not R2C scope |
+| RF-044 / RF-045 / RF-046 / RF-047 / RF-048 | Implementations landed; remain review-monitored foundations for graph lineage, evidence truth, digest/replay and identity. | Preserve; not current frontier |
+| RF-059 | Row-identity scale fix landed/review active; preserve regression. | Preserve under A1 evidence |
+| RF-060 | Authoritative dataset fingerprint retention work landed; preserve measured identity path. | Preserve under A1/A3 |
+| RF-061 | Version-coalesced derived analysis settlement verified on current-main evidence (#519). | Stable dependency |
+| RF-062 | A/B/C tranches landed: composition-root boundary, semantic intents, dataset/representation seam. | D-I require a new explicit rail after hot-file settling |
+| P1-QV | B1-B2 implementation landed; broader/final device evidence remains open. | Preserve; next validation work separately railed |
+| P1-UV | B3-B5 finite first wave implementation landed/review active; #568 unified the shell and #573 closed the immediate pointer/dev-role/palette regressions. | Separate next UI wave remains queued; no active R2C parallel lane |
+| RF-049 | Code-level Direct Touch repair landed; simulator/device verification remains. | Preserve in B; final physical evidence later |
+| RF-050 | UI substrate evidence still requires browser/simulator/physical separation. | Next B/product evidence wave; not finalised by B5 |
+| P1-USIM | USIM-0 + first USIM-A lifecycle scenario landed/review active. | Preserve; broader USIM-A/USIM-1 selected after B exit |
+| RF-037 / RF-038 | C1 canonical admission/replay/role authority landed. | Preserve; deployed-path proof remains later |
+| RF-057 | C2 channel-bound collaboration presence integrity fix landed. | Preserve; deployed-path proof remains later |
+| RF-058 | C3 collaboration finding-class review completed with recorded residuals. | Preserve review discipline |
+| RF-039 / RF-040 / RF-041 / RF-042 / RF-043 | Important security/privacy/supply-chain/hostile-boundary backlog. | Next Stream C wave after C exit |
+| P1-U9 / PERF-04 / UX-03 | Final product/device qualification. | **DEFERRED** until P1-UV and relevant P1-R convergence |
+| P1-W / RF-053-RF-056 | Clean artifact/deployed-service/release convergence. | **DEFERRED** until product/UI qualification entry gate |
+| Minimal private preview | Controlled deployment and research cohort. | **DEFERRED** until P1-W exit and applicable security gates |
+| P2 RepresentationGraph | Composition/search. | **DEFERRED** until reviewed P1 prerequisites |
+| P3 Adaptive Nemosyne | Autonomous/longitudinal adaptation. | **DEFERRED** until learning/outcome/governance evidence |
+
+---
+
+# Promotion and defer gates
+
+## Do not start final physical Quest qualification yet
+
+P1-U9, PERF-04 and UX-03 must qualify the **converged** product, not the legacy/substrate-only treatment. Final runs wait for:
+
+- the relevant P1-UV treatment convergence;
+- Stream A/P1-R dataset-level representation changes needed by the tested journey;
+- the required P1-QV evidence tooling where it reduces ceremony without weakening evidence class.
+
+Routine headset trials remain useful under B1/B2 and may produce governed dev-runtime evidence, but they do not automatically close final promotion gates.
+
+## Do not start P1-W production wiring yet
+
+Inventory/design may continue, but product-facing endpoint/capability wiring and release promotion wait until P1-U/P1-UV/P1-U9 have stabilised the surfaces being deployed.
+
+RF-053 clean-artifact re-verification remains important, but do not confuse a clean build smoke with full P1-W completion.
+
+## Do not start USIM-C yet
+
+USIM-C is gated on C1/C2 authoritative security fixes. IWER may drive clients after that point, but simulator success cannot substitute for live security-boundary proof.
+
+## Do not start P2/P3
+
+RepresentationGraph composition and Adaptive Nemosyne remain behind P1 correctness/reproducibility/representation/product gates. The current P1-R work is about making single selected representations truthful and executable, not opening compositional search.
+
+---
+
+# Governing status vocabulary
+
+- **PLANNED:** accepted work with no production implementation claim yet.
+- **IMPLEMENTATION PARTIAL:** bounded/scaffolded pieces exist but the required production path is incomplete.
+- **IMPLEMENTATION LANDED:** planned production code exists and implementation gates passed.
+- **REVIEW ACTIVE:** independent review/evidence still finds unresolved defects, semantic gaps or missing acceptance evidence.
+- **VERIFIED COMPLETE:** implementation and independent evidence agree on the governing exit criteria.
+- **DEFERRED:** intentionally inactive because prerequisites are unmet.
+
+A merged PR or green CI is implementation evidence, not immunity from review. Review may reopen a completion claim.
+
+---
+
+# Fixed design boundaries
+
+These remain invariant across all streams:
+
+- **Rust owns N-dependent analytical work.** Parsing, filtering, statistics, clustering, topology, spectral analysis, data-derived reduction and scientific aggregate work do not migrate into presentation code.
+- **Lossless copies preserve scientific content.** Graph edges/weights/attributes and other governed source semantics may not disappear across ordinary clone/restore/registration paths.
+- **Missing is not zero.** Invalid/missing primitive slots do not silently become Euclidean coordinates.
+- **Unknown is not neutral.** Missing evidence remains unknown; priors/heuristics are explicitly labelled.
+- **Time is data, not row order.** Temporal/spectral evidence uses authoritative time coordinates and governed regularity assumptions.
+- **One durable dataset identity.** `datasetFingerprint` means the canonical collision-resistant scientific identity.
+- **Investigation digests commit semantic state.** Presentation-only state is deliberately excluded; governed semantic changes alter the digest.
+- **Atlas owns durable analytical capabilities.** Reuse handles/references rather than serialising the same dataset back into Rust without need.
+- **Moneta is a bounded control plane.** It reasons over compact evidence and semantic requirements, not raw full-dataset traversal.
+- **Semantic representation survives embodiment.** Dataset-level candidates may not silently degrade into point-per-row or mathematically different presentation approximations.
+- **Observations are detail, not universal geometry.** Observation-level geometry remains valid when explicitly selected or progressively disclosed.
+- **JS presents, orchestrates and schedules.** It does not create a shadow analytical authority.
+- **Production-path evidence governs shipped claims.** Helper-only evidence cannot prove a production property.
+- **Authenticated transport identity outranks payload identity.** Untrusted embedded IDs cannot become a second collaboration authority.
+- **Security findings close by threatened class/boundary, not scanner line.** Search bypasses/duplicates and classify severity honestly.
+- **A visible capability requires a deployed dependency or honest unavailable state.** Dev-only endpoints are not production capabilities.
+- **Interaction completion means semantic parity.** Different modalities may differ mechanically but commit one governed semantic action.
+- **UI substrate is not visible product convergence.** Shared components and green tests do not complete P1-U/P1-UV.
+- **Source rows are not render primitives or dataset-level analytical reduction inputs.** Large source N must not imply proportional renderer work for bounded representation families.
+- **Worker handles are local capabilities.** Cross-thread identity uses canonical identity and explicit registration, not foreign handles.
+- **Sparse means sound before fast.** Approximation may omit information only under an explicit, provenance-bearing contract.
+- **Unbounded work fails explicitly.** Worker scheduling is not a resource budget.
+- **Resource estimates are not device qualification.** Browser/Quest performance claims require measured workload/device evidence.
+- **Perceptual evidence is identity-bound.** Candidate/dataset/model/viewpoint/device context must match before affecting ranking.
+- **The world is an interface, not scenery.** Persistent world objects must earn their place with an investigator function.
+- **Hard constraints precede learning.** Learned ranking cannot resurrect infeasible candidates.
+- **Learning never owns research facts.** Learned features consume governed analytical evidence.
+- **Skepticism targets claims, not people.** Pattern-fragility/apophenia support remains explainable and actionable evidence about claims.
+- **No Gate 9/10 leapfrogging.** P2/P3 cannot substitute for P1 correctness, reproducibility, scale, representation and product evidence.
+
+---
+
+# Verification cadence
+
+For each PR, run the cheapest authoritative proof for the claim plus required repository gates. Depending on scope this includes:
+
+```text
+Rust unit/property/metamorphic tests
+focused JS/WASM boundary tests
+TypeScript typecheck + lint
+deterministic Node/UI/integration tests
+architecture/import/authority fixtures
+real module Worker + real WASM tests when claimed
+browser product-path tests when claimed
+IWER desktop-simulator tests when simulator-testable XR behavior is claimed
+security admission/ingress tests through the live path when security is claimed
+portable investigation digest/replay/tamper tests when reproducibility is claimed
+scale measurements across JS + Worker + WASM when scale is claimed
+physical Quest validation only when device properties are claimed
+```
+
+Before merge:
+
+1. sync/rebase on current `main`;
+2. run focused falsifiers;
+3. run required CI and CodeQL/governance gates;
+4. inspect review comments/threads;
+5. complete the post-implementation adversarial review;
+6. ensure exact-head promotion evidence is present and truthful.
+
+Green engineering CI must never be described as scientific verification, security verification, usability verification or physical Quest qualification unless the required evidence was actually collected.
+
+---
+
+# Active post-M programme: P1-R2C Density Truth
+
+The evidence-selected post-M representation slice is now explicit rather than unselected. Its detailed execution authority is [`roadmap/P1_R2C_DENSITY_TRUTH.md`](roadmap/P1_R2C_DENSITY_TRUTH.md).
+
+Landed checkpoints:
+
+- M1 contract and initial real-WASM falsifiers: #570;
+- M2 resident-columnar Rust builder: #571;
+- M1R lattice/ontology/ranking/strict-method repair: #576;
+- M1R constant-domain closeout: #577.
+
+**Next:** M3 production cutover. `DENSITY_FIELD` must reach the resident Worker/WASM builder and render only from the returned bounded semantic payload. Pending/refused/stale/invalid output must not fall back to row-derived points, voxels, or legacy density geometry.
+
+After M3, M4 must collect bounded product/scale/memory/perceptual evidence, including the current O(N) transient pair-vector cost. R2C then **stops for independent review** before any Cluster Regions, inferred-topology, or other representation programme begins.
+
+Other programmes that remain explicitly queued include:
+
+- RF-036 canonical topology/spatial evidence authority where it blocks truthful representation work;
+- remaining P1-UV UV3-UV7 plus selected USIM-A/USIM-1 evidence;
+- RF-062D/E/F architecture convergence after current UI/representation hot files settle;
+- next Stream C wave: RF-039/RF-040/RF-041/RF-042/RF-043;
+- governed physical Quest qualification after the converged treatment exists;
+- P1-W only after its product-entry gate;
+- minimal private preview only after product, security and release gates converge.
+
+
+
+---
+
+## Imported source: `ROADMAP_PHASES_21-26_COMPLETED.md`
+
+# Completed Roadmap Archive: Phases 21–26 & Waves 0–6
+
+> **Archived Historical Document.** This document captures completed work from Phases 21 through 26 and Waves 0 through 6 (August 2026). It is preserved for auditability and historical context. Do not use this document to determine active project status or future sprint commitments.
+>
+> The governing product and implementation specification is [`../Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md).
+> The active, forward-looking roadmap is [`../ROADMAP.md`](../ROADMAP.md).
+
+---
+
+## Summary Index of Completed Phases & Waves
+
+| Phase / Wave | Title / Focus | Completion Summary | Key Deliverables & Test Suites |
+|---|---|---|---|
+| **Wave 0** | Security P0, Dead Code & Hygiene | Dev endpoints bounded, path traversal resolved, constant-time tokens, file size limits. | `RemoteDebugStreamer`, `FileLoader` size checks, Netlify CI consolidation. |
+| **Wave 1** | Rust Analytical Kernel ABI (`v0.2.0`) | Deterministic computational substrate: FNV-1a UTF-16 fingerprinting, predicate DSL, statistics, TDA Mapper. | `wasm/src/data/`, `wasm/src/provenance.rs`, `RuntimeBridge.ts` wrappers (85 Rust tests). |
+| **Wave 2** | Mandatory WASM Analytical Cutover | JS analytical fallback eliminated; Rust kernel established as sole analytical authority. | `DataOperationController._computeDataset` kernel routing, hard "WASM unavailable" state. |
+| **Wave 3** | Orphaned JS Analytical Module Cleanup | Deleted 7 legacy JS analytical engines (`DatasetOperations`, `CSVDataParser`, `TDAMapper`, etc.). | Commit `367cdcd`, clean separation of visual helpers vs computation. |
+| **Wave 4** | AtlasCore & NemosyneSession | Single analytical authority owning kernel handle, DatasetSpace, AnalysisResult chain, and provenance ledger. | `src/atlas/AtlasCore.ts`, `src/session/NemosyneSession.ts` (`tests/atlas-core.test.ts`). |
+| **Wave 5** | Draco as Pure Embodiment Consumer | Draco performs zero statistical extraction; AtlasCore acts as authoritative `FactProvider`. | `src/draco/ConstraintEngine.ts`, `FactProvider` interface (`tests/evidence-draco.test.ts`). |
+| **Wave 6** | Full AtlasCore Routing & Number Parity | All production kernel calls routed via AtlasCore; ledger-derived history; ECMAScript number stringification. | `fingerprint.rs` ECMAScript parity, `_tdaCall` transient handles, clean disposal. |
+| **Phase 21** | Rust/WASM Migration | 3D spatial layout simulation (force-directed, grid, time ribbon, geo surface, streamline) & Draco solver in WASM. | `wasm/src/layouts/`, `wasm/src/draco/solver.rs`, continuous Float32Array coordinate bridges. |
+| **Phase 22** | UX V2.0: Low-Strain Spatial Interface | TDA glyphs, accessibility steppers, embodied peer avatars, binary quaternion pose, GPU resource disposal. | `ObjectPool` teardown, zero-allocation hot paths, `StatusStripController`. |
+| **Phase 23** | Gesture Intelligence & Retraining | 56-dim feature vector, heuristic+ONNX classifier, on-device threshold tuning, consent-gated upload pipeline. | `modules/gesture-intelligence/`, `GestureIntelligenceAdapter`, `GestureRetrainService`. |
+| **Phase 24** | Analyst Cockpit & Interaction Hierarchy | InteractionMode FSM (`NAVIGATE/INTERACT/TRANSFORM/OBSERVE`), forgiving 3-level HandWheel, contextual panels. | `InteractionModeController`, `HandWheelCategorizer`, `PanelRolesManager`, `TransientContextCards`. |
+| **Phase 25** | Multimodal Perception & On-Device Trials | Quest 3S hardware envelope validation (<13.88ms frame time, <250MB heap), aim-drift mitigation. | `QuestFieldTrialSuite`, `UXHypothesisTriageEngine`, `PositionSemanticClassifier`. |
+| **Phase 26** | Empirical Recommender Tuning & Study Eval | 2D-vs-VR statistical analyzer (t-tests, Cohen's d, NASA-TLX), empirical Draco utility tuner. | `StudyStatisticalAnalyzer`, `DracoEmpiricalTuner`, `InvestigationBranchManager`. |
+
+---
+
+## Detailed Sprint & Wave Completion Logs
+
+### Sprint 26.2: Evidence-Informed Draco Recommender Adaptive Loop
+- **Empirical Recommender Tuner:** Implemented `DracoEmpiricalTuner` (`src/draco/evidence/DracoEmpiricalTuner.ts`) connecting empirical study trial outcomes (accuracy, completion duration, and NASA-TLX workload) directly to Draco layout utility weights and topology preference costs.
+- **Adaptive Preference Scoring:** Promotes spatial representations demonstrating statistically superior task performance while penalizing configurations with high cognitive workload.
+- **Unit Test Suite:** Added `tests/draco-empirical-tuner.test.ts` testing empirical weight adjustments, topology preference tuning, and solver override weight synthesis.
+- **Gates:** `tsc --noEmit` 0 errors · `eslint` 0 errors · `npm test` 217/217 test files passed (1,444 passed / 26 skipped jsdom-WASM parity by design) · `cargo test` 85/85 passed · `npm run build` exit 0.
+
+### Sprint 26.1: Semantic vs. Structural Position Discipline & Disambiguation Engine
+- **Position Semantics Classifier:** Implemented `PositionSemanticsEngine` (`src/draco/PositionSemantics.ts`) distinguishing `SEMANTIC` (coordinates directly map geographic/temporal/vector variables), `STRUCTURAL` (coordinates expose topological graph edges/clusters), and `ALGORITHMIC_LAYOUT` (procedural grid/ring spacing with no semantic distance equivalence).
+- **Diegetic Proximity Warning System:** Adds structured warnings to HUD tooltips preventing analysts from falsely assuming that geometric proximity in force-directed graphs or procedural grids implies underlying attribute similarity.
+- **Unit Test Suite:** Added `tests/position-semantics-discipline.test.ts` testing layout classification, badge color assignment, and HUD warning formatting.
+
+### Milestone 25.3: 2D-vs-VR Statistical Analysis Engine & Empirical Study Evaluation
+- **Empirical Statistical Analyzer:** Implemented `StudyStatisticalAnalyzer` (`src/study/StudyStatisticalAnalyzer.ts`) computing two-sample t-tests, degrees of freedom, p-value estimates via standard Abramowitz-Stegun error function approximation, and Cohen's d effect sizes across task completion duration, anomaly isolation accuracy, F1 score, confidence, and NASA-TLX workload scores.
+- **Structured Markdown Report Synthesis:** Synthesizes structured outcome markdown tables comparing 2D desktop controls vs. VR experimental conditions conforming to `docs/study/ANALYSIS_PLAN.md`.
+- **Unit Test Suite:** Added `tests/study-statistical-analyzer.test.ts` verifying two-sample t-tests, Cohen's d effect magnitude classifications, and experiment evaluation reporting.
+
+### Milestone 25.2: Quest 3S On-Device Field Trial Suite Execution
+- **Automated Field Trial Suite:** Implemented `QuestFieldTrialSuite` (`src/vr/scalability/QuestFieldTrialSuite.ts`) automating multi-stage load-test probe execution across dataset scales (1k, 5k, 20k, 50k, 100k nodes) validating Quest 3S physical compute envelopes (72 Hz / 13.88ms frame budget, <5% dropped frames, <250 MB heap).
+- **Audit Certificate Generator:** Generates verifiable field trial compliance certificates with deterministic hashes for research publication bundles.
+- **Unit Test Suite:** Added `tests/quest-field-trial-suite.test.ts` testing multi-stage execution, hardware envelope validation, and budget violation reporting.
+
+### Sprint 25.1: Quest Spatial Tracking & Aim-Drift Ergonomics Hardening
+- **Aim-Drift Mitigation:** Mitigated pointer ray precision loss by pairing coarse gaze targeting with explicit pinch and dwell confirmation.
+- **Biomechanical Zoning:** Enhanced `WorldSpatialContext.ts` with ergonomic reach classification (`SWEET_SPOT`, `NEAR_FIELD`, `EXTENDED`, `PERIPHERAL`).
+
+### Sprint 24.1 through 24.9: Analyst Cockpit & Interaction Hierarchy
+- **Sprint 24.1 (Interaction Mode FSM):** Authoritative `NAVIGATE | INTERACT | TRANSFORM | OBSERVE` modes in `InteractionModeController.ts`; unified `FocusState` vocabulary.
+- **Sprint 24.2 (HandWheel Categorization):** Analyst-intent categories (`ANALYSE | VIEW | DATA | STUDY | COLLABORATE | SYSTEM`) and gaze+confirm state machine in `HandWheelCategorization.ts`.
+- **Sprint 24.3 (Task Surface Decomposition):** `ContextualTaskSurface.ts` filtering actions dynamically by topology, replacing monolithic 29-button menu walls.
+- **Sprint 24.4 (Panel Roles Taxonomy):** Enforced `workspace | task | context | diagnostic | transient | system` roles, max 2 task panels rule, and diagnostic gating to `DEVELOPER` mode.
+- **Sprint 24.5 (Transient Context Cards):** Ephemeral cards (`TransientContextCards.ts`) for dataset loaded, recommendation, and drift alerts.
+- **Sprint 24.6 (Progressive Disclosure):** Profiles (`NOVICE | ANALYST | RESEARCHER | DEVELOPER`) in `ProgressiveDisclosure.ts`.
+- **Sprint 24.7 (Gesture Ownership Redesign):** Contextual both-pinch resolution in `GestureOwnershipManager.ts` with zero silent suppression.
+- **Sprint 24.8 (Calm Visual Language & Status Strip):** Semantic palette and persistent status strip in `StatusStripController.ts`.
+- **Sprint 24.9 (UX Acceptance Quality Gates):** Quantitative CI quality gate evaluator (`UXAcceptanceGate.ts`) tracking UX-001 through UX-012.
+
+### Sprints 23.1 through 23.5: Gesture Intelligence & Lifecycle
+- **Sprint 23.1 (Host Integration):** `GestureIntelligenceAdapter.ts` translating Three.js hand tracking into `HandSample` records for `@nemosyne/gesture-intelligence`.
+- **Sprint 23.2 (Personalization Loop):** In-experience capture and closed-loop threshold coordinate-search optimization.
+- **Sprint 23.3 (Global Capture Pipeline):** Consent-gated upload pipeline with Tier A (56-dim feature only, zero raw biometric coordinates) and rotatable pseudonymous hashes.
+- **Sprint 23.4 (Retraining Service):** Central training pipeline with user-disjoint evaluation splits.
+- **Sprint 23.5 (Drift Monitoring):** Anonymous heuristic vs ONNX divergence tracking and drift alerts.
+
+### Waves 0 through 6: Rust Analytical Kernel, AtlasCore & Session Provenance
+- **Wave 0:** Security hardening, bounded dev endpoints, path traversal fix, constant-time token compare.
+- **Wave 1:** Canonical versioned ABI (`v0.2.0`), FNV-1a UTF-16 code unit fingerprinting, Predicate DSL, ndarray correlation.
+- **Wave 2:** Complete cutover to Rust kernel for all analytical operations.
+- **Wave 3:** Deletion of orphaned JS analytical modules.
+- **Wave 4:** `AtlasCore.ts` single analytical authority and `NemosyneSession.ts` schema v2 session serialization.
+- **Wave 5:** Draco transformed into pure embodiment consumer; AtlasCore as `FactProvider`.
+- **Wave 6:** All kernel call sites routed through AtlasCore; ledger-derived history; ECMAScript number stringification parity.
+
+
+
+---
+
+## Imported source: `ROADMAP_PHASES_1-20_COMPLETED.md`
+
+# Archived Roadmap — Phases 1–20 (Completed)
+
+> **Historical archive.** Phases 1–20 are complete and are preserved here as the record of
+> what was built. They are **not** a source of current implementation status, product
+> direction, or study protocol. For current status, see the **Current Status** block at the
+> top of [ROADMAP.md](../ROADMAP.md). For active and proposed work, see Phases 21–24 and
+> Atlas V5 in the live roadmap.
+
+> Archived 2026-08-18. The compact summary that replaces these phases in the live roadmap
+> lives in the "Completed phases (archived)" section below the Current Status block.
+
+## Audit notes preserved
+
+Several phases carry **BUILT, NOT WIRED** audit notes (2026-08-14 / 2026-08-16) recording
+classes that exist with passing tests but were never instantiated in the production runtime.
+These notes are preserved verbatim in the phase bodies below so the information is not lost:
+- Phase 12.4 — FrustrationResponseManager / GestureConfidenceHUD / JITGestureHintManager
+  (resolved: wired in Phase 22.3 via AdaptiveAssistController).
+- Phase 13.3 — AnalysisStorybookExporter (built, not wired; export via TelemetryPanel).
+- Phase 13.4 — ContextRecoveryManager (built, not wired; logic lives in Engine.ts).
+- Phase 17.2 — CSVParserWorker / DracoSolverWorker (built, not wired; main-thread paths
+  used instead; recorded as a reference implementation).
+
+The Phase 22.6 dead-code inventory and Phase 24 architectural plan re-examine these where
+relevant; the live roadmap is authoritative for disposition.
+
+---
+
+### Completed work-streams
+
+Cross-cutting work-streams that are **done** and recorded here (not in
+`.claude/plan.md`) as the single reference:
+
+- **TypeScript migration** ✅ — the entire JS source tree was converted to `.ts`
+  (import maps + Vite; `tsc --noEmit` is a required CI gate). The 7 stale `.js`
+  re-export stubs left behind were removed in the distillation PR.
+- **Docs-site refactor** ✅ — `docs/index.html`, examples, dataset mapping, and
+  use-case blurbs.
+
+---
+
+## Phase 1 — Foundation ✅
+
+- [x] Git repository initialized.
+- [x] Working three.js/WebXR runtime on Meta Quest 3S.
+- [x] WebXR session binding compatible with Quest Browser.
+- [x] Controller and hand tracking input routing.
+- [x] Basic telemetry and diagnostic panels.
+- [x] Unit tests with Vitest.
+
+## Phase 2 — Specification ✅
+
+- [x] Draco-style constraint engine.
+- [x] Topology fact extraction (tabular, graph, hierarchy, vector, time-series).
+- [x] Hard/soft constraint rule registration and weighted scoring.
+- [x] Spec serializable as JSON.
+
+## Phase 3 — Core Framework ✅ 🔄
+
+- [x] `Dataset` with typed columns and encodings.
+- [x] `VRTopologyTranslator` synthesizing artefacts.
+- [x] World-space data inspection via DataCard.
+- [x] Independent, moveable HUD panels (`MovablePanel`, `PanelManager`).
+- [x] Live streaming connectors (`WebSocketAdapter`, `PollingAdapter`, `OpenDataSources`).
+- [x] Hand-attached radial wheel menu.
+- [x] HUD panels clustered around a central anchor point.
+- [x] Incremental live-stream updates.
+
+## Phase 4 — Examples & Documentation 🔄
+
+- [x] `README.md`, `docs/ARTEFACTS.md`, `docs/INTERACTIONS.md`, `docs/ARCHITECTURE.md`, `docs/GETTING_STARTED.md`.
+- [x] Complete `docs/ROADMAP.md` and keep it current.
+- [x] Expand built-in sample datasets (financial, geospatial, process-flow).
+
+## Phase 5 — Artefact Library Expansion ✅ 🔄
+
+- [x] Add Column, Orb, Token, Plinth, Beam, Trail, Ring, Field, Zone artefact variants.
+- [x] Add geospatial and flow topologies.
+- [x] Add real force-directed, radial-tree, and time-ribbon layout generators.
+- [x] Add lightweight TDA artefact glyphs (persistence barcode, mapper graph, Betti curve).
+- [x] Add data-operation transforms (filter, aggregate, sort, time-slice, cluster).
+
+## Phase 6 — Real-World Deployments 🔄
+
+- [x] Production build and deployment pipeline (`vite build`, Netlify, Vercel).
+- [x] GitHub Actions CI workflow (`.github/workflows/ci.yml`).
+- [x] Desktop fallback with mouse/keyboard (`DesktopControls`).
+- [x] Efficient data transmission hooks (Apache Arrow IPC, FlatBuffers, MessagePack serializers + `WebSocketAdapter.binaryParser`).
+- [x] Multi-user collaborative memory palaces (see Phase 10B).
+- [x] Neural predictive layer for soft-constraint weight recommendation (see Phase 11).
+
+## Phase 7 — VR Comfort, Scalability & Interaction Metaphors ✅
+
+- [x] Recalibrate panel anchor to ~0.55 m (Meta Quest comfort zone).
+- [x] Detach radial wheel menu from wrist; body-lock it in front of the chest.
+- [x] Add procedural audio + visual selection feedback (`SelectionFeedback`).
+- [x] Build scalable rendering package (`InstancedPointCloud`, `SpatialIndex`, `LODManager`).
+- [x] Add scale-aware facts and hard/soft constraints to `ConstraintEngine`.
+- [x] Add `INSTANCED_POINT_CLOUD`, `CLUSTER_VOLUME`, and `AGGREGATE_BARS` artefact paths.
+- [x] Implement six interaction metaphors: Resonance Pulse, Fork Plane, Chrono Dial, Constellation, Beacon, Aleph.
+- [x] Update tests and documentation for all of the above.
+
+## Phase 8 — Deeper Analytics & TDA Artefacts 🔄
+
+- [x] **Sprint 8.1** — Statistical facts engine (`columnStats`, `correlationMatrix`, `categoryDistribution`, temporal trend/seasonality, outlier detection).
+- [x] **Sprint 8.2** — Advanced clustering (`hierarchical`, `dbscan`, k-means++ seeding, `ClusterTransforms.ts`).
+- [x] **Sprint 8.3** — Anomaly & outlier layer (`anomaly` operation with IQR/Z-score/isolation methods, ORB halo rendering, outlier lens).
+- [x] **Sprint 8.4** — 2D chart planes in VR (`ChartPlane` artefact for bar/line/histogram/box/correlation plots, auto-attached by `VRTopologyTranslator`).
+- [x] **Sprint 8.5** — TDA artefact factory (`TDAMapper`, persistence barcode, mapper graph, Betti curve).
+
+## Phase 9 — Production Polish & Game-Inspired UX ✅
+
+- [x] **Sprint 9.1** — Diegetic data inspector (`HolographicInspector.js`).
+- [x] **Sprint 9.2** — Contextual gaze tooltips (`TooltipManager`).
+- [x] **Sprint 9.3** — Constellation / nested radial menus.
+- [x] **Sprint 9.4** — Spatial dashboard wall with snap zones (`DashboardManager.ts`, `ChartPlanePanel.ts`, dashboard reset in wheel menu).
+- [x] **Sprint 9.5** — Teleport anchors and comfort vignette (`locomotion.teleportToAnchor`, overview/detail anchors).
+- [x] **Sprint 9.6** — Guided tour system (`GuidedTour`, `DefaultTour.js`).
+- [x] **Sprint 9.7** — Dual-hand gestures, analysis history undo/redo, settings panel, feedback customization.
+- [x] **Sprint 9.8** — Hand-pointer anchoring, gesture cooldown/threshold tuning, production test hardening.
+- [x] **Sprint 9.9** — Visual polish and atmosphere presets (`WorldTheme.ts`, ambient particles, portal/TechnoCore glow pulses, dataset-key atmosphere mapping).
+
+----
+
+## Evaluation Checkpoint — End of Phase 9
+
+*Status as of 2026-07-28, written after completing Phase 9. Test counts have grown since; see TEST_READY.md for the current number.*
+
+### Goal delivery
+
+The project’s core thesis — multi-dimensional datasets become interactive 3D memory palaces — is **demonstrated end-to-end**. The constraint-driven Draco pipeline, artefact taxonomy, multi-modal input model, statistical aids, live connectors, and atmosphere layer all work together in a single WebXR/three.js runtime. Most of the foundational vision is implemented and tested, with rough edges and unfinished features remaining — this is a personal, experimental project, not a finished product.
+
+### Strengths
+
+- **Architecture:** Clean separation between Engine, World, artifacts, UI, interactions, and data layers.
+- **Test discipline:** A growing Vitest suite (1191 pass / 9 skip — see TEST_READY.md) makes refactoring safe for a WebXR codebase.
+- **Constraint-driven synthesis:** `DracoTopologyNode` + `ConstraintEngine` turn data facts into layout/interaction/geometry specs rather than hard-coding one chart per dataset.
+- **Unified input:** `HandGestureRecognizer`, `InputRouter`, `HandPointer`, `ControllerPointer`, `DesktopControls` share one model across VR and desktop.
+- **Atmosphere as signal:** Theme presets tied to dataset mood make the environment itself convey information.
+- **Diegetic UI:** Panels, wheel menus, and inspector live in world space, respecting immersion.
+
+### Critical gaps and missing capabilities
+
+1. **Hardware/runtime validation.** Frame time and draw-call budgets are now enforced in-engine with a live Performance panel; Quest Browser GPU memory and hand-tracking latency still need device-specific measurement.
+2. **Broad data ingestion.** No CSV/Excel/Parquet import, SQL/warehouse connectors, schema-mapping UI, or API authentication.
+3. **Output, provenance, and sharing.** Screenshot export, JSON analysis-story export, operation-log panel, and opt-in telemetry are implemented; annotations, bookmarks, shared links, and persistent revision history are still missing.
+4. **Collaboration.** Single-user only; no voice, avatars, synchronized cursors, or shared state.
+5. **Accessibility.** Colorblind palette remapping, text scaling, high-contrast UI mode, and dwell-selection motor alternative are implemented. Audio descriptions and full WCAG-equivalent coverage are still missing.
+6. **Graceful degradation.** GPU context loss, tracking loss mid-gesture, malformed CSVs, and network stalls need explicit recovery paths.
+7. **Evidence of value.** No user studies, task benchmarks, or telemetry to prove spatial analysis improves insight speed/accuracy over 2D tools.
+
+### How it differs from related work
+
+Nemosyne is a personal exploration of metaphor-first, embodied spatial analysis, not a competitor to shipping products. Compared with notebook/BI tools (Tableau, Power BI, Observable) it trades chart grammar, broad connectors, and provenance for immersion and the memory-palace metaphor; compared with one-off three.js/A-Frame viz demos it adds real analysis operations, undo/redo, live data, and tests; compared with enterprise VR analytics (e.g. Virtualitics) it lacks validated studies, connector breadth, and SSO. It is best understood as an experiment, not a replacement for any of these.
+
+### Recommended decision gate before Phase 10
+
+Do **not** jump straight into multi-user collaboration. First satisfy these four prerequisites:
+
+1. **Quest Browser validation pass** — capture frame-time, GPU memory, and hand-tracking latency baselines.
+2. **Canonical file-import flow** — CSV → `Dataset` with encoding inference, so non-developers can use the tool.
+3. **First usability benchmark** — define a repeatable task (e.g., “find the top outlier”) and compare Nemosyne against a 2D dashboard.
+4. **Non-functional requirements baseline** — performance budget, error boundaries, accessibility targets, telemetry, and state persistence.
+
+Only after those four are met should the roadmap choose between **Phase 10A: Validate & Harden** or **Phase 10B: Scale & Collaborate**.
+
+## Phase 10 — Decision Gate: Validate & Harden OR Scale & Collaborate ⏳
+
+*Phase 10 is intentionally a fork. The prerequisites above determine which track is selected.*
+
+### Track A — Validate & Harden (recommended if hardware/provenance gaps are not closed)
+
+- [x] **Sprint 10A.1** — Quest Browser performance profiling and performance budget enforcement.
+- [x] **Sprint 10A.2** — CSV file import with robust parsing, automatic topology/schema inference, and error boundaries (Excel/Parquet deferred to future plugin importers).
+- [x] **Sprint 10A.3** — Session persistence (`IndexedDB`): dataset, camera pose, operation history, settings, tour progress, with auto-save and wheel-menu actions.
+- [x] **Sprint 10A.4** — Export and provenance: PNG/WebP capture of renderer output, downloadable JSON analysis story, in-VR operation log panel.
+- [x] **Sprint 10A.5** — Accessibility pass: colorblind-safe palettes, text scaling, high-contrast, motor-accessible input alternatives.
+- [x] **Sprint 10A.6** — Telemetry and observability: session metrics, gesture counts, frame drops, error rates; opt-in only.
+- [x] **Sprint 10A.7** — Gesture coaching and controller equivalence: running interaction commentary panel, hand-gesture to Meta Quest controller mapping, controller gesture mapper.
+
+### Track B — Scale & Collaborate (recommended only after Track A prerequisites are satisfied)
+
+- [x] **Sprint 10B.1** — Networking foundation (WebRTC data channels, signalling server, room model, wheel-menu join/leave, in-VR network status panel).
+- [x] **Sprint 10B.2** — Free-floating, persisted HUD panels: panels no longer forced into the analyst-anchor arc, drag in cameraGroup local space, positions/visibility saved with the session.
+- [x] **Sprint 10B.3** — Shared state synchronisation (dataset, operations, camera pose, selections).
+- [x] **Sprint 10B.4** — Presence & avatars (voice-less or voice-optional, hand/controller avatar, name tags).
+- [x] **Sprint 10B.5** — Shared annotations, bookmarks, and tours.
+- [x] **Sprint 10B.6** — Asymmetric desktop companion (2D view of the same session for non-VR stakeholders).
+
+### Deferred longer-term work
+
+- [x] Neural predictive layer for soft-constraint weight recommendation (`NeuralConstraintPredictor.ts`).
+- [ ] Direct SQL / data-warehouse connectors.
+- [ ] Scientific user studies comparing spatial vs. 2D analysis workflows.
+
+---
+
+## Phase 11 — On-Device AI Intelligence, Low-Token Observability & WebXR Ergonomics ✅
+
+- [x] **Sprint 11.1 — Analyst Torso Anchor & Ergonomics**: Reparented scene anchor to analyst torso (`analystAnchor`) at `~1.35m` chest height, continuously tracking headset position and yaw orientation.
+- [x] **Sprint 11.2 — Dual Vertical Multicoloured Wheel Menus**: Redesigned `HandWheelMenu.ts` into twin vertical arcs on left (`-0.36m`) and right (`+0.36m`) side of torso with wide rectangular pill geometry (`0.24m x 0.075m`), 30px+ fonts, and horizontal action fan-outs.
+- [x] **Sprint 11.3 — Guided Tour Onboarding & Sequential Progression**: Fixed single-step auto-advance guards so tour counts sequentially `1/9` through `9/9`. Added Data Loading, Saving/Exporting, Collaboration, and Data Characteristics demonstration steps.
+- [x] **Sprint 11.4 — On-Device UX Frustration Engine & Low-Token Observability**: Implemented `UXFrustrationAnalyzer.ts` to detect rapid repeated clicking, window thrashing, air-click misses, WASM errors, gesture misfires, and gaze/laser dwell hesitations locally. Generates 8-line token-compressed UX digests.
+- [x] **Sprint 11.5 — Gaze/Laser Dwell & Gesture Confidence Telemetry**: Integrated `recordDwell()` in `SelectionDispatcher.ts` and `recordGestureConfidence()` in `WorldInputCoordinator.ts`.
+- [x] **Sprint 11.6 — Geometry & Material Object Pooling**: Built `MeshPool` in `src/utils/ObjectPool.ts` and `executeInTimeSlices()` async batch execution to eliminate >200ms dataset load spikes.
+- [x] **Sprint 11.7 — Customization Architecture & AI Developer Team**: Defined 4-agent team in `.agents/team.json` (`technical-architect`, `coder`, `qa-engineer`, `reviewer`) and custom Workspace Skill `.agents/skills/vr-accessibility/SKILL.md`.
+
+----
+
+## Phase 12 — AI Tuning, Gesture Validation & UX Feedback Loop Closure ✅
+
+> **Focus:** Close the loop between the intelligence already built (Draco GA, gesture AI, frustration engine) and measurable, user-visible quality. No new major features — deepen, validate, and surface what's already there.
+
+### Sprint 12.1 — Gesture Recognition Validation Harness
+
+Existing coverage in `tests/hand-gesture-recognizer.test.js` tests the recognizer at unit level with synthetic `makePose` stubs, but lacks recorded trajectory fixtures, accuracy assertions, and edge-case coverage.
+
+- [x] `tests/fixtures/gesture-sequences/` — JSON multi-frame trajectory recordings for 6 core gestures: `pinchTogether`, `pinchApart`, `swipeLeft`, `swipeRight`, `scoopUp`, `pushForward`
+- [x] `tests/gesture-recognizer-accuracy.test.ts` — TP rate ≥ 90 %, FP rate ≤ 5 % per gesture, asserted from fixtures
+- [x] `tests/gesture-edge-cases.test.ts` — cooldown boundary, rapid alternation, dual-hand conflict, controller-equivalent parity
+- [x] `GestureConfidenceThresholds` config object in `HandGestureRecognizer` — per-gesture tunable `floor` / `ceiling` replacing magic numbers
+- [x] Update `docs/INTERACTIONS.md` with a gesture confidence spec table
+
+### Sprint 12.2 — Draco Recommender Evaluation Suite
+
+The GA solver runs but its recommendation quality is untested against known-good outputs. `DracoDiagnosticHUD` shows weights live but gives no quality signal back to the analyst.
+
+- [x] `tests/fixtures/draco-golden/` — golden pairs covering all primary topology types (`TABULAR`, `GRAPH`, `HIERARCHY`, `VECTOR_FIELD`, `TIME_SERIES`, `GEO`)
+- [x] `tests/draco-recommender-quality.test.ts` — topology match precision ≥ 80 %, soft-constraint score evaluation on golden set
+- [x] `ConstraintEngine.evaluateCandidate(spec, facts)` public method — exposed for external testability
+- [x] `DracoDiagnosticHUD` improvements: live per-constraint contribution bars, last 5 candidate history, colour-coded score delta (green = improved, red = regressed)
+
+### Sprint 12.3 — AI Module Integration & Fine-Tuning
+
+- [x] **`NeuralConstraintPredictor`** — weight normalization & prediction evaluation
+- [x] **`GestureClassifierModel`** — ONNX bridge & heuristic classification
+- [x] **`UXFrustrationAnalyzer`** threshold calibration: `RAPID_ABANDONMENT` window, `REPEATED_ACTION` floor, `AIR_CLICK_MISS` rate
+
+### Sprint 12.4 — Usability Feedback Loop Closure
+
+> **Audit note (2026-08-14, resolved 2026-08-16):** Components in this sprint were initially **built** (classes + unit tests complete) but not wired. `AdaptiveAssistController` now mounts and drives the three assist surfaces in production; Quest usability validation remains pending. See `docs/AUDIT_PHASES_1_20.md` for the historical baseline.
+
+- [x] **`FrustrationResponseManager`** (`src/vr/ui/FrustrationResponseManager.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` feeds analyzer actions, applies user mode, and parents the card to `analystAnchor`.
+- [x] **`GestureConfidenceHUD`** (`src/vr/ui/GestureConfidenceHUD.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` instantiates, registers, and disposes the per-gesture confidence panel.
+- [x] **`JITGestureHintManager`** (`src/vr/ui/JITGestureHintManager.ts`) — **WIRED in Phase 22.3.** `AdaptiveAssistController` sets the scene and drives diegetic hints from gesture and selection context.
+- [x] `tests/frustration-response.test.ts` — assert hint cards appear within 2 operations of threshold breach; assert threshold adapts to expert mode
+
+### Sprint 12.5 — UI/UX Polish & Data Transition Animations
+
+- [x] **Artefact transition animation** — smooth lerp via `executeInTimeSlices`
+- [x] **Panel visual hierarchy pass** — category-coloured left border strip (analytics `#00ffcc`, settings `#ffaa00`, collaboration `#aa44ff`)
+- [x] **Empty state designs** for `DataCard`, `OperationLog`, `ChartPlane`
+
+### Sprint 12.6 — Analyst Benchmark Suite (Evidence of Value)
+
+*First structured evidence that spatial analysis delivers real analyst benefit.*
+
+| # | Task | Dataset | Success criterion |
+|---|---|---|---|
+| 1 | *Find the top outlier* | Financial scatter | Correct node selected via inspector |
+| 2 | *Identify the dominant cluster* | Geospatial | Correct cluster label confirmed |
+| 3 | *Trace a causal path* | Process-flow hierarchy | Correct leaf-to-root path activated |
+| 4 | *Spot a temporal anomaly* | Time-series | Anomaly node inspected within time budget |
+| 5 | *Compare two encodings* | Any | Both carousel candidates evaluated, one confirmed |
+
+- [x] **`BenchmarkSession`** (`src/utils/BenchmarkSession.ts`) — instruments each task with `timeToFirstCorrectSelection`, `gestureCount`, `operationCount`, `frustrationScoreAtCompletion`
+- [x] Benchmark results exported as JSON alongside the existing analysis story export
+- [x] `tests/benchmark-session.test.ts` — all 5 tasks pass under deterministic simulated input
+
+### Sequencing
+
+```
+12.1 → 12.3  (gesture fixtures feed AI accuracy tests)
+12.2 → 12.3  (golden Draco set feeds predictor eval)
+12.1 + 12.2 → 12.6  (benchmark tasks use both)
+12.4 → 12.5  (feedback polish builds on closed loop)
+```
+
+---
+
+## Phase 13 — Real-World Data Ingestion & Provenance Export Infrastructure ✅
+
+> **Focus:** Make Nemosyne production-ready for arbitrary analyst datasets. Enable non-developers to load CSV files with automatic schema inference, support binary Arrow IPC streams, export interactive 3D analysis storybooks, and handle WebGL context loss gracefully.
+
+### Sprint 13.1 — CSV/TSV Auto-Inference & Field Mapping UI
+
+- [x] `CSVDataParser.ts` — robust client-side CSV/TSV parser handling quoted fields, escaped delimiters, missing values, and automatic type inference (`NUMERIC`, `CATEGORICAL`, `TEMPORAL`)
+- [x] `SchemaMappingPanel.ts` — in-VR panel letting analysts confirm column type assignments, cycle types, and apply updated field mappings
+- [x] `tests/csv-parser.test.ts` — test suite verifying quoted field parsing, numeric casting, date detection, and type cycling
+
+### Sprint 13.2 — Apache Arrow IPC & FlatBuffers Binary Parsers
+
+- [x] `ArrowBinaryParser.ts` — zero-copy Apache Arrow IPC stream reader extracting Float32 position buffers directly targeting `InstancedPointCloud` attributes
+- [x] `tests/arrow-ipc.test.ts` — test suite asserting zero-copy memory parsing accuracy
+
+### Sprint 13.3 — Spatial Analysis Storybook & Provenance Export
+
+> **Audit note (2026-08-14):** `AnalysisStorybookExporter.ts` class is **BUILT, NOT WIRED.** Export functionality is implemented in `TelemetryPanel.ts` instead; the class is never instantiated. Decision: either wire the class into TelemetryPanel or consolidate export logic into a single path. For now, export works via TelemetryPanel (not misleading, but terminology "Storybook" vs. "Telemetry" should be clarified).
+
+- [x] `AnalysisStorybookExporter.ts` — **BUILT, NOT WIRED.** Packages session state, dataset snapshot, camera poses, selected filters, annotations, and tour checkpoints into a downloadable JSON/HTML bundle (class complete, tests pass, never instantiated)
+- [x] `TelemetryPanel.ts` — export functionality actively used; exports raw telemetry + session context as JSON
+- [x] `tests/storybook-context-recovery.test.ts` — test suite verifying storybook bundle serialization
+
+### Sprint 13.4 — Session Recovery & WebGL Context Loss Safety
+
+> **Audit note (2026-08-14):** `ContextRecoveryManager.ts` is **BUILT, NOT WIRED.** WebGL context loss handling exists in `Engine.ts` directly (`contextlost`/`contextrestored` listeners) rather than delegated to the manager.
+
+- [x] `ContextRecoveryManager.ts` — **BUILT, NOT WIRED.** Class complete; detects WebGL context loss, preserves state, restores GPU buffers (never instantiated; logic lives in `Engine.ts`)
+- [x] `Engine.ts` — `contextlost`/`contextrestored` event listeners active; context loss recovery working in production
+- [x] `tests/storybook-context-recovery.test.ts` — test suite simulating WebGL context loss and verifying recovery dispatch
+
+---
+
+## Phase 14 — WebXR Performance, GPU Caching & Memory Optimization ✅
+
+> **Focus:** Eliminate frame-time spikes and memory allocation garbage collection during WebXR analytics sessions on Meta Quest standalone hardware. Implement dynamic canvas texture diff caching, sub-range GPU buffer updates, and an adaptive 90 FPS frame governor.
+
+### Sprint 14.1 — Canvas Texture GPU Re-Upload Caching
+
+- [x] `CanvasTextureCacheManager.ts` — dirty-rect and content hashing manager for `MovablePanel` and `HandWheelMenu` preventing unnecessary dynamic canvas texture GPU re-uploads during user interaction
+- [x] `tests/canvas-texture-cache.test.ts` — test suite asserting canvas texture upload skip rate > 80% on unchanged UI frames
+
+### Sprint 14.2 — Sub-Range GPU Buffer Updates for InstancedPointCloud
+
+- [x] `InstancedPointCloud` partial buffer update methods (`updateSubRange(offset, count)`) allowing filtered and clustered point subsets to update GPU attribute sub-ranges without full geometry buffer rebuilds
+- [x] `tests/subrange-adaptive-governor.test.ts` — test suite verifying partial GPU attribute buffer updates
+
+### Sprint 14.3 — Adaptive WebXR Frame & Thermal Governor
+
+- [x] `AdaptiveFrameGovernor.ts` — continuously monitors WebXR frame render time; dynamically scales particle counts, LOD culling distances, and shadow resolution when frame time breaches 11.1ms (90 FPS target on Quest 3S)
+- [x] `tests/subrange-adaptive-governor.test.ts` — test suite simulating frame time spikes and verifying governor LOD scaling response
+
+---
+
+## Phase 15 — Collaborative Spatial Memory Palaces ✅
+
+> **Focus:** Enable multi-analyst spatial collaboration. Synchronize active datasets, filter states, 3D selection highlights, hand avatars, and spatial pointers across WebRTC peer connections.
+
+### Sprint 15.1 — Multi-User WebRTC Data Channel State Sync
+
+- [x] `CollaborativeStateSync.ts` — P2P WebRTC data channel state synchronizer replicating active dataset selection, filter operations, and camera transform vectors
+- [x] `tests/collaborative-sync.test.ts` — test suite verifying state broadcast and peer delta merging
+
+### Sprint 15.2 — Peer Avatars & Synchronized Spatial Pointers
+
+- [x] `PeerAvatarManager.ts` — renders lightweight headset & hand avatars for connected remote analysts with color-coded laser pointers and gaze target indicators
+- [x] `tests/peer-avatars-annotations.test.ts` — test suite verifying peer avatar transform updates
+
+### Sprint 15.3 — Shared Annotations & Co-Op Benchmark Sessions
+
+- [x] `SharedAnnotationManager.ts` — synchronized 3D spatial pin drop annotations and collaborative benchmark session scoring
+- [x] `tests/peer-avatars-annotations.test.ts` — test suite verifying annotation sync across peer sessions
+
+---
+
+## Phase 16 — Voice & Natural Language Spatial Query Engine ✅
+
+> **Focus:** Enable hands-free natural language spatial interaction. Parse spoken voice commands into Nemosyne operations and generate Web Speech API audio narration for analytics discoveries.
+
+### Sprint 16.1 — Web Speech API Natural Language Query Listener
+
+- [x] `VoiceCommandListener.ts` — Web Speech API speech recognition engine parsing spoken voice phrases (*"filter revenue above 200"*, *"show graph view"*, *"reset layout"*) into executable Nemosyne `Operation` commands
+- [x] `tests/voice-spatial-engine.test.ts` — test suite verifying intent classification and query parsing
+
+### Sprint 16.2 — Diegetic Audio Feedback & Narration
+
+- [x] `SpatialAudioNarrator.ts` — Web Speech API speech synthesis engine providing spoken audio narration for operation execution, anomaly alerts, and guided tour steps
+- [x] `tests/voice-spatial-engine.test.ts` — test suite verifying audio narration queueing and speech synthesis options
+
+---
+
+## Phase 17 — Architectural Hardening & Structural Refactoring ✅
+
+> **Focus:** Address structural debt, monolithic God objects, main-thread blocking operations, and network fragmentation identified in technical architecture critique.
+
+### Sprint 17.1 — Decompose `World.ts` Monolith
+
+- [x] `SceneGraphController.ts` — extract Three.js scene graph initialization, lighting, camera anchoring, and render loop setup
+- [x] `WorkspaceManager.ts` — extract dataset loading, active layout switching, and artifact registration
+- [x] `tests/world-controllers.test.ts` — test suite verifying decomposed scene graph & workspace controllers
+
+### Sprint 17.2 — Web Worker Offloading for Heavy Computations
+
+> **Audit note (2026-08-14):** Worker classes are **BUILT, NOT WIRED.** Both classes are complete with tests, but the main-thread parsing/solving paths remain active. Workers are never instantiated. Decision: main-thread performance is acceptable for current datasets (100k points load in <200ms); worker offloading can be revisited if main-thread blocking becomes critical. For now, the built workers serve as a reference implementation.
+
+- [x] `CSVParserWorker.ts` — **BUILT, NOT WIRED.** Class complete; would offload CSV/TSV parsing and type inference off the WebXR main render thread (never instantiated; main-thread parser in `FileLoader.ts` used instead)
+- [x] `DracoSolverWorker.ts` — **BUILT, NOT WIRED.** Class complete; would offload statistical fact extraction and Genetic Algorithm constraint solving (never instantiated; main-thread solver in `DracoTopologyNode.ts` used instead)
+- [x] `tests/worker-offloading.test.ts` — test suite verifying async worker message passing and result accuracy
+
+### Sprint 17.3 — Unified WebRTC Networking & Binary Pose Streaming
+
+- [x] `BinaryPoseSerializer.ts` — **WIRED.** Used in `CollaborativeStateSync.ts`; replaces high-frequency 20Hz `JSON.stringify` camera pose broadcasts with compact 32-byte binary `Float32Array` buffers
+- [x] `tests/binary-pose-governor-binding.test.ts` — test suite verifying binary pose serialization and state convergence
+
+### Sprint 17.4 — Connect `AdaptiveFrameGovernor` to Scene Renderers
+
+- [x] Bind `AdaptiveFrameGovernor` `_lodScaleFactor` directly to `InstancedPointCloud` instance counts (`applyLODScale()`)
+- [x] **WIRED.** Governor instantiated in `Engine.ts:82`, actively adjusts LOD during render loop
+- [x] `tests/binary-pose-governor-binding.test.ts` — test suite asserting active scene load shedding when governor throttles
+
+---
+
+## Phase 18 — Production Runtime Integration & Worker Hardening ✅
+
+> **Focus:** Wire Phase 17 architectural abstractions into production runtime loops of `World.ts`, `Engine.ts`, `CollaborativeStateSync`, and `InstancedPointCloud`. Implement dedicated Web Workers via Blob URLs and binary pose channel transport.
+
+### Sprint 18.1 — Wire `SceneGraphController` & `WorkspaceManager` into `World.ts`
+
+- [x] Instantiate and delegate scene graph setup, camera positioning, torso updates, and dataset state to `SceneGraphController` and `WorkspaceManager` inside `World.ts`
+- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting `World.ts` delegates to sub-controllers
+
+### Sprint 18.2 — Dedicated Web Workers (`Blob` URL Workers)
+
+- [x] Implement true dedicated Web Workers using Blob URL constructors (`Worker`) in `CSVParserWorker.ts` and `DracoSolverWorker.ts`
+- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting off-thread message passing
+
+### Sprint 18.3 — Binary WebRTC Pose Streaming Transport
+
+- [x] Wire `BinaryPoseSerializer` into `CollaborativeStateSync.ts` to transmit 32-byte ArrayBuffer camera poses instead of JSON strings
+- [x] `tests/production-runtime-wiring.test.ts` — test suite verifying ArrayBuffer transmission over WebRTC data channels
+
+### Sprint 18.4 — Closed-Loop Adaptive Governor Animation Integration
+
+- [x] Connect `AdaptiveFrameGovernor.recordFrame()` inside `Engine.ts` animation loop and push `lodScaleFactor` to active `InstancedPointCloud` instances
+- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting active frame time measurement and reactive point cloud scaling
+
+---
+
+## Phase 19 — Architectural Hardening & Zero-Copy Protocol ✅
+
+> **Focus:** Address multi-user peer collision vulnerability in binary pose sync, eliminate per-frame GC allocations via static typed array views, and complete reactive governor event loops.
+
+### Sprint 19.1 — Multi-User Binary Peer ID & Monotonic Sequence Tracking
+
+- [x] Add numeric peer ID header and sequence validation to `BinaryPoseSerializer` and `CollaborativeStateSync.ts` to prevent remote peer state collisions in 3+ user rooms
+- [x] Reuse static ArrayBuffer views to eliminate 3x object allocations per tick during 90Hz pose broadcasts
+- [x] `tests/zero-copy-network-sync.test.ts` — test suite verifying peer ID demuxing and sequence drop protection
+
+### Sprint 19.2 — Closed-Loop Governor Event Dispatch & Reactive Rendering
+
+- [x] Dispatch `WorldTopics.PERFORMANCE_THROTTLE` events when `AdaptiveFrameGovernor` adjusts `_lodScaleFactor`
+- [x] Bind `InstancedPointCloud` and layout particle instances to throttle events reactively
+- [x] `tests/governor-event-loop.test.ts` — test suite asserting reactive scene load shedding under throttle events
+
+### Sprint 19.3 — Delegate Workspace Node Lifecycle to WorkspaceManager
+
+- [x] Delegate dataset node group mounting, layout group cleanup (`clearDataset()`), and artifact node registration to `WorkspaceManager`
+- [x] `tests/workspace-node-lifecycle.test.ts` — test suite verifying workspace dataset node group delegation
+
+---
+
+## Phase 20 — Graphics Engine Optimization & 90 FPS WebXR Rendering ✅
+
+> **Focus:** Optimize WebGL render pipeline for Meta Quest 3S (11.1ms / 90 FPS budget). Eliminate per-frame GC allocations, bypass static UI canvas texture re-uploads via DJB2 state hashing, enable Early-Z culling, and harden WebGL context loss recovery.
+
+### Sprint 20.1 — Zero-Allocation Instanced GPU Buffer Pipeline
+
+- [x] Eliminate per-frame object allocations in `InstancedPointCloud.setPoints()`; reuse static `InstancedBufferAttribute` typed arrays and update sub-ranges
+- [x] Enable `depthWrite: true` and `depthTest: true` on instanced point materials to enable Meta Quest 3S TBDR Early-Z culling
+- [x] Fix `DracoTopologyNode` mesh pool release/disposal lifecycle
+- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying buffer re-use and sub-range update flags
+
+### Sprint 20.2 — UI Canvas Texture Upload Bypassing
+
+- [x] Integrate `CanvasTextureCacheManager` into `MovablePanel.render()` to compute DJB2 state hashes
+- [x] Bypass `texture.needsUpdate = true` on static UI frames to eliminate 3-6ms GPU upload stalls
+- [x] `tests/zero-alloc-instanced-buffer.test.ts` — test suite verifying texture upload bypass on unchanged UI state
+
+### Sprint 20.3 — Robust WebGL Context Loss & GPU Buffer Recovery
+
+- [x] Consolidate `webglcontextlost` and `webglcontextrestored` handling into `ContextRecoveryManager.ts`
+- [x] Re-flag geometry buffer attributes dirty and force material re-compilation on context recovery
+- [x] `tests/storybook-context-recovery.test.ts` — test suite verifying scene restoration after context loss
+
+### Sprint 20.4 — Closed-Loop 90 FPS Governor Load Shedding
+
+- [x] Measure frame deltas via `XRFrame` timestamps and push `lodScaleFactor` directly into `InstancedPointCloud.applyLODScale()` during `Engine._tick()`
+- [x] `tests/production-runtime-wiring.test.ts` — test suite asserting reactive load shedding under GPU load
+
+
+
+
+---
+
+## Imported source: `Roadmap to stable alpha release.md`
+
+\# Nemosyne — Roadmap to Stable Release  
+\> **Historical planning document.** `docs/ROADMAP.md` and `docs/study/` are authoritative.
+\#\#\# (MVP feature set \+ NFRs \+ UX sufficient to make the core hypothesis seamlessly testable)
+
+\*\*Revision note:\*\* this version incorporates a definitional correction to what "Stable"  
+means for a research instrument. The original cut of this roadmap treated all  
+collaboration as post-MVP, on the logic that Nemosyne's usefulness should be validated  
+solo before multiplayer is worth building. That logic still holds for \*\*collaborative  
+analysis\*\* (multiple analysts jointly manipulating one space) — but it was too broad,  
+because it also swept up \*\*observational collaboration\*\* (a researcher entering a  
+participant's session to watch, record, and minimally direct a study trial), which isn't  
+a product feature at all — it's part of the experimental apparatus the flagship study  
+needs to run. A study with no way for a researcher to see what the participant is doing  
+beyond a telemetry log loses the qualitative/behavioral evidence stream entirely, which  
+the earlier scoping under-weighted. That distinction is threaded through the gates below.
+
+\*\*Revision 2 note:\*\* this pass adds the piece the prior revision was still missing —  
+Gate 2.5 (observation) tells you what happened in \*one\* session; nothing previously in  
+this roadmap made \*many\* sessions add up to a defensible experiment. Added: Gate 5  
+(Experimental Validity & Study Harness — trial data model, counterbalancing, outcome  
+capture, an explicit canonical 2D control, an experimental confound register, and a data-  
+governance layer covering consent/minimization/pseudonymization/retention, all confirmed  
+via direct code search to not exist anywhere in the codebase today) and Gate 6 (Stable  
+Release Candidate — a freeze/rehearsal gate, not new work). Also tightened: Gate 0's exit  
+criterion (now auditable against a concrete defect list rather than an unprovable  
+absolute), Gate 2's exit criteria (now an observable checklist), and a Gate 4 item that  
+had gone stale against Gate 2.5's own reclamation of previously-dead-code classes.
+
+\*\*Grounding:\*\* every item below was independently verified against the codebase across  
+multiple review passes (build/typecheck/lint/test re-runs, direct source inspection with  
+file:line citations, and — where noted — cross-checked against the project's own  
+\`docs/ROADMAP.md\`, which I independently found to be accurate wherever spot-checked). One  
+item below (the orphaned \`WebGLRenderer\`) was re-verified in this pass specifically, down  
+to confirming it's constructed unconditionally in the main \`World.ts\` path and never  
+disposed.
+
+\*\*Framing.\*\* "Stable release" here is defined narrowly and deliberately: not feature-  
+complete, not scaled, not collaboration-ready — the smallest, most honest version of  
+Nemosyne capable of running one real study (2D vs. VR-3D on a defined task)
+without the \*infrastructure itself\* being a confound. A crash, a security hole, a UI bug  
+that silently excludes colorblind participants, or a wheel menu that double-fires under  
+observation are not just quality issues here — they invalidate any data collected on top  
+of them. That reframes prioritization: fix what would corrupt the experiment before  
+building anything the experiment doesn't need.
+
+\*\*Revision 3 note (final addition per this round of review):\*\* adds the core hypothesis  
+statement, a data dictionary requirement, event sequencing for cross-stream correlation,  
+a frozen experiment package for Gate 6, and a Release Evidence Matrix — the five items  
+this round's review asked for, plus the smaller tightenings it flagged alongside them  
+(deterministic reproduction fixtures in Gate 0, a semantic-vs-structural comprehension  
+check in Gate 2's exit criteria, experience-quality measures in Gate 3, and a validated-  
+instrument caveat on Gate 5's workload measure). Per that review's own recommendation,  
+this is intended as the last structural revision — the next step is execution, not more  
+roadmap.
+
+\---
+
+\#\# Core Hypothesis & Research Questions  
+\*Added so the roadmap is self-contained rather than referring to "the core hypothesis"  
+without ever stating it.\*
+
+\*\*Core hypothesis:\*\* for defined analytical tasks involving relationships and  
+multidimensional structure, spatial representation and embodied interaction can improve  
+human discovery and understanding compared with conventional 2D representation, without  
+unacceptable costs in precision, workload, navigation, or comfort.
+
+\*\*Research questions this roadmap exists to make answerable:\*\*  
+\- RQ1: Where does spatial representation help?  
+\- RQ2: Where does it hurt?  
+\- RQ3: What interaction costs does it introduce?  
+\- RQ4: Does spatial context improve recall?  
+\- RQ5: Which representation characteristics predict benefit?
+
+Every gate below should be read against one question: does this reduce the risk that the  
+eventual answer to RQ1–RQ5 is contaminated by something other than the variable being  
+studied? Gates 0/1 protect against infrastructure contamination; Gate 2 protects against  
+"the task was too hard to attempt" contamination; Gate 2.5 and Gate 5 protect against  
+protocol/measurement contamination; Gate 3 protects against "the hardware couldn't  
+actually run it" contamination; Gate 4 protects against future readers trusting claims  
+that don't match what shipped; Gate 6 is the check that all of the above actually held on  
+a full rehearsal, not just in isolation.
+
+\---
+
+\#\# Release Evidence Matrix & Status Vocabulary  
+\*Moved here from its prior position after Gate 6, on the logic that this is the roadmap's  
+operational definition of "done" — every gate below should be read against it rather than  
+each gate inventing its own notion of complete.\*
+
+\*\*Canonical status vocabulary\*\* (formalizing the evidence hierarchy already present in  
+the project's own \`docs/ROADMAP.md\`, applied consistently rather than left to individual  
+sections): 🟢 Implemented → 🔵 Automated-tested → 🟡 Human-validated → 🟠 Demonstrated  
+useful → 🔴 Demonstrated superior. This roadmap uses it as follows — note the deliberate  
+asymmetry in the last row:
+
+| Capability area | Minimum required level for Stable |  
+|---|---|  
+| Runtime integrity (Gate 0\) | 🔵 Automated-tested |  
+| Participant UX / analyst journey (Gate 2\) | 🟡 Human-validated |  
+| Observer mode (Gate 2.5) | 🟡 Human-validated |  
+| Hardware performance (Gate 3\) | 🟡 Human-validated, hardware-specific |  
+| Canonical 2D control (Gate 5\) | 🟡 Human-validated |  
+| Study harness (Gate 5/6) | 🟡 Rehearsal-validated (Gate 6's full dry run) |  
+| \*\*Core research hypothesis itself\*\* | \*\*Not required for release\*\* |
+
+That last row is the point of this table: \*\*Stable is defined as what makes the  
+hypothesis testable, not as proof the hypothesis is true.\*\* Nothing in this roadmap  
+requires Nemosyne to already be demonstrated superior to 2D before shipping Stable — that  
+result, whichever direction it goes, is what the first study is for.
+
+\*\*Capability-level tracking\*\* (kept current as gates close — the single place to check  
+"is Nemosyne actually ready" without re-reading every gate's prose):
+
+| Capability | Code | Automated test | Human-validated | Hardware | Gate | Study impact if missing |  
+|---|---|---|---|---|---|---|  
+| Wheel (dominant-hand, no double-fire) | 🟢 | 🔲 | 🔲 | 🔲 | Gate 0/2 | High — corrupts interaction-error counts |  
+| Compare operation | 🔲 | 🔲 | 🔲 | 🔲 | Gate 2 | Critical — flagship task depends on it |  
+| Colorblind-safe data encoding | 🔲 | 🔲 | 🔲 | 🔲 | Gate 2 | Critical — silent participant-subgroup confound |  
+| Observer console (Passive/Prompt/Assisted) | 🟢 (reclaimed) | 🔲 | 🔲 | 🔲 | Gate 2.5 | Critical — no qualitative evidence stream without it |  
+| Canonical 2D control | 🔲 | 🔲 | 🔲 | N/A | Gate 5 | Critical — weakens the entire comparison's claim |  
+| Session/trial recording \+ event sequencing | 🔲 | 🔲 | 🔲 | 🔲 | Gate 2.5/5 | Critical — un-triangulable evidence |  
+| Load-test data on real Quest hardware | 🟢 (harness only) | 🔲 | 🔲 | 🔲 | Gate 3 | High — every UI comfort/perf decision is unvalidated without it |
+
+🟢 marks genuine existing capability, code-verified directly against the repository, not  
+aspiration; 🔲 marks everything this roadmap treats as a blocking Stable-release item.
+
+\---
+
+\#\# Gate 0 — Runtime & Resource Integrity  
+\*Theme: Architecture \+ Tech Debt. Exit criterion: no known P0/P1 lifecycle, crash,  
+corruption, or resource-leak paths remain within the supported Stable Release workflows,  
+and adversarial/error-path tests cover the identified failure classes. (Sharper than "the  
+app doesn't leak under any input a participant could produce" — that's the right intent  
+but isn't literally provable; this version is auditable against a concrete defect list.)\*
+
+| Item | Evidence | Why it blocks the study |  
+|---|---|---|  
+| \*\*Orphaned second \`WebGLRenderer\`.\*\* \`SceneGraphController.ts:47\` constructs a full second \`THREE.WebGLRenderer\` unconditionally; \`World.ts:206\` instantiates the controller and never calls its \`dispose()\`. Two live GPU contexts on Quest hardware is not cosmetic — it's a resource leak in the most resource-constrained deployment target. | Verified directly this session | GPU exhaustion mid-session would look like "Nemosyne is slow/unstable," confounding any performance or comfort measurement in the study |  
+| \*\*Material/texture leak on repeated Draco synthesis.\*\* Roadmap-flagged, consistent with the general pattern of no-dispose paths found elsewhere in the graphics layer. | \`docs/ROADMAP.md\` §22.9, consistent with independently-verified renderer leak above | A study session that involves swapping representations repeatedly (exactly what "Find the Fraud" requires) would accumulate leaked GPU memory over the session length |  
+| \*\*Stale \`DataView\` after \`wasm.memory.grow()\`.\*\* Cross-validated by three independent reviewer passes per the roadmap; a growable-memory read that goes stale silently returns wrong data rather than erroring. | \`docs/ROADMAP.md\` §22.8 | Silent data corruption is the worst failure mode for a data-analysis research tool specifically — wrong numbers with no error is worse than a crash |  
+| \*\*WASM \`leaves()\` unbounded recursion → stack-overflow trap.\*\* Reachable via the standard \`data\_operation\` ABI on a degenerate merge-history chain. | \`wasm/src/data/operations.rs:453-464\`, roadmap-verified | An unusual but plausible participant interaction pattern (many undo/redo cycles) shouldn't be able to hard-crash the WASM instance mid-study |
+
+\*\*Build. No design decisions required — these are defects.\*\* Each of the four items above  
+should ship with a minimal reproduction fixture or a deterministic regression test, not  
+just a fix — "we believe this is resolved" is weaker than "here is the test that fails  
+before the fix and passes after," and a research instrument specifically needs to be able  
+to answer "can we reproduce the failure on demand" if something looks wrong mid-study.
+
+\---
+
+\#\# Gate 1 — Security & Role Integrity  
+\*Theme: Security. Renamed from "Security Baseline for Any Multi-Party Testing" — that  
+conditional framing is now obsolete, since Gate 2.5 makes observational research part of  
+Stable and every study session is multi-party by definition. Exit criterion: identity,  
+role boundaries, and the participant/observer distinction are enforced by the system, not  
+assumed.\*
+
+| Item | Evidence | Severity |  
+|---|---|---|  
+| \*\*Signalling \`from\` spoofing.\*\* \`SignallingServerCore.ts\`: \`message.from ?? peerId\` lets a client override the authenticated identity in relayed messages. | Verified verbatim this session | P1 — any multi-peer or remote-observer study condition needs real identity integrity |  
+| \*\*No per-peer rate limiting on the signalling server.\*\* A flood peer can exhaust a room. | Roadmap §22.8 | P2, but relevant if any study session is remotely proctored |  
+| \*\*CSV missing the \`\_\_proto\_\_\`/\`constructor\`/\`prototype\` filter that JSON has.\*\* \`Parsers.ts:50\` filters JSON columns; the CSV path has no equivalent filter anywhere in the file. | Verified directly this session — confirmed worse than "inconsistent," CSV has none at all | P2 — a malicious or malformed study dataset file could pollute \`Object.prototype\` |  
+| \*\*Vite dev-server signalling silently broken.\*\* \`request.url \!== '/\_\_signal'\` bails before query-param parsing runs, so local dev multiplayer never connects. | Verified verbatim this session | Dev-only, but blocks the team from locally testing any collaborative study condition before it ships |
+
+\*\*Build the P1/P2 items if any study condition is multi-party; the dev-only item should  
+be fixed regardless since it currently blocks the team's own ability to test collaboration  
+locally.\*\*
+
+\*\*Revised scope, given Gate 2.5 below: this gate is no longer conditional.\*\* Once  
+observational collaboration (researcher-as-observer) is promoted into the Stable release,  
+every study session involves at least two parties (participant \+ observer) by definition.  
+The identity-spoofing and rate-limiting items move from "build if multi-party" to  
+"build, full stop" — a study protocol depends on the researcher's view of the session  
+being trustworthy, and \`message.from ?? peerId\` currently means nothing stops a session  
+from being spoofed by a third party mid-trial. One addition specific to observation:
+
+\- 🔲 \*\*No role/permission model exists at the network layer.\*\* Confirmed by direct  
+  inspection: \`NetworkManager.ts\`/\`Room.ts\` have no concept of role at all — every peer  
+  is currently symmetric. This is the actual blocker for observer mode, not a missing  
+  UI: the wire protocol needs an explicit \`role: 'participant' | 'observer'\` distinction  
+  before anything else in Gate 2.5 can safely ship, because without it an "observer"  
+  session is really just a second, unrestricted participant with no code-level barrier  
+  stopping it from manipulating the analytical state mid-trial.  
+\- ⚪ \*\*A third \`operator\` role is not being added.\*\* Considered and deliberately deferred:  
+  the two-role model (participant, observer) covers the study as currently scoped, and a  
+  separate infrastructure-operator role should only be built if a real need for someone  
+  distinct from the researcher/observer actually shows up — not pre-built for theoretical  
+  completeness.
+
+\---
+
+\#\# Gate 2 — The One Analyst Journey (MVP feature set)  
+\*Theme: UI/UX \+ Architecture. Exit criterion: a first-time participant can complete one  
+defined task (the "Find the Fraud" scenario) start to finish without needing anything  
+outside this list. This is deliberately narrower than the full feature set — the MVP  
+question is "what does the flagship task need," not "what has been built."\*
+
+\*\*Navigation (reworked from the prior synthesis, re-scoped here for the study specifically):\*\*  
+\- 🔲 Dominant-hand wheel-menu binding \+ pinch double-toggle fix (prerequisite for  
+  everything else in this gate — an input layer that double-fires or binds to the wrong  
+  hand will read as "the participant made an error" in study data when it was the tool)  
+\- 🔲 Lens dock: consolidate the six existing hidden-by-default panels into one tabbed  
+  surface, so a participant isn't left guessing which of eight toggles surfaces what  
+\- 🔲 Wheel content scoped to the task: Explore / Inspect / Compare / Annotate only —  
+  not the full six-category taxonomy, which the task doesn't need and which adds  
+  interaction-cost variance the study doesn't want to measure by accident  
+\- 🔲 Minimal Observatory (dataset load \+ one saved view) — collaboration entry  
+  explicitly excluded from MVP scope
+
+\*\*Missing core capability:\*\*  
+\- ✅ \*\*First-class Compare operation.\*\* Implemented in `7649446` as a dedicated
+  (verified: \`DatasetOperations.ts\` has diff-adjacent ops but no unified compare-selected-  
+  vs-baseline capability). This is not a nice-to-have — "Find the Fraud" and most  
+  plausible study tasks are fundamentally comparison tasks (selected vs. population,  
+  anomaly vs. baseline). Without it, the flagship study can't be run as designed.  
+\- 🔲 \*\*Draco explainability surface ("Why this view?").\*\* The recommender  
+  (\`ConstraintEngine.ts\`) already computes scored, weighted rationale internally — it's  
+  not exposed to the user. For a study measuring trust/comprehension of an AI  
+  recommendation, this needs to be visible, not just logged to the diagnostic HUD.
+
+\*\*Accessibility (promoted from "nice to have" to MVP because it's a validity issue, not  
+just a UX issue):\*\*  
+\- ✅ \*\*Colorblind data encoding.\*\* Implemented in `7649446`;
+  `categoricalColor()` uses a dedicated colorblind-safe palette when the mode is active. If the study recruits a
+  representative sample and doesn't screen for color vision, this isn't just an  
+  accessibility gap — it's a confound that would silently degrade a subset of  
+  participants' task performance for reasons unrelated to the variable being studied.  
+  The implementation uses a dedicated colorblind-safe categorical palette (Okabe–Ito), not just wiring the
+  existing 4-role \`remapColor()\` into a 6+-category use case (confirmed that would still  
+  collapse same-hue-family categories).  
+\- 🔲 Text legibility pass (frosted panel backing, minimum contrast) — same logic: illegible  
+  text is a confound for a comprehension-measuring study, not just a polish item.
+
+\*\*Explicitly NOT in this gate (deferred, not because they're bad ideas but because the  
+flagship task doesn't need them):\*\* full context-sensitive wheel states beyond the task's  
+four actions, the "Inquiry Wheel" semantic reframe, menu memory, TDA/persistence-diagram  
+lenses (already correctly made on-demand/hidden per Sprint 22.2 — keep it that way for  
+MVP), voice interaction, multi-peer collaboration.
+
+\*\*Gate 2 exit criteria (observable, not aspirational):\*\* a first-time participant, with  
+only the in-tool onboarding (guided tour / JIT gesture hints — no researcher instruction  
+beyond consent and task framing), can: begin the session unassisted; identify the target  
+representation/artifact for the task; inspect it; compare it against a baseline/population  
+using the new Compare operation; capture the finding (annotation/export); recover from at  
+least one induced error state (e.g. a bad selection, an accidental delete) without the  
+session becoming unrecoverable; resume a previously saved session; and, where the task  
+depends on it, correctly distinguish a semantic spatial encoding (position that represents  
+a data variable) from a purely structural/layout relationship (position that's just where  
+the layout algorithm put something) — this last one matters specifically because the  
+project's own research notes already flag that a participant seeing a cluster doesn't  
+necessarily understand what "cluster" means, and a study measuring comprehension needs to  
+know whether false spatial inference is happening, not just whether the participant found  
+the right node. This list is  
+deliberately binary/checklist rather than a numeric threshold — the pilot run is what  
+should generate the first real success-rate/time targets, not a number invented before  
+any data exists.
+
+\*\*Operational note (execution-level, not a scope change):\*\* run this gate's dry run with  
+two perspectives at once, not one — a naive participant completing the task, and the  
+researcher attempting to observe/score that same run via Gate 2.5's console. A workflow  
+that a participant can complete but a researcher can't reliably score is not actually  
+done; the two dry runs are cheap to combine once the basic flow exists and catch this  
+class of gap early rather than at Gate 6\.
+
+\---
+
+\#\# Gate 2.5 — Research Observation (promoted from Parked → Stable)  
+\*Theme: Architecture \+ Security \+ UI. Exit criterion: a researcher can join a running  
+participant session as a non-participating observer, see what the participant sees and  
+does, mark timestamped qualitative observations, and — only in explicitly permitted  
+protocol states — issue predefined prompts. Not collaborative editing; a distinct,  
+asymmetric role.\*
+
+\*\*Why this belongs in Stable, not Parked:\*\* the original scoping treated "collaboration"  
+as one thing and deferred all of it. That was wrong for this specific sub-case. Without  
+observation, the flagship study is reduced to whatever automated telemetry captures — a  
+dwell-time number with no way to know whether it means careful reading or confused  
+circling. The roadmap's own \`UXFrustrationAnalyzer\` already makes exactly this point  
+about telemetry alone being ambiguous without human judgment; observation is the missing  
+half of that argument, not a separate feature request.
+
+\*\*What already exists and can be repurposed, verified this session (zero call sites,  
+i.e. dead but real code, not vaporware):\*\*  
+\- 🔲 \*\*\`AsymmetricDesktopCompanion\`\*\* — confirmed built, confirmed never instantiated  
+  anywhere in \`src/\`. Its existing feature set (view-follow camera sync, bookmark  
+  quick-jump, peer-presence display, spectator text comments) is, structurally, most of  
+  what an observer console needs already. This substantially de-risks Gate 2.5: it is a  
+  wiring-and-extension task, not a from-scratch build.  
+\- 🔲 \*\*\`PeerAvatarManager\` / \`CollaborativeStateSync\`\*\* — also confirmed built, zero call  
+  sites. Relevant to observer mode only for the participant's avatar/pose visibility  
+  piece (so the researcher can see head/hand movement, not just a camera feed);  
+  full bidirectional collaborative-analysis semantics remain out of scope.
+
+\*\*What's genuinely new (not a rewiring of existing dead code):\*\*  
+\- 🔲 \*\*Explicit participant/observer role model at the network layer\*\* (see Gate 1  
+  addition above) — the actual architectural prerequisite.  
+\- 🔲 \*\*Protocol-state machine: Passive / Prompt / Assisted.\*\* Every trial records which  
+  mode was active. Passive \= observer cannot act on the session at all beyond viewing;  
+  Prompt \= observer can trigger a small set of predefined prompt strings/events, nothing  
+  freeform; Assisted \= observer may intervene per protocol. This needs to be enforced in  
+  code (the observer's client literally cannot send manipulation events while in Passive  
+  mode), not just a researcher instruction to "please don't touch anything" — the whole  
+  point is that the system, not the honor system, guarantees the participant's data isn't  
+  contaminated by unrecorded intervention.  
+\- 🔲 \*\*Minimal researcher console.\*\* Session/participant ID, elapsed time, current  
+  dataset/representation/selection/task-state readout, a small fixed set of observation  
+  tags (confusion / hesitation / discovery / navigation-difficulty / gesture-difficulty /  
+  verbal-query) plus a free-text timestamped note field, and trial controls (mark, pause,  
+  resume, reset). Explicitly not required to be polished — "reliable and low-distraction"  
+  is the bar, not production UI quality, since this is a researcher-facing tool, not a  
+  participant-facing one and isn't part of the MVP feature set participants experience.  
+\- 🔲 \*\*Session recording schema\*\*: participant ID, condition, task, timestamp, event type,  
+  observation tag/note, and the analytical state snapshot at that moment — structured so  
+  it can be joined against the automated telemetry stream after the fact (the  
+  triangulation the study design depends on: quantitative time-on-task \+ behavioral  
+  telemetry \+ qualitative observation, correlated by timestamp).  
+\- 🔲 \*\*Event sequencing / clock correlation.\*\* Wall-clock timestamps alone aren't reliable  
+  enough once observer notes, participant telemetry, and network-relayed events are being  
+  correlated across potentially-varying latency — "researcher observed X at time T" needs  
+  to actually line up with "participant state was X at time T." Every event this gate  
+  produces should carry \`sessionId\`, \`trialId\`, a monotonic per-session sequence number,  
+  both client and server timestamps. This is a small, mechanical addition on top of the  
+  recording schema above, not a new subsystem — but it's the difference between "these  
+  logs happened around the same time" and "these logs can be reliably joined."  
+\- 🔲 \*\*Every observer action is its own logged event, not just the protocol-state label.\*\*  
+  Not merely recording that a trial ran in Prompt mode — record \`observer.entered\`,  
+  \`observer.prompted\`, \`observer.paused\`, \`observer.resumed\`, \`observer.marked\`,  
+  \`observer.reset\`, \`observer.assisted\` as discrete, timestamped events. This is what makes  
+  the intervention history reconstructable after the fact (did the researcher prompt once  
+  or five times? when, relative to the participant's own actions?) rather than a single  
+  opaque mode label covering the whole trial.
+
+\*\*Explicitly still NOT in Gate 2.5 (remains Parked, per the original collaborative-  
+analysis reasoning, which still holds for this half):\*\* two analysts jointly manipulating  
+one dataset, shared editable annotations, multi-user co-navigation, voice chat, avatar  
+social expression, conflict resolution for simultaneous edits. The distinction that  
+matters: an observer has \*read visibility plus a narrow, code-enforced action allowlist\*;  
+a collaborator has \*general write access to shared state\*. Only the former is required to  
+run the study.
+
+\---
+
+\#\# Gate 3 — Non-Functional Requirements: Hardware Validation  
+\*Theme: NFRs. Exit criterion: the performance and comfort claims embedded in every other  
+gate above are backed by real measurement, not mocked-GL unit tests. This is the single  
+largest standing gap identified across this entire review series.\*
+
+\*\*Operational note: this is continuous qualification feeding UX, not a validation step  
+that waits for Gate 2 to be finished.\*\* Take the first real Quest measurement as soon as  
+the flagship task is minimally runnable, not after the analyst journey is declared  
+polished — hardware may reveal the dashboard is too close, text is too small, the wheel  
+interaction is tiring, or tracking degrades during the exact task workflow, and those  
+findings are far cheaper to act on before the UX is considered settled than after. The  
+formal exit gate below still applies; the point is not to defer contact with hardware  
+until then.
+
+\- 🔲 \*\*Run the load-test harness on real Quest hardware.\*\* The harness itself  
+  (\`LoadTestPanel\`, staircase driver, frame-time/dropped-rate/JS-heap collection) is built  
+  and unit-tested, but \`logs/loadtest-results.jsonl\` does not exist — it has never  
+  actually been run on a headset. This blocks a real go/no-go on the WASM command-buffer  
+  question, and blocks knowing whether the flagship study's target dataset size will even  
+  run acceptably.  
+\- 🔲 \*\*Real-GL smoke coverage exists but is explicitly non-blocking and doesn't touch  
+  \`navigator.xr\`.\*\* The Playwright smoke test (verified this session) is a legitimate step  
+  up from fully-mocked WebGL, but it's headless Chromium, not a headset — it cannot answer  
+  "does hand tracking work," "is text readable at arm's length in-headset," or "does the  
+  comfort vignette actually reduce reported discomfort." None of these have been measured.  
+\- 🔲 \*\*Formalize as a hardware-validation matrix\*\*, per the roadmap's own research section:  
+  device × {startup, hand tracking, controller, target dataset size, comfort, text  
+  readability, reduced motion} with firmware/browser version recorded per cell — not ad  
+  hoc spot-checks.  
+\- 🔲 \*\*Extend the matrix beyond raw performance to experience quality\*\*: task-interruption  
+  rate, tracking-loss rate, time-to-recovery from tracking loss, self-reported discomfort,  
+  observer-rated confusion (feeds from Gate 2.5's tags), and text readability at actual  
+  in-headset viewing distance. FPS/dropped-frames/heap alone can look fine while the  
+  actual experience doesn't — these measures are what would actually explain a bad study  
+  result on the hardware axis rather than just confirming frame budget was met.
+
+\*\*This gate has no code-fix component — it's a data-collection exit criterion that gates  
+whether Gate 2's UI decisions (panel distance, text scale, comfort vignette) can be  
+trusted as-shipped or need revision once real data exists.\*\*
+
+\---
+
+\#\# Gate 4 — Tech-Debt Cleanup That Affects Trustworthiness of Results  
+\*Theme: Tech Debt. Exit criterion: the documentation and dead-code surface area  
+accurately reflects what's shipping in the stable release, so nobody (including the team)  
+mistakes aspirational capability for tested capability.\*
+
+\- 🔲 \*\*Correct the stale roadmap claim.\*\* \`docs/ROADMAP.md:201\` still checks off  
+  "colorblind-safe palettes" as complete under the historical Phase 10 record, directly  
+  contradicted by the accurately-tracked open gap 450 lines later in the same document.  
+  Fix before the stable release, not after — an internally contradictory source-of-truth  
+  document is itself a tech-debt item.  
+\- 🔲 \*\*Reconcile the four-tier vs. two-tier instancing spec drift.\*\* \`CLAUDE.md\` documents  
+  four discrete LOD bands; the actual code implements two plus an adaptive scale factor.  
+  Per the roadmap's own recommended default: correct the spec to match reality unless  
+  Gate 3's load-test data shows the middle band actually matters. Cheap, and removes a  
+  documentation claim that overstates the system's sophistication to anyone auditing it  
+  (including future study reviewers/reproducers).  
+\- 🔲 \*\*Decide the fate of remaining built-but-never-wired classes.\*\* \`BinaryPoseSerializer\`  
+  and any collaborative-analysis-only pieces of \`CollaborativeStateSync\` not claimed by  
+  Gate 2.5 (see below) remain zero-call-site dead code as of this review and should be  
+  explicitly marked out-of-scope/deferred in code comments or removed from the build for  
+  the Stable cut, not left as ambiguous "is this shipping or not" surface area.  
+  \*\*Correction from the prior revision of this roadmap:\*\* \`AsymmetricDesktopCompanion\`,  
+  \`PeerAvatarManager\`, and the pose-sync portion of \`CollaborativeStateSync\` are no longer  
+  in this "undecided" bucket — Gate 2.5 explicitly claims them as the observer-console  
+  scaffold, so they're deferred-then-reclaimed, not deferred-then-deleted. This item exists  
+  specifically so that reclamation is recorded in one place rather than left implicit.
+
+\---
+
+\#\# Gate 5 — Experimental Validity & Study Harness  
+\*Theme: NFRs \+ Data Governance. Exit criterion: the flagship study can be run,  
+repeated, and defended methodologically — not just "the software works," but "the  
+resulting numbers mean what they claim to mean." Confirmed by direct code search: no  
+trial, condition, counterbalancing, or consent concept exists anywhere in the codebase  
+today (the one hit for "consent" is an unrelated telemetry opt-in toggle used during load  
+tests). This gate is genuinely greenfield, unlike Gate 2.5 — there is no dead code to  
+reclaim here.\*
+
+\*\*Why this is a separate gate from Gate 2.5, not a subset of it:\*\* Gate 2.5 gives a  
+researcher eyes on one session. Gate 5 is what makes many sessions, run under different  
+conditions by different participants, add up to a comparison that means anything.  
+Conflating them was the gap in the prior revision — Gate 2.5 answers "can I watch a  
+trial," Gate 5 answers "do fifty trials constitute an experiment."
+
+\- 🔲 \*\*Study/trial data model.\*\* Explicit \`participantId\` (pseudonymous, e.g. \`P014\`, not  
+  a real identifier — see governance below), \`trialId\`, \`condition\` (2D / VR-3D),
+  VR-3D), \`taskId\`, \`protocolVersion\`. None of this exists today; it needs to be added as  
+  a first-class layer above the existing per-session save format in  
+  \`WorldSessionController\`, not folded into it.  
+\- 🔲 \*\*Condition counterbalancing.\*\* If every participant runs 2D → VR in
+  the same order, practice effects confound the result indistinguishably from a real  
+  spatial-representation effect. Needs an assignment mechanism (e.g. Latin square across  
+  participants), recorded per trial so order can be checked as a covariate later.  
+\- 🔲 \*\*Explicit trial-state machine\*\*: started / paused / resumed / completed / failed /  
+  reset, each timestamped. Without this, "the participant restarted" and "the session  
+  crashed" are indistinguishable after the fact — exactly the ambiguity that makes a  
+  result "scientifically squishy" rather than defensible.  
+\- 🔲 \*\*Outcome capture\*\*: answer, correctness (against a scored ground truth per task),  
+  completion time, confidence rating, and a workload measure. \*\*Use a validated instrument  
+  (e.g. the standard NASA-TLX protocol) or an explicitly-documented custom short-form  
+  instrument, clearly labeled as custom\*\* — don't casually modify a validated instrument  
+  and still call it by that name, since that would make results non-comparable to  
+  published literature under a false pretense. The roadmap doesn't need to prescribe which  
+  option yet, but the choice needs to be made and stated, not left ambiguous. This is new  
+  UI, but small — a handful of end-of-trial prompts, not a feature.  
+\- 🔲 \*\*Triangulation join key.\*\* Gate 2.5's recording schema already timestamps  
+  observations; Gate 5 needs the automated telemetry stream, the trial/outcome data above,  
+  and the observer log to share one join key (\`trialId\` \+ timestamp) so they can be  
+  correlated after the fact without manual reconciliation.  
+\- 🔲 \*\*Canonical 2D control, as its own implementation milestone — not an afterthought.\*\*  
+  The 2D condition needs the \*same\* dataset, task wording, scoring rubric, and analytical  
+  semantics as the VR condition, built and versioned alongside it, not
+  assembled ad hoc when the study is about to run. Without this, the comparison is  
+  "Nemosyne vs. some other tool," not "Nemosyne vs. 2D" — a materially weaker claim.  
+\- 🔲 \*\*Experimental confound register.\*\* A living document (separate from, but  
+  cross-referenced by, this roadmap) tracking known non-technical confounds and how each  
+  is controlled or intentionally left as a variable: representation-explanation parity  
+  (does the VR participant get more onboarding than the 2D participant?), input-training  
+  parity, researcher-intervention asymmetry (tracked automatically via Gate 2.5's  
+  Passive/Prompt/Assisted state — this is the one confound Gate 2.5 already instruments),  
+  practice/repeated-dataset effects, interface novelty (treated explicitly as a variable  
+  to measure, not a defect to eliminate).
+
+\*\*Data governance layer (new — not previously in this roadmap):\*\*  
+\- 🔲 \*\*Data dictionary.\*\* For every captured field, not just the storage schema: source  
+  (e.g. XR camera pose vs. derived from task events), meaning, unit, sampling rate,  
+  whether it's raw or derived, retention class, and whether it's disclosed to the  
+  participant. E.g. \`headYaw\` — source: XR camera pose, unit: radians, sampling: per  
+  frame, derived: no, retention: ephemeral; versus \`navigationTime\` — source: derived from  
+  task events, unit: ms, sampling: per trial, derived: yes, retention: study dataset. This  
+  is a small addition on top of the schema work above but pays for itself the moment  
+  analysis starts — without it, "what does this column actually mean" becomes a research  
+  question of its own.  
+\- 🔲 \*\*Consent.\*\* What is recorded (telemetry, pose/gaze data, observer notes, any session  
+  recording) and why, disclosed to the participant before the trial starts — this is a  
+  protocol/paperwork requirement with a system-design consequence: the software needs a  
+  documented, inspectable list of exactly what it captures, not a vague "we log stuff."  
+\- 🔲 \*\*Data minimization.\*\* Decide per data stream whether raw trajectories or only  
+  derived measures (e.g. dwell time, not full gaze-ray history) are actually needed —  
+  driven by the study design in this gate, not collected by default because the telemetry  
+  system happens to be capable of it.  
+\- 🔲 \*\*Pseudonymization.\*\* Participant IDs, not names, inside any exported dataset —  
+  applies to the \`participantId\` field above and to Gate 2.5's session recording schema.  
+\- 🔲 \*\*Retention and deletion.\*\* How long recordings/observations are kept, and a real  
+  "export and delete this participant's complete session" path — not just a database  
+  row deletion, since Gate 2.5's data spans telemetry, observer notes, and analytical  
+  state snapshots that need to be deleted together.  
+\- 🔲 \*\*Observer visibility to the participant.\*\* The participant should have a clear,  
+  in-session indication that they are being observed/recorded (not just a consent form  
+  signed beforehand) — a small addition to Gate 2.5's participant-side UI, not a new  
+  subsystem.
+
+\---
+
+\#\# Gate 6 — Stable Release Candidate  
+\*Theme: Process. A freeze gate, not a feature phase — the point where the roadmap ends  
+and the study begins. Exit criteria are checks against everything above, not new work.\*
+
+\*\*No new features admitted here.\*\* The gate consists of running one full rehearsal of  
+the actual study machinery end to end, on each target condition, on a genuinely fresh  
+environment — not merely a "clean install" in the sense of a fresh app build, since a  
+browser can still carry over IndexedDB contents, cached assets, or local storage from  
+prior sessions, and session persistence is itself part of the study workflow being  
+rehearsed:  
+\- Fresh environment (new browser profile, empty IndexedDB, empty local storage, fresh  
+  build artifact, defined network conditions) → fresh participant → researcher observer  
+  joins → full trial (start, task, Compare, capture finding, an induced-error recovery,  
+  session save) → resume from saved session → export the trial record → delete-participant  
+  path exercised → repeat on 2D, repeat on Quest hardware.
+
+\*\*Frozen experiment package.\*\* The rehearsal above is only reproducible if the protocol  
+itself is versioned and frozen alongside the software, not assembled from whatever  
+documents happen to exist when the study starts. Extends the prior revision's file list  
+with two additions: \`analysis-plan.md\` (primary/secondary outcomes, exclusion rules,  
+missing-data treatment, planned condition comparisons and qualitative coding, decided  
+\*before\* data collection so the study can't become a fishing expedition across RQ1–RQ5  
+after the fact) and \`data-dictionary.md\` (Gate 5 already requires this content — it  
+belongs physically inside the frozen package, not only in the code/docs tree, so the  
+study is reproducible from protocol through analysis in one place):  
+\`\`\`  
+experiment/  
+├── protocol.md  
+├── analysis-plan.md  
+├── data-dictionary.md  
+├── tasks.json  
+├── datasets/  
+├── scoring.json  
+├── condition-order.json  
+├── consent.md  
+├── observer-guide.md  
+└── version.json  
+\`\`\`  
+Tag the exact Nemosyne commit/build against this package. Without it, "we ran the Stable  
+release" doesn't actually specify what was run. A real skeleton of this package, with  
+starter content for each file grounded in this roadmap's own decisions, exists as a  
+companion deliverable alongside this document.
+
+\*\*Exit only when:\*\* no open P0/P1 defects from Gates 0–1, each with its deterministic  
+reproduction fixture in place; the Gate 2 checklist criteria pass unassisted; the Gate 2.5  
+protocol-state enforcement holds under an adversarial attempt to act while Passive; Gate  
+3's hardware matrix has at least one clean pass per target device, including the  
+experience-quality measures, not just raw performance; Gate 4's documentation matches  
+what's actually shipping (no stale claims like the Sprint 10A.5 discrepancy this roadmap  
+already caught once); Gate 5's telemetry/observer/outcome streams join correctly on a real  
+trial's data via the event-sequencing fields, not just synthetic test data, and the data  
+dictionary is complete for every field the frozen package actually captures; and the  
+release artifact is tagged against the frozen experiment package above. This is the  
+roadmap's actual finish line — every gate before it exists to make this rehearsal boring  
+rather than eventful.
+
+\*\*Known Limitations (Stable Release does not claim):\*\* production analytics readiness;  
+multi-analyst collaborative editing; clinical or domain-expert-grade validity; superiority  
+over 2D (that's the open question the study exists to answer, not an assumed result);  
+general-purpose visualization recommendation beyond the datasets/tasks in the frozen  
+experiment package; Quest performance beyond the specific tested envelope in Gate 3's  
+matrix. This list ships as part of the release artifact specifically so the first study's  
+results aren't later over-read as validating capabilities that were never actually tested.
+
+\*\*Release record binding.\*\* Every trial result must be reconstructable from a single  
+composite reference, not a loose label like "VR condition":  
+\`{Nemosyne build/commit} \+ {experiment package version} \+ {protocol version} \+ {dataset  
+version} \+ {task version}\` — e.g. \`nemosyne@abc123 \+ experiment@0.3 \+ task@Fraud-01 \+  
+dataset@F-2026-08-11\`. \`protocolVersion\` already exists in Gate 5's trial data model;  
+this extends it to the full chain so a result can be traced back to exactly what ran,  
+not just which condition it was.
+
+\---
+
+\#\# Explicitly Out of Scope for "Stable Release" (Parked)
+
+Per the same logic used to scope Gate 2 — these are real, some are good ideas, none are  
+needed to make the core hypothesis testable, and building them now would be exactly the  
+"implementation running ahead of validation" pattern already identified as the project's  
+central risk:
+
+\- \*\*Collaborative analysis specifically\*\* (as distinct from observational collaboration,  
+  now in Gate 2.5): embodied presence wiring for multi-analyst co-manipulation, shared  
+  editable annotations, moderation/kick for peer-to-peer sessions, reconnection state for  
+  a disconnected co-analyst. Correctly gated behind solo-mode validation succeeding  
+  first — this is the part of the original "defer all collaboration" reasoning that still  
+  holds; it was only over-broad in also deferring the observer role.  
+\- Voice/NLQ expansion beyond its current implemented state  
+\- TDA as a core (not on-demand/optional) capability  
+\- SQL/Parquet/warehouse connectors  
+\- Rust/WASM migration beyond the Gate 0 defect fixes — no architectural acceleration  
+  without a measured bottleneck from Gate 3's data  
+\- The "Inquiry Wheel" semantic reframe, full six-category wheel taxonomy, menu memory —  
+  all genuinely interesting, all belong in the \*research\* backlog as study variables  
+  (metaphor-comprehension study), not the stable-release feature set
+
+\---
+
+\#\# Sequencing Rationale (why this order, not another)
+
+\`\`\`  
+Gate 0 (Runtime) ──→ Gate 1 (Security) ──→ Gate 2 (Analyst UX) ──→ Gate 2.5 (Observation)  
+                                                                          │  
+                                                        ┌─────────────────┴─────────────────┐  
+                                                        ↓                                     ↓  
+                                              Gate 3 (Hardware & Perf)              Gate 5 (Study Harness)  
+                                                        └─────────────────┬─────────────────┘  
+                                                                          ↓  
+                                                                  Gate 4 (Trust/Tech-Debt)  
+                                                                          ↓  
+                                                                  Gate 6 (Release Candidate)  
+                                                                          ↓  
+                                                                    FIRST REAL STUDY  
+\`\`\`
+
+Gate 0 and Gate 1 come first because they're validity-threatening at the infrastructure  
+level — a leaked GPU context or a data-corrupting stale DataView doesn't produce a bad  
+UX, it produces \*wrong study data that looks like good data\*. Gate 2 is scoped to exactly  
+one task's needs rather than the full feature backlog, because the stated goal is  
+testability, not completeness — every item added beyond what "Find the Fraud" requires is  
+schedule risk with no corresponding validity benefit. Gate 2.5 depends on Gate 2 (there  
+must be a session worth observing) and gates entry into the two tracks that follow.
+
+\*\*Gates 3 and 5 run in parallel, not sequentially\*\* — this is a correction from the  
+prior revision, which listed Gate 3 as a standalone step. Hardware/performance validation  
+and study-harness construction don't depend on each other and benefit from running  
+concurrently: hardware observations should feed back into UX refinement while the team  
+can still change the UX, and the study harness (trial state, outcome capture, 2D control)  
+needs to exist before \*any\* condition can be piloted, VR or otherwise — there's no reason  
+to gate one behind the other. Gate 2.5 sits upstream of both because a researcher watching  
+a hardware-validation session produces better diagnostic data than logs alone, and because  
+Gate 5's observer-log triangulation depends on Gate 2.5's recording schema already  
+existing. Gate 4 moves to \*after\* Gates 3 and 5 in this revision (previously positioned  
+right after Gate 3\) because tech-debt/documentation cleanup should reflect the system as  
+it actually ships once the harness and hardware work are done, not freeze documentation  
+prematurely and then have Gates 3/5 invalidate it. Gate 6 is last by definition — it's a  
+freeze and rehearsal gate, not build work, and exists specifically so the first real study  
+session is the boring, well-rehearsed one rather than the first time all the pieces run  
+together.
+
+
+
+---
+
+## Imported source: `ROADMAP_HISTORY.md`
+
+# Roadmap History
+
+This document archives completed, superseded, and deprecated roadmap material removed from the
+live roadmap. It is historical context only. Do not use it to determine current implementation
+status or planned work.
+
+The live roadmap is [`../ROADMAP.md`](../ROADMAP.md). Product direction and governance are in
+[`../Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md).
+
+## Completed Phase Index
+
+The following phases were completed or substantially implemented before the current
+Stable Alpha / Atlas planning cycle:
+
+| Phase | Historical scope | Current interpretation |
+| --- | --- | --- |
+| 1 | Foundation | Runtime, WebXR, input, telemetry, and tests established |
+| 2 | Specification | Draco constraints and serializable visual specifications |
+| 3 | Core framework | Dataset model, topology translation, panels, streams, and menus |
+| 4 | Examples and documentation | Initial product and example documentation |
+| 5 | Artefact library | Artefact variants, topology layouts, TDA glyphs, and transforms |
+| 6 | Real-world deployment | Build/deploy pipeline, desktop fallback, serializers, collaboration scaffolding |
+| 7 | Comfort and scalability | Anchoring, feedback, instancing, spatial index, LOD, and metaphors |
+| 8 | Analytics and TDA | Statistical facts, clustering, anomaly operations, chart planes, and TDA summaries |
+| 9 | Production polish | Inspector, tooltips, menus, dashboards, locomotion, tour, gestures, and themes |
+| 10A | Validate and harden | CSV import, session persistence, export, accessibility, telemetry, gesture coaching |
+| 10B | Scale and collaborate | Networking, shared state, avatars, annotations, and desktop companion scaffolding |
+| 11 | Runtime intelligence and ergonomics | Torso anchor, wheel redesign, guided tour, UX analysis, pooling |
+| 12 | AI tuning and validation | Gesture harness, recommender evaluation, feedback loop, benchmarks, and polish |
+| 13 | Ingestion and provenance export | Import mapping, binary parser experiments, export and recovery work |
+| 14 | Runtime performance | Texture caching, buffer updates, frame governor, and memory work |
+| 15 | Collaborative palaces | WebRTC state, peer presence, annotations, and collaborative benchmark scaffolding |
+| 16 | Voice and natural language | Speech query and audio feedback experiments |
+| 17 | Architectural hardening | World decomposition, worker experiments, networking, and governor integration |
+| 18 | Runtime integration | Scene/workspace wiring, workers, binary pose, and governor integration |
+| 19 | Zero-copy protocol | Binary peer IDs, event dispatch, workspace lifecycle, and protocol hardening |
+| 20 | Graphics optimization | Instanced buffers, canvas upload, context recovery, and frame shedding |
+| 21.1-21.7 | Rust/WASM analytical substrate | Tooling, data, 3D layouts, and Draco constraint solver in WASM |
+| 22.1-22.10 | Low-Strain UX V2.0 & GPU Hygiene | Onboarding, accessibility, embodied avatars, and GPU lifecycle |
+| 23.1-23.5 | Gesture Intelligence & Retraining | Host adapter, personalizer, consent upload, and central retraining |
+| 24.1-24.9 | Analyst Cockpit & Interaction FSM | 4-mode FSM, forgiving HandWheel, contextual surfaces, and status strip |
+| 25.1-25.3 | Perception & Quest Hardware Envelopes | Quest 3S hardware envelope validation and 2D-vs-VR study analysis |
+| 26.1-26.2 | Position Semantics & Empirical Draco | Position discipline HUD warnings and empirical study utility tuner |
+
+For the full sprint-by-sprint completion logs and verification records for Phases 21–26, see:
+- [`ROADMAP_PHASES_21-26_COMPLETED.md`](ROADMAP_PHASES_21-26_COMPLETED.md)
+- [`ROADMAP_PHASES_1-20_COMPLETED.md`](ROADMAP_PHASES_1-20_COMPLETED.md)
+
+These entries describe historical workstreams, not a guarantee that every capability is fully
+wired, production-qualified, or suitable as study evidence. The audit documents retain the
+original evidence and caveats:
+
+- [`../AUDIT_PHASES_1_20.md`](../AUDIT_PHASES_1_20.md)
+- [`../AUDIT_RECOMMENDATION.md`](../AUDIT_RECOMMENDATION.md)
+- [`../PHASE_22_3_VALIDATION_REPORT.md`](../PHASE_22_3_VALIDATION_REPORT.md)
+
+## Superseded Planning
+
+- The former “Validate & Harden OR Scale & Collaborate” fork is closed as a planning model.
+  Stable Alpha now has its own research-instrument gates; collaborative analysis remains
+  deferred.
+- The former stable-alpha roadmap is historical. Its unique study-harness requirements are
+  represented in the live roadmap and canonical study package.
+- The former broad AI, voice, TDA, connector, and multiplayer expansion lists are not active
+  priorities unless promoted through a current roadmap decision.
+- The former Atlas proposal remains detailed design background, but the approved release split
+  and governance are in the product architecture document.
+
+## Deprecated Claims
+
+The following claims must not be carried forward merely because they appeared in completed
+phase headings:
+
+- A class with tests is not necessarily production-wired.
+- Existing session persistence is not analytical provenance or deterministic replay.
+- Existing clustering/TDA utilities are not automatically validated statistical methods.
+- Existing collaboration code is not a Stable Alpha requirement.
+- Runtime tests and benchmarks do not demonstrate user benefit or VR superiority.
+
+## Archive Policy
+
+Add future historical summaries here when a live roadmap section is retired. Keep the live
+roadmap focused on active work, blockers, acceptance criteria, and decisions. Do not append
+completed feature inventories to `docs/ROADMAP.md`.
+
