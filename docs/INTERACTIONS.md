@@ -364,7 +364,7 @@ A toggleable flight mode adds full 3D translation (X, Y, Z) to the standard grou
 
 ## Feedback
 
-Every data operation, selection, and recognized gesture provides multi-modal feedback via `src/vr/audio/SelectionFeedback.js`:
+Every data operation, selection, and recognized gesture provides multi-modal feedback via `src/vr/audio/SelectionFeedback.ts`:
 
 - **Visual** — artefact scale/position/color change; pointer ray flashes white on select and gesture.
 - **Audio** — procedural Web Audio API tones: subtle tick on hover, two-tone confirm chirp on select, and a unique short tone for each gesture command.
