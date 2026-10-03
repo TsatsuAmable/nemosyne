@@ -2,13 +2,15 @@
 
 **Status:** accepted for MCR0 implementation
 
+**Target-architecture clarification (3 October 2026):** MCR0 remains the accepted current spatial contract. The Full-Moneta architecture now places a planned modality-independent `PerceptualEmbodimentPlan` above it, so `SpatialEmbodimentPlanV1` is authoritative for the **spatial backend phenotype**, not for all future perceptual channels. See [`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
+
 ## Ownership map
 
 | Contract                    | Owns                                                                                                         | Must not own                                                              |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
 | `SemanticEmbodimentGraphV1` | governed semantic phenomena, abstraction, information preservation/loss, evidence references and refinement  | renderer geometry, layout or utility ranking                              |
 | `RepresentationGraph`       | representation primitives, semantic bindings, composition relations, representation policies and limitations | analytical facts/evidence or transient world transforms                   |
-| `SpatialEmbodimentPlanV1`   | bounded presentation phenotype and stable spatial element identity                                           | analytical inference, evidence admissibility or semantic reinterpretation |
+| `SpatialEmbodimentPlanV1`   | bounded **spatial backend** phenotype and stable spatial element identity                                    | analytical inference, evidence admissibility, semantic reinterpretation, or future audio/haptic authority |
 
 `RepresentationGenome` remains external laboratory search/provenance state and is not a production analytical authority.
 
