@@ -2,20 +2,7 @@
  * CommittedInvestigationContext — the domain-owned committed meaning of an investigation step,
  * and the activation epoch that makes stale asynchronous adoption detectable.
  *
- * Authority: A27-0 §5 (committed context and fixed obligations), §9 (ephemeral execution
- * authorization bound to a context activation epoch) and invariants F01/F05/F11.
- *
- * Three separations matter and are enforced structurally here:
- *
- * 1. Content identity is content-addressed and immutable. `contextId` is a pure function of the
- *    committed meaning, so "revisit restores the exact value" holds by construction rather than by
- *    remembering a mutable copy.
- * 2. Activation state (revision, activationEpoch) is NOT hashed. Same-content revisit increments
- *    the epoch, which is precisely what makes an A->B->A race distinguishable from a genuine
- *    return to A.
- * 3. `studyId` and `observerMode` are deliberately absent. A27-0 §5 states they are not
- *    scientific input and not authorization, so admitting them here would let a study label or a
- *    UI mode read as analytical scope. Absence is preserved, never backfilled with defaults.
+ * Authority: A27-0 §5, A27-1 / RFC 0011 (dual epistemic context V2 identity and epistemic purpose).
  */
 
 import { canonicalSha256Hex } from '../../security/CryptoHash.ts';
@@ -29,12 +16,28 @@ import {
 } from './InvestigationPerspective.ts';
 
 export const COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V1 = 1;
+export const COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V2 = 2;
 
 export const CONTEXT_INCOMPATIBLE = 'CONTEXT_INCOMPATIBLE' as const;
+
+export type EpistemicPurpose = 'CLAIM_BEARING' | 'EXPLORATORY_ABDUCTION';
+
+export const EPISTEMIC_PURPOSES: readonly EpistemicPurpose[] = [
+  'CLAIM_BEARING',
+  'EXPLORATORY_ABDUCTION',
+] as const;
 
 export interface CommittedInvestigationContextV1 {
   readonly schemaVersion: 1;
   readonly nodeId: string;
+  readonly intent: InvestigationIntentV1;
+  readonly perspective?: InvestigationPerspectiveV1;
+}
+
+export interface CommittedInvestigationContextV2 {
+  readonly schemaVersion: 2;
+  readonly nodeId: string;
+  readonly epistemicPurpose: EpistemicPurpose;
   readonly intent: InvestigationIntentV1;
   readonly perspective?: InvestigationPerspectiveV1;
 }
@@ -73,38 +76,61 @@ function normalizeNodeId(value: unknown): string {
   return normalized;
 }
 
+function normalizeEpistemicPurpose(value: unknown): EpistemicPurpose {
+  if (value === undefined) return 'CLAIM_BEARING';
+  if (typeof value !== 'string' || !EPISTEMIC_PURPOSES.includes(value as EpistemicPurpose)) {
+    throw new TypeError(
+      `CommittedInvestigationContext epistemicPurpose must be one of: ${EPISTEMIC_PURPOSES.join(', ')}`
+    );
+  }
+  return value as EpistemicPurpose;
+}
+
 export function canonicalizeCommittedInvestigationContext(
   context: unknown
-): CommittedInvestigationContextV1 {
+): CommittedInvestigationContextV2 {
   if (typeof context !== 'object' || context === null || Array.isArray(context)) {
     throw new TypeError('CommittedInvestigationContext must be a non-null object');
   }
 
   const candidate = context as Record<string, unknown>;
-  const allowedKeys = new Set(['schemaVersion', 'nodeId', 'intent', 'perspective']);
+  const allowedKeys = new Set([
+    'schemaVersion',
+    'nodeId',
+    'epistemicPurpose',
+    'intent',
+    'perspective',
+  ]);
   for (const key of Object.keys(candidate)) {
     if (!allowedKeys.has(key)) {
       throw new TypeError(`Unsupported CommittedInvestigationContext field: ${key}`);
     }
   }
 
-  if (candidate.schemaVersion !== COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V1) {
+  const version = candidate.schemaVersion;
+  if (
+    version !== COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V1 &&
+    version !== COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V2
+  ) {
     throw new TypeError(
-      `Unsupported CommittedInvestigationContext schema version: ${String(candidate.schemaVersion)}`
+      `Unsupported CommittedInvestigationContext schema version: ${String(version)}`
     );
   }
 
   const nodeId = normalizeNodeId(candidate.nodeId);
+  const epistemicPurpose = normalizeEpistemicPurpose(candidate.epistemicPurpose);
   const intent = canonicalizeInvestigationIntent(candidate.intent);
 
   const canonical: {
-    schemaVersion: 1;
+    schemaVersion: 2;
     nodeId: string;
+    epistemicPurpose: EpistemicPurpose;
     intent: InvestigationIntentV1;
     perspective?: InvestigationPerspectiveV1;
   } = {
-    schemaVersion: COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V1,
+    schemaVersion: COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V2,
     nodeId,
+    epistemicPurpose,
     intent,
   };
 
@@ -117,7 +143,7 @@ export function canonicalizeCommittedInvestigationContext(
 
 export function computeCommittedContextIdentity(context: unknown): string {
   const canonical = canonicalizeCommittedInvestigationContext(context);
-  return `sha256-committed-context-v1-${canonicalSha256Hex(canonical)}`;
+  return `sha256-committed-context-v2-${canonicalSha256Hex(canonical)}`;
 }
 
 function bindingOf(activation: CommittedContextActivation): ContextBinding {
@@ -128,13 +154,6 @@ function bindingOf(activation: CommittedContextActivation): ContextBinding {
   };
 }
 
-/**
- * Compare a result's captured binding against the currently committed activation.
- *
- * Fail-closed: anything other than an exact three-way match refuses with CONTEXT_INCOMPATIBLE,
- * including a missing current activation. An exact match returns ok, which is the positive
- * control that keeps a universal-refusal implementation from passing review.
- */
 export function checkContextCompatibility(
   captured: ContextBinding,
   current: CommittedContextActivation | undefined
@@ -174,18 +193,11 @@ export function checkContextCompatibility(
 }
 
 interface LedgerEntry {
-  readonly context: CommittedInvestigationContextV1;
+  readonly context: CommittedInvestigationContextV2;
   readonly contextId: string;
   activation: CommittedContextActivation;
 }
 
-/**
- * Sole domain owner of committed investigation context.
- *
- * The session-side ResearchContext is not a second commit authority (A27-0 §5); it may only
- * project what this ledger has committed. Durable session/digest integration of that projection is
- * the serialized L2-FORMA-1 integration slice and is deliberately out of this lane's file set.
- */
 export class CommittedInvestigationContextLedger {
   private readonly _entries: Map<string, LedgerEntry> = new Map();
   private _revision = 0;
@@ -204,7 +216,6 @@ export class CommittedInvestigationContextLedger {
     return this._epoch;
   }
 
-  /** Commit new meaning at a node: a new context revision, and a new activation epoch. */
   commit(nodeId: string, context: unknown): CommittedContextActivation {
     const canonical = canonicalizeCommittedInvestigationContext({ ...(context as object), nodeId });
     const contextId = computeCommittedContextIdentity(canonical);
@@ -221,10 +232,6 @@ export class CommittedInvestigationContextLedger {
     return activation;
   }
 
-  /**
-   * Revisit an already-committed node. Restores the exact committed value and increments the
-   * activation epoch, so returning to A after A->B is distinguishable from the original A.
-   */
   activate(nodeId: string): CommittedContextActivation {
     const entry = this._entries.get(nodeId);
     if (entry === undefined) {
@@ -242,8 +249,7 @@ export class CommittedInvestigationContextLedger {
     return entry.activation;
   }
 
-  /** The exact committed content for a node. Absence is reported, never defaulted. */
-  getCommitted(nodeId: string): CommittedInvestigationContextV1 | undefined {
+  getCommitted(nodeId: string): CommittedInvestigationContextV2 | undefined {
     return this._entries.get(nodeId)?.context;
   }
 
