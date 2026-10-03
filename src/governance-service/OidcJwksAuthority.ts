@@ -123,6 +123,7 @@ export class OidcJwksAuthority implements DataPlaneJwkResolver {
   private readonly timeoutMs: number;
   private readonly cacheMaxAgeMs: number;
   private cache: CachedJwks | null = null;
+  private inFlightRefresh: Promise<void> | null = null;
 
   constructor(options: OidcJwksAuthorityOptions) {
     parseHttpsUrl(options.issuer, 'issuer');
@@ -162,6 +163,14 @@ export class OidcJwksAuthority implements DataPlaneJwkResolver {
   }
 
   async refresh(): Promise<void> {
+    if (this.inFlightRefresh) return this.inFlightRefresh;
+    this.inFlightRefresh = this.runRefresh().finally(() => {
+      this.inFlightRefresh = null;
+    });
+    return this.inFlightRefresh;
+  }
+
+  private async runRefresh(): Promise<void> {
     const discovery = await this.fetchJson<DiscoveryDocument>(this.discoveryUrl, 'DISCOVERY_UNAVAILABLE');
     if (discovery.issuer !== this.issuer) {
       throw new OidcJwksError('DISCOVERY_REFUSED', 'discovery issuer does not exactly match configured issuer');
