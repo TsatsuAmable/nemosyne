@@ -50,6 +50,12 @@
       "owner": "architecture"
     },
     {
+      "path": "docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md",
+      "status": "active",
+      "authority": "full-moneta-semantic-embodiment-architecture",
+      "owner": "architecture"
+    },
+    {
       "path": "CONTRIBUTING.md",
       "status": "active",
       "authority": "contribution-process",
