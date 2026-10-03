@@ -9,6 +9,7 @@
 **Scientific admissibility:** `docs/research/MONETA_EVIDENCE_PROTOCOL.md`  
 **Capability integration plan:** `docs/roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md`  
 **Full-Moneta semantic embodiment architecture:** `docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`
+**Role:** specialist MCR implementation detail subordinate to the canonical Full-Moneta target architecture and live roadmap.
 
 ## 1. Mission
 
