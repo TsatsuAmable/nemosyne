@@ -91,7 +91,9 @@ describe('P1-W production capability registry', () => {
 
     const ids = registry.capabilities.map((capability) => capability.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(registry.capabilities.length).toBeGreaterThanOrEqual(20);
+    // CMS-4 deleted the two superseded `legacy-*` collaboration entries
+    // (retained only for legacy tests), lowering the inventoried floor from 20.
+    expect(registry.capabilities.length).toBeGreaterThanOrEqual(19);
 
     for (const capability of registry.capabilities) {
       expect(['production', 'experimental-production', 'development-only']).toContain(

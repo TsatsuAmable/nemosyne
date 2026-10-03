@@ -1,11 +1,11 @@
 /**
  * CMS-1 — collaboration contract extraction (exit-criterion falsifiers).
  *
- * Pins that production `PeerAvatarManager` no longer depends, at any level,
- * on the superseded legacy synchronizer, that the neutral avatar input
- * contract exists as the extraction site, that no second collaboration
- * authority was introduced, and that the avatar behavioural path is unchanged
- * under the production caller's literal shape.
+ * Pins that the superseded legacy synchronizer does not exist in the
+ * production tree (CMS-4 tombstone) and cannot be revived, that the neutral
+ * avatar input contract exists as the extraction site, that no second
+ * collaboration authority was introduced, and that the avatar behavioural
+ * path is unchanged under the production caller's literal shape.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -29,12 +29,16 @@ function listSourceFiles(dir: string, acc: string[] = []): string[] {
 }
 
 describe('CMS-1 collaboration contract extraction', () => {
-  it('no production source outside the superseded synchronizer itself references it', () => {
+  it('the superseded synchronizer surface is absent from the production tree', () => {
+    // CMS-4 tombstone: the legacy synchronizer itself was deleted, so the
+    // guard now means "no src file exists for it and no source names it" —
+    // any revival (file or content) fails this falsifier.
     const offenders: string[] = [];
     for (const file of listSourceFiles(SRC_ROOT)) {
-      const normalized = relative(SRC_ROOT, file);
-      if (normalized.replace(/\\/g, '/') === 'network/CollaborativeStateSync.ts') continue;
-      if (readFileSync(file, 'utf8').includes('CollaborativeStateSync')) offenders.push(normalized);
+      const normalized = relative(SRC_ROOT, file).replace(/\\/g, '/');
+      if (normalized === 'network/CollaborativeStateSync.ts' || readFileSync(file, 'utf8').includes('CollaborativeStateSync')) {
+        offenders.push(normalized);
+      }
     }
     expect(offenders).toEqual([]);
   });

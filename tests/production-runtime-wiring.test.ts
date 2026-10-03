@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Engine } from '../src/vr/Engine.ts';
-import { CollaborativeStateSync } from '../src/network/CollaborativeStateSync.ts';
+import { NetworkManager } from '../src/network/NetworkManager.ts';
 import { WorldTopics } from '../src/utils/EventBus.ts';
 import * as runtimeBridge from '../src/wasm/RuntimeBridge.ts';
 
@@ -147,18 +147,21 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     expect(metrics.averageFrameTimeMs).toBeGreaterThanOrEqual(0);
   });
 
-  it('sends binary pose streams via CollaborativeStateSync', () => {
-    const sync = new CollaborativeStateSync('peer-local');
+  it('sends binary pose streams via NetworkManager.broadcastCameraPose', () => {
+    // CMS-4 migration: the legacy CollaborativeStateSync sender path is
+    // superseded; the production binary pose stream is NetworkManager's.
+    const nm = new NetworkManager({ peerId: 'peer-local' });
+    nm._connected = true;
+
     const mockChannel = {
       readyState: 'open',
-      binaryType: '',
       send: (data: unknown) => {
         expect(data).toBeInstanceOf(ArrayBuffer);
         expect((data as ArrayBuffer).byteLength).toBe(40); // Sprint 19.1: extended to 40 bytes (peerId + sequence + 7 floats)
       },
     } as unknown as RTCDataChannel;
+    nm.channels.set('remote-peer', mockChannel);
 
-    sync.setDataChannel(mockChannel);
-    sync.sendBinaryPose([1, 2, 3], [0, 0, 0, 1]);
+    nm.broadcastCameraPose([1, 2, 3], [0, 0, 0, 1]);
   });
 });

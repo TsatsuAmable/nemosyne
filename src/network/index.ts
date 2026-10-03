@@ -1,9 +1,10 @@
 /**
  * Network Subsystem — browser-safe production barrel export.
  *
- * Server-only signalling admission authority lives in `./server.ts`. Legacy
- * collaboration state/annotation prototypes stay direct-import test fixtures
- * rather than appearing as production authorities.
+ * Server-only signalling admission authority lives in `./server.ts`. The
+ * superseded legacy collaboration synchronizer and network-barrel annotation
+ * prototypes were deleted (CMS-4); the live VR interaction annotation
+ * authority lives in `src/vr/interactions/SharedAnnotationManager.ts`.
  */
 
 export { NetworkManager } from './NetworkManager.ts';

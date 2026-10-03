@@ -180,20 +180,6 @@
       "forbiddenPublicExports": [{ "path": "src/wasm/index.ts", "symbols": ["CommandApplier", "COMMAND_MAGIC", "COMMAND_VERSION", "ParsedCommand"] }]
     },
     {
-      "id": "legacy-collaborative-state-sync",
-      "classification": "development-only",
-      "sources": ["src/network/CollaborativeStateSync.ts"],
-      "reason": "Superseded by NetworkManager plus CollaborationCoordinator; retained only for legacy tests until deletion.",
-      "forbiddenPublicExports": [{ "path": "src/network/index.ts", "symbols": ["CollaborativeStateSync"] }]
-    },
-    {
-      "id": "legacy-network-shared-annotations",
-      "classification": "development-only",
-      "sources": ["src/network/SharedAnnotationManager.ts"],
-      "reason": "Superseded by the live VR interaction annotation authority; retained only for legacy tests until deletion.",
-      "forbiddenPublicExports": [{ "path": "src/network/index.ts", "symbols": ["SharedAnnotationManager"] }]
-    },
-    {
       "id": "learned-fitness-training",
       "classification": "development-only",
       "sources": ["src/fitness", "src/judgement", "src/app/JudgementFeatureTransaction.ts"],
