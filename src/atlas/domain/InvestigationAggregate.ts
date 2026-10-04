@@ -63,6 +63,12 @@ import {
   type RepresentationSearchResult,
   type SearchOptions,
 } from '../../moneta/search/index.ts';
+import {
+  FullMonetaEngine,
+  type AdaptationOptions,
+  type FullMonetaSynthesisResult,
+} from '../../moneta/adaptation/index.ts';
+import type { ObjectivePreference } from '../../moneta/search/RepresentationObjectiveModel.ts';
 
 
 export interface InvestigationDigestIdentityOptions {
@@ -126,6 +132,7 @@ export class InvestigationAggregate {
   private readonly embodimentCritiques: EmbodimentCritiqueRecordV1[] = [];
   private readonly humanMeaningJudgments: HumanMeaningJudgmentRecordV1[] = [];
   private readonly discoveryLinks: DiscoveryOutcomeLinkJudgement[] = [];
+  private researchMode: boolean = false;
 
   constructor(options: ResearchContextOptions = {}) {
     this.analytical = new AnalyticalState();
@@ -818,6 +825,52 @@ export class InvestigationAggregate {
       ...options,
       context: this.getActiveContext(),
     });
+  }
+
+  /**
+   * FM8: Sets or unsets Research Mode for the investigation.
+   * Freezes knowledge stores and adaptive state for deterministic replay.
+   */
+  setResearchMode(enabled: boolean): void {
+    this.researchMode = enabled;
+    if (enabled && !this.formaKnowledge.isStoreFrozen) {
+      this.formaKnowledge.freeze();
+    }
+  }
+
+  /**
+   * FM8: Returns true if Research Mode is active.
+   */
+  isResearchMode(): boolean {
+    return this.researchMode;
+  }
+
+  /**
+   * FM8: Executes Controlled Adaptive Representation synthesis & adaptation.
+   * Pure representation inquiry & adaptation; leaves analytical truth and historical digests invariant.
+   */
+  adaptRepresentation(options?: AdaptationOptions): FullMonetaSynthesisResult {
+    const ds = this.analytical.current;
+    const signature = buildDatasetSignature(ds);
+    return FullMonetaEngine.synthesizeOrAdapt(
+      signature,
+      this.getActiveContext(),
+      this.formaKnowledge,
+      {
+        ...options,
+        researchMode: options?.researchMode ?? this.researchMode,
+      }
+    );
+  }
+
+  /**
+   * FM8: Explains a Full Moneta decision across evidence, intent, Pareto objectives, and budget adaptations.
+   */
+  explainFullMonetaDecision(
+    result: FullMonetaSynthesisResult,
+    preference?: ObjectivePreference
+  ): string {
+    return FullMonetaEngine.explainFullMonetaDecision(result, preference);
   }
 
   /** Clean up transient resources. */

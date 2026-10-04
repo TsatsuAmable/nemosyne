@@ -105,6 +105,10 @@ import {
   type ObjectivePreference,
   explainObjectiveTradeoffs,
 } from '../moneta/search/index.ts';
+import {
+  type AdaptationOptions,
+  type FullMonetaSynthesisResult,
+} from '../moneta/adaptation/index.ts';
 
 export { KernelUnavailableError };
 export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
@@ -1729,6 +1733,40 @@ export class AtlasCore {
         ? vectorOrCandidate.objectiveVector
         : vectorOrCandidate;
     return explainObjectiveTradeoffs(vector, preference);
+  }
+
+  /**
+   * FM8: Sets or unsets Research Mode for the investigation.
+   * Freezes knowledge stores and adaptive state for deterministic replay.
+   */
+  setResearchMode(enabled: boolean): void {
+    this._aggregate.setResearchMode(enabled);
+  }
+
+  /**
+   * FM8: Returns true if Research Mode is active.
+   */
+  isResearchMode(): boolean {
+    return this._aggregate.isResearchMode();
+  }
+
+  /**
+   * FM8: Executes Controlled Adaptive Representation synthesis & adaptation.
+   * Unifies intent, evidence, multi-element runtime, and hardware resolution brokering.
+   * Leaves underlying analytical data and investigation digests invariant.
+   */
+  adaptRepresentation(options?: AdaptationOptions): FullMonetaSynthesisResult {
+    return this._aggregate.adaptRepresentation(options);
+  }
+
+  /**
+   * FM8: Generates an authoritative multi-layer TechnoCore report for a Full Moneta decision.
+   */
+  explainFullMonetaDecision(
+    result: FullMonetaSynthesisResult,
+    preference?: ObjectivePreference
+  ): string {
+    return this._aggregate.explainFullMonetaDecision(result, preference);
   }
 
   arbitrateSpatialStrategy(
