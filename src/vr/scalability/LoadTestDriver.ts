@@ -65,6 +65,10 @@ export interface LoadTestSummary {
   xrActive: boolean;
   userAgent: string;
   aborted: boolean;
+  failure: {
+    phase: 'dataset-load';
+    message: string;
+  } | null;
   steps: StepResult[];
   verdict: OverallVerdict;
   thresholds: typeof LOAD_TEST_THRESHOLDS;
@@ -92,7 +96,7 @@ export interface LoadTestSummary {
 
 /** Minimal World surface the driver needs. */
 export interface LoadTestWorldLike {
-  loadDataset(entry: DatasetLoadEntry): void;
+  loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
   /** Dataset active before the run; restored on finish so the UI is usable. */
   currentEntry?: DatasetLoadEntry | null;
   /** Read the geometry/layout the Draco solver actually picked, if available. */
@@ -225,6 +229,7 @@ export class LoadTestDriver implements Updatable {
   private _startedAt = 0;
   private _finishedAt = 0;
   private _aborted = false;
+  private _failure: LoadTestSummary['failure'] = null;
   private _steps: StepResult[] = [];
   private _settleMs = 2000;
   private _currentLoadDurationMs = 0;
@@ -232,6 +237,7 @@ export class LoadTestDriver implements Updatable {
   private _visibilityTracker: QuestVisibilityTracker | null = null;
   private _runId = '';
   private _disposed = false;
+  private _loadGeneration = 0;
   /** Entry active before run(); restored after _finishRun so the stress dataset does not freeze the UI. */
   private _preRunEntry: DatasetLoadEntry | null = null;
 
@@ -255,6 +261,7 @@ export class LoadTestDriver implements Updatable {
     this._stepIndex = 0;
     this._steps = [];
     this._aborted = false;
+    this._failure = null;
     this._preRunEntry = this._world.currentEntry ?? null;
     this._startedAt = performance.now();
     this._runId =
@@ -351,15 +358,34 @@ export class LoadTestDriver implements Updatable {
     const spec = this._profile.steps[this._stepIndex];
     this._stepIndex++;
     this.phase = 'LOADING';
-    // Load synchronously through the clean World.loadDataset path. The heavy
-    // allocation happens here, inside the settle window (not measured).
+    // Load through the clean World.loadDataset path. Production returns a
+    // promise that resolves only after representation construction completes;
+    // synchronous test doubles remain supported.
     const entry = this._buildEntry(spec);
     const loadStartedAt = performance.now();
+    const loadGeneration = ++this._loadGeneration;
     try {
-      this._world.loadDataset(entry);
+      const result = this._world.loadDataset(entry);
+      if (result && typeof result.then === 'function') {
+        void Promise.resolve(result).then(
+          () => this._completeLoad(loadGeneration, spec, loadStartedAt),
+          (error: unknown) => this._failLoad(loadGeneration, spec, error)
+        );
+        return;
+      }
     } catch (err) {
-      console.error('[LoadTestDriver] loadDataset failed for step', spec, err);
+      this._failLoad(loadGeneration, spec, err);
+      return;
     }
+    this._completeLoad(loadGeneration, spec, loadStartedAt);
+  }
+
+  private _completeLoad(
+    loadGeneration: number,
+    spec: LoadTestStepSpec,
+    loadStartedAt: number
+  ): void {
+    if (loadGeneration !== this._loadGeneration || this.phase !== 'LOADING') return;
     this._currentLoadDurationMs = performance.now() - loadStartedAt;
     this.phase = 'SETTLING';
     this._phaseStartMs = performance.now();
@@ -369,6 +395,19 @@ export class LoadTestDriver implements Updatable {
       totalSteps: this._profile.steps.length,
       spec,
     });
+  }
+
+  private _failLoad(
+    loadGeneration: number,
+    spec: LoadTestStepSpec,
+    error: unknown
+  ): void {
+    if (loadGeneration !== this._loadGeneration || this.phase !== 'LOADING') return;
+    const message = error instanceof Error ? error.message : String(error);
+    this._aborted = true;
+    this._failure = { phase: 'dataset-load', message };
+    console.error('[LoadTestDriver] loadDataset failed for step', spec, error);
+    this._finishRun();
   }
 
   private _startMeasuring(): void {
@@ -411,9 +450,17 @@ export class LoadTestDriver implements Updatable {
   }
 
   private _finishRun(): void {
+    this._loadGeneration++;
     this.phase = 'COMPLETE';
     this._finishedAt = performance.now();
-    const verdict = computeOverallVerdict(this._steps);
+    const computedVerdict = computeOverallVerdict(this._steps);
+    const verdict = this._aborted
+      ? {
+          ...computedVerdict,
+          requiredPerfLevel: 'No performance level established because the run aborted.',
+          recommendation: 'No recommendation: run aborted before qualification completed.',
+        }
+      : computedVerdict;
     const visibility = this._visibilityTracker?.finish() ?? {
       interruptionCount: 0,
       interruptedDurationMs: 0,
@@ -431,6 +478,7 @@ export class LoadTestDriver implements Updatable {
       xrActive: this._xrActive(),
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
       aborted: this._aborted,
+      failure: this._failure,
       steps: this._steps,
       verdict,
       thresholds: LOAD_TEST_THRESHOLDS,
@@ -460,7 +508,12 @@ export class LoadTestDriver implements Updatable {
     this._preRunEntry = null;
     if (!entry) return;
     try {
-      this._world.loadDataset(entry);
+      const result = this._world.loadDataset(entry);
+      if (result && typeof result.then === 'function') {
+        void Promise.resolve(result).catch((err: unknown) => {
+          console.error('[LoadTestDriver] pre-run dataset restore failed:', err);
+        });
+      }
     } catch (err) {
       console.error('[LoadTestDriver] pre-run dataset restore failed:', err);
     }

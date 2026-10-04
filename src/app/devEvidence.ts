@@ -79,7 +79,7 @@ export interface DevEvidenceInstallerDependencies {
     | 'showWorkspaceSurface'
     | 'toggleWorkspaceSurface'
   >;
-  loadDataset(entry: DatasetLoadEntry): void;
+  loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
   getActiveSpecInfo(): ActiveSpecInfo | null;
   getWasmMemoryBytes(): number | null;
 }
