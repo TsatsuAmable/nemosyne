@@ -496,8 +496,12 @@ export function analyzeQca0ScaleKneeReport(
       if (representation.coverageMode !== 'ROW_ADDRESSABLE') {
         errors.push(`step ${index + 1} coverageMode must be ROW_ADDRESSABLE`);
       }
-      if (representation.candidateId !== null)
-        errors.push(`step ${index + 1} candidateId must be null`);
+      if (
+        representation.candidateId !== 'POINT_SET' &&
+        representation.candidateId !== 'MATRIX_FIELD'
+      ) {
+        errors.push(`step ${index + 1} candidateId must be POINT_SET or MATRIX_FIELD`);
+      }
       if (representation.semanticEmbodimentStatus !== null) {
         errors.push(`step ${index + 1} semanticEmbodimentStatus must be null`);
       }

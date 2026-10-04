@@ -15,6 +15,7 @@ import {
   UXR0_SUSTAINED_60M_PROFILE,
   type LoadTestProfile,
   type LoadTestSummary,
+  type LoadTestWorldLike,
 } from '../vr/scalability/LoadTestDriver.ts';
 import {
   QuestBoundaryProbe,
@@ -45,10 +46,62 @@ import {
 import type { GuidedUxSubmission } from '../validation/guided-ux-validation.ts';
 import { downloadText } from '../utils/Download.ts';
 
-interface ActiveSpecInfo {
+export interface ActiveSpecInfo {
   geometry?: string;
   layout?: string;
+  candidateId?: string | null;
   renderedNodeCount?: number;
+  representedSourceRows?: number | null;
+  semanticEmbodimentStatus?: string | null;
+}
+
+export function captureActiveSpecInfo(
+  node: {
+    solverResult?: { spec?: { geometry?: unknown; layout?: unknown } };
+    artifact?: {
+      nodeMeshes?: Array<{
+        isInstancedMesh?: boolean;
+        count?: number;
+        userData?: Record<string, unknown>;
+      }>;
+    };
+    representationDecision?: { chosenCandidateId?: string } | null;
+    dataInput?: {
+      dataset?: { rows?: unknown[] };
+      semanticEmbodiment?: {
+        approximation?: { representedRowCount?: number };
+        resource?: { sourceRowCount?: number };
+      } | null;
+    };
+    group?: { userData?: Record<string, unknown> };
+  } | null
+): ActiveSpecInfo | null {
+  const spec = node?.solverResult?.spec;
+  if (!node || !spec) return null;
+  const nodeMeshes = node.artifact?.nodeMeshes ?? [];
+  const renderedNodeCount = nodeMeshes.reduce(
+    (total, mesh) => total + (mesh.isInstancedMesh ? (mesh.count ?? 0) : 1),
+    0
+  );
+  const usesInstancedPointCloud =
+    nodeMeshes.length > 0 &&
+    nodeMeshes.every((mesh) => mesh.isInstancedMesh && mesh.userData?.instancedCloud != null);
+  const semanticEmbodiment = node.dataInput?.semanticEmbodiment;
+  return {
+    geometry: usesInstancedPointCloud ? 'INSTANCED_POINT_CLOUD' : String(spec.geometry),
+    layout: String(spec.layout),
+    candidateId: node.representationDecision?.chosenCandidateId ?? null,
+    renderedNodeCount,
+    representedSourceRows:
+      semanticEmbodiment?.approximation?.representedRowCount ??
+      semanticEmbodiment?.resource?.sourceRowCount ??
+      node.dataInput?.dataset?.rows?.length ??
+      null,
+    semanticEmbodimentStatus:
+      typeof node.group?.userData?.semanticEmbodimentStatus === 'string'
+        ? node.group.userData.semanticEmbodimentStatus
+        : null,
+  };
 }
 
 export function resolveGovernedQuestPerformanceProfile(
@@ -82,7 +135,10 @@ export interface DevEvidenceInstallerDependencies {
     | 'showWorkspaceSurface'
     | 'toggleWorkspaceSurface'
   >;
-  loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
+  loadDataset(
+    entry: DatasetLoadEntry,
+    options?: Parameters<LoadTestWorldLike['loadDataset']>[1]
+  ): void | Promise<void>;
   getCurrentEntry(): DatasetLoadEntry | null;
   getActiveSpecInfo(): ActiveSpecInfo | null;
   getWasmMemoryBytes(): number | null;

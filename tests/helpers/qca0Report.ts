@@ -89,7 +89,7 @@ export function makeQca0Report(
         },
         representation: {
           sourceRowCount: policy.rowCount,
-          candidateId: null,
+          candidateId: 'MATRIX_FIELD',
           renderedNodeCount: policy.rowCount,
           representedSourceRows: null,
           renderedFraction: 1,

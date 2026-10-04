@@ -78,7 +78,11 @@ import { TechnoCoreNode } from './artifacts/TechnoCoreNode.ts';
 import { IceVaultNode } from './artifacts/IceVaultNode.ts';
 import { FarcasterPortal } from './artifacts/FarcasterPortal.ts';
 import { HolographicInspector } from './artifacts/HolographicInspector.ts';
-import type { ProvenanceProvider, ProvenanceEntry, EvidenceEntry } from './artifacts/HolographicInspector.ts';
+import type {
+  ProvenanceProvider,
+  ProvenanceEntry,
+  EvidenceEntry,
+} from './artifacts/HolographicInspector.ts';
 import type { ResearchEvent } from '../atlas/types.ts';
 import type { TopologyType } from '../data/types.ts';
 import { DatasetSpace } from '../atlas/DatasetSpace.ts';
@@ -194,11 +198,15 @@ export class World {
   _datasetCycleIndex: number;
   analyticalRuntime: AnalyticalRuntimeOwner;
   _lastSelectedMesh: THREE.Mesh | null = null;
-  _activeRequirements: RepresentationRequirements = createDefaultRequirements('individual-inspection');
+  _activeRequirements: RepresentationRequirements =
+    createDefaultRequirements('individual-inspection');
   _activeOutcome: InvestigatorActionableOutcome | null = null;
   _previewedRequirements: RepresentationRequirements | null = null;
-  _previewedRemediationAction: import('../moneta/representation/ActionableNil.ts').RemedialAction | null = null;
-  _previewedDecision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null = null;
+  _previewedRemediationAction:
+    import('../moneta/representation/ActionableNil.ts').RemedialAction | null = null;
+  _previewedDecision:
+    import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null =
+    null;
   _previewedDatasetFingerprint: string | null = null;
   _previewedDatasetVersion: number | null = null;
   _previewedBaseRequirementsHash: string | null = null;
@@ -239,7 +247,8 @@ export class World {
   diagnostic!: DracoDiagnosticHUD | null;
   currentEntry!: DatasetLoadEntry | null;
   tdaGroup!: THREE.Group | null;
-  tdaRecompute!: (() => Promise<import('./artifacts/TDAPlanes.ts').TDAComputationResult | null>) | null;
+  tdaRecompute!:
+    (() => Promise<import('./artifacts/TDAPlanes.ts').TDAComputationResult | null>) | null;
   dashboardPanels!: { panel: ChartPlanePanel }[];
   private _projectionDisposers: BindingDisposer[] = [];
   private _extensionDisposers: BindingDisposer[] = [];
@@ -478,9 +487,7 @@ export class World {
       onCompare: () => this._dispatchAnalysis('compare'),
       onChallenge: () => this._dispatchAnalysis('anomaly'),
       onAnnotate: () => {
-        const row = this._lastSelectedMesh?.userData?.row as
-          | Record<string, unknown>
-          | undefined;
+        const row = this._lastSelectedMesh?.userData?.row as Record<string, unknown> | undefined;
         const identity = row?.id ?? row?.name ?? 'selected node';
         const pos = new THREE.Vector3();
         this.engine.camera.getWorldPosition(pos);
@@ -715,8 +722,7 @@ export class World {
         setStatus: (status) => this.uiManager.networkPanel?.setStatus?.(status),
         log: (message) => this.uiManager.vrConsole?.log?.('log', [message]),
         recordInteraction: (action, details) => this._logInteraction(action, details),
-        recordTelemetry: (operation) =>
-          this.telemetryCollector?.recordOperation?.(operation),
+        recordTelemetry: (operation) => this.telemetryCollector?.recordOperation?.(operation),
       },
     });
 
@@ -1175,7 +1181,10 @@ export class World {
    * The returned promise is the completion boundary used by session restore and
    * any caller that must observe the rebuilt representation.
    */
-  loadDataset(entry: DatasetLoadEntry): Promise<void> {
+  loadDataset(
+    entry: DatasetLoadEntry,
+    options: { requirementsOverride?: RepresentationRequirements } = {}
+  ): Promise<void> {
     console.warn('[World] loading dataset:', entry.name ?? entry.label, entry.topology);
     const sequence = ++this._datasetLoadSequence;
     return new Promise<void>((resolve, reject) => {
@@ -1185,7 +1194,7 @@ export class World {
           return;
         }
         try {
-          this._doLoadDataset(entry);
+          this._doLoadDataset(entry, options);
           resolve();
         } catch (error) {
           reject(error);
@@ -1209,12 +1218,16 @@ export class World {
       preserveAnalyticalState = false,
       preserveAuxiliaryPresentation = false,
       authoritativeRepresentation,
+      requirementsOverride,
     }: {
       preserveAnalyticalState?: boolean;
       preserveAuxiliaryPresentation?: boolean;
       authoritativeRepresentation?: {
-        decision: import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null;
+        decision:
+          | import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision
+          | null;
       };
+      requirementsOverride?: RepresentationRequirements;
     } = {}
   ): void {
     this._lastLoadedEntry = entry;
@@ -1224,15 +1237,14 @@ export class World {
     this.uiManager.contextualTaskSurface.hide();
     const presetName = entry.key && DATASET_THEME_MAP[entry.key];
     const preset = presetName ? WorldTheme.PRESETS[presetName] : null;
-    const activity =
-      entry.topology === 'TIME_SERIES' || entry.topology === 'ANOMALY' ? 0.75 : 0.35;
+    const activity = entry.topology === 'TIME_SERIES' || entry.topology === 'ANOMALY' ? 0.75 : 0.35;
 
     const result = this.loadDatasetUseCase.execute(entry, {
       preserveAnalyticalState,
-      requirements: this._activeRequirements,
+      requirements: requirementsOverride ?? this._activeRequirements,
       authoritativeRepresentation,
     });
-    this._activeRequirements = result.requirements;
+    if (!requirementsOverride) this._activeRequirements = result.requirements;
     this._activeOutcome = result.outcome;
     this.uiManager?.recommendationPanel?.markDirty();
 
@@ -1522,7 +1534,9 @@ export class World {
     this.uiManager?.toggleWorkspaceSurface?.('guidance');
   }
 
-  _applyRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
+  _applyRemediation(
+    action: import('../moneta/representation/ActionableNil.ts').RemedialAction
+  ): void {
     const oldRequirements = this._activeRequirements;
     const newReq = applyRemediation(this._activeRequirements, action);
 
@@ -1549,7 +1563,9 @@ export class World {
   }
 
   /** Preview a remediation without mutating canonical representation state or the ledger. */
-  _previewRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): boolean {
+  _previewRemediation(
+    action: import('../moneta/representation/ActionableNil.ts').RemedialAction
+  ): boolean {
     try {
       if (!this.atlas.isReady()) throw new Error('analytical authority is not ready');
       const baseRequirementsHash = hashRequirements(this._activeRequirements);
@@ -1580,7 +1596,8 @@ export class World {
   }
 
   /** Return a preview only while all authority/fingerprint fences still match. */
-  _getCurrentPreviewDecision(): import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null {
+  _getCurrentPreviewDecision():
+    import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision | null {
     if (
       !this._previewedDecision ||
       !this._previewedRemediationAction ||
@@ -1595,7 +1612,9 @@ export class World {
   }
 
   /** Commit exactly the remediation that produced the currently displayed preview. */
-  _commitRemediation(action: import('../moneta/representation/ActionableNil.ts').RemedialAction): void {
+  _commitRemediation(
+    action: import('../moneta/representation/ActionableNil.ts').RemedialAction
+  ): void {
     const previewDecision = this._getCurrentPreviewDecision();
     const previewedAction = this._previewedRemediationAction;
     if (!previewDecision || !previewedAction || previewedAction.id !== action.id) {
@@ -1759,19 +1778,24 @@ export class World {
 
   /** Freeze the current investigation state as an immutable archive. */
   private async _freezeInvestigation(): Promise<void> {
-    if (!this.uiManager?.vaultPanel || !this.sessionController?.archiveStore || !this.atlas.isReady()) return;
+    if (
+      !this.uiManager?.vaultPanel ||
+      !this.sessionController?.archiveStore ||
+      !this.atlas.isReady()
+    )
+      return;
 
     const snapshot = this.sessionController.snapshotCurrentSession();
     if (!snapshot) {
-      this.uiManager.vrConsole?.log?.('warn', ['Unable to freeze: current session is not snapshot-ready.']);
+      this.uiManager.vrConsole?.log?.('warn', [
+        'Unable to freeze: current session is not snapshot-ready.',
+      ]);
       return;
     }
     const label = `Archive ${new Date().toLocaleString()}`;
 
     const eventLedger = (snapshot.eventLedger as unknown[]) ?? [];
-    const discoveryEpisodes = snapshot.discoveryEpisodes as
-      | { episodes?: unknown[] }
-      | undefined;
+    const discoveryEpisodes = snapshot.discoveryEpisodes as { episodes?: unknown[] } | undefined;
     const metadata = {
       datasetFingerprint: this.atlas.datasetFingerprint ?? '',
       datasetName: this._lastLoadedEntry?.label ?? this._lastLoadedEntry?.key ?? 'unknown',
@@ -1780,8 +1804,12 @@ export class World {
       discoveryCount: discoveryEpisodes?.episodes?.length ?? 0,
     };
 
-    const archiveId = await this.sessionController.archiveStore.freezeInvestigation(label, snapshot, metadata);
-    const archives = await this.sessionController.archiveStore.listArchives?.() ?? [];
+    const archiveId = await this.sessionController.archiveStore.freezeInvestigation(
+      label,
+      snapshot,
+      metadata
+    );
+    const archives = (await this.sessionController.archiveStore.listArchives?.()) ?? [];
     this.uiManager.vaultPanel.setArchives(archives);
     this.uiManager.showWorkspaceSurface('vault');
     this.uiManager.vrConsole?.log?.('log', [`Frozen investigation: ${archiveId}`]);
@@ -1816,7 +1844,9 @@ export class World {
     const packageBytes = await NemosyneSession.exportPortableSnapshot(
       archive as unknown as NemosyneSessionJSON
     );
-    const blob = new Blob([packageBytes as unknown as BlobPart], { type: 'application/octet-stream' });
+    const blob = new Blob([packageBytes as unknown as BlobPart], {
+      type: 'application/octet-stream',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1833,7 +1863,7 @@ export class World {
     await this.sessionController.archiveStore.deleteArchive(archiveId);
     if (this.uiManager?.vaultPanel) {
       this.uiManager.vaultPanel.setArchives(
-        await this.sessionController.archiveStore.listArchives?.() ?? []
+        (await this.sessionController.archiveStore.listArchives?.()) ?? []
       );
     }
     this.uiManager.vrConsole?.log?.('log', [`Deleted archive: ${archiveId}`]);
@@ -2107,9 +2137,8 @@ export class World {
             : undefined;
       if (name) manifest.datasetName = name;
       if (typeof entry?.topology === 'string') manifest.topology = entry.topology;
-      const fingerprint = (
-        this.atlas as unknown as { datasetFingerprint?: unknown }
-      ).datasetFingerprint;
+      const fingerprint = (this.atlas as unknown as { datasetFingerprint?: unknown })
+        .datasetFingerprint;
       if (typeof fingerprint === 'string' && fingerprint.length > 0)
         manifest.datasetFingerprint = fingerprint;
     } catch {
@@ -2566,7 +2595,10 @@ export class World {
       'UNAVAILABLE',
       'Analytical kernel unavailable — analytical actions are disabled until recovery.'
     );
-    this.uiManager.statusStrip.recordAction('Analytical kernel unavailable', 'Retry analytical runtime');
+    this.uiManager.statusStrip.recordAction(
+      'Analytical kernel unavailable',
+      'Retry analytical runtime'
+    );
     console.error('[World] analytical kernel unavailable:', error);
     this.uiManager.vrConsole?.log?.('error', [
       'Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.',

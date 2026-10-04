@@ -2,6 +2,7 @@ import { makeStressDataset } from '../../data/makeStressDataset.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { DatasetLoadEntry, Updatable } from '../coordinators/types.ts';
 import type { TopologyType } from '../../data/types.ts';
+import { createDefaultRequirements } from '../../moneta/representation/RepresentationRequirements.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
 import {
   UXR0_PROFILE_DURATIONS_SEC,
@@ -52,6 +53,8 @@ export interface LoadTestProfile {
   /** Seconds to wait after load before measuring (lets the load spike pass). */
   settleSec?: number;
   deviceTarget?: QuestDeviceTarget;
+  /** Explicit product intent used by governed diagnostic profiles. */
+  representationTask?: 'individual-inspection';
 }
 
 export interface LoadTestSummary {
@@ -96,7 +99,10 @@ export interface LoadTestSummary {
 
 /** Minimal World surface the driver needs. */
 export interface LoadTestWorldLike {
-  loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
+  loadDataset(
+    entry: DatasetLoadEntry,
+    options?: { requirementsOverride?: ReturnType<typeof createDefaultRequirements> }
+  ): void | Promise<void>;
   /** Dataset active before the run; restored on finish so the UI is usable. */
   currentEntry: DatasetLoadEntry | null;
   /** Read the geometry/layout the Draco solver actually picked, if available. */
@@ -162,6 +168,7 @@ export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
 export const QCA0_ROW_ADDRESSABLE_KNEE_PROFILE: LoadTestProfile = {
   name: 'qca0-row-addressable-knee-v1',
   deviceTarget: 'META_QUEST_3S',
+  representationTask: 'individual-inspection',
   settleSec: 5,
   steps: [
     {
@@ -396,7 +403,12 @@ export class LoadTestDriver implements Updatable {
     const loadStartedAt = performance.now();
     const loadGeneration = ++this._loadGeneration;
     try {
-      const result = this._world.loadDataset(entry);
+      const result = this._world.loadDataset(
+        entry,
+        this._profile.representationTask
+          ? { requirementsOverride: createDefaultRequirements(this._profile.representationTask) }
+          : undefined
+      );
       if (result && typeof result.then === 'function') {
         void Promise.resolve(result).then(
           () => this._completeLoad(loadGeneration, spec, entry, loadStartedAt),

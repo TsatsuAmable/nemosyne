@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { resolveGovernedQuestPerformanceProfile } from '../src/app/devEvidence.ts';
+import { QCA0_ROW_ADDRESSABLE_KNEE_PROFILE } from '../src/vr/scalability/LoadTestDriver.ts';
 import { ValidationOperatorPanel } from '../src/vr/ui/ValidationOperatorPanel.ts';
 import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import {
@@ -96,6 +97,12 @@ function panelFor(mode: ValidationMode = 'quest-perf') {
 }
 
 describe('governed Quest performance profile dispatch', () => {
+  it('returns the exact governed QCA0 profile object', () => {
+    expect(resolveGovernedQuestPerformanceProfile('qca0-row-addressable-knee-v1')).toBe(
+      QCA0_ROW_ADDRESSABLE_KNEE_PROFILE
+    );
+  });
+
   it('maps each manifest profile to the same production profile and rejects unknown values', () => {
     for (const name of [
       'quest-3s-qualification',

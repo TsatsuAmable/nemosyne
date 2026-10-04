@@ -7,11 +7,13 @@ import { LoadTestDriver } from '../src/vr/scalability/LoadTestDriver.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import { WorldTopics } from '../src/utils/EventBus.ts';
+import { captureActiveSpecInfo } from '../src/app/devEvidence.ts';
 
 describe('RF-062C production World path', () => {
   let world: World | null = null;
 
   afterEach(async () => {
+    vi.useRealTimers();
     if (world) {
       await world.dispose();
       world.loader?.container?.remove?.();
@@ -21,6 +23,75 @@ describe('RF-062C production World path', () => {
       canvas.remove();
     }
     vi.restoreAllMocks();
+  });
+
+  it('keeps QCA0 loading until the real World projection exposes row-addressable identity', async () => {
+    vi.useFakeTimers();
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const events: { topic: string; payload?: unknown }[] = [];
+    const driver = new LoadTestDriver(
+      {
+        get currentEntry() {
+          return world?.currentEntry ?? null;
+        },
+        loadDataset: (entry, options) => world!.loadDataset(entry, options),
+        getActiveSpecInfo: () => captureActiveSpecInfo(world?.dracoNode ?? null),
+        eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
+      },
+      world.engine
+    );
+
+    driver.run({
+      name: 'qca0-production-path',
+      representationTask: 'individual-inspection',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 1_000, durationSec: 0 }],
+    });
+
+    expect(driver.phase).toBe('LOADING');
+    driver.update(0.016, 0);
+    expect(driver.phase).toBe('LOADING');
+
+    await vi.runAllTimersAsync();
+    expect(driver.phase).toBe('SETTLING');
+    driver.update(0.016, 0);
+    driver.update(0.016, 0);
+
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)
+      ?.payload as {
+      steps: Array<{
+        specGeometry?: string;
+        specLayout?: string;
+        representation: {
+          candidateId: string | null;
+          renderedNodeCount: number | null;
+          representedSourceRows: number | null;
+          semanticEmbodimentStatus: string | null;
+          coverageMode: string;
+          geometry: string | null;
+          layout: string | null;
+        };
+        loadDurationMs?: number;
+      }>;
+    };
+    expect(summary.steps).toHaveLength(1);
+    expect(summary.steps[0]).toMatchObject({
+      specGeometry: 'INSTANCED_POINT_CLOUD',
+      specLayout: 'GRID_3D',
+      representation: {
+        candidateId: 'MATRIX_FIELD',
+        renderedNodeCount: 1_000,
+        representedSourceRows: 1_000,
+        semanticEmbodimentStatus: null,
+        coverageMode: 'ROW_ADDRESSABLE',
+        geometry: 'INSTANCED_POINT_CLOUD',
+        layout: 'GRID_3D',
+      },
+    });
+    expect(summary.steps[0].loadDurationMs).toBeGreaterThanOrEqual(0);
+
+    driver.dispose();
   });
 
   it('routes a real dataset load through LoadDatasetUseCase and RepresentationSurface exactly once', async () => {
