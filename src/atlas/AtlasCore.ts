@@ -1843,6 +1843,31 @@ export class AtlasCore {
     return this._aggregate.toState();
   }
 
+  /**
+   * FM2/TechnoCore: Explains the active representation decision or full Moneta synthesis result.
+   */
+  explainDecision(preference?: ObjectivePreference): string {
+    const formaResult = this.getActiveFormaResult();
+    if (formaResult) {
+      return this.explainFullMonetaDecision(formaResult, preference);
+    }
+    const decision = this.activeRepresentationDecision;
+    if (decision) {
+      return (
+        decision.explanation ??
+        `Representation Decision: ${decision.chosenFamily ?? 'UNKNOWN'} (${decision.chosenLayout ?? 'UNKNOWN'})`
+      );
+    }
+    return 'No active representation decision available to explain.';
+  }
+
+  /**
+   * Returns the currently active node identifier in the investigation graph.
+   */
+  getActiveNodeId(): string | null | undefined {
+    return this._aggregate.graph.activeNodeId;
+  }
+
   restoreState(state: AtlasCoreState): void {
     this._aggregate.restoreState(state, (handle) => this._analytics.destroyDataset(handle));
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
