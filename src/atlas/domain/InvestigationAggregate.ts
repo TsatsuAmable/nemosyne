@@ -80,6 +80,7 @@ export interface FormaInvestigationStateV1 {
   readonly slice: FormaCompiledSliceV1;
   readonly proposals?: readonly unknown[];
   readonly system1ProposalSet?: FormaProposalSetV1;
+  readonly system1AdviceApplied?: boolean;
   readonly admission?: unknown;
   readonly context?: CommittedInvestigationContextV2;
 }
@@ -998,6 +999,7 @@ export class InvestigationAggregate {
         slice: this._activeFormaResult.resolutionVariant.slice,
         proposals: this._activeFormaResult.conjecturalProposals,
         system1ProposalSet: this._activeFormaResult.system1ProposalSet,
+        system1AdviceApplied: this._activeFormaResult.system1AdviceApplied,
         admission: this._activeFormaResult.resolutionVariant,
         context: this.getActiveContext(),
       };
