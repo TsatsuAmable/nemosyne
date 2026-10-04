@@ -23,64 +23,8 @@ import type {
   VRGeometry,
   VRTranslatorOptions,
 } from './types.ts';
-
-export function buildFormaSpatialSlice(
-  group: THREE.Group,
-  nodeMeshes: THREE.Mesh[],
-  slice: FormaCompiledSliceV1
-): void {
-  for (const element of slice.elements) {
-    const isVoxel = element.visualEncoding.shape === 'VOXEL';
-    const sx = element.scale[0] || 0.2;
-    const sy = element.scale[1] || 0.2;
-    const sz = element.scale[2] || 0.2;
-
-    const geom = isVoxel
-      ? new THREE.BoxGeometry(sx, sy, sz)
-      : new THREE.SphereGeometry(sx / 2, 16, 16);
-
-    const isConjectural = Boolean(
-      element.visualEncoding.isConjectural || element.bindingKind === 'CONJECTURAL'
-    );
-
-    const mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(element.visualEncoding.colorHex),
-      transparent: element.visualEncoding.opacity < 1,
-      opacity: element.visualEncoding.opacity,
-      wireframe: isConjectural,
-    });
-
-    const mesh = new THREE.Mesh(geom, mat);
-    mesh.position.set(element.position[0], element.position[1], element.position[2]);
-
-    const reverseTrace = slice.reverseExplanation.find(
-      (trace) => trace.elementId === element.elementId
-    );
-
-    mesh.name = element.elementId;
-    mesh.userData = {
-      representationKind: 'FORMA_SPATIAL_SLICE',
-      elementId: element.elementId,
-      semanticId: element.semanticNodeId,
-      semanticNodeId: element.semanticNodeId,
-      channel: element.channel,
-      bindingKind: element.bindingKind,
-      epistemicStatus: element.epistemicStatus,
-      proposalId: element.proposalId,
-      isConjectural,
-      reverseExplanation: reverseTrace,
-      provenance: {
-        sliceId: slice.sliceId,
-        planId: slice.planId,
-        snapshotId: slice.snapshotId,
-        contextId: slice.contextId,
-      },
-    };
-
-    group.add(mesh);
-    nodeMeshes.push(mesh);
-  }
-}
+import { buildFormaSpatialSlice } from './embodiment/FormaSpatialEmbodiment.ts';
+export { buildFormaSpatialSlice };
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -96,15 +40,9 @@ export class VRTopologyTranslator {
   private static _chartPlaneFactory: ChartPlaneFactory | null = null;
   private static _metaphorActions: MetaphorActionHandlers = {};
   private static readonly _timeRibbonUpdater = new TimeRibbonArtifactUpdater();
-  static registerPointCloudFactory(factory: InstancedPointCloudFactory): void {
-    this._pointCloudFactory = factory;
-  }
-  static registerChartPlaneFactory(factory: ChartPlaneFactory): void {
-    this._chartPlaneFactory = factory;
-  }
-  static registerMetaphorActions(actions: MetaphorActionHandlers): void {
-    this._metaphorActions = { ...this._metaphorActions, ...actions };
-  }
+  static registerPointCloudFactory(factory: InstancedPointCloudFactory): void { this._pointCloudFactory = factory; }
+  static registerChartPlaneFactory(factory: ChartPlaneFactory): void { this._chartPlaneFactory = factory; }
+  static registerMetaphorActions(actions: MetaphorActionHandlers): void { this._metaphorActions = { ...this._metaphorActions, ...actions }; }
   static synthesizeArtifact(
     monetaResult: SolverResult,
     dataInput: MonetaDataInput,
@@ -200,27 +138,13 @@ export class VRTopologyTranslator {
         scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
       } else {
         switch (spec.layout) {
-          case 'GRID_3D':
-            layouts.buildGrid(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'FORCE_DIRECTED_3D':
-            layouts.buildForceDirected(group, nodeMeshes, rows, dataset, encodings, edges);
-            break;
-          case 'RADIAL_ORBITAL':
-            layouts.buildRadial(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'VECTOR_STREAMLINE':
-            layouts.buildStreamlines(group, nodeMeshes, rows, dataset);
-            break;
-          case 'TIME_RIBBON':
-            layouts.buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'GEO_SURFACE':
-            layouts.buildGeoSurface(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'SPECTRAL_VOLUME':
-            layouts.buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings);
-            break;
+          case 'GRID_3D': layouts.buildGrid(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'FORCE_DIRECTED_3D': layouts.buildForceDirected(group, nodeMeshes, rows, dataset, encodings, edges); break;
+          case 'RADIAL_ORBITAL': layouts.buildRadial(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'VECTOR_STREAMLINE': layouts.buildStreamlines(group, nodeMeshes, rows, dataset); break;
+          case 'TIME_RIBBON': layouts.buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'GEO_SURFACE': layouts.buildGeoSurface(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'SPECTRAL_VOLUME': layouts.buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings); break;
         }
       }
     }
@@ -298,35 +222,17 @@ export class VRTopologyTranslator {
   }
 
   static _makeNode(
-    row: Record<string, unknown>,
-    dataset: Dataset | undefined,
-    encodings: EncodingMapping,
-    geometry: VRGeometry | string = 'ICOSA_NODE'
+    row: Record<string, unknown>, dataset: Dataset | undefined, encodings: EncodingMapping, geometry: VRGeometry | string = 'ICOSA_NODE'
   ): THREE.Mesh {
-    return new TopologyLayoutEmbodiment(this._colorblindMode).makeNode(
-      row,
-      dataset,
-      encodings,
-      geometry
-    );
+    return new TopologyLayoutEmbodiment(this._colorblindMode).makeNode(row, dataset, encodings, geometry);
   }
 
-  static _buildParentEdges(
-    group: THREE.Group,
-    edgeMeshes: THREE.Line[],
-    nodeMeshes: THREE.Mesh[]
-  ): void {
-    new TopologyLayoutEmbodiment(this._colorblindMode).buildParentEdges(
-      group,
-      edgeMeshes,
-      nodeMeshes
-    );
+  static _buildParentEdges(group: THREE.Group, edgeMeshes: THREE.Line[], nodeMeshes: THREE.Mesh[]): void {
+    new TopologyLayoutEmbodiment(this._colorblindMode).buildParentEdges(group, edgeMeshes, nodeMeshes);
   }
 
   static appendRowsToArtifact(
-    artifact: Artifact | undefined,
-    newRows: Record<string, unknown>[],
-    dataInput: MonetaDataInput
+    artifact: Artifact | undefined, newRows: Record<string, unknown>[], dataInput: MonetaDataInput
   ): boolean {
     return this._timeRibbonUpdater.append(artifact, newRows, dataInput);
   }
