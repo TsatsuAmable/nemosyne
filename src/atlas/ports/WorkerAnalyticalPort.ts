@@ -42,8 +42,7 @@ const MAX_DIAGNOSTIC_SAMPLES = 32;
 export const DEFAULT_MAX_PENDING_WORKER_EXECUTIONS = 32;
 export const DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS = 4;
 export const DEFAULT_MAX_PENDING_WORKER_GOVERNED_CAPTURES = 4;
-const WORKER_PAYLOAD_MEASUREMENT_BASIS =
-  'utf8-json-estimate+exact-binary-byte-length' as const;
+const WORKER_PAYLOAD_MEASUREMENT_BASIS = 'utf8-json-estimate+exact-binary-byte-length' as const;
 const UTF8_ENCODER = new TextEncoder();
 
 interface WorkerPayloadEstimate {
@@ -127,16 +126,29 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     worker: WorkerTransport,
     onKernelFailure?: ((err: Error) => void) | null,
     onKernelRefusal?: ((error: UnsupportedAtScaleError) => void) | null,
-    limits: { maxPendingExecutions?: number; maxPendingRegistrations?: number; maxPendingGovernedCaptures?: number } = {},
+    limits: {
+      maxPendingExecutions?: number;
+      maxPendingRegistrations?: number;
+      maxPendingGovernedCaptures?: number;
+    } = {},
     createReplacementWorker?: (() => WorkerTransport | null) | null
   ) {
     this._worker = worker;
     this._createReplacementWorker = createReplacementWorker ?? null;
     this._onKernelFailure = onKernelFailure;
     this._onKernelRefusal = onKernelRefusal ?? null;
-    this._maxPendingExecutions = Math.max(1, Math.floor(limits.maxPendingExecutions ?? DEFAULT_MAX_PENDING_WORKER_EXECUTIONS));
-    this._maxPendingRegistrations = Math.max(1, Math.floor(limits.maxPendingRegistrations ?? DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS));
-    this._maxPendingGovernedCaptures = Math.max(1, Math.floor(limits.maxPendingGovernedCaptures ?? DEFAULT_MAX_PENDING_WORKER_GOVERNED_CAPTURES));
+    this._maxPendingExecutions = Math.max(
+      1,
+      Math.floor(limits.maxPendingExecutions ?? DEFAULT_MAX_PENDING_WORKER_EXECUTIONS)
+    );
+    this._maxPendingRegistrations = Math.max(
+      1,
+      Math.floor(limits.maxPendingRegistrations ?? DEFAULT_MAX_PENDING_WORKER_REGISTRATIONS)
+    );
+    this._maxPendingGovernedCaptures = Math.max(
+      1,
+      Math.floor(limits.maxPendingGovernedCaptures ?? DEFAULT_MAX_PENDING_WORKER_GOVERNED_CAPTURES)
+    );
     this._worker.onmessage = this._handleMessage.bind(this);
     this._worker.onerror = this._handleError.bind(this);
     if ('onmessageerror' in this._worker) {
@@ -224,7 +236,8 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       (this._fence.generation === undefined || fence.generation > this._fence.generation);
     const datasetAdvanced =
       fence.datasetVersion !== undefined &&
-      (this._fence.datasetVersion === undefined || fence.datasetVersion > this._fence.datasetVersion);
+      (this._fence.datasetVersion === undefined ||
+        fence.datasetVersion > this._fence.datasetVersion);
     const fingerprintChanged =
       fence.datasetFingerprint !== undefined &&
       fence.datasetFingerprint !== this._fence.datasetFingerprint;
@@ -262,16 +275,29 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     // every outstanding item is stale, recycle it to provide actual cancellation
     // rather than merely releasing main-thread bookkeeping.
     const staleExecutionCount = [...this._pending.values()].filter((pending) =>
-      this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)
+      this._isStale(
+        pending.req.generation,
+        pending.req.dataset.version,
+        pending.req.dataset.fingerprint
+      )
     ).length;
     const staleRegistrationCount = [...this._pendingRegistrations.values()].filter((pending) =>
-      this._isStale(pending.registration.generation, pending.registration.dataset.version, pending.registration.dataset.fingerprint)
+      this._isStale(
+        pending.registration.generation,
+        pending.registration.dataset.version,
+        pending.registration.dataset.fingerprint
+      )
     ).length;
     // Governed captures are outstanding work too: a stale capture waiting on a
     // blocked Worker is exactly what recycling exists to cancel, so it counts
     // toward the recycle decision and is resolved with the rest below.
-    const staleGovernedCaptureCount = [...this._pendingGovernedCaptures.values()].filter((pending) =>
-      this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)
+    const staleGovernedCaptureCount = [...this._pendingGovernedCaptures.values()].filter(
+      (pending) =>
+        this._isStale(
+          pending.req.generation,
+          pending.req.dataset.version,
+          pending.req.dataset.fingerprint
+        )
     ).length;
     const outstandingCount =
       this._pending.size + this._pendingRegistrations.size + this._pendingGovernedCaptures.size;
@@ -288,19 +314,51 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       if (replacement) {
         const oldWorker = this._worker;
         for (const pending of this._pending.values()) {
-          if (this._isStale(pending.req.generation, pending.req.dataset.version, pending.req.dataset.fingerprint)) {
-            this._recordOutcome({ schemaVersion: 1, id: pending.req.requestId, phase: 'execution', outcome: 'cancelled-by-worker-recycle', generation: pending.req.generation, datasetVersion: pending.req.dataset.version, datasetFingerprint: pending.req.dataset.fingerprint });
+          if (
+            this._isStale(
+              pending.req.generation,
+              pending.req.dataset.version,
+              pending.req.dataset.fingerprint
+            )
+          ) {
+            this._recordOutcome({
+              schemaVersion: 1,
+              id: pending.req.requestId,
+              phase: 'execution',
+              outcome: 'cancelled-by-worker-recycle',
+              generation: pending.req.generation,
+              datasetVersion: pending.req.dataset.version,
+              datasetFingerprint: pending.req.dataset.fingerprint,
+            });
           }
         }
         for (const pending of this._pendingRegistrations.values()) {
-          if (this._isStale(pending.registration.generation, pending.registration.dataset.version, pending.registration.dataset.fingerprint)) {
-            this._recordOutcome({ schemaVersion: 1, id: pending.registration.registrationId, phase: 'registration', outcome: 'cancelled-by-worker-recycle', generation: pending.registration.generation, datasetVersion: pending.registration.dataset.version, datasetFingerprint: pending.registration.dataset.fingerprint });
+          if (
+            this._isStale(
+              pending.registration.generation,
+              pending.registration.dataset.version,
+              pending.registration.dataset.fingerprint
+            )
+          ) {
+            this._recordOutcome({
+              schemaVersion: 1,
+              id: pending.registration.registrationId,
+              phase: 'registration',
+              outcome: 'cancelled-by-worker-recycle',
+              generation: pending.registration.generation,
+              datasetVersion: pending.registration.dataset.version,
+              datasetFingerprint: pending.registration.dataset.fingerprint,
+            });
           }
         }
         oldWorker.onmessage = null;
         oldWorker.onerror = null;
         if ('onmessageerror' in oldWorker) oldWorker.onmessageerror = null;
-        try { oldWorker.terminate?.(); } catch { /* best-effort cancellation */ }
+        try {
+          oldWorker.terminate?.();
+        } catch {
+          /* best-effort cancellation */
+        }
         this._worker = replacement;
         this._worker.onmessage = this._handleMessage.bind(this);
         this._worker.onerror = this._handleError.bind(this);
@@ -382,17 +440,21 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       return Promise.resolve();
     }
 
-    const key = this._registrationKey(
-      registration.generation,
-      registration.dataset.fingerprint
-    );
+    const key = this._registrationKey(registration.generation, registration.dataset.fingerprint);
     if (this._registered.has(key)) return Promise.resolve();
 
     const existing = this._registrationPromises.get(key);
     if (existing) return existing;
 
     if (this._pendingRegistrations.size >= this._maxPendingRegistrations) {
-      return Promise.reject(new KernelUnavailableError("Analytical worker registration admission saturated: " + this._pendingRegistrations.size + "/" + this._maxPendingRegistrations));
+      return Promise.reject(
+        new KernelUnavailableError(
+          'Analytical worker registration admission saturated: ' +
+            this._pendingRegistrations.size +
+            '/' +
+            this._maxPendingRegistrations
+        )
+      );
     }
 
     const promise = new Promise<void>((resolve, reject) => {
@@ -436,7 +498,14 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
     }
 
     if (this._pending.size >= this._maxPendingExecutions) {
-      return Promise.reject(new KernelUnavailableError("Analytical worker execution admission saturated: " + this._pending.size + "/" + this._maxPendingExecutions));
+      return Promise.reject(
+        new KernelUnavailableError(
+          'Analytical worker execution admission saturated: ' +
+            this._pending.size +
+            '/' +
+            this._maxPendingExecutions
+        )
+      );
     }
 
     return new Promise<AnalyticalExecutionResult<T>>((resolve, reject) => {
@@ -646,9 +715,18 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       result.generation === pending.req.generation &&
       result.datasetVersion === pending.req.dataset.version &&
       result.datasetFingerprint === pending.req.dataset.fingerprint;
-    const resultStale = !resultMatchesRequest ||
+    const resultStale =
+      !resultMatchesRequest ||
       this._isStale(result.generation, result.datasetVersion, result.datasetFingerprint);
-    this._recordOutcome({ schemaVersion: 1, id: result.requestId, phase: 'execution', outcome: resultStale ? 'discarded-stale-result' : 'completed', generation: result.generation, datasetVersion: result.datasetVersion, datasetFingerprint: result.datasetFingerprint });
+    this._recordOutcome({
+      schemaVersion: 1,
+      id: result.requestId,
+      phase: 'execution',
+      outcome: resultStale ? 'discarded-stale-result' : 'completed',
+      generation: result.generation,
+      datasetVersion: result.datasetVersion,
+      datasetFingerprint: result.datasetFingerprint,
+    });
 
     if (result.refusal) {
       const refusalError = new UnsupportedAtScaleError(

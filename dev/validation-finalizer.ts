@@ -351,9 +351,7 @@ function buildReport(
       : '| — | PARTIAL | No governed gate is adjudicable in this mode. |';
   const captureStatus = String(disposition.captureStatus ?? 'PENDING');
   const captureStatusLine =
-    manifest.validationMode === 'quest-qca0'
-      ? `- **Capture status:** \`${captureStatus}\`\n`
-      : '';
+    manifest.validationMode === 'quest-qca0' ? `- **Capture status:** \`${captureStatus}\`\n` : '';
   const qca0 = isRecord(disposition.qca0Analysis) ? disposition.qca0Analysis : null;
   const qca0Section = qca0
     ? `\n## QCA0 scale-knee diagnostic\n\n` +

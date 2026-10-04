@@ -18,9 +18,7 @@ import {
   DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
   parseGovernedConsumerAttestationV1,
 } from '../src/data/evidence/GovernedConsumerAttestation.ts';
-import {
-  DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
-} from '../src/data/evidence/EvidenceRequirementProfile.ts';
+import { DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
 
 /**
  * Issue #834's fourth required falsifier, at the production path: governed
@@ -282,7 +280,7 @@ describe('TEC1 governed capture from a real Worker runtime (issue #834)', () => 
         attestation.consumers.map((consumer) => ({
           consumerId: consumer.consumerId,
           receiptIds: [...consumer.receiptIds],
-        })),
+        }))
       ).toEqual([
         {
           consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
@@ -305,7 +303,7 @@ describe('TEC1 governed capture from a real Worker runtime (issue #834)', () => 
           consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
           receiptId: receipt.receiptId,
           requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
-        })),
+        }))
       );
       const roundTripped = parsePersistedEvidenceReceiptsV1(
         JSON.parse(new TextDecoder().decode(snapshot.bytes))

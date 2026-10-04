@@ -341,7 +341,7 @@ self.onmessage = async (ev: MessageEvent) => {
       const readCombined = (
         bridge as unknown as {
           statisticsGovernedCapture?: (
-            handle: number,
+            handle: number
           ) => { rawBundle: unknown; governedConsumers: unknown } | null | 'unsupported';
         }
       ).statisticsGovernedCapture;
