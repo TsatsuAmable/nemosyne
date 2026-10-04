@@ -272,14 +272,16 @@ export class AtlasCore {
     kernel = null,
     eventBus = null,
     sessionId,
+    researchContext,
     onKernelFailure = null,
   }: {
     kernel?: WasmRuntimeBridgeFull | null;
     eventBus?: WorldEventBus | null;
     sessionId?: string;
+    researchContext?: import('./domain/ResearchContext.js').ResearchContextOptions;
     onKernelFailure?: ((error: KernelAbiError | KernelUnavailableError) => void) | null;
   } = {}) {
-    this._aggregate = new InvestigationAggregate({ sessionId });
+    this._aggregate = new InvestigationAggregate({ sessionId, ...researchContext });
     this._analytics = new RustAnalyticalEvidenceAdapter(
       kernel,
       onKernelFailure,

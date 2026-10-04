@@ -8,6 +8,9 @@ export interface ResearchContextOptions {
   studyId?: string;
   researchQuestion?: string;
   hypothesis?: string;
+  variablesOfInterest?: string[];
+  currentTask?: string;
+  observerMode?: boolean;
 }
 
 export class ResearchContext {
@@ -16,6 +19,9 @@ export class ResearchContext {
   private readonly _studyId?: string;
   private readonly _researchQuestion?: string;
   private readonly _hypothesis?: string;
+  private readonly _variablesOfInterest?: string[];
+  private readonly _currentTask?: string;
+  private readonly _observerMode?: boolean;
 
   constructor(options: ResearchContextOptions = {}) {
     this._now = options.now ?? (() => {
@@ -29,6 +35,9 @@ export class ResearchContext {
     this._studyId = options.studyId;
     this._researchQuestion = options.researchQuestion;
     this._hypothesis = options.hypothesis;
+    this._variablesOfInterest = options.variablesOfInterest ? [...options.variablesOfInterest] : undefined;
+    this._currentTask = options.currentTask;
+    this._observerMode = options.observerMode;
   }
 
   get sessionId(): string {
@@ -47,7 +56,20 @@ export class ResearchContext {
     return this._hypothesis;
   }
 
+  get variablesOfInterest(): readonly string[] | undefined {
+    return this._variablesOfInterest;
+  }
+
+  get currentTask(): string | undefined {
+    return this._currentTask;
+  }
+
+  get observerMode(): boolean | undefined {
+    return this._observerMode;
+  }
+
   now(): number {
     return this._now();
   }
 }
+
