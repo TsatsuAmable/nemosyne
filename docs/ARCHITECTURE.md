@@ -65,6 +65,11 @@ whose coordinates do not assert facts about data.
 
 ## Representation boundary
 
+[RFC 0012](rfcs/0012-minimum-nemosyne-architecture.md) proposes the minimum product architecture:
+data/evidence runtime, Investigation, a combined Moneta/Forma compiler, and presentation/input.
+It identifies explicit removals and keeps learned/search producers optional or offline. This proposed
+scope reduction does not yet change deployed ownership or accepted public contracts.
+
 Moneta consumes `DatasetEvidence`, investigator semantics and explicit model artifacts. Bootstrap
 hard constraints execute before optional learned re-ranking. Every decision records its fitness model
 version and artifact hash where applicable. When no candidate is feasible, Moneta emits a typed NIL

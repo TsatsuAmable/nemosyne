@@ -1,6 +1,6 @@
 # Moneta Dataset-First, Dual-Mode Semantic Embodiment Architecture
 
-**Status:** proposed **ADAPT** decision for owner review; implementation is not authorized by this document alone
+**Status:** proposed **MINIMIZE / REMOVE-FIRST** scope under RFC 0012; retained ADAPT contracts apply only within that scope
 **Date:** 4 October 2026
 **Reviewed base:** `e0445257` (`origin/main`, incorporating the Astra semantic-LOD brief)
 **Governing vision:** [`../Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md)
@@ -13,6 +13,14 @@
 ---
 
 ## 1. Decision
+
+**Scope revision:** [RFC 0012 — Minimum Nemosyne architecture](../rfcs/0012-minimum-nemosyne-architecture.md)
+supersedes this proposal's earlier assumption that every DSE extension belongs in the initial product.
+Use four product subsystems: data/evidence, Investigation, representation compiler and presentation/input.
+The RFC's removal/merge/defer/externalize table and reduced sequence control this proposal's scope;
+the detailed contracts below specify behavior only when the corresponding capability is commissioned.
+Owner acceptance remains required for the proposed architecture changes. Existing accepted RFCs remain
+authoritative until explicitly amended.
 
 Adopt the dataset-first objective by **adapting the existing semantic snapshot -> RepresentationGraph -> Forma -> perceptual plan -> runtime spine**, not by creating a competing analytical authority, a universal `DATASET` renderer primitive, or a decorative dataset container.
 
@@ -200,7 +208,9 @@ The phrase "dataset representation primitive" is ambiguous. This design separate
 
 ### 6.1 Subject identity
 
-The first tranche should introduce a closed `DatasetSubjectRefV1` concept:
+The first tranche should derive subject identity using existing contracts. RFC 0012 removes a new
+subject object/store as a default requirement. If DSE0 proves a missing identity/replay invariant, the
+smallest candidate extension is a closed `DatasetSubjectRefV1` concept:
 
 ```text
 DatasetSubjectRefV1
@@ -742,9 +752,8 @@ These are capability gaps, not permission to invent behavior. Each item states i
 
 ### R-DSE-8 — adaptive-depth/shared model hypothesis
 
-**Objective:** compare specialist System-1 plus explicit System-2 search with a bounded adaptive-depth recurrent/shared-expert proposal substrate.
-
-**Success:** the shared model materially improves proposal quality/cost or exploratory reasoning without increasing governance, replay, abstention or target-device risk beyond its benefit. Otherwise retain specialists.
+**REMOVED from this programme by proposed RFC 0012.** No demonstrated task requires this subsystem.
+Any future proposal must begin with a named problem, simpler baselines and independent evidence.
 
 ---
 
@@ -752,10 +761,14 @@ These are capability gaps, not permission to invent behavior. Each item states i
 
 Each code tranche requires a fresh written implementation plan, exact-head verification and the high-risk adversarial evidence required by `AGENTS.md`. This architecture PR does not combine them.
 
+RFC 0012 narrows the initial sequence to DSE0 -> DSE1 -> DSE2/DSE3, with DSE6 qualification beginning
+at DSE1. DSE4 and runtime DSE5 are conditional extensions. Their specifications below are retained for
+future use, not prerequisites for the first complete investigation loop.
+
 ### DSE0 — decision, schema preflight and falsifiers
 
 - owner review of this ADAPT decision;
-- source/public-format/RFC decision for subject identity and multi-dataset composition;
+- source/caller/archive deletion inventory and only necessary subject identity/public-format decisions; defer multi-dataset schema;
 - production-path test that a dataset overview cannot enter whole-row rendering;
 - current-path cardinality/row-access instrumentation;
 - canonical two-dataset known-structure fixtures;
@@ -796,6 +809,8 @@ Each code tranche requires a fresh written implementation plan, exact-head verif
 
 ### DSE4 — multi-dataset comparison
 
+**Conditional extension under RFC 0012; unscheduled pending a named blocking research task.**
+
 - compose two independently admitted dataset worlds;
 - explicit cross-dataset comparison authority and synchronized selection;
 - independent refinement, eviction, explanation and replay.
@@ -803,6 +818,9 @@ Each code tranche requires a fresh written implementation plan, exact-head verif
 **Exit:** two materially different datasets meet the minimum proof in the dataset-level critique without fingerprint/provenance collision.
 
 ### DSE5 — proposal/search/evolution integration
+
+**Conditional runtime extension under RFC 0012.** Offline generation/evaluation may produce governed
+artifacts; the default product requires no inference, search population or genome interpreter.
 
 - generalize the DSE1 evidence-bound deterministic composer for the broader supported grammar, replacing remaining heuristic paths before their use;
 - qualify System-1 dataset-body proposals;
@@ -878,7 +896,9 @@ It changes or clarifies:
 
 ## 18. Review disposition and next decision
 
-This document proposes **ADAPT** and a sequenced implementation/research programme. Owner acceptance is required before DSE0 can freeze contracts or before a detailed implementation plan is written. Acceptance of this design does not promote FM-DSE, physical performance, human comprehension, System-1 value or evolutionary value.
+This document retains bounded ADAPT contracts inside the **MINIMIZE / REMOVE-FIRST** proposal in RFC 0012.
+Owner acceptance is required before DSE0 freezes any changed contract. Acceptance does not promote
+FM-DSE, physical performance, human comprehension, System-1 value or evolutionary value.
 
 After acceptance:
 
@@ -899,8 +919,8 @@ owns current authorization and status; this design owns the target contracts and
 2. Before any source change, verify current remote `main`, inspect active workstream claims/PRs,
    acquire the required exclusive lease, and use an isolated branch/worktree. Declare touched files,
    risk class, authority path, invariants and falsifiers in a tranche-specific implementation plan.
-3. The first eligible work item is **DSE0**, after owner acceptance or revision of ADAPT. DSE0 resolves
-   snapshot/subject schema placement, multi-dataset seam and RFC/ADR need; pins the supported semantic
+3. The first eligible work item is **DSE0**, after owner acceptance or revision of RFC 0012. DSE0 resolves
+   the removal/caller inventory and necessary subject schema/RFC decisions; pins the supported semantic
    fixtures, row-access and cardinality falsifiers; and freezes benchmark/human-evidence thresholds.
    It must not silently implement the public schema while that decision is open.
 4. DSE1 is the first runtime tranche only after DSE0 closes. It must implement and test the bounded

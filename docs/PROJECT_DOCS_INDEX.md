@@ -13,6 +13,8 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 
 ## Engineering governance
 
+- [`rfcs/0012-minimum-nemosyne-architecture.md`](rfcs/0012-minimum-nemosyne-architecture.md) - proposed minimum architecture and removal-first disposition register; start here for what to delete, merge, defer or externalize before implementing the dataset design.
+
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - contribution and verification workflow.
 - [`../SECURITY.md`](../SECURITY.md) - vulnerability reporting and security model.
 - [`OWNERSHIP.md`](OWNERSHIP.md) - semantic ownership and specialist review map.

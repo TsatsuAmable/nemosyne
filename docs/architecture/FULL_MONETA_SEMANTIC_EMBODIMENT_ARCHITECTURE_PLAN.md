@@ -1,5 +1,11 @@
 # Full Moneta Architecture — Human-Grounded Semantic Embodiment
 
+**Proposed scope reduction:** [RFC 0012](../rfcs/0012-minimum-nemosyne-architecture.md) recommends four
+product subsystems and explicit removal, consolidation and externalization of planned mechanisms.
+Its scope decisions are proposed for owner review; existing accepted contracts remain governing.
+The capabilities below are a target catalogue, not a requirement to build every listed service,
+runtime, model or abstraction. RFC 0012 supplies the proposed minimum delivery and conditional gates.
+
 **Status:** canonical Full-Moneta target architecture / implementation map  
 **Date:** 3 October 2026  
 **Governing vision:** [`Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md)  
