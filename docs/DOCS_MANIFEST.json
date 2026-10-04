@@ -204,6 +204,12 @@
       "status": "historical",
       "authority": "historical-draco-representation-plan",
       "owner": "archive"
+    },
+    {
+      "path": "docs/review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md",
+      "status": "active",
+      "authority": "full-moneta-completeness-audit",
+      "owner": "architecture"
     }
   ]
 }

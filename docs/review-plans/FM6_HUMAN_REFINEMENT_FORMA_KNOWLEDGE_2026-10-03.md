@@ -3,7 +3,7 @@
 Date: 3 October 2026
 Base: `main@feaaf32e4dd9c043df15123629587448908b4937`
 Worktree / Branch: `feat/fm6-human-refinement-forma-knowledge`
-Status: VERIFIED COMPLETE
+Status: Historical closure claim; superseded by the [4 October completeness audit](FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md). Current status is owned by [ROADMAP](../ROADMAP.md).
 
 ## 1. High-Risk Pre-Implementation Adversarial Contract
 
