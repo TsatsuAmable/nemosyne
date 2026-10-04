@@ -12,6 +12,7 @@ import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodi
 import type { GraphEmbodimentEnvelopeV1 } from './representation/GraphEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import { resolveAuthorizedRawTopologyInput } from './representation/RawRowAuthority.ts';
+import type { FormaCompiledSliceV1 } from './forma/FormaSpatialCompiler.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -22,6 +23,64 @@ import type {
   VRGeometry,
   VRTranslatorOptions,
 } from './types.ts';
+
+export function buildFormaSpatialSlice(
+  group: THREE.Group,
+  nodeMeshes: THREE.Mesh[],
+  slice: FormaCompiledSliceV1
+): void {
+  for (const element of slice.elements) {
+    const isVoxel = element.visualEncoding.shape === 'VOXEL';
+    const sx = element.scale[0] || 0.2;
+    const sy = element.scale[1] || 0.2;
+    const sz = element.scale[2] || 0.2;
+
+    const geom = isVoxel
+      ? new THREE.BoxGeometry(sx, sy, sz)
+      : new THREE.SphereGeometry(sx / 2, 16, 16);
+
+    const isConjectural = Boolean(
+      element.visualEncoding.isConjectural || element.bindingKind === 'CONJECTURAL'
+    );
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(element.visualEncoding.colorHex),
+      transparent: element.visualEncoding.opacity < 1,
+      opacity: element.visualEncoding.opacity,
+      wireframe: isConjectural,
+    });
+
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(element.position[0], element.position[1], element.position[2]);
+
+    const reverseTrace = slice.reverseExplanation.find(
+      (trace) => trace.elementId === element.elementId
+    );
+
+    mesh.name = element.elementId;
+    mesh.userData = {
+      representationKind: 'FORMA_SPATIAL_SLICE',
+      elementId: element.elementId,
+      semanticId: element.semanticNodeId,
+      semanticNodeId: element.semanticNodeId,
+      channel: element.channel,
+      bindingKind: element.bindingKind,
+      epistemicStatus: element.epistemicStatus,
+      proposalId: element.proposalId,
+      isConjectural,
+      reverseExplanation: reverseTrace,
+      provenance: {
+        sliceId: slice.sliceId,
+        planId: slice.planId,
+        snapshotId: slice.snapshotId,
+        contextId: slice.contextId,
+      },
+    };
+
+    group.add(mesh);
+    nodeMeshes.push(mesh);
+  }
+}
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -76,6 +135,22 @@ export class VRTopologyTranslator {
     );
     let rows: Record<string, unknown>[] = [];
     let edges: NonNullable<MonetaDataInput['edges']> = [];
+    const formaSlice =
+      (dataInput as { formaSlice?: FormaCompiledSliceV1 | null }).formaSlice ??
+      (spec.geometry === ('FORMA_SPATIAL_SLICE' as unknown as VRGeometry)
+        ? (semanticInput.semanticEmbodiment as unknown as { slice?: FormaCompiledSliceV1 })?.slice
+        : undefined);
+
+    if (formaSlice) {
+      buildFormaSpatialSlice(group, nodeMeshes, formaSlice);
+      return {
+        group,
+        nodeMeshes,
+        edgeMeshes: [],
+        behaviors: [],
+      };
+    }
+
     if (spec.geometry === 'AGGREGATE_BARS') {
       scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];

@@ -646,11 +646,11 @@ export class InvestigationReplayRunner {
     // The previous expression tested only the V2 algorithm, so a V3 package fell
     // to the legacy path: no command-count check, legacy analysis-spec
     // extraction, re-executed mutating operations and no ledger restore — a
-    // silent downgrade to weaker verification. Adding `isV3` fixes that without
+    // silent downgrade to weaker verification. Adding `isV3` and `isV4` fixes that without
     // disturbing either V2 case.
     const usesSemanticDigest =
-      manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM || isV3;
-    // Past step 2 the envelope question is already settled: for V3 it verified,
+      manifest.investigationDigestAlgorithm === INVESTIGATION_DIGEST_ALGORITHM || isV3 || isV4;
+    // Past step 2 the envelope question is already settled: for V3/V4 it verified,
     // and for anything else there is none to verify. A later failure is a
     // *damaged payload* — unparseable dataset bytes, a command log that is not
     // an array — which is a discrepancy about the replay, not a claim that the
@@ -660,7 +660,7 @@ export class InvestigationReplayRunner {
     // the misreading the axis exists to prevent. Legacy/V2 still report `absent`
     // so the difference between "nothing to enforce" and "governed evidence
     // verified" survives.
-    const postEnvelopeEvidence: ReplayEvidenceAttestation = isV3
+    const postEnvelopeEvidence: ReplayEvidenceAttestation = (isV3 || isV4)
       ? verifiedEvidence()
       : { envelope: 'absent' };
 
@@ -724,6 +724,17 @@ export class InvestigationReplayRunner {
 
     const atlas = new AtlasCore({ kernel: this._bridge, sessionId: manifest.sessionId });
     atlas.loadDataset(dataset);
+    if (isV4 && payload.formaInvestigationBytes) {
+      try {
+        const formaSnapshot = new Uint8Array(payload.formaInvestigationBytes);
+        const formaJson = JSON.parse(
+          new TextDecoder('utf-8', { fatal: true }).decode(formaSnapshot)
+        );
+        atlas.setFormaState(formaJson);
+      } catch {
+        // Any syntax corruption is captured in earlier forma envelope validation
+      }
+    }
     const recordedLoad = loggedEvents.find(
       (item): item is ResearchEvent => isObjectRecord(item) && 'kind' in item && item.kind === 'load',
     );
@@ -1064,9 +1075,10 @@ export class InvestigationReplayRunner {
     //
     // A digest disagreement is one of those reconstruction disagreements, so it
     // reports as a typed refusal rather than as a broken envelope.
+    const isGoverned = isV3 || isV4;
     const governedCommitmentEstablished =
-      !isV3 || manifest.investigationDigest === investigationDigest;
-    const resultEvidence: ReplayEvidenceAttestation = !isV3
+      !isGoverned || manifest.investigationDigest === investigationDigest;
+    const resultEvidence: ReplayEvidenceAttestation = !isGoverned
       ? { envelope: 'absent' }
       : governedCommitmentEstablished
         ? verifiedEvidence()

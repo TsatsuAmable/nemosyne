@@ -6,6 +6,7 @@ import { solveMoneta, solveDraco } from '../wasm/RuntimeBridge.ts';
 import type {
   Artifact,
   MonetaDataInput,
+  MonetaFacts,
   MonetaSpec,
   FactProvider,
   SolverResult,
@@ -19,11 +20,18 @@ import {
   setSemanticEmbodimentPresentationStatus,
   type SemanticEmbodimentPresentationCandidateId,
 } from './embodiment/SemanticEmbodimentStatus.ts';
+import type { ContextBinding } from '../atlas/domain/index.ts';
+import type { FormaCompiledSliceV1 } from './forma/FormaSpatialCompiler.ts';
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
   semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
+  formaSlice?: FormaCompiledSliceV1 | null;
+  formaSlicePromise?: Promise<FormaCompiledSliceV1 | null>;
+  contextBinding?: ContextBinding;
+  canAdopt?: (binding: ContextBinding) => boolean;
+  assertCanAdopt?: (binding: ContextBinding) => void;
 };
 
 function usesSemanticEmbodiment(
@@ -117,7 +125,35 @@ export class MonetaTopologyNode {
   private _subscribeSemanticEmbodiment(): void {
     const input = this.dataInput as SemanticMonetaDataInput;
     const promise = input.semanticEmbodimentPromise;
+    const formaPromise = input.formaSlicePromise;
     const candidateId = this.representationDecision?.chosenCandidateId;
+
+    if (formaPromise) {
+      const token = ++this._semanticEmbodimentToken;
+      void formaPromise.then((slice) => {
+        if (token !== this._semanticEmbodimentToken || input.formaSlicePromise !== formaPromise) {
+          return;
+        }
+        // FMA-08: Stale context / epoch cannot adopt!
+        if (input.contextBinding) {
+          if (input.canAdopt && !input.canAdopt(input.contextBinding)) {
+            return;
+          }
+          if (input.assertCanAdopt) {
+            try {
+              input.assertCanAdopt(input.contextBinding);
+            } catch {
+              return;
+            }
+          }
+        }
+        if (slice) {
+          input.formaSlice = slice;
+          this.reSolveAndSynthesize();
+        }
+      });
+    }
+
     if (!promise || !usesSemanticEmbodiment(candidateId)) return;
     const token = ++this._semanticEmbodimentToken;
     void promise.then((envelope) => {
@@ -127,6 +163,19 @@ export class MonetaTopologyNode {
         this.representationDecision?.chosenCandidateId !== candidateId
       ) {
         return;
+      }
+      // FMA-08: Stale context / epoch cannot adopt!
+      if (input.contextBinding) {
+        if (input.canAdopt && !input.canAdopt(input.contextBinding)) {
+          return;
+        }
+        if (input.assertCanAdopt) {
+          try {
+            input.assertCanAdopt(input.contextBinding);
+          } catch {
+            return;
+          }
+        }
       }
       if (!envelope) {
         if (this.group) {
@@ -165,7 +214,47 @@ export class MonetaTopologyNode {
   reSolveAndSynthesize(): void {
     this._syncSemanticEmbodimentCandidate();
 
-    if (this.representationGraph) {
+    const formaSlice = (this.dataInput as SemanticMonetaDataInput).formaSlice;
+    if (formaSlice) {
+      const defaultFacts: MonetaFacts = this.engine.factProvider?.facts(this.dataInput) ?? {
+        topology: 'TABULAR',
+        rowCount: formaSlice.elements.length,
+        nodeCount: formaSlice.elements.length,
+        edgeCount: 0,
+        depth: 1,
+        numericColumns: 0,
+        categoricalColumns: 0,
+        temporalColumns: 0,
+        hasTimeSeries: false,
+        hasContinuousValues: false,
+        density: 1,
+        estimatedDensity: 1,
+        outlierCount: 0,
+        cardinalityOfColor: 0,
+        hasHighCardinality: false,
+        isLargeDataset: false,
+        clusterCount: 0,
+        columnStats: {},
+        correlationMatrix: {},
+        categoryDistribution: {},
+        trendDirection: 'flat',
+        seasonalityHint: false,
+        hasOutliers: false,
+        hasHighVariance: false,
+        numericSkew: 0,
+        topCategory: null,
+      };
+      this.solverResult = {
+        facts: defaultFacts,
+        spec: {
+          layout: 'GRID_3D',
+          geometry: 'CLUSTER_VOLUME',
+          behavior: 'STATIC',
+          interaction: 'INSPECT_CELL',
+        },
+        cost: 0,
+      };
+    } else if (this.representationGraph) {
       const facts = this.engine.factProvider?.facts(this.dataInput);
       if (!facts) {
         throw new Error(

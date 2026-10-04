@@ -72,6 +72,15 @@ import {
   type FullMonetaSynthesisResult,
 } from '../../moneta/adaptation/index.ts';
 import type { ObjectivePreference } from '../../moneta/search/RepresentationObjectiveModel.ts';
+import type { FormaCompiledSliceV1 } from '../../moneta/forma/FormaSpatialCompiler.ts';
+
+export interface FormaInvestigationStateV1 {
+  readonly schemaVersion: 1;
+  readonly slice: FormaCompiledSliceV1;
+  readonly proposals?: readonly unknown[];
+  readonly admission?: unknown;
+  readonly context?: CommittedInvestigationContextV2;
+}
 
 
 export interface InvestigationDigestIdentityOptions {
@@ -335,6 +344,13 @@ export class InvestigationAggregate {
       epistemicPurpose: purpose,
     };
     return this.contextLedger.commit(active.nodeId, updatedContext);
+  }
+
+  /**
+   * FMA-08: Get the active committed context activation state.
+   */
+  getActiveActivation(): CommittedContextActivation | undefined {
+    return this.contextLedger.getActiveActivation();
   }
 
   /**
@@ -913,6 +929,9 @@ export class InvestigationAggregate {
     return this.researchMode;
   }
 
+  private _activeFormaResult?: FullMonetaSynthesisResult;
+  private _formaState?: FormaInvestigationStateV1;
+
   /**
    * FM8: Executes Controlled Adaptive Representation synthesis & adaptation.
    * Pure representation inquiry & adaptation; leaves analytical truth and historical digests invariant.
@@ -920,7 +939,7 @@ export class InvestigationAggregate {
   adaptRepresentation(options?: AdaptationOptions): FullMonetaSynthesisResult {
     const ds = this.analytical.current;
     const signature = buildDatasetSignature(ds);
-    return FullMonetaEngine.synthesizeOrAdapt(
+    const result = FullMonetaEngine.synthesizeOrAdapt(
       signature,
       this.getActiveContext(),
       this.formaKnowledge,
@@ -929,6 +948,41 @@ export class InvestigationAggregate {
         researchMode: options?.researchMode ?? this.researchMode,
       }
     );
+    this._activeFormaResult = result;
+    this._formaState = undefined;
+    return result;
+  }
+
+  getActiveFormaResult(): FullMonetaSynthesisResult | undefined {
+    return this._activeFormaResult;
+  }
+
+  getActiveFormaSlice(): FormaCompiledSliceV1 | undefined {
+    return this._activeFormaResult?.resolutionVariant?.slice ?? this._formaState?.slice;
+  }
+
+  setFormaState(state: FormaInvestigationStateV1): void {
+    this._formaState = state;
+  }
+
+  getFormaState(): FormaInvestigationStateV1 | undefined {
+    if (this._formaState) return this._formaState;
+    if (this._activeFormaResult) {
+      return {
+        schemaVersion: 1,
+        slice: this._activeFormaResult.resolutionVariant.slice,
+        proposals: this._activeFormaResult.conjecturalProposals,
+        admission: this._activeFormaResult.resolutionVariant,
+        context: this.getActiveContext(),
+      };
+    }
+    return undefined;
+  }
+
+  exportFormaInvestigationBytes(): Uint8Array | undefined {
+    const state = this.getFormaState();
+    if (!state) return undefined;
+    return new TextEncoder().encode(JSON.stringify(state));
   }
 
   /**

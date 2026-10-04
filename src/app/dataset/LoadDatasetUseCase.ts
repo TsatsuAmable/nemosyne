@@ -13,8 +13,11 @@ import type { RepresentationDecision } from '../../moneta/representation/Represe
 import { abstractionLevelForRequirements } from '../../moneta/representation/SemanticAbstraction.ts';
 import {
   createDefaultRequirements,
+  createRequirementsFromContext,
   type RepresentationRequirements,
 } from '../../moneta/representation/RepresentationRequirements.ts';
+import type { ContextBinding } from '../../atlas/domain/index.ts';
+import type { FormaCompiledSliceV1 } from '../../moneta/forma/FormaSpatialCompiler.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
 import type { DatasetLoadEntry } from '../../vr/coordinators/types.ts';
 import {
@@ -39,9 +42,19 @@ export type DatasetLoadAuthority = Pick<
   | 'datasetVersion'
   | 'datasetFingerprint'
 > &
-  Partial<Pick<AtlasCore, 'eventBus'>>;
+  Partial<
+    Pick<
+      AtlasCore,
+      | 'eventBus'
+      | 'getActiveInvestigationContext'
+      | 'getActiveContextBinding'
+      | 'canAdopt'
+      | 'assertCanAdopt'
+      | 'getActiveFormaSlice'
+    >
+  >;
 
-type SemanticMonetaDataInput = MonetaDataInput & {
+export type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: ProductionSemanticEmbodimentEnvelopeV1 | null;
   semanticEmbodimentPromise?: Promise<ProductionSemanticEmbodimentEnvelopeV1 | null>;
   semanticEmbodimentCandidateId?: 'CLUSTER_REGIONS' | 'RELATIONSHIP_GRAPH';
@@ -51,6 +64,11 @@ type SemanticMonetaDataInput = MonetaDataInput & {
    * fence; it must not replace it with a separately recomputed TS hash.
    */
   semanticEmbodimentDatasetFingerprint?: string;
+  contextBinding?: ContextBinding;
+  canAdopt?: (binding: ContextBinding) => boolean;
+  assertCanAdopt?: (binding: ContextBinding) => void;
+  formaSlice?: FormaCompiledSliceV1 | null;
+  formaSlicePromise?: Promise<FormaCompiledSliceV1 | null>;
 };
 
 export interface LoadDatasetUseCaseOptions {
@@ -66,7 +84,7 @@ export interface LoadDatasetUseCaseOptions {
 export interface LoadDatasetResult {
   entry: DatasetLoadEntry;
   embodiedDataset: Dataset;
-  dataInput: MonetaDataInput;
+  dataInput: SemanticMonetaDataInput;
   requirements: RepresentationRequirements;
   representationDecision: RepresentationDecision | null;
   outcome: InvestigatorActionableOutcome | null;
@@ -91,14 +109,15 @@ export class LoadDatasetUseCase {
       authoritativeRepresentation,
     }: LoadDatasetUseCaseOptions = {}
   ): LoadDatasetResult {
-    // A fresh dataset should first be understood as a dataset, not as a request
-    // to inspect every observation. Individual inspection remains available as
-    // an explicit/preserved analytical intent, but it is no longer the hidden
-    // default that biases initial representation arbitration toward point-like
-    // identity-preserving candidates.
-    const activeRequirements = preserveAnalyticalState
-      ? (requirements ?? createDefaultRequirements('individual-inspection'))
-      : createDefaultRequirements('overview');
+    // FMA-08: If requirements are not explicitly passed, consult the active investigation context
+    // before falling back to default requirements.
+    const activeContext = this.atlas.getActiveInvestigationContext?.();
+    const activeRequirements = requirements ??
+      (activeContext ? createRequirementsFromContext(activeContext) : (
+        preserveAnalyticalState
+          ? createDefaultRequirements('individual-inspection')
+          : createDefaultRequirements('overview')
+      ));
 
     if (!preserveAnalyticalState) {
       // Atlas owns the defensive baseline/current split. Hand the source to the
@@ -114,11 +133,19 @@ export class LoadDatasetUseCase {
       entry.encodings ??
       kernelEncodings ??
       getDefaultEncodings({ dataset: embodiedDataset, topology });
+
+    const contextBinding = this.atlas.getActiveContextBinding?.();
+    const activeFormaSlice = this.atlas.getActiveFormaSlice?.();
+
     const dataInput: SemanticMonetaDataInput = {
       topology,
       dataset: embodiedDataset,
       maxDepth: entry.maxDepth,
       encodings,
+      contextBinding,
+      canAdopt: this.atlas.canAdopt ? (b) => this.atlas.canAdopt!(b) : undefined,
+      assertCanAdopt: this.atlas.assertCanAdopt ? (b) => this.atlas.assertCanAdopt!(b) : undefined,
+      ...(activeFormaSlice ? { formaSlice: activeFormaSlice } : {}),
     };
 
     let representationDecision: RepresentationDecision | null = null;
