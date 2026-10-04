@@ -102,6 +102,7 @@ describe('governed Quest performance profile dispatch', () => {
       'uxr0-functional-5m',
       'uxr0-resource-trend-30m',
       'uxr0-sustained-60m',
+      'qca0-row-addressable-knee-v1',
     ]) {
       const profile = resolveGovernedQuestPerformanceProfile(name);
       expect(profile.name).toBe(name);
@@ -131,6 +132,21 @@ describe('ValidationOperatorPanel governed semantic dispatch', () => {
     expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
     expect(panel.getActionState('run-performance')?.label).toBe('CONFIRM PERF');
+
+    expect(panel.dispatchAction('run-performance')).toBe(true);
+    expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);
+    panel.dispose();
+  });
+
+  it('requires QCA0-specific arm and confirmation before the diagnostic starts', () => {
+    const { panel, callbacks } = panelFor('quest-qca0');
+    panel.setServerStatus(status('quest-qca0'));
+    panel.update();
+
+    expect(panel.getActionState('run-performance')?.label).toBe('ARM QCA0');
+    expect(panel.dispatchAction('run-performance')).toBe(true);
+    expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
+    expect(panel.getActionState('run-performance')?.label).toBe('CONFIRM QCA0');
 
     expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);

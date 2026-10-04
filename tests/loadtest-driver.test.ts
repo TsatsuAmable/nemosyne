@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   LoadTestDriver,
   DEFAULT_LOAD_TEST_PROFILE,
+  QCA0_ROW_ADDRESSABLE_KNEE_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
   UXR0_FUNCTIONAL_5M_PROFILE,
   UXR0_RESOURCE_TREND_30M_PROFILE,
@@ -69,6 +70,28 @@ function deferred<T = void>() {
 }
 
 describe('LoadTestDriver state machine', () => {
+  it('freezes the governed QCA0 row-addressable scale-knee profile', () => {
+    expect(QCA0_ROW_ADDRESSABLE_KNEE_PROFILE).toMatchObject({
+      name: 'qca0-row-addressable-knee-v1',
+      deviceTarget: 'META_QUEST_3S',
+      settleSec: 5,
+    });
+    expect(QCA0_ROW_ADDRESSABLE_KNEE_PROFILE.steps).toEqual([
+      {
+        topology: 'TABULAR',
+        rowCount: 1_000,
+        durationSec: 10,
+        label: 'cold-start warmup (ungraded)',
+        warmup: true,
+      },
+      { topology: 'TABULAR', rowCount: 1_000, durationSec: 15, label: '1k baseline' },
+      { topology: 'TABULAR', rowCount: 8_000, durationSec: 15, label: '8k' },
+      { topology: 'TABULAR', rowCount: 32_000, durationSec: 15, label: '32k' },
+      { topology: 'TABULAR', rowCount: 65_000, durationSec: 15, label: '65k' },
+      { topology: 'TABULAR', rowCount: 100_000, durationSec: 30, label: '100k control' },
+    ]);
+  });
+
   it('freezes UXR0 5m/30m/60m same-scale observation profiles without changing legacy profiles', () => {
     const profiles = [
       UXR0_FUNCTIONAL_5M_PROFILE,
@@ -85,7 +108,9 @@ describe('LoadTestDriver state machine', () => {
     }
     expect(QUEST_3S_QUALIFICATION_PROFILE.name).toBe('quest-3s-qualification');
     expect(createUxr0QualificationProfile('functional-5m', 8_000).steps[1].rowCount).toBe(8_000);
-    expect(() => createUxr0QualificationProfile('functional-5m', 0)).toThrow(/positive safe integer/);
+    expect(() => createUxr0QualificationProfile('functional-5m', 0)).toThrow(
+      /positive safe integer/
+    );
   });
 
   it('transitions IDLE → SETTLING → MEASURING → COMPLETE across the staircase', async () => {

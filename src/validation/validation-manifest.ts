@@ -30,7 +30,11 @@ export type EvidenceClass =
 export type RuntimeClass =
   'vite-dev' | 'clean-production-dist' | 'desktop-browser' | 'desktop-simulator' | 'physical-webxr';
 
-export type ValidationMode = 'quest' | 'quest-perf' | 'quest-ux' | 'quest-10m' | 'quest-validate';
+export type ValidationMode =
+  'quest' | 'quest-perf' | 'quest-qca0' | 'quest-ux' | 'quest-10m' | 'quest-validate';
+
+export const QCA0_PROFILE_NAME = 'qca0-row-addressable-knee-v1' as const;
+export type Qca0ProfileName = typeof QCA0_PROFILE_NAME;
 
 export const QUEST_PERFORMANCE_PROFILES = [
   'quest-3s-qualification',
@@ -145,6 +149,16 @@ export const VALIDATION_MODE_TABLE: Record<ValidationMode, ValidationModeSpec> =
     gates: ['PERF-04', 'PERF-05'],
     profile: 'quest-3s-qualification',
     allowedProfiles: QUEST_PERFORMANCE_PROFILES,
+    runtimeClass: 'vite-dev',
+    wasmRequired: true,
+    invalidationReasons: [],
+  },
+  'quest-qca0': {
+    mode: 'quest-qca0',
+    label: 'Governed Quest 3S QCA0 row-addressable scale-knee diagnostic',
+    evidenceClass: 'governed-physical-validation',
+    gates: [],
+    profile: QCA0_PROFILE_NAME,
     runtimeClass: 'vite-dev',
     wasmRequired: true,
     invalidationReasons: [],

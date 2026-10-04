@@ -159,6 +159,26 @@ export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
   ],
 };
 
+export const QCA0_ROW_ADDRESSABLE_KNEE_PROFILE: LoadTestProfile = {
+  name: 'qca0-row-addressable-knee-v1',
+  deviceTarget: 'META_QUEST_3S',
+  settleSec: 5,
+  steps: [
+    {
+      topology: 'TABULAR',
+      rowCount: 1_000,
+      durationSec: 10,
+      label: 'cold-start warmup (ungraded)',
+      warmup: true,
+    },
+    { topology: 'TABULAR', rowCount: 1_000, durationSec: 15, label: '1k baseline' },
+    { topology: 'TABULAR', rowCount: 8_000, durationSec: 15, label: '8k' },
+    { topology: 'TABULAR', rowCount: 32_000, durationSec: 15, label: '32k' },
+    { topology: 'TABULAR', rowCount: 65_000, durationSec: 15, label: '65k' },
+    { topology: 'TABULAR', rowCount: 100_000, durationSec: 30, label: '100k control' },
+  ],
+};
+
 // Preserve the #701 public import surface while keeping one shared authority.
 export { UXR0_PROFILE_DURATIONS_SEC };
 export type { Uxr0QualificationProfileKind };
@@ -413,11 +433,7 @@ export class LoadTestDriver implements Updatable {
     });
   }
 
-  private _failLoad(
-    loadGeneration: number,
-    spec: LoadTestStepSpec,
-    error: unknown
-  ): void {
+  private _failLoad(loadGeneration: number, spec: LoadTestStepSpec, error: unknown): void {
     if (loadGeneration !== this._loadGeneration || this.phase !== 'LOADING') return;
     const message = error instanceof Error ? error.message : String(error);
     this._aborted = true;

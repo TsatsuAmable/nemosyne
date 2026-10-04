@@ -8,6 +8,7 @@ import type { Engine } from '../vr/Engine.ts';
 import type { WorldUIManager } from '../vr/coordinators/WorldUIManager.ts';
 import {
   LoadTestDriver,
+  QCA0_ROW_ADDRESSABLE_KNEE_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
   UXR0_FUNCTIONAL_5M_PROFILE,
   UXR0_RESOURCE_TREND_30M_PROFILE,
@@ -62,6 +63,8 @@ export function resolveGovernedQuestPerformanceProfile(
       return UXR0_RESOURCE_TREND_30M_PROFILE;
     case 'uxr0-sustained-60m':
       return UXR0_SUSTAINED_60M_PROFILE;
+    case 'qca0-row-addressable-knee-v1':
+      return QCA0_ROW_ADDRESSABLE_KNEE_PROFILE;
     default:
       throw new Error(`Unsupported governed Quest performance profile '${profileName ?? 'null'}'`);
   }
@@ -427,9 +430,13 @@ export function installDevEvidence({
   const handle: DevEvidenceHandle = {
     runLoadTest(profile) {
       if (disposed || questBoundaryProbe.running) return;
-      if (validationContext && validationContext.manifest.validationMode !== 'quest-perf') {
+      if (
+        validationContext &&
+        validationContext.manifest.validationMode !== 'quest-perf' &&
+        validationContext.manifest.validationMode !== 'quest-qca0'
+      ) {
         validationPanel?.setDeliveryFailure(
-          `Current validation lane '${validationContext.manifest.validationMode}' cannot start PERF-04/05 evidence.`
+          `Current validation lane '${validationContext.manifest.validationMode}' cannot start governed performance evidence.`
         );
         return;
       }

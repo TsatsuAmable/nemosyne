@@ -415,13 +415,21 @@ export class ValidationOperatorPanel extends SpatialPanel {
     }
 
     const runId: ValidationAction =
-      mode === 'quest-perf' ? 'run-performance' : mode === 'quest-10m' ? 'run-boundary' : 'refresh';
+      mode === 'quest-perf' || mode === 'quest-qca0'
+        ? 'run-performance'
+        : mode === 'quest-10m'
+          ? 'run-boundary'
+          : 'refresh';
 
     const runLabel =
-      mode === 'quest-perf'
+      mode === 'quest-perf' || mode === 'quest-qca0'
         ? this._armed === 'performance'
-          ? 'CONFIRM PERF'
-          : 'ARM PERF'
+          ? mode === 'quest-qca0'
+            ? 'CONFIRM QCA0'
+            : 'CONFIRM PERF'
+          : mode === 'quest-qca0'
+            ? 'ARM QCA0'
+            : 'ARM PERF'
         : mode === 'quest-10m'
           ? this._armed === 'boundary'
             ? 'CONFIRM 10M'
@@ -429,7 +437,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
           : 'NO GOVERNED RUN';
 
     const actions: ActionState[] = [];
-    if (mode === 'quest-perf' || mode === 'quest-10m') {
+    if (mode === 'quest-perf' || mode === 'quest-qca0' || mode === 'quest-10m') {
       actions.push({
         id: runId,
         label: runLabel,
@@ -579,11 +587,16 @@ export class ValidationOperatorPanel extends SpatialPanel {
       lines.push(
         'Governed start is locked until the evidence sink confirms the exact launcher manifest.'
       );
-    } else if (manifest.validationMode === 'quest-perf') {
+    } else if (
+      manifest.validationMode === 'quest-perf' ||
+      manifest.validationMode === 'quest-qca0'
+    ) {
       lines.push(
         this._armed === 'performance'
           ? 'Confirm within 10 seconds to start ' + (manifest.profile ?? 'unknown') + '.'
-          : 'Governed performance profile ' +
+          : (manifest.validationMode === 'quest-qca0'
+              ? 'Governed QCA0 diagnostic profile '
+              : 'Governed performance profile ') +
               (manifest.profile ?? 'unknown') +
               '. Arm first, then confirm.'
       );

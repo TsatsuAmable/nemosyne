@@ -36,6 +36,7 @@ export interface DeviceDeclaration {
 
 export interface BuildValidationContextOptions {
   mode: ValidationMode;
+  profileOverride?: string | null;
   git?: GitFn;
   sessionId?: string;
   now?: () => Date;
@@ -149,14 +150,12 @@ export type WasmDiagnosticProbeFn = (
   }
 ) => WasmDiagnosticProbeResult;
 
-export declare function collectWasmBuildDiagnostics(
-  options?: {
-    root?: string;
-    wasm?: WasmDevBuildResult;
-    probeSyncFn?: WasmDiagnosticProbeFn;
-    probeTimeoutMs?: number;
-  }
-): WasmBuildDiagnostics;
+export declare function collectWasmBuildDiagnostics(options?: {
+  root?: string;
+  wasm?: WasmDevBuildResult;
+  probeSyncFn?: WasmDiagnosticProbeFn;
+  probeTimeoutMs?: number;
+}): WasmBuildDiagnostics;
 export declare function writeWasmBuildLog(
   manifest: Pick<ValidationManifest, 'evidenceDir'>,
   diagnostics: WasmBuildDiagnostics,
