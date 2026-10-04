@@ -212,6 +212,10 @@ export class LoadTestPanel extends SpatialPanel {
     return this._lastStep;
   }
 
+  getRenderedSummary(): string {
+    return this._formatSummary();
+  }
+
   update(delta = 0): void {
     super.update(delta);
     if (!this._dirty) return;

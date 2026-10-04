@@ -158,7 +158,7 @@ describe('LoadTestPanel UIKit dispatch', () => {
     });
     panel.update();
 
-    const summary = panel['_formatSummary']();
+    const summary = panel.getRenderedSummary();
     expect(summary).toContain('Step: 3/6 | 8k');
     expect(summary).toContain('p50 15.5 | p95 20.9 | p99 24.1 ms');
     expect(summary).toContain('draw 109 | tri 199000 | pts 0 | lines 0');
