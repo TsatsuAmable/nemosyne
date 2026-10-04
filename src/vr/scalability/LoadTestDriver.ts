@@ -196,11 +196,21 @@ export function createUxr0QualificationProfile(
   };
 }
 
-export const UXR0_FUNCTIONAL_5M_PROFILE = createUxr0QualificationProfile('functional-5m');
-export const UXR0_RESOURCE_TREND_30M_PROFILE = createUxr0QualificationProfile(
-  'resource-trend-30m'
+export const UXR0_FUNCTIONAL_5M_PROFILE = createUxr0QualificationProfile(
+  'functional-5m',
+  100_000,
+  'META_QUEST_3S'
 );
-export const UXR0_SUSTAINED_60M_PROFILE = createUxr0QualificationProfile('sustained-60m');
+export const UXR0_RESOURCE_TREND_30M_PROFILE = createUxr0QualificationProfile(
+  'resource-trend-30m',
+  100_000,
+  'META_QUEST_3S'
+);
+export const UXR0_SUSTAINED_60M_PROFILE = createUxr0QualificationProfile(
+  'sustained-60m',
+  100_000,
+  'META_QUEST_3S'
+);
 
 const SAMPLE_EMIT_INTERVAL_MS = 500;
 

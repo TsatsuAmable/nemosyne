@@ -68,6 +68,7 @@ describe('LoadTestDriver state machine', () => {
       expect(profile.steps[0].warmup).toBe(true);
       expect(profile.steps[0].rowCount).toBe(profile.steps[1].rowCount);
       expect(profile.steps[0].topology).toBe(profile.steps[1].topology);
+      expect(profile.deviceTarget).toBe('META_QUEST_3S');
     }
     expect(QUEST_3S_QUALIFICATION_PROFILE.name).toBe('quest-3s-qualification');
     expect(createUxr0QualificationProfile('functional-5m', 8_000).steps[1].rowCount).toBe(8_000);

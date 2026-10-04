@@ -103,7 +103,9 @@ describe('governed Quest performance profile dispatch', () => {
       'uxr0-resource-trend-30m',
       'uxr0-sustained-60m',
     ]) {
-      expect(resolveGovernedQuestPerformanceProfile(name).name).toBe(name);
+      const profile = resolveGovernedQuestPerformanceProfile(name);
+      expect(profile.name).toBe(name);
+      expect(profile.deviceTarget).toBe('META_QUEST_3S');
     }
     expect(() => resolveGovernedQuestPerformanceProfile('uxr0-invented')).toThrow(/unsupported/i);
   });
