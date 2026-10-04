@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { resolveGovernedQuestPerformanceProfile } from '../src/app/devEvidence.ts';
+import {
+  resolveGovernedQuestPerformanceProfile,
+  validationDeliveryMessage,
+} from '../src/app/devEvidence.ts';
 import { QCA0_ROW_ADDRESSABLE_KNEE_PROFILE } from '../src/vr/scalability/LoadTestDriver.ts';
 import { ValidationOperatorPanel } from '../src/vr/ui/ValidationOperatorPanel.ts';
 import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
@@ -129,6 +132,17 @@ describe('ValidationOperatorPanel governed semantic dispatch', () => {
       'Confirming validation session with evidence sink...'
     );
     expect(panel.getRenderedSummary()).not.toMatch(/[—−…→▶◀░]/u);
+    panel.dispose();
+  });
+
+  it('renders both production delivery messages with supported spatial punctuation', () => {
+    const { panel } = panelFor('quest-qca0');
+    for (const label of ['performance', 'guided UX']) {
+      panel.setDeliverySending(validationDeliveryMessage(label));
+      panel.update();
+      expect(panel.getRenderedSummary()).toContain(`Delivering ${label} evidence...`);
+      expect(panel.getRenderedSummary()).not.toMatch(/[·—−…→▶◀░]/u);
+    }
     panel.dispose();
   });
 

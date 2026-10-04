@@ -124,6 +124,10 @@ export function resolveGovernedQuestPerformanceProfile(
   }
 }
 
+export function validationDeliveryMessage(label: string): string {
+  return `Delivering ${label} evidence...`;
+}
+
 export interface DevEvidenceInstallerDependencies {
   engine: Engine;
   eventBus: WorldEventBusLike;
@@ -316,7 +320,7 @@ export function installDevEvidence({
   };
 
   const reportDelivery = async (summary: unknown, label: string): Promise<void> => {
-    if (validationPanel) validationPanel.setDeliverySending(`Delivering ${label} evidence...`);
+    if (validationPanel) validationPanel.setDeliverySending(validationDeliveryMessage(label));
     try {
       const receipt = await postSummary(summary);
       if (receipt && validationPanel) validationPanel.setDeliveryReceipt(receipt);
@@ -441,7 +445,7 @@ export function installDevEvidence({
       onDownload: downloadLastEvidence,
       onRefreshStatus: refreshValidationStatus,
       onSubmitUx: async (submission) => {
-        validationPanel?.setDeliverySending('Delivering guided UX evidence...');
+        validationPanel?.setDeliverySending(validationDeliveryMessage('guided UX'));
         const receipt = await postGuidedUx(submission);
         validationPanel?.setDeliveryReceipt(receipt);
         await refreshValidationStatus();

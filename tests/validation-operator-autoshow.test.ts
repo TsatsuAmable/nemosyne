@@ -32,6 +32,16 @@ describe('governed validation operator reachability', () => {
     expect(block).not.toContain('handle.runQuestBoundaryProbe');
   });
 
+  it('routes all UIKit delivery messages through the supported-glyph formatter', () => {
+    const installer = source('src/app/devEvidence.ts');
+    expect(installer).toContain(
+      'validationPanel.setDeliverySending(validationDeliveryMessage(label))'
+    );
+    expect(installer).toContain(
+      "validationPanel?.setDeliverySending(validationDeliveryMessage('guided UX'))"
+    );
+  });
+
   it('keeps the dev-evidence installer behind the DEV composition boundary', () => {
     const bootstrap = source('src/app/bootstrap.ts');
     expect(bootstrap).toMatch(
