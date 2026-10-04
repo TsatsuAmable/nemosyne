@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove the unsupported middle-dot glyph from spatial VR text, eliminate its governed-capture warning storm, and obtain a controlled Quest 3S before/after observation without changing product or evidence semantics.
+**Goal:** Remove device-observed unsupported glyphs from spatial VR text, eliminate their governed-capture warning storm, and obtain a controlled Quest 3S before/after observation without changing product or evidence semantics.
 
-**Architecture:** Keep UIKit, the diagnostic transport, and the governed QCA0 call graph unchanged. Replace the decorative U+00B7 separator with ASCII `|` at every spatial VR text source, protect the per-frame QCA operator/load-test outputs with behavior tests, then rerun the fixed QCA0 profile at the immutable branch head.
+**Architecture:** Keep UIKit, the diagnostic transport, and the governed QCA0 call graph unchanged. Replace device-observed unsupported punctuation and indicators with equivalent ASCII at UIKit-facing spatial VR text sources, protect the hot outputs with behavior tests, then rerun the fixed QCA0 profile at the immutable branch head.
 
 **Tech Stack:** TypeScript 6, Three.js/WebXR, `@pmndrs/uikit`, Vitest 5, Vite 8, ADB-connected Meta Quest 3S.
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Replace U+00B7 only under `src/vr/**`; desktop copy remains unchanged.
-- Use the supported literal separator ` | ` and preserve all surrounding wording, values, line breaks, actions and state.
+- Replace device-observed unsupported UIKit glyphs only under `src/vr/**`; desktop copy remains unchanged.
+- Use supported ASCII equivalents and preserve all surrounding wording, values, line breaks, actions and state.
 - Do not suppress console output, modify UIKit, add a font asset, disable remote diagnostics, change the QCA0 profile, or change evidence/custody semantics.
 - The governed comparison remains `quest-qca0` / `qca0-row-addressable-knee-v1` on ADB-attributed `META_QUEST_3S` with `ROW_ADDRESSABLE` coverage.
 - Do not connect `AdaptiveFrameGovernor` to prefix-based instance truncation in this tranche.
@@ -24,6 +24,7 @@
 - A live load-test summary must not retain U+00B7 after step/frame/GPU fields are populated (Task 1 test).
 - The substitution must not alter the values, labels, action availability or line structure surrounding separators (Task 1 tests and focused panel suites).
 - No spatial VR source may retain the known unsupported U+00B7 literal after the mechanical substitution (Task 1 bounded audit).
+- No UIKit-facing runtime string may retain the additional glyphs observed by the first live-device probe: U+2212, U+2591, U+2026, U+2014, U+25B6, U+25C0 or U+2192.
 - The hardware comparison must not be called an improvement if identity/profile/representation/custody differ or the run is invalid (Task 2 adjudication and comparison).
 
 ---
@@ -73,7 +74,7 @@ Expected: PASS.
 
 Run: `git add src/vr tests/validation-operator-panel.test.ts tests/load-test-panel.test.ts && git commit -m "perf(qca4): remove unsupported spatial glyph"`
 
-### Task 2: Verify and Capture the Controlled Device Result
+### Task 2: Close the Live-Device Glyph Set, Verify, and Capture
 
 **Files:**
 - Modify only if evidence changes programme status: `docs/ROADMAP.md`
@@ -83,6 +84,10 @@ Run: `git add src/vr tests/validation-operator-panel.test.ts tests/load-test-pan
 **Interfaces:**
 - Consumes: Task 1 exact branch head and the governed `quest-qca0` launcher/custody path.
 - Produces: automated branch evidence, an exact-head Quest capture when the device session is operable, and an honest QCA4a adoption/next-step disposition.
+
+- [ ] **Step 0: Treat a live-device missing-glyph finding as a falsifier**
+
+The first exact-head probe after Task 1 showed zero U+00B7 warnings but 776 warnings from U+2212, U+2591, U+2026, U+2014, U+25B6, U+25C0 and U+2192. Add behavior coverage for the hot UIKit outputs, observe RED, substitute supported ASCII at the corresponding runtime strings, and repeat focused verification before launching the terminal capture. Do not arm the benchmark while any missing-glyph storm remains.
 
 - [ ] **Step 1: Run repository verification**
 
@@ -102,7 +107,7 @@ Expected: the launcher binds the clean exact head and ADB Quest 3S identity, the
 
 - [ ] **Step 3: Adjudicate and compare without promoting unsupported claims**
 
-Require `VALID_CAPTURE`, active XR, the exact QCA0 profile, matching row-addressable cardinalities, and verified custody before comparing with the QCA0 baseline. Report missing-middle-dot warning count and each graded step's load duration, cadence p95/FPS/dropped rate and triangles. Treat variance as observation, not causation.
+Require `VALID_CAPTURE`, active XR, the exact QCA0 profile, matching row-addressable cardinalities, and verified custody before comparing with the QCA0 baseline. Report total and per-character missing-glyph warning counts and each graded step's load duration, cadence p95/FPS/dropped rate and triangles. Treat variance as observation, not causation.
 
 - [ ] **Step 4: Update durable status only if warranted**
 
