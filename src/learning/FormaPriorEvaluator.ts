@@ -10,10 +10,14 @@ import type { FormaCuratedCorpusV1 } from './FormaCuratedLearningCorpus.js';
 export interface FormaPriorEvaluationResult {
   readonly modelId: string;
   readonly modelVersion: string;
+  readonly candidateWeights: CandidateFormaPriorWeights;
+  readonly corpusId: string;
   readonly baselineAccuracy: number;
   readonly candidateAccuracy: number;
   readonly improvement: number;
   readonly holdoutCount: number;
+  readonly holdoutGroupCount: number;
+  readonly leaveOneGroupOutImprovementFloor: number;
   readonly knownAnswerPassRate: number;
   readonly abstentionComplianceRate: number;
   readonly passedGate: boolean;
@@ -77,8 +81,15 @@ export class FormaPriorEvaluator {
     const holdoutCount = holdoutExamples.length;
     const refusalReasons: string[] = [];
 
-    const knownAnswerPassRate = metadata.knownAnswerPassRate ?? 1.0;
-    const abstentionComplianceRate = metadata.abstentionComplianceRate ?? 1.0;
+    if (metadata.knownAnswerPassRate === undefined || typeof metadata.knownAnswerPassRate !== 'number') {
+      refusalReasons.push('Missing required evaluation: knownAnswerPassRate must be explicitly measured');
+    }
+    if (metadata.abstentionComplianceRate === undefined || typeof metadata.abstentionComplianceRate !== 'number') {
+      refusalReasons.push('Missing required evaluation: abstentionComplianceRate must be explicitly measured');
+    }
+
+    const knownAnswerPassRate = metadata.knownAnswerPassRate ?? 0.0;
+    const abstentionComplianceRate = metadata.abstentionComplianceRate ?? 0.0;
 
     if (holdoutCount < this.minHoldoutCount) {
       refusalReasons.push(
@@ -123,15 +134,46 @@ export class FormaPriorEvaluator {
       );
     }
 
+    const holdoutGroups = Array.from(new Set(holdoutExamples.map((e) => e.partitionGroup)));
+    const holdoutGroupCount = holdoutGroups.length;
+
+    let leaveOneGroupOutImprovementFloor = improvement;
+    if (holdoutGroupCount >= 2) {
+      let minLogo = Infinity;
+      for (const group of holdoutGroups) {
+        const logoExamples = holdoutExamples.filter((e) => e.partitionGroup !== group);
+        if (logoExamples.length === 0) continue;
+        let baseLogoCorrect = 0;
+        let candLogoCorrect = 0;
+        for (const ex of logoExamples) {
+          const baseScore = this.scoreExample(ex.features, this.baselineWeights);
+          const candScore = this.scoreExample(ex.features, candidate);
+          if ((baseScore >= 0.5 ? 1.0 : 0.0) === ex.targetLabel) baseLogoCorrect++;
+          if ((candScore >= 0.5 ? 1.0 : 0.0) === ex.targetLabel) candLogoCorrect++;
+        }
+        const logoImp = (candLogoCorrect - baseLogoCorrect) / logoExamples.length;
+        if (logoImp < minLogo) {
+          minLogo = logoImp;
+        }
+      }
+      if (Number.isFinite(minLogo)) {
+        leaveOneGroupOutImprovementFloor = minLogo;
+      }
+    }
+
     const passedGate = refusalReasons.length === 0;
 
     return {
       modelId: metadata.modelId,
       modelVersion: metadata.modelVersion,
+      candidateWeights: { ...candidate },
+      corpusId: corpus.corpusId,
       baselineAccuracy,
       candidateAccuracy,
       improvement,
       holdoutCount,
+      holdoutGroupCount,
+      leaveOneGroupOutImprovementFloor,
       knownAnswerPassRate,
       abstentionComplianceRate,
       passedGate,
@@ -141,7 +183,7 @@ export class FormaPriorEvaluator {
 
   /**
    * Promotes candidate prior to the FitnessModelRegistry if it passes the evaluation gate.
-   * Fails closed if the evaluation gate rejects the candidate.
+   * Fails closed if the evaluation gate rejects the candidate or if candidate substitution is detected.
    */
   public promoteToRegistry(
     candidate: CandidateFormaPriorWeights,
@@ -156,15 +198,34 @@ export class FormaPriorEvaluator {
       );
     }
 
+    // Candidate weights identity binding check (prevent candidate substitution)
+    if (
+      !evaluation.candidateWeights ||
+      evaluation.candidateWeights.intentRelevanceWeight !== candidate.intentRelevanceWeight ||
+      evaluation.candidateWeights.budgetFitnessWeight !== candidate.budgetFitnessWeight ||
+      evaluation.candidateWeights.templateParityWeight !== candidate.templateParityWeight ||
+      (evaluation.candidateWeights.caseBasedBonusWeight ?? 0) !== (candidate.caseBasedBonusWeight ?? 0)
+    ) {
+      throw new Error(
+        '[FormaPriorEvaluator] Candidate weights do not match evaluated weights: candidate substitution refused'
+      );
+    }
+
+    // Corpus identity binding check (prevent dataset/policy substitution)
+    if (evaluation.corpusId && evaluation.corpusId !== trainingDatasetHash) {
+      throw new Error(
+        `[FormaPriorEvaluator] Training dataset hash (${trainingDatasetHash}) does not match evaluated corpus (${evaluation.corpusId})`
+      );
+    }
+
     const evalSummary: FitnessModelEvaluationSummary = {
       bootstrapMetric: evaluation.baselineAccuracy,
       candidateMetric: evaluation.candidateAccuracy,
       metricName: 'holdout-meaning-recovery-accuracy',
       holdoutJudgementCount: evaluation.holdoutCount,
-      holdoutGroupCount: Math.max(1, Math.round(evaluation.holdoutCount / 2)),
-      leaveOneGroupOutImprovementFloor: evaluation.improvement,
+      holdoutGroupCount: evaluation.holdoutGroupCount,
+      leaveOneGroupOutImprovementFloor: evaluation.leaveOneGroupOutImprovementFloor,
     };
-
 
     const artifact: FitnessModelArtifact = {
       schemaVersion: '1.0.0',
@@ -188,6 +249,5 @@ export class FormaPriorEvaluator {
     const registered = registry.register(artifact);
     registry.promote(registered.artifactHash, Date.now());
     return registered;
-
   }
 }

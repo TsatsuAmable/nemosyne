@@ -121,7 +121,15 @@ export class FormaCuratedLearningCorpusBuilder {
 
       const snapshotKey = `${j.representationId}`;
       const snap = snapshots.get(snapshotKey);
-      const features = snap?.features ?? [1.0, 0.5, 0.0, 1.0]; // default bounded feature vector if synthetic
+      if (!snap || !Array.isArray(snap.features) || snap.features.length === 0) {
+        issues.push({
+          recordId: j.judgmentId,
+          reason: 'MISSING_FEATURE_SNAPSHOT',
+          detail: `Missing genuine feature snapshot for representation ${j.representationId}`,
+        });
+        continue;
+      }
+      const features = snap.features;
       if (features.some((f) => !Number.isFinite(f))) {
         issues.push({
           recordId: j.judgmentId,
@@ -133,7 +141,7 @@ export class FormaCuratedLearningCorpusBuilder {
 
       const partitionGroup =
         this.policy.partitionStrategy === 'by-dataset'
-          ? (snap?.datasetFingerprint ?? 'dataset-default')
+          ? (snap.datasetFingerprint || j.author.researcherId)
           : j.author.researcherId;
       const partition = this.assignPartition(partitionGroup);
 
@@ -144,7 +152,7 @@ export class FormaCuratedLearningCorpusBuilder {
         exampleId: `example-meaning:${j.judgmentId}`,
         category: 'MEANING_RECOVERY',
         representationId: j.representationId,
-        datasetFingerprint: snap?.datasetFingerprint ?? 'dataset-default',
+        datasetFingerprint: snap.datasetFingerprint || 'unknown-dataset',
         researcherId: j.author.researcherId,
         partitionGroup,
         partition,
@@ -203,7 +211,24 @@ export class FormaCuratedLearningCorpusBuilder {
     // 3. Process Discovery Outcome Links
     for (const d of input.discoveryLinks ?? []) {
       const snap = snapshots.get(d.graphId);
-      const features = snap?.features ?? [1.0, 1.0, 0.8, 0.9];
+      if (!snap || !Array.isArray(snap.features) || snap.features.length === 0) {
+        issues.push({
+          recordId: d.judgementId,
+          reason: 'MISSING_FEATURE_SNAPSHOT',
+          detail: `Missing genuine feature snapshot for representation ${d.graphId}`,
+        });
+        continue;
+      }
+      const features = snap.features;
+      if (features.some((f) => !Number.isFinite(f))) {
+        issues.push({
+          recordId: d.judgementId,
+          reason: 'NON_FINITE_FEATURE',
+          detail: 'Found non-finite feature value in representation snapshot',
+        });
+        continue;
+      }
+
       const partitionGroup =
         this.policy.partitionStrategy === 'by-dataset'
           ? d.provenance.datasetFingerprint
@@ -247,10 +272,25 @@ export class FormaCuratedLearningCorpusBuilder {
     }
 
     const corpusId = `corpus-pt9-v1:${canonicalSha256Hex({
-      exampleCount: examples.length,
       policy: this.policy,
-      firstId: examples[0]?.exampleId ?? null,
-      lastId: examples[examples.length - 1]?.exampleId ?? null,
+      examples: examples.map((e) => ({
+        exampleId: e.exampleId,
+        category: e.category,
+        representationId: e.representationId,
+        datasetFingerprint: e.datasetFingerprint,
+        researcherId: e.researcherId,
+        partitionGroup: e.partitionGroup,
+        partition: e.partition,
+        features: e.features,
+        targetLabel: e.targetLabel,
+        weight: e.weight,
+        rationale: e.rationale,
+      })),
+      issues: issues.map((i) => ({
+        recordId: i.recordId,
+        reason: i.reason,
+        detail: i.detail,
+      })),
     })}`;
 
     return {

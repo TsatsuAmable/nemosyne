@@ -92,10 +92,15 @@ export class FormaKnowledgeStore {
     const confirmedJudgments = (candidate.meaningJudgments ?? []).filter((j) => j.confirmed);
     const discoveryOutcomeCount = candidate.discoveryOutcomeCount ?? 0;
 
-    const totalEvidenceCount =
-      confirmedCritiques.length + confirmedJudgments.length + discoveryOutcomeCount;
+    const confirmedHumanEvidence = confirmedCritiques.length + confirmedJudgments.length;
+    if (confirmedHumanEvidence === 0) {
+      throw new Error(
+        '[FormaKnowledgeStore] Insufficient confirmed evidence to promote case (0 confirmed human evidence records provided; count alone cannot substitute for attributable testimony)'
+      );
+    }
 
-    if (totalEvidenceCount < 2 && discoveryOutcomeCount === 0) {
+    const totalEvidenceCount = confirmedHumanEvidence + discoveryOutcomeCount;
+    if (totalEvidenceCount < 2) {
       throw new Error(
         `[FormaKnowledgeStore] Insufficient confirmed evidence to promote case (${totalEvidenceCount} items, minimum 2 required)`
       );
@@ -105,7 +110,7 @@ export class FormaKnowledgeStore {
       (j) => j.taskComprehensionOutcome === 'ACCURATE'
     ).length;
     const accuracyRate =
-      confirmedJudgments.length > 0 ? accurateCount / confirmedJudgments.length : 1.0;
+      confirmedJudgments.length > 0 ? accurateCount / confirmedJudgments.length : 0.0;
 
     const contraindications = [
       ...(candidate.contraindications ?? []),
@@ -115,9 +120,9 @@ export class FormaKnowledgeStore {
     ];
 
     let status: MetaphorCaseStatus = 'QUALIFIED';
-    if (contraindications.length > 0 && accuracyRate < 0.6) {
+    if (contraindications.length > 0 && (confirmedJudgments.length === 0 || accuracyRate < 0.6)) {
       status = 'CONTRAINDICATED';
-    } else if (accuracyRate < 0.75) {
+    } else if (confirmedJudgments.length > 0 && accuracyRate < 0.75) {
       status = 'PROBATIONARY';
     }
 
