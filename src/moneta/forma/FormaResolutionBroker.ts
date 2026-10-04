@@ -133,8 +133,14 @@ export class FormaResolutionBroker {
       };
     }
 
-    // 2. Context generation guard: must match active context generation exactly
-    const activeGen = this.activeContextGenerations.get(context.nodeId) ?? 1;
+    const contextObj = context as unknown as { activationEpoch?: number };
+    const activeGen =
+      this.activeContextGenerations.get(context.nodeId) ??
+      (typeof context.runtimeGeneration === 'number'
+        ? context.runtimeGeneration
+        : typeof contextObj.activationEpoch === 'number'
+          ? contextObj.activationEpoch
+          : 1);
     if (requestedGeneration !== activeGen) {
       const msg = requestedGeneration < activeGen
         ? `Requested context generation ${requestedGeneration} is stale (active generation: ${activeGen})`

@@ -136,7 +136,7 @@ export class InvestigationAggregate {
   readonly ledger: EvidenceLedger;
   readonly representation: RepresentationState;
   readonly decisions: DecisionHistory;
-  readonly context: ResearchContext;
+  context: ResearchContext;
   readonly graph: InvestigationGraph;
   readonly discoveries: DiscoveryEpisodeStore;
   readonly formaKnowledge: FormaKnowledgeStore;
@@ -666,6 +666,9 @@ export class InvestigationAggregate {
         studyId: this.context.studyId,
         researchQuestion: this.context.researchQuestion,
         hypothesis: this.context.hypothesis,
+        ...(this.context.variablesOfInterest ? { variablesOfInterest: [...this.context.variablesOfInterest] } : {}),
+        ...(this.context.currentTask ? { currentTask: this.context.currentTask } : {}),
+        ...(this.context.observerMode !== undefined ? { observerMode: this.context.observerMode } : {}),
       },
     };
   }
@@ -750,6 +753,20 @@ export class InvestigationAggregate {
       this.discoveries.restore(validatedDiscoveries.toJSON());
     } else {
       this.discoveries.reset();
+    }
+
+    if (state.researchContext) {
+      const prevContext = this.context;
+      this.context = new ResearchContext({
+        sessionId: this.sessionId,
+        now: () => prevContext.now(),
+        studyId: state.researchContext.studyId,
+        researchQuestion: state.researchContext.researchQuestion,
+        hypothesis: state.researchContext.hypothesis,
+        variablesOfInterest: state.researchContext.variablesOfInterest,
+        currentTask: state.researchContext.currentTask,
+        observerMode: state.researchContext.observerMode,
+      });
     }
   }
 
@@ -855,6 +872,9 @@ export class InvestigationAggregate {
           studyId: this.context.studyId,
           researchQuestion: this.context.researchQuestion,
           hypothesis: this.context.hypothesis,
+          ...(this.context.variablesOfInterest ? { variablesOfInterest: [...this.context.variablesOfInterest] } : {}),
+          ...(this.context.currentTask ? { currentTask: this.context.currentTask } : {}),
+          ...(this.context.observerMode !== undefined ? { observerMode: this.context.observerMode } : {}),
         },
       });
     }
@@ -863,6 +883,9 @@ export class InvestigationAggregate {
       studyId: this.context.studyId,
       researchQuestion: this.context.researchQuestion,
       hypothesis: this.context.hypothesis,
+      ...(this.context.variablesOfInterest ? { variablesOfInterest: [...this.context.variablesOfInterest] } : {}),
+      ...(this.context.currentTask ? { currentTask: this.context.currentTask } : {}),
+      ...(this.context.observerMode !== undefined ? { observerMode: this.context.observerMode } : {}),
     };
 
     // RFC 0009: the governed V3 composition must commit exactly the semantic
