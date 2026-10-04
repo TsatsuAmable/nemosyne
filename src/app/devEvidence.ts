@@ -80,6 +80,7 @@ export interface DevEvidenceInstallerDependencies {
     | 'toggleWorkspaceSurface'
   >;
   loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
+  getCurrentEntry(): DatasetLoadEntry | null;
   getActiveSpecInfo(): ActiveSpecInfo | null;
   getWasmMemoryBytes(): number | null;
 }
@@ -203,13 +204,25 @@ export function installDevEvidence({
   telemetryCollector,
   uiManager,
   loadDataset,
+  getCurrentEntry,
   getActiveSpecInfo,
   getWasmMemoryBytes,
 }: DevEvidenceInstallerDependencies): DevEvidenceHandle {
-  const loadTestDriver = new LoadTestDriver({ loadDataset, getActiveSpecInfo, eventBus }, engine, {
-    getWasmMemoryBytes,
-    getSceneStats: () => captureSceneCardinality(engine),
-  });
+  const loadTestDriver = new LoadTestDriver(
+    {
+      loadDataset,
+      get currentEntry() {
+        return getCurrentEntry();
+      },
+      getActiveSpecInfo,
+      eventBus,
+    },
+    engine,
+    {
+      getWasmMemoryBytes,
+      getSceneStats: () => captureSceneCardinality(engine),
+    }
+  );
   const questBoundaryProbe = new QuestBoundaryProbe(engine, eventBus);
   const validationContext = readBrowserValidationContext(import.meta.env);
   engine.addUpdatable(loadTestDriver);

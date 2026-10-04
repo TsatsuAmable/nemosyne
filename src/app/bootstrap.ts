@@ -469,6 +469,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
       telemetryCollector: world.telemetryCollector,
       uiManager: world.uiManager,
       loadDataset: (entry) => world.loadDataset(entry),
+      getCurrentEntry: () => world.currentEntry,
       getActiveSpecInfo: () => {
         const spec = world.dracoNode?.solverResult?.spec;
         if (!spec) return null;

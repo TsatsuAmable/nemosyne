@@ -3,8 +3,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/vr/World.ts';
 import { REPRESENTATION_RESOURCE_POLICY_V1 } from '../src/vr/scalability/ResourceLifecycleGovernor.ts';
+import { LoadTestDriver } from '../src/vr/scalability/LoadTestDriver.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
+import { WorldTopics } from '../src/utils/EventBus.ts';
 
 describe('RF-062C production World path', () => {
   let world: World | null = null;
@@ -44,6 +46,51 @@ describe('RF-062C production World path', () => {
     expect(world.diagnostic).toBe(world.representationSurface.diagnostic);
     expect(world.currentEntry?.dataset).toBe(sample.dataset);
     expect(world.atlas.dataset).not.toBe(sample.dataset);
+  });
+
+  it('fails closed when the real World load boundary supersedes a queued stress dataset', async () => {
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const summaries: unknown[] = [];
+    const stepPhases: string[] = [];
+    const offComplete = world.eventBus.on(WorldTopics.LOADTEST_COMPLETE, (payload) =>
+      summaries.push(payload)
+    );
+    const offStep = world.eventBus.on(WorldTopics.LOADTEST_STEP, (payload) =>
+      stepPhases.push((payload as { phase?: string }).phase ?? '')
+    );
+    const driver = new LoadTestDriver(world, world.engine);
+    const competing = getSampleDataset('sales-table');
+    if (!competing) throw new Error('sales-table sample is required');
+
+    driver.run({
+      name: 'real-world-supersession',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 0 }],
+    });
+    const competingLoad = world.loadDataset({
+      name: competing.label,
+      topology: competing.topology,
+      dataset: competing.dataset,
+      maxDepth: competing.depth,
+    });
+
+    await competingLoad;
+    await Promise.resolve();
+
+    expect(driver.phase).toBe('COMPLETE');
+    expect(stepPhases).not.toContain('SETTLING');
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      aborted: true,
+      failure: { phase: 'dataset-load', message: expect.stringMatching(/superseded/i) },
+      steps: [],
+    });
+    expect(world.currentEntry?.name).toBe(competing.label);
+
+    driver.dispose();
+    offComplete();
+    offStep();
   });
 
   it('delegates representation teardown to the surface owner', async () => {

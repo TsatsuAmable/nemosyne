@@ -98,7 +98,7 @@ export interface LoadTestSummary {
 export interface LoadTestWorldLike {
   loadDataset(entry: DatasetLoadEntry): void | Promise<void>;
   /** Dataset active before the run; restored on finish so the UI is usable. */
-  currentEntry?: DatasetLoadEntry | null;
+  currentEntry: DatasetLoadEntry | null;
   /** Read the geometry/layout the Draco solver actually picked, if available. */
   getActiveSpecInfo?(): {
     geometry?: string;
@@ -238,6 +238,7 @@ export class LoadTestDriver implements Updatable {
   private _runId = '';
   private _disposed = false;
   private _loadGeneration = 0;
+  private _activeEntry: DatasetLoadEntry | null = null;
   /** Entry active before run(); restored after _finishRun so the stress dataset does not freeze the UI. */
   private _preRunEntry: DatasetLoadEntry | null = null;
 
@@ -262,7 +263,7 @@ export class LoadTestDriver implements Updatable {
     this._steps = [];
     this._aborted = false;
     this._failure = null;
-    this._preRunEntry = this._world.currentEntry ?? null;
+    this._preRunEntry = this._world.currentEntry;
     this._startedAt = performance.now();
     this._runId =
       typeof globalThis.crypto?.randomUUID === 'function'
@@ -307,6 +308,15 @@ export class LoadTestDriver implements Updatable {
   /** Engine updatable hook — drives the state machine. */
   update(_delta: number, _time: number): void {
     const now = performance.now();
+    if (
+      (this.phase === 'SETTLING' || this.phase === 'MEASURING') &&
+      this._activeEntry !== null &&
+      this._world.currentEntry !== this._activeEntry
+    ) {
+      const spec = this._profile.steps[this._stepIndex - 1];
+      this._abortForDatasetReplacement(spec, 'active loadtest dataset was replaced');
+      return;
+    }
     switch (this.phase) {
       case 'IDLE':
       case 'COMPLETE':
@@ -362,13 +372,14 @@ export class LoadTestDriver implements Updatable {
     // promise that resolves only after representation construction completes;
     // synchronous test doubles remain supported.
     const entry = this._buildEntry(spec);
+    this._activeEntry = entry;
     const loadStartedAt = performance.now();
     const loadGeneration = ++this._loadGeneration;
     try {
       const result = this._world.loadDataset(entry);
       if (result && typeof result.then === 'function') {
         void Promise.resolve(result).then(
-          () => this._completeLoad(loadGeneration, spec, loadStartedAt),
+          () => this._completeLoad(loadGeneration, spec, entry, loadStartedAt),
           (error: unknown) => this._failLoad(loadGeneration, spec, error)
         );
         return;
@@ -377,15 +388,20 @@ export class LoadTestDriver implements Updatable {
       this._failLoad(loadGeneration, spec, err);
       return;
     }
-    this._completeLoad(loadGeneration, spec, loadStartedAt);
+    this._completeLoad(loadGeneration, spec, entry, loadStartedAt);
   }
 
   private _completeLoad(
     loadGeneration: number,
     spec: LoadTestStepSpec,
+    entry: DatasetLoadEntry,
     loadStartedAt: number
   ): void {
     if (loadGeneration !== this._loadGeneration || this.phase !== 'LOADING') return;
+    if (this._world.currentEntry !== entry) {
+      this._abortForDatasetReplacement(spec, 'dataset load was superseded before adoption');
+      return;
+    }
     this._currentLoadDurationMs = performance.now() - loadStartedAt;
     this.phase = 'SETTLING';
     this._phaseStartMs = performance.now();
@@ -410,6 +426,17 @@ export class LoadTestDriver implements Updatable {
     this._finishRun();
   }
 
+  private _abortForDatasetReplacement(spec: LoadTestStepSpec, message: string): void {
+    // A newer external load owns the World. Restoring the pre-run entry would
+    // overwrite that user action, so only finalize the evidence run.
+    this._preRunEntry = null;
+    if (this.phase === 'MEASURING') this._finishStep(true, false, false);
+    this._aborted = true;
+    this._failure = { phase: 'dataset-load', message };
+    console.error('[LoadTestDriver] loadDataset failed for step', spec, new Error(message));
+    this._finishRun();
+  }
+
   private _startMeasuring(): void {
     const spec = this._profile.steps[this._stepIndex - 1];
     this.collector.startStep(spec);
@@ -424,8 +451,8 @@ export class LoadTestDriver implements Updatable {
     });
   }
 
-  private _finishStep(partial: boolean, continueRun = true): void {
-    const specInfo = this._world.getActiveSpecInfo?.() ?? null;
+  private _finishStep(partial: boolean, continueRun = true, captureSpecInfo = true): void {
+    const specInfo = captureSpecInfo ? (this._world.getActiveSpecInfo?.() ?? null) : null;
     const result = this.collector.endStep({
       specGeometry: specInfo?.geometry,
       specLayout: specInfo?.layout,
@@ -451,16 +478,19 @@ export class LoadTestDriver implements Updatable {
 
   private _finishRun(): void {
     this._loadGeneration++;
+    this._activeEntry = null;
     this.phase = 'COMPLETE';
     this._finishedAt = performance.now();
-    const computedVerdict = computeOverallVerdict(this._steps);
-    const verdict = this._aborted
+    const verdict: OverallVerdict = this._aborted
       ? {
-          ...computedVerdict,
+          grades: [],
+          jsPathSufficientTo: null,
+          commandBufferWarrantedAt: null,
           requiredPerfLevel: 'No performance level established because the run aborted.',
           recommendation: 'No recommendation: run aborted before qualification completed.',
+          warmupExcludedRowCounts: [],
         }
-      : computedVerdict;
+      : computeOverallVerdict(this._steps);
     const visibility = this._visibilityTracker?.finish() ?? {
       interruptionCount: 0,
       interruptedDurationMs: 0,

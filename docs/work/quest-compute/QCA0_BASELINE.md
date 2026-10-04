@@ -50,23 +50,24 @@ completion.
 
 | Signal | Observation |
 | --- | --- |
-| Frames | 1,235/1,235 dropped; render p50 224.27 ms, p95 244.49 ms, p99 253.64 ms; 4.41 FPS average |
+| Application-frame CPU duration | 1,235/1,235 over budget; p50 224.27 ms, p95 244.49 ms, p99 253.64 ms; 4.41 FPS average. This spans input, locomotion, updatables and render submission; it is not component timing. |
 | XR cadence | p95 248.63 ms; p99 259.34 ms; 14,544.11 ms maximum gap |
-| Render load | 2,405,766 average / 2,414,728 maximum triangles; 28.02 average draw calls; 100,000 rendered nodes |
+| Render workload | 2,405,766 average / 2,414,728 maximum triangles; 28.02 average draw calls; 100,000 rendered nodes. These counts do not attribute elapsed time to GPU or rendering. |
 | Governor | LOD scale reached and ended at 0.4; 1,235 throttle events; rendered cardinality remained 100,000 |
 | Memory | JS heap 225,000,000 bytes and WASM 154,664,960 bytes at start/peak/end; no observed trend in this profile |
 | Visibility | Two interruptions totaling 5,376.1 ms; final state visible |
 
 Thirty- and sixty-minute profiles were not run: the five-minute profile was
-already catastrophically red, memory was flat, and longer soaks would not answer
-the first optimization question. They remain available for comparison after the
-frame/render bottleneck is materially reduced.
+already catastrophically over the whole-frame budget, memory was flat, and longer
+soaks would not answer the first optimization question. They remain available for
+comparison after a bounded intervention materially reduces frame time.
 
 ### Ranked findings and QCA handoff
 
-1. **QCA4 first:** the 100k row-addressable representation submitted about 2.4M
-   triangles per frame and sustained only about 4 FPS. Rendering/cardinality is
-   the dominant measured bottleneck.
+1. **Frame-budget collapse / QCA4 first experiment:** the 100k row-addressable
+   representation coincided with about 2.4M submitted triangles per frame and
+   only about 4 FPS. Cardinality/rendering is the leading optimization hypothesis,
+   not a measured causal attribution; QCA4 must use controlled comparisons.
 2. **QCA4 governor effectiveness:** 1,235 throttle events and a 0.4 LOD scale did
    not reduce the 100k rendered-node count. QCA4 must test bounded cardinality or
    geometry changes independently and retain only physical-Quest wins.
@@ -80,7 +81,8 @@ frame/render bottleneck is materially reduced.
 QCA1 therefore begins with a hotspot audit and may close as a negative experiment
 if no eligible Rust/WASM kernel dominates. QCA2 begins with corrected load and
 main-thread evidence. QCA3 remains blocked on QCA2 transfer/synchronization
-measurements. QCA4 is directly authorized by the render evidence above.
+measurements. QCA4 is authorized as the first controlled experiment by the
+cardinality/workload correlation above; component or GPU attribution remains open.
 
 ### Measurement-integrity follow-through
 

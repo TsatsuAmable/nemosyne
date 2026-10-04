@@ -39,10 +39,12 @@ function makeWorld(
   tracker: { count: number; entries: unknown[] },
   events: { topic: string; payload?: unknown }[]
 ): LoadTestWorldLike {
-  return {
+  const world: LoadTestWorldLike = {
+    currentEntry: null,
     loadDataset(entry) {
       tracker.count++;
       tracker.entries.push(entry);
+      world.currentEntry = entry;
     },
     getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
     eventBus: {
@@ -51,6 +53,7 @@ function makeWorld(
       },
     },
   };
+  return world;
 }
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -211,16 +214,29 @@ describe('LoadTestDriver state machine', () => {
     const summary = events.find((e) => e.topic === WorldTopics.LOADTEST_COMPLETE)!.payload as {
       aborted: boolean;
       steps: unknown[];
+      verdict: {
+        grades: unknown[];
+        jsPathSufficientTo: number | null;
+        commandBufferWarrantedAt: number | null;
+      };
     };
     expect(summary.aborted).toBe(true);
     expect(summary.steps.length).toBe(1);
+    expect(summary.verdict.grades).toEqual([]);
+    expect(summary.verdict.jsPathSufficientTo).toBeNull();
+    expect(summary.verdict.commandBufferWarrantedAt).toBeNull();
   });
 
   it('keeps the production load in LOADING until its promise resolves and measures completion', async () => {
     const load = deferred();
     const events: { topic: string; payload?: unknown }[] = [];
     const world: LoadTestWorldLike = {
-      loadDataset: vi.fn(() => load.promise),
+      currentEntry: null,
+      loadDataset: vi.fn((entry) =>
+        load.promise.then(() => {
+          world.currentEntry = entry;
+        })
+      ),
       getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
       eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
     };
@@ -253,6 +269,7 @@ describe('LoadTestDriver state machine', () => {
   it('fails closed when the production load promise rejects', async () => {
     const events: { topic: string; payload?: unknown }[] = [];
     const world: LoadTestWorldLike = {
+      currentEntry: null,
       loadDataset: () => Promise.reject(new Error('representation build failed')),
       eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
     };
@@ -281,12 +298,53 @@ describe('LoadTestDriver state machine', () => {
     });
   });
 
+  it('clears prior qualification fields when a later production load rejects', async () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    let loadCount = 0;
+    const world = makeWorld({ count: 0, entries: [] }, events);
+    world.loadDataset = (entry) => {
+      loadCount += 1;
+      if (loadCount === 2) return Promise.reject(new Error('second load failed'));
+      world.currentEntry = entry;
+    };
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'later-rejection',
+      settleSec: 0,
+      steps: [
+        { topology: 'TABULAR', rowCount: 10, durationSec: 0 },
+        { topology: 'TABULAR', rowCount: 20, durationSec: 1 },
+      ],
+    });
+    driver.update(0.016, 0);
+    driver.update(0.016, 0);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
+      .payload as {
+      aborted: boolean;
+      steps: unknown[];
+      verdict: {
+        grades: unknown[];
+        jsPathSufficientTo: number | null;
+        commandBufferWarrantedAt: number | null;
+      };
+    };
+    expect(summary.aborted).toBe(true);
+    expect(summary.steps).toHaveLength(1);
+    expect(summary.verdict.grades).toEqual([]);
+    expect(summary.verdict.jsPathSufficientTo).toBeNull();
+    expect(summary.verdict.commandBufferWarrantedAt).toBeNull();
+  });
+
   it.each(['stop', 'dispose'] as const)(
     '%s fences a late production-load completion from resurrecting the run',
     async (termination) => {
       const load = deferred();
       const events: { topic: string; payload?: unknown }[] = [];
       const world: LoadTestWorldLike = {
+        currentEntry: null,
         loadDataset: () => load.promise,
         eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
       };
@@ -319,6 +377,36 @@ describe('LoadTestDriver state machine', () => {
       ).toHaveLength(0);
     }
   );
+
+  it('fails closed when another dataset replaces the measured stress entry', () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    const world = makeWorld({ count: 0, entries: [] }, events);
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'mid-measure-supersession',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 60 }],
+    });
+    driver.update(0.016, 0);
+    expect(driver.phase).toBe('MEASURING');
+
+    world.currentEntry = { key: 'external', name: 'External dataset' };
+    driver.update(0.016, 0);
+
+    expect(driver.phase).toBe('COMPLETE');
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
+      .payload as {
+      aborted: boolean;
+      failure: { phase: string; message: string } | null;
+      steps: { reasons: string[] }[];
+    };
+    expect(summary).toMatchObject({
+      aborted: true,
+      failure: { phase: 'dataset-load', message: expect.stringMatching(/replaced/i) },
+    });
+    expect(summary.steps).toHaveLength(1);
+    expect(summary.steps[0].reasons[0]).toBe('step aborted early');
+  });
 
   it('default profile is the documented warmup + 1k→250k TABULAR staircase', () => {
     const steps = DEFAULT_LOAD_TEST_PROFILE.steps;
@@ -439,7 +527,8 @@ describe('LoadTestDriver state machine', () => {
     const preRunEntry = { key: 'supply-chain', name: 'Supply Chain Hierarchy' };
     const tracker = { count: 0, entries: [] as unknown[] };
     const events: { topic: string; payload?: unknown }[] = [];
-    const world = { ...makeWorld(tracker, events), currentEntry: preRunEntry };
+    const world = makeWorld(tracker, events);
+    world.currentEntry = preRunEntry;
     const driver = new LoadTestDriver(world, makeEngine(8));
 
     driver.run(profile);
@@ -465,9 +554,13 @@ describe('LoadTestDriver state machine', () => {
     let loadCount = 0;
     const world: LoadTestWorldLike = {
       currentEntry: preRunEntry,
-      loadDataset: () => {
+      loadDataset: (entry) => {
         loadCount += 1;
-        return loadCount === 1 ? Promise.resolve() : Promise.reject(restoreError);
+        if (loadCount === 1) {
+          world.currentEntry = entry;
+          return Promise.resolve();
+        }
+        return Promise.reject(restoreError);
       },
       getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
       eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
