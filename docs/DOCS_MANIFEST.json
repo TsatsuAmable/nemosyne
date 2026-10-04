@@ -222,6 +222,12 @@
       "status": "active",
       "authority": "full-moneta-completeness-audit",
       "owner": "architecture"
+    },
+    {
+      "path": "docs/review-plans/DSE0_PREFLIGHT_AND_REMOVAL_INVENTORY.md",
+      "status": "active",
+      "authority": "dse0-preflight-removal-inventory",
+      "owner": "architecture"
     }
   ]
 }

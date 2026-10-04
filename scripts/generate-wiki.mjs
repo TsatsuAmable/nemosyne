@@ -23,6 +23,7 @@ const pageByAuthority = new Map([
   ['proposed-dataset-first-semantic-embodiment-design', 'Dataset-First-Semantic-Embodiment'],
   ['proposed-minimum-architecture-rfc', 'Minimum-Nemosyne-Architecture-RFC'],
   ['full-moneta-completeness-audit', 'Full-Moneta-Completeness-Audit'],
+  ['dse0-preflight-removal-inventory', 'DSE0-Preflight-and-Removal-Inventory'],
   ['architecture-2027-review', 'Architecture-2027-Review'],
   ['dual-epistemic-architecture-reassessment', 'A27-1-Dual-Epistemic-Reassessment'],
   ['dual-epistemic-preservation-rfc', 'Dual-Epistemic-Preservation-RFC'],
