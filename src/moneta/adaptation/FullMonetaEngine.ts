@@ -403,6 +403,31 @@ export class FullMonetaEngine {
   }
 
   /**
+   * Renders the System-1 advisory disclosure for a synthesis result.
+   * Presents consumed advice (or abstention) as advice, never as evidence.
+   */
+  private static explainSystem1Advisory(result: FullMonetaSynthesisResult): string {
+    const advisory = result.system1ProposalSet;
+    let section = `System-1 Advisory Disclosure:\n`;
+    section += `   - Advisory proposal set: ${advisory.proposalSetId}\n`;
+    if (advisory.status === 'ABSTAIN') {
+      section += `   - Status: ABSTAINED — ${advisory.abstentionReason}\n`;
+      section += `   - Effect: proceeded on the deterministic/search path without System-1 advice.\n`;
+      return section;
+    }
+    section += `   - Status: PROPOSED (${advisory.candidates.length} candidate(s)) — advice, not analytical evidence.\n`;
+    for (const c of advisory.candidates) {
+      section += `   - Advised ${c.candidateId}: template ${c.templateId}, tier ${c.targetResolutionTier}, score ${c.score.toFixed(3)}\n`;
+    }
+    const winner = result.paretoFrontier[0] ?? result.candidate;
+    const winnerFromAdvice = (winner.lineage.operatorApplied ?? '').startsWith('SYSTEM1_SEED_');
+    section += winnerFromAdvice
+      ? `   - Effect: selected candidate ${winner.candidateId} originated from System-1 advice and survived Pareto admission.\n`
+      : `   - Effect: System-1 advice competed; the selected candidate ${winner.candidateId} was chosen on Pareto objectives, not by the advisor.\n`;
+    return section;
+  }
+
+  /**
    * Generates a multi-layer TechnoCore explanation of a Full Moneta synthesis/adaptation decision.
    */
   public static explainFullMonetaDecision(
@@ -446,6 +471,8 @@ export class FullMonetaEngine {
       explanation += `   - Visual Continuity Rating: ${(transition.visualContinuityRating * 100).toFixed(1)}%\n`;
       explanation += `   - Summary: ${transition.summary}\n`;
     }
+
+    explanation += FullMonetaEngine.explainSystem1Advisory(result);
 
     return explanation;
   }
