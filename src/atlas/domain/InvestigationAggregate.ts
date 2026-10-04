@@ -73,11 +73,13 @@ import {
 } from '../../moneta/adaptation/index.ts';
 import type { ObjectivePreference } from '../../moneta/search/RepresentationObjectiveModel.ts';
 import type { FormaCompiledSliceV1 } from '../../moneta/forma/FormaSpatialCompiler.ts';
+import type { FormaProposalSetV1 } from '../../moneta/forma/FormaSystem1Proposer.ts';
 
 export interface FormaInvestigationStateV1 {
   readonly schemaVersion: 1;
   readonly slice: FormaCompiledSliceV1;
   readonly proposals?: readonly unknown[];
+  readonly system1ProposalSet?: FormaProposalSetV1;
   readonly admission?: unknown;
   readonly context?: CommittedInvestigationContextV2;
 }
@@ -995,6 +997,7 @@ export class InvestigationAggregate {
         schemaVersion: 1,
         slice: this._activeFormaResult.resolutionVariant.slice,
         proposals: this._activeFormaResult.conjecturalProposals,
+        system1ProposalSet: this._activeFormaResult.system1ProposalSet,
         admission: this._activeFormaResult.resolutionVariant,
         context: this.getActiveContext(),
       };
