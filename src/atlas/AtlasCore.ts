@@ -112,6 +112,15 @@ import {
   type AdaptationOptions,
   type FullMonetaSynthesisResult,
 } from '../moneta/adaptation/index.ts';
+import type {
+  DirectEmbodimentCompileResult,
+  AttributableCritiqueV1,
+} from '../moneta/representation/DirectEmbodimentCompiler.ts';
+import type { SemanticSnapshotV1, EvidenceReferenceTupleV1 } from '../moneta/representation/SemanticSnapshotV1.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
+import type { DeviceCapabilityBudgetV1, SemanticObligationContractV1 } from '../moneta/forma/FormaResolutionBroker.ts';
+import type { FormaAdmissionOptionsV1 } from '../moneta/forma/FormaAdmission.ts';
+import type { SpatialPhenotype } from '../moneta/forma/FormaSpatialCompiler.ts';
 
 export { KernelUnavailableError };
 export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
@@ -1809,6 +1818,29 @@ export class AtlasCore {
    */
   adaptRepresentation(options?: AdaptationOptions): FullMonetaSynthesisResult {
     return this._aggregate.adaptRepresentation(options);
+  }
+
+  /**
+   * DSE1: Executes direct deterministic representation compilation.
+   * Produces bounded overview plan and reverse explanation trace without neural advice or population search.
+   */
+  compileDirectEmbodiment(options?: {
+    readonly snapshot?: SemanticSnapshotV1;
+    readonly analyticalEvidence?: {
+      readonly envelope: SemanticEmbodimentEnvelopeV1;
+      readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
+    };
+    readonly budget?: DeviceCapabilityBudgetV1;
+    readonly obligations?: SemanticObligationContractV1;
+    readonly admissionOptions?: FormaAdmissionOptionsV1;
+    readonly phenotype?: SpatialPhenotype;
+    readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
+  }): DirectEmbodimentCompileResult {
+    return this._aggregate.compileDirectEmbodiment(options);
+  }
+
+  getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {
+    return this._aggregate.getActiveDirectCompileResult();
   }
 
   /**

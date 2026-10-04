@@ -72,9 +72,22 @@ import {
   type FullMonetaSynthesisResult,
 } from '../../moneta/adaptation/index.ts';
 import type { ObjectivePreference } from '../../moneta/search/RepresentationObjectiveModel.ts';
-import type { FormaCompiledSliceV1 } from '../../moneta/forma/FormaSpatialCompiler.ts';
+import type { FormaCompiledSliceV1, SpatialPhenotype } from '../../moneta/forma/FormaSpatialCompiler.ts';
 import type { FormaProposalSetV1 } from '../../moneta/forma/FormaSystem1Proposer.ts';
 import type { System1ProposalSource } from '../../moneta/forma/FormaSystem1Proposer.ts';
+import {
+  compileDirectEmbodimentPlan,
+  type DirectEmbodimentCompileResult,
+  type AttributableCritiqueV1,
+} from '../../moneta/representation/DirectEmbodimentCompiler.ts';
+import {
+  normalizeEnvelopeToSnapshot,
+  type SemanticSnapshotV1,
+  type EvidenceReferenceTupleV1,
+} from '../../moneta/representation/SemanticSnapshotV1.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import type { DeviceCapabilityBudgetV1, SemanticObligationContractV1 } from '../../moneta/forma/FormaResolutionBroker.ts';
+import type { FormaAdmissionOptionsV1 } from '../../moneta/forma/FormaAdmission.ts';
 
 export interface FormaInvestigationStateV1 {
   readonly schemaVersion: 1;
@@ -958,7 +971,66 @@ export class InvestigationAggregate {
   }
 
   private _activeFormaResult?: FullMonetaSynthesisResult;
+  private _activeDirectCompileResult?: DirectEmbodimentCompileResult;
   private _formaState?: FormaInvestigationStateV1;
+
+  /**
+   * DSE1: Executes direct deterministic representation compilation.
+   * Compiles bounded spatial overview and reverse explanation without neural overhead or population search.
+   */
+  compileDirectEmbodiment(options?: {
+    readonly snapshot?: SemanticSnapshotV1;
+    readonly analyticalEvidence?: {
+      readonly envelope: SemanticEmbodimentEnvelopeV1;
+      readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
+    };
+    readonly budget?: DeviceCapabilityBudgetV1;
+    readonly obligations?: SemanticObligationContractV1;
+    readonly admissionOptions?: FormaAdmissionOptionsV1;
+    readonly phenotype?: SpatialPhenotype;
+    readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
+  }): DirectEmbodimentCompileResult {
+    let snapshot = options?.snapshot;
+    if (!snapshot && options?.analyticalEvidence) {
+      snapshot = normalizeEnvelopeToSnapshot(
+        options.analyticalEvidence.envelope,
+        options.analyticalEvidence.evidenceReferences
+      );
+    }
+    if (!snapshot) {
+      throw new Error(
+        '[InvestigationAggregate] Direct compilation refused: analytical evidence is unavailable or ungrounded'
+      );
+    }
+
+    const context = this.getActiveContext();
+    if (!context) {
+      throw new Error(
+        '[InvestigationAggregate] Direct compilation refused: committed investigation context is strictly required'
+      );
+    }
+
+    const ds = this.analytical.current;
+    const result = compileDirectEmbodimentPlan({
+      datasetFingerprint: ds.fingerprint,
+      snapshot,
+      context,
+      budget: options?.budget,
+      obligations: options?.obligations,
+      admissionOptions: options?.admissionOptions,
+      phenotype: options?.phenotype,
+      critiqueFeedback: options?.critiqueFeedback,
+      researchMode: this.researchMode,
+    });
+    this._activeDirectCompileResult = result;
+    this._activeFormaResult = undefined;
+    this._formaState = undefined;
+    return result;
+  }
+
+  getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {
+    return this._activeDirectCompileResult;
+  }
 
   /**
    * FM8: Executes Controlled Adaptive Representation synthesis & adaptation.
@@ -986,7 +1058,11 @@ export class InvestigationAggregate {
   }
 
   getActiveFormaSlice(): FormaCompiledSliceV1 | undefined {
-    return this._activeFormaResult?.resolutionVariant?.slice ?? this._formaState?.slice;
+    return (
+      this._activeDirectCompileResult?.slice ??
+      this._activeFormaResult?.resolutionVariant?.slice ??
+      this._formaState?.slice
+    );
   }
 
   setFormaState(state: FormaInvestigationStateV1): void {

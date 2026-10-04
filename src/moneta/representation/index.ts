@@ -31,3 +31,4 @@ export * from './ExperimentSpecimenCapabilities.ts';
 export * from './RawRowAuthority.ts';
 
 export * from './ComposedRepresentationValidation.ts';
+export * from './DirectEmbodimentCompiler.ts';
