@@ -12,6 +12,7 @@ import {
   type GuidedUxSubmission,
 } from '../src/validation/guided-ux-validation.ts';
 import {
+  QCA0_ROW_ADDRESSABLE_KNEE_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
   UXR0_FUNCTIONAL_5M_PROFILE,
   UXR0_RESOURCE_TREND_30M_PROFILE,
@@ -21,6 +22,7 @@ import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.t
 import {
   QUEST_PERFORMANCE_PROFILE_POLICIES,
   QUEST_PERF_STEP_POLICY,
+  analyzeQca0ScaleKneeReport,
   adjudicateValidationEvidence,
   validateQuestBoundaryReport,
   validateQuestPerformanceReport,
@@ -106,6 +108,299 @@ function perfReport(
     }),
   };
 }
+
+const QCA0_STEPS = [
+  { rowCount: 1_000, durationSec: 10, warmup: true },
+  { rowCount: 1_000, durationSec: 15, warmup: false },
+  { rowCount: 8_000, durationSec: 15, warmup: false },
+  { rowCount: 32_000, durationSec: 15, warmup: false },
+  { rowCount: 65_000, durationSec: 15, warmup: false },
+  { rowCount: 100_000, durationSec: 30, warmup: false },
+] as const;
+
+function fullFrame(grade: 'green' | 'yellow' | 'red') {
+  const compact = frameFor(grade);
+  return {
+    frameCount: 900,
+    dropped: compact.droppedPct * 9,
+    droppedPct: compact.droppedPct,
+    p50Ms: compact.p95Ms - 2,
+    p95Ms: compact.p95Ms,
+    p99Ms: compact.p99Ms,
+    avgMs: compact.p95Ms - 1,
+    minMs: 5,
+    maxMs: compact.p99Ms,
+    fpsAvg: 1000 / (compact.p95Ms - 1),
+    gcSpikes: 0,
+  };
+}
+
+function qca0Report(
+  value: ValidationManifest,
+  grades: Array<'green' | 'yellow' | 'red'> = ['green', 'green', 'green', 'green', 'green']
+) {
+  let gradedIndex = 0;
+  return {
+    version: '2',
+    profileName: 'qca0-row-addressable-knee-v1',
+    xrActive: true,
+    aborted: false,
+    failure: null,
+    thresholds: { ...LOAD_TEST_THRESHOLDS },
+    device: {
+      buildId: value.buildId,
+      declaredDeviceTarget: 'META_QUEST_3S',
+      identityBasis: 'adb-system-property',
+      declaredFirmwareVersion: value.deviceIdentity?.buildIncremental,
+      xr: { active: true },
+    },
+    collection: {
+      rawFrameTraceIncluded: false,
+      datasetRowsIncluded: false,
+      cameraPosesIncluded: false,
+    },
+    steps: QCA0_STEPS.map((policy, index) => {
+      const grade = policy.warmup ? 'green' : (grades[gradedIndex++] ?? 'green');
+      const scale = [1, 1, 1.2, 1.5, 2.5, 3][index];
+      return {
+        spec: { topology: 'TABULAR', ...policy },
+        frames: fullFrame(grade),
+        frameCadence: fullFrame(grade),
+        gpu: {
+          drawCallsMax: 10 * scale,
+          drawCallsAvg: 10 * scale,
+          trianglesMax: 1_000 * scale,
+          trianglesAvg: 1_000 * scale,
+          pointsMax: 0,
+          pointsAvg: 0,
+          linesMax: 0,
+          linesAvg: 0,
+          geometriesMax: 1,
+          texturesMax: 0,
+        },
+        heapDeltaBytes: null,
+        memory: {
+          jsHeapStartBytes: null,
+          jsHeapPeakBytes: null,
+          jsHeapEndBytes: null,
+          jsHeapDeltaBytes: null,
+          wasmStartBytes: null,
+          wasmPeakBytes: null,
+          wasmEndBytes: null,
+          wasmDeltaBytes: null,
+        },
+        representation: {
+          sourceRowCount: policy.rowCount,
+          candidateId: null,
+          renderedNodeCount: policy.rowCount,
+          representedSourceRows: null,
+          renderedFraction: 1,
+          semanticEmbodimentStatus: null,
+          coverageMode: 'ROW_ADDRESSABLE',
+          usefulRepresentation: true,
+          sceneObjectCountStart: 10 * scale,
+          sceneObjectCountEnd: 10 * scale,
+          sceneObjectCountDelta: 0,
+          visibleSceneObjectCountStart: 10 * scale,
+          visibleSceneObjectCountEnd: 10 * scale,
+          visibleSceneObjectCountDelta: 0,
+          geometry: 'INSTANCED_POINT_CLOUD',
+          layout: 'GRID_3D',
+          governorLodScaleMinimum: 1,
+          governorLodScaleFinal: 1,
+          governorThrottleEvents: index,
+        },
+        sustainedPerformance: {
+          supported: false,
+          cpuLevelStart: null,
+          cpuLevelMinimum: null,
+          cpuLevelEnd: null,
+          gpuLevelStart: null,
+          gpuLevelMinimum: null,
+          gpuLevelEnd: null,
+        },
+        loadDurationMs: [100, 100, 120, 1_000, 2_000, 3_000][index],
+        criticalViolations: 0,
+        warnings: 0,
+        errors: 0,
+        specGeometry: 'INSTANCED_POINT_CLOUD',
+        specLayout: 'GRID_3D',
+        grade,
+        reasons: [],
+      };
+    }),
+  };
+}
+
+describe('QCA0 row-addressable scale-knee analysis', () => {
+  it('keeps all-green capture valid and excludes warmup from the knee', () => {
+    const value = manifest('quest-qca0');
+    const result = analyzeQca0ScaleKneeReport(qca0Report(value), value);
+
+    expect(result.captureStatus).toBe('VALID_CAPTURE');
+    expect(result.validationErrors).toEqual([]);
+    expect(result.steps).toHaveLength(6);
+    expect(result.steps[0].spec.warmup).toBe(true);
+    expect(result.lastGreenRowCount).toBe(100_000);
+    expect(result.kneeRowCount).toBeNull();
+    expect(result.bottleneckIndicators).toEqual([]);
+    expect(result.authorizations).toEqual([]);
+    expect(result.steps[1].memory.jsHeapStartBytes).toBeNull();
+    expect(result.steps[1].memory.wasmStartBytes).toBeNull();
+  });
+
+  it('derives deterministic ratios, ranking, and QCA2/QCA4 handoffs at a later red knee', () => {
+    const value = manifest('quest-qca0');
+    const report = qca0Report(value, ['green', 'green', 'green', 'red', 'red']);
+    report.steps[3].representation.governorThrottleEvents = 1;
+    report.steps[4].representation.governorThrottleEvents = 5;
+    const result = analyzeQca0ScaleKneeReport(report, value);
+
+    expect(result.captureStatus).toBe('VALID_CAPTURE');
+    expect(result.lastGreenRowCount).toBe(32_000);
+    expect(result.kneeRowCount).toBe(65_000);
+    expect(result.kneeRatios).toEqual({
+      frame: 2,
+      load: 2,
+      scene: 65_000 / 32_000,
+      governor: 5,
+    });
+    expect(result.bottleneckIndicators.map(({ kind }) => kind)).toEqual([
+      'GOVERNOR_PRESSURE',
+      'GPU_SCENE_COST',
+      'FRAME_CADENCE',
+    ]);
+    expect(result.authorizations).toEqual(['QCA2', 'QCA4']);
+    expect(result.nextExperiments.QCA2).toMatch(/stage timing at the knee/i);
+    expect(result.nextExperiments.QCA4).toMatch(/cap submitted\/rendered nodes/i);
+  });
+
+  it.each([
+    {
+      name: 'first graded step red',
+      grades: ['red', 'red', 'red', 'red', 'red'] as const,
+      knee: 1_000,
+    },
+    {
+      name: 'green boundary crossing without red',
+      grades: ['green', 'yellow', 'yellow', 'yellow', 'yellow'] as const,
+      knee: 8_000,
+    },
+  ])('finds the $name deterministically', ({ grades, knee }) => {
+    const value = manifest('quest-qca0');
+    const result = analyzeQca0ScaleKneeReport(qca0Report(value, [...grades]), value);
+    expect(result.captureStatus).toBe('VALID_CAPTURE');
+    expect(result.kneeRowCount).toBe(knee);
+    if (knee === 1_000) {
+      expect(result.lastGreenRowCount).toBeNull();
+      expect(result.kneeRatios).toBeNull();
+      expect(result.authorizations).toEqual([]);
+    }
+  });
+
+  it.each([
+    [
+      'semantic candidate',
+      (report: ReturnType<typeof qca0Report>) => {
+        const representation = report.steps[2].representation as {
+          candidateId: string | null;
+          semanticEmbodimentStatus: string | null;
+          coverageMode: string;
+        };
+        representation.candidateId = 'AGGREGATE_VOLUME';
+        representation.semanticEmbodimentStatus = 'READY';
+        representation.coverageMode = 'SEMANTIC_AGGREGATE';
+      },
+    ],
+    [
+      'wrong geometry',
+      (report: ReturnType<typeof qca0Report>) => {
+        report.steps[2].representation.geometry = 'MESH';
+      },
+    ],
+    [
+      'missing rendered cardinality',
+      (report: ReturnType<typeof qca0Report>) => {
+        (report.steps[2].representation as { renderedNodeCount: number | null }).renderedNodeCount =
+          null;
+      },
+    ],
+    [
+      'wrong source cardinality',
+      (report: ReturnType<typeof qca0Report>) => {
+        (report.steps[2].representation as { sourceRowCount: number }).sourceRowCount = 7_999;
+      },
+    ],
+    [
+      'truncated steps',
+      (report: ReturnType<typeof qca0Report>) => {
+        report.steps.pop();
+      },
+    ],
+  ])('invalidates %s without emitting a knee', (_name, mutate) => {
+    const value = manifest('quest-qca0');
+    const report = qca0Report(value);
+    mutate(report);
+    const result = analyzeQca0ScaleKneeReport(report, value);
+    expect(result.captureStatus).toBe('INVALID_RUN');
+    expect(result.kneeRowCount).toBeNull();
+    expect(result.authorizations).toEqual([]);
+  });
+
+  it.each([
+    [
+      'aborted report',
+      (report: ReturnType<typeof qca0Report>) => {
+        report.aborted = true;
+      },
+    ],
+    [
+      'non-XR report',
+      (report: ReturnType<typeof qca0Report>) => {
+        report.xrActive = false;
+        report.device.xr.active = false;
+      },
+    ],
+    [
+      'foreign build',
+      (report: ReturnType<typeof qca0Report>) => {
+        report.device.buildId = 'a'.repeat(40);
+      },
+    ],
+    [
+      'wrong profile',
+      (report: ReturnType<typeof qca0Report>) => {
+        report.profileName = 'quest-3s-qualification';
+      },
+    ],
+  ])('fails closed for a %s', (_name, mutate) => {
+    const value = manifest('quest-qca0');
+    const report = qca0Report(value);
+    mutate(report);
+    expect(analyzeQca0ScaleKneeReport(report, value)).toMatchObject({
+      captureStatus: 'INVALID_RUN',
+      kneeRowCount: null,
+    });
+  });
+
+  it('fails closed for a dirty manifest and never accepts duplicate terminal reports as one', () => {
+    const dirty = manifest('quest-qca0', 'dirty');
+    expect(analyzeQca0ScaleKneeReport(qca0Report(dirty), dirty).captureStatus).toBe('INVALID_RUN');
+    expect(
+      analyzeQca0ScaleKneeReport([qca0Report(dirty), qca0Report(dirty)], dirty).captureStatus
+    ).toBe('INVALID_RUN');
+  });
+
+  it('keeps the production profile synchronized with the literal analysis fixture', () => {
+    expect(
+      QCA0_ROW_ADDRESSABLE_KNEE_PROFILE.steps.map((step) => ({
+        rowCount: step.rowCount,
+        durationSec: step.durationSec,
+        warmup: step.warmup === true,
+      }))
+    ).toEqual(QCA0_STEPS);
+  });
+});
 
 function boundaryReport(
   value: ValidationManifest,
