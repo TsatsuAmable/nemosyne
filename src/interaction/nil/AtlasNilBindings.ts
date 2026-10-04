@@ -52,6 +52,8 @@ export interface AtlasNilTarget {
 }
 
 export interface AtlasNilBindingOptions {
+  /** Register Atlas-owned QUESTION/HYPOTHESISE handlers. Disable when a composition root delegates those verbs to another authoritative domain service. */
+  bindIntentCommands?: boolean;
   /** Validate cross-domain constraints before Atlas mutates finding state. */
   beforeRecordFinding?: (
     command: NilCommand,
@@ -297,7 +299,7 @@ export function bindAtlasNilHandlers(
   }
 
   // FM1: QUESTION (updates active committed context intent)
-  if (atlas.commitInvestigationContext) {
+  if (options.bindIntentCommands !== false && atlas.commitInvestigationContext) {
     unregister.push(
       executor.register('QUESTION', (command) => {
         const question = requiredString(command, 'question');
@@ -332,7 +334,7 @@ export function bindAtlasNilHandlers(
   }
 
   // FM1: HYPOTHESISE (updates active committed context hypothesis)
-  if (atlas.commitInvestigationContext) {
+  if (options.bindIntentCommands !== false && atlas.commitInvestigationContext) {
     unregister.push(
       executor.register('HYPOTHESISE', (command) => {
         const hypothesis = requiredString(command, 'hypothesis');
