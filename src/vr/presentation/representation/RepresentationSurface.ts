@@ -9,6 +9,9 @@ import { MonetaDiagnosticHUD } from '../../ui/MonetaDiagnosticHUD.ts';
 import { PANEL_LAYOUT } from '../../ui/panelLayout.ts';
 import { createRepresentationResourceAdapter } from './RepresentationResourceLifecycle.ts';
 
+import type { ContextBinding } from '../../../atlas/domain/index.ts';
+import type { FormaReverseTraceV1 } from '../../../moneta/forma/FormaSpatialCompiler.ts';
+
 export interface RepresentationInteractableOptions {
   semantic?: { kind: string };
   onEnter?: (object: Object3D) => void;
@@ -45,6 +48,8 @@ export interface RepresentationSurfaceDependencies {
     decision: RepresentationDecision | null,
     projectionOrdinal: number
   ) => ResourceIdentity | null;
+  assertCanAdopt?: (binding: ContextBinding) => void;
+  canAdopt?: (binding: ContextBinding) => boolean;
 }
 
 export interface RepresentationSurfaceFactories {
@@ -130,9 +135,15 @@ export class RepresentationSurface {
 
   replace(
     dataInput: MonetaDataInput,
-    representationDecision: RepresentationDecision | null
+    representationDecision: RepresentationDecision | null,
+    contextBinding?: ContextBinding
   ): MonetaTopologyNode {
     if (this.disposed) throw new Error('RepresentationSurface is disposed');
+    const effectiveBinding =
+      contextBinding ?? (dataInput as { contextBinding?: ContextBinding }).contextBinding;
+    if (effectiveBinding && this.dependencies.assertCanAdopt) {
+      this.dependencies.assertCanAdopt(effectiveBinding);
+    }
     const nextNode = this.createNode(
       this.dependencies.scene,
       dataInput,
@@ -188,6 +199,13 @@ export class RepresentationSurface {
 
   getSelectedSemanticIdentity(): SemanticSelectionIdentity | null {
     return semanticSelectionIdentity(this.selectedMesh);
+  }
+
+  getSelectedReverseExplanation(): FormaReverseTraceV1 | null {
+    if (!this.selectedMesh) return null;
+    return (
+      (this.selectedMesh.userData.reverseExplanation as FormaReverseTraceV1 | undefined) ?? null
+    );
   }
 
   findMeshByName(name: string): Mesh | null {
@@ -413,23 +431,27 @@ export class RepresentationSurface {
       this.dependencies.setTooltipTargets(node.artifact.nodeMeshes);
       for (const mesh of node.artifact.nodeMeshes) {
         const semanticKind =
-          mesh.userData.representationKind === 'AGGREGATE_VOLUME'
-            ? 'aggregate-group'
-            : mesh.userData.representationKind === 'DISTRIBUTION_FIELD'
-              ? 'distribution-element'
-              : mesh.userData.representationKind === 'DENSITY_FIELD'
-                ? 'density-cell'
-                : mesh.userData.representationKind === 'CLUSTER_REGIONS'
-                  ? mesh.userData.provenance
-                    ? 'cluster-region'
-                    : 'presentation-cluster'
-                  : mesh.userData.representationKind === 'RELATIONSHIP_GRAPH'
+          mesh.userData.representationKind === 'FORMA_SPATIAL_SLICE'
+            ? mesh.userData.isConjectural
+              ? 'forma-conjectural-element'
+              : 'forma-element'
+            : mesh.userData.representationKind === 'AGGREGATE_VOLUME'
+              ? 'aggregate-group'
+              : mesh.userData.representationKind === 'DISTRIBUTION_FIELD'
+                ? 'distribution-element'
+                : mesh.userData.representationKind === 'DENSITY_FIELD'
+                  ? 'density-cell'
+                  : mesh.userData.representationKind === 'CLUSTER_REGIONS'
                     ? mesh.userData.provenance
-                      ? mesh.userData.semanticRole === 'edge'
-                        ? 'graph-edge'
-                        : 'graph-node'
-                      : 'presentation-graph'
-                    : 'observation';
+                      ? 'cluster-region'
+                      : 'presentation-cluster'
+                    : mesh.userData.representationKind === 'RELATIONSHIP_GRAPH'
+                      ? mesh.userData.provenance
+                        ? mesh.userData.semanticRole === 'edge'
+                          ? 'graph-edge'
+                          : 'graph-node'
+                        : 'presentation-graph'
+                      : 'observation';
         this.dependencies.addInteractable(mesh, {
           semantic: { kind: semanticKind },
           onEnter: (object) => node.artifact?.interactions?.onHover?.(object as Mesh),

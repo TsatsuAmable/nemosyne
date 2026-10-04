@@ -591,6 +591,8 @@ export class World {
         decisionId: decision?.id ?? null,
         semanticId: `representation:${decision?.id ?? `v${this.atlas.datasetVersion}`}:projection:${projectionOrdinal}`,
       }),
+      assertCanAdopt: (binding) => this.atlas.assertCanAdopt(binding),
+      canAdopt: (binding) => this.atlas.canAdopt(binding),
     });
 
     this.derivedAnalysisPipeline = new DerivedAnalysisPipeline({
@@ -1240,7 +1242,8 @@ export class World {
     } else {
       this.dracoNode = this.representationSurface.replace(
         result.dataInput,
-        result.representationDecision
+        result.representationDecision,
+        this.atlas.getActiveContextBinding() ?? undefined
       );
     }
     this.diagnostic = this.representationSurface.diagnostic;

@@ -201,13 +201,23 @@ export class NemosyneSession {
   setFormaInvestigationBytes(bytes: Uint8Array | null): void { this._formaInvestigationBytes = bytes; }
 
   private _formaInvestigationSnapshotBase64(): string | undefined {
-    return this._formaInvestigationBytes ? base64Encode(this._formaInvestigationBytes) : undefined;
+    const bytes = this._formaInvestigationBytes ?? this._atlas.exportFormaInvestigationBytes();
+    return bytes ? base64Encode(bytes) : undefined;
   }
 
   private _restoreFormaInvestigationSnapshot(json: NemosyneSessionJSON): void {
     this._formaInvestigationBytes = json.formaInvestigationSnapshot
       ? base64Decode(json.formaInvestigationSnapshot)
       : null;
+    if (this._formaInvestigationBytes) {
+      try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(this._formaInvestigationBytes);
+        const parsed = JSON.parse(text);
+        this._atlas.setFormaState(parsed);
+      } catch {
+        // malformed forma bytes handled by replay/validation
+      }
+    }
   }
 
   serialize(): NemosyneSessionJSON {
@@ -437,7 +447,11 @@ export class NemosyneSession {
 
     let formaInvestigationBytes: Uint8Array | undefined;
     if (governedOptions?.formaPreservation === true || governedOptions?.formaInvestigationBytes !== undefined) {
-      formaInvestigationBytes = governedOptions.formaInvestigationBytes ?? this._formaInvestigationBytes ?? undefined;
+      formaInvestigationBytes =
+        governedOptions.formaInvestigationBytes ??
+        this._formaInvestigationBytes ??
+        this._atlas.exportFormaInvestigationBytes() ??
+        undefined;
       if (!formaInvestigationBytes) {
         throw new Error('Forma preservation export requires formaInvestigationBytes; none is available for this session');
       }

@@ -90,8 +90,11 @@ import {
   EvidenceLedger,
   type CommittedInvestigationContextV2,
   type CommittedContextActivation,
+  type ContextBinding,
+  type FormaInvestigationStateV1,
   type InvestigationNode,
 } from './domain/index.ts';
+import type { FormaCompiledSliceV1 } from '../moneta/forma/FormaSpatialCompiler.ts';
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
@@ -1748,6 +1751,53 @@ export class AtlasCore {
    */
   isResearchMode(): boolean {
     return this._aggregate.isResearchMode();
+  }
+
+  canAdopt(binding: ContextBinding): boolean {
+    return this._aggregate.canAdopt(binding);
+  }
+
+  assertCanAdopt(binding: ContextBinding): void {
+    this._aggregate.assertCanAdopt(binding);
+  }
+
+  getActiveActivation(): CommittedContextActivation | undefined {
+    return this._aggregate.getActiveActivation();
+  }
+
+  getActiveContextBinding(): ContextBinding | undefined {
+    const activation = this._aggregate.getActiveActivation();
+    return activation
+      ? {
+          contextId: activation.contextId,
+          nodeId: activation.nodeId,
+          activationEpoch: activation.activationEpoch,
+          investigationId: activation.investigationId,
+          datasetFingerprint: activation.datasetFingerprint,
+          scopeId: activation.scopeId,
+          runtimeGeneration: activation.runtimeGeneration,
+        }
+      : undefined;
+  }
+
+  getActiveFormaResult(): FullMonetaSynthesisResult | undefined {
+    return this._aggregate.getActiveFormaResult();
+  }
+
+  getActiveFormaSlice(): FormaCompiledSliceV1 | undefined {
+    return this._aggregate.getActiveFormaSlice();
+  }
+
+  getFormaState(): FormaInvestigationStateV1 | undefined {
+    return this._aggregate.getFormaState();
+  }
+
+  setFormaState(state: FormaInvestigationStateV1): void {
+    this._aggregate.setFormaState(state);
+  }
+
+  exportFormaInvestigationBytes(): Uint8Array | undefined {
+    return this._aggregate.exportFormaInvestigationBytes();
   }
 
   /**

@@ -20,7 +20,10 @@ export {
   type InvestigationEdgeRelationship,
   type InvestigationGraphJSON,
 } from './InvestigationGraph.ts';
-export { InvestigationAggregate } from './InvestigationAggregate.ts';
+export {
+  InvestigationAggregate,
+  type FormaInvestigationStateV1,
+} from './InvestigationAggregate.ts';
 export {
   CommittedInvestigationContextLedger,
   canonicalizeCommittedInvestigationContext,

@@ -12,6 +12,7 @@ import type { ClusterEmbodimentEnvelopeV1 } from './representation/ClusterEmbodi
 import type { GraphEmbodimentEnvelopeV1 } from './representation/GraphEmbodimentPayload.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from './representation/SemanticEmbodimentPayload.ts';
 import { resolveAuthorizedRawTopologyInput } from './representation/RawRowAuthority.ts';
+import type { FormaCompiledSliceV1 } from './forma/FormaSpatialCompiler.ts';
 import type {
   Artifact,
   ChartPlaneFactory,
@@ -22,6 +23,8 @@ import type {
   VRGeometry,
   VRTranslatorOptions,
 } from './types.ts';
+import { buildFormaSpatialSlice } from './embodiment/FormaSpatialEmbodiment.ts';
+export { buildFormaSpatialSlice };
 
 type SemanticMonetaDataInput = MonetaDataInput & {
   semanticEmbodiment?: SemanticEmbodimentEnvelopeV1 | null;
@@ -37,15 +40,9 @@ export class VRTopologyTranslator {
   private static _chartPlaneFactory: ChartPlaneFactory | null = null;
   private static _metaphorActions: MetaphorActionHandlers = {};
   private static readonly _timeRibbonUpdater = new TimeRibbonArtifactUpdater();
-  static registerPointCloudFactory(factory: InstancedPointCloudFactory): void {
-    this._pointCloudFactory = factory;
-  }
-  static registerChartPlaneFactory(factory: ChartPlaneFactory): void {
-    this._chartPlaneFactory = factory;
-  }
-  static registerMetaphorActions(actions: MetaphorActionHandlers): void {
-    this._metaphorActions = { ...this._metaphorActions, ...actions };
-  }
+  static registerPointCloudFactory(factory: InstancedPointCloudFactory): void { this._pointCloudFactory = factory; }
+  static registerChartPlaneFactory(factory: ChartPlaneFactory): void { this._chartPlaneFactory = factory; }
+  static registerMetaphorActions(actions: MetaphorActionHandlers): void { this._metaphorActions = { ...this._metaphorActions, ...actions }; }
   static synthesizeArtifact(
     monetaResult: SolverResult,
     dataInput: MonetaDataInput,
@@ -76,6 +73,22 @@ export class VRTopologyTranslator {
     );
     let rows: Record<string, unknown>[] = [];
     let edges: NonNullable<MonetaDataInput['edges']> = [];
+    const formaSlice =
+      (dataInput as { formaSlice?: FormaCompiledSliceV1 | null }).formaSlice ??
+      (spec.geometry === ('FORMA_SPATIAL_SLICE' as unknown as VRGeometry)
+        ? (semanticInput.semanticEmbodiment as unknown as { slice?: FormaCompiledSliceV1 })?.slice
+        : undefined);
+
+    if (formaSlice) {
+      buildFormaSpatialSlice(group, nodeMeshes, formaSlice);
+      return {
+        group,
+        nodeMeshes,
+        edgeMeshes: [],
+        behaviors: [],
+      };
+    }
+
     if (spec.geometry === 'AGGREGATE_BARS') {
       scalable.buildAggregateBars(group, nodeMeshes, semanticInput.semanticEmbodiment);
       edges = [];
@@ -125,27 +138,13 @@ export class VRTopologyTranslator {
         scalable.buildClusterVolume(group, nodeMeshes, rows, dataset, encodings, spec, edges);
       } else {
         switch (spec.layout) {
-          case 'GRID_3D':
-            layouts.buildGrid(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'FORCE_DIRECTED_3D':
-            layouts.buildForceDirected(group, nodeMeshes, rows, dataset, encodings, edges);
-            break;
-          case 'RADIAL_ORBITAL':
-            layouts.buildRadial(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'VECTOR_STREAMLINE':
-            layouts.buildStreamlines(group, nodeMeshes, rows, dataset);
-            break;
-          case 'TIME_RIBBON':
-            layouts.buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'GEO_SURFACE':
-            layouts.buildGeoSurface(group, nodeMeshes, rows, dataset, encodings);
-            break;
-          case 'SPECTRAL_VOLUME':
-            layouts.buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings);
-            break;
+          case 'GRID_3D': layouts.buildGrid(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'FORCE_DIRECTED_3D': layouts.buildForceDirected(group, nodeMeshes, rows, dataset, encodings, edges); break;
+          case 'RADIAL_ORBITAL': layouts.buildRadial(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'VECTOR_STREAMLINE': layouts.buildStreamlines(group, nodeMeshes, rows, dataset); break;
+          case 'TIME_RIBBON': layouts.buildTimeRibbon(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'GEO_SURFACE': layouts.buildGeoSurface(group, nodeMeshes, rows, dataset, encodings); break;
+          case 'SPECTRAL_VOLUME': layouts.buildSpectralVolume(group, nodeMeshes, rows, dataset, encodings); break;
         }
       }
     }
@@ -223,35 +222,17 @@ export class VRTopologyTranslator {
   }
 
   static _makeNode(
-    row: Record<string, unknown>,
-    dataset: Dataset | undefined,
-    encodings: EncodingMapping,
-    geometry: VRGeometry | string = 'ICOSA_NODE'
+    row: Record<string, unknown>, dataset: Dataset | undefined, encodings: EncodingMapping, geometry: VRGeometry | string = 'ICOSA_NODE'
   ): THREE.Mesh {
-    return new TopologyLayoutEmbodiment(this._colorblindMode).makeNode(
-      row,
-      dataset,
-      encodings,
-      geometry
-    );
+    return new TopologyLayoutEmbodiment(this._colorblindMode).makeNode(row, dataset, encodings, geometry);
   }
 
-  static _buildParentEdges(
-    group: THREE.Group,
-    edgeMeshes: THREE.Line[],
-    nodeMeshes: THREE.Mesh[]
-  ): void {
-    new TopologyLayoutEmbodiment(this._colorblindMode).buildParentEdges(
-      group,
-      edgeMeshes,
-      nodeMeshes
-    );
+  static _buildParentEdges(group: THREE.Group, edgeMeshes: THREE.Line[], nodeMeshes: THREE.Mesh[]): void {
+    new TopologyLayoutEmbodiment(this._colorblindMode).buildParentEdges(group, edgeMeshes, nodeMeshes);
   }
 
   static appendRowsToArtifact(
-    artifact: Artifact | undefined,
-    newRows: Record<string, unknown>[],
-    dataInput: MonetaDataInput
+    artifact: Artifact | undefined, newRows: Record<string, unknown>[], dataInput: MonetaDataInput
   ): boolean {
     return this._timeRibbonUpdater.append(artifact, newRows, dataInput);
   }
