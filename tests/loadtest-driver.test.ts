@@ -74,6 +74,7 @@ describe('LoadTestDriver state machine', () => {
     expect(QCA0_ROW_ADDRESSABLE_KNEE_PROFILE).toMatchObject({
       name: 'qca0-row-addressable-knee-v1',
       deviceTarget: 'META_QUEST_3S',
+      representationControl: 'ROW_ADDRESSABLE_FALLBACK',
       settleSec: 5,
     });
     expect(QCA0_ROW_ADDRESSABLE_KNEE_PROFILE.steps).toEqual([
@@ -431,6 +432,34 @@ describe('LoadTestDriver state machine', () => {
     });
     expect(summary.steps).toHaveLength(1);
     expect(summary.steps[0].reasons[0]).toBe('step aborted early');
+  });
+
+  it('does not restore over an external dataset when stopped before replacement is polled', () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    const tracker = { count: 0, entries: [] as unknown[] };
+    const world = makeWorld(tracker, events);
+    const preRunEntry = { key: 'before', name: 'Before' };
+    const externalEntry = { key: 'external', name: 'External' };
+    world.currentEntry = preRunEntry;
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'settling-stop-supersession',
+      settleSec: 60,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 60 }],
+    });
+    expect(driver.phase).toBe('SETTLING');
+
+    world.currentEntry = externalEntry;
+    driver.stop();
+
+    expect(world.currentEntry).toBe(externalEntry);
+    expect(tracker.entries).not.toContain(preRunEntry);
+    expect(
+      events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)?.payload
+    ).toMatchObject({
+      aborted: true,
+      failure: { phase: 'dataset-load', message: expect.stringMatching(/replaced/i) },
+    });
   });
 
   it('default profile is the documented warmup + 1k→250k TABULAR staircase', () => {

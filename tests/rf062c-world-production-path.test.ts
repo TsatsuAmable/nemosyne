@@ -44,9 +44,9 @@ describe('RF-062C production World path', () => {
 
     driver.run({
       name: 'qca0-production-path',
-      representationTask: 'individual-inspection',
+      representationControl: 'ROW_ADDRESSABLE_FALLBACK',
       settleSec: 0,
-      steps: [{ topology: 'TABULAR', rowCount: 1_000, durationSec: 0 }],
+      steps: [{ topology: 'TABULAR', rowCount: 100_000, durationSec: 0 }],
     });
 
     expect(driver.phase).toBe('LOADING');
@@ -80,9 +80,9 @@ describe('RF-062C production World path', () => {
       specGeometry: 'INSTANCED_POINT_CLOUD',
       specLayout: 'GRID_3D',
       representation: {
-        candidateId: 'MATRIX_FIELD',
-        renderedNodeCount: 1_000,
-        representedSourceRows: 1_000,
+        candidateId: null,
+        renderedNodeCount: 100_000,
+        representedSourceRows: 100_000,
         semanticEmbodimentStatus: null,
         coverageMode: 'ROW_ADDRESSABLE',
         geometry: 'INSTANCED_POINT_CLOUD',
@@ -162,6 +162,39 @@ describe('RF-062C production World path', () => {
     driver.dispose();
     offComplete();
     offStep();
+  });
+
+  it('does not restore over a real World replacement when stopped during settling', async () => {
+    world = new World();
+    world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+    const before = getSampleDataset('sales-table');
+    const external = getSampleDataset('fraud-graph');
+    if (!before || !external) throw new Error('required sample datasets are unavailable');
+    await world.loadDataset({
+      name: before.label,
+      topology: before.topology,
+      dataset: before.dataset,
+      maxDepth: before.depth,
+    });
+    const driver = new LoadTestDriver(world, world.engine);
+    driver.run({
+      name: 'real-world-settling-stop',
+      settleSec: 60,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 60 }],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(driver.phase).toBe('SETTLING');
+
+    await world.loadDataset({
+      name: external.label,
+      topology: external.topology,
+      dataset: external.dataset,
+      maxDepth: external.depth,
+    });
+    driver.stop();
+
+    expect(world.currentEntry?.name).toBe(external.label);
+    driver.dispose();
   });
 
   it('delegates representation teardown to the surface owner', async () => {

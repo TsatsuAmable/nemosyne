@@ -242,6 +242,62 @@ describe('QV4 evidence finalization and custody', () => {
     expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
   });
 
+  it('custody-seals a valid QCA0 line plus a truncated terminal line as INVALID_RUN', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    appendFileSync(join(evidenceDir, 'loadtest-results.jsonl'), '{"profileName":"truncated"');
+
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.captureStatus).toBe('INVALID_RUN');
+    expect(analysis.validationErrors.join(' ')).toMatch(/one object|exactly one|terminal reports/i);
+    expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
+  });
+
+  it.each([
+    ['JSON null', 'null\n'],
+    ['a malformed-only terminal', '{"profileName":"truncated"'],
+  ])('custody-seals %s as INVALID_RUN', (_name, terminal) => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    writeFileSync(join(evidenceDir, 'loadtest-results.jsonl'), terminal);
+
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.captureStatus).toBe('INVALID_RUN');
+    expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
+  });
+
+  it('does not reseal a completed bundle whose custody record is corrupt', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    writeFileSync(join(evidenceDir, 'custody.json'), '{"state":"broken"}\n');
+
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      })
+    ).toMatchObject({ status: 'tamper-detected' });
+    expect(readFileSync(join(evidenceDir, 'custody.json'), 'utf8')).toContain('broken');
+  });
+
   it('treats a removed custody record from a completed bundle as tamper detection', () => {
     const root = tempRoot();
     const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
@@ -256,6 +312,13 @@ describe('QV4 evidence finalization and custody', () => {
       state: 'tamper-detected',
       gateDisposition: 'PARTIAL',
     });
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      })
+    ).toMatchObject({ status: 'tamper-detected' });
+    expect(existsSync(join(evidenceDir, 'custody.json'))).toBe(false);
   });
 
   it('freezes raw evidence before adjudication and emits a verifiable complete bundle', () => {

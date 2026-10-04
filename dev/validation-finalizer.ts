@@ -115,8 +115,7 @@ function readBoundedJsonLines(file: string): unknown[] {
         } catch {
           return null;
         }
-      })
-      .filter((value) => value !== null);
+      });
   } catch {
     return [];
   }
@@ -456,7 +455,7 @@ function readCustody(evidenceDir: string): CustodyRecord | null {
 }
 
 export function isValidationSessionFinalized(evidenceDir: string): boolean {
-  return readCustody(evidenceDir) !== null;
+  return getValidationFinalizationStatus(evidenceDir).state !== 'open';
 }
 
 export function verifyFinalizedCustody(
@@ -558,6 +557,13 @@ export function finalizeValidationSession(options: {
   now?: () => Date;
 }): ValidationFinalizationResult {
   const evidenceDir = path.join(options.validationLogRoot, options.sessionLabel);
+  const priorStatus = getValidationFinalizationStatus(evidenceDir);
+  if (priorStatus.state === 'tamper-detected') {
+    return {
+      status: 'tamper-detected',
+      reason: priorStatus.reason ?? 'completed validation evidence failed custody verification',
+    };
+  }
   const existing = readCustody(evidenceDir);
   if (existing) {
     const verified = verifyFinalizedCustody(evidenceDir);

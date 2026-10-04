@@ -275,7 +275,52 @@ function validateQca0FrameStats(
     'fpsAvg',
     'gcSpikes',
   ] as const) {
-    if (!finiteNumber(value[field])) errors.push(`${path}.${field} must be finite`);
+    if (!finiteNumber(value[field])) {
+      errors.push(`${path}.${field} must be finite`);
+    } else if (value[field] < 0) {
+      errors.push(`${path}.${field} must be non-negative`);
+    }
+  }
+  if (finiteNumber(value.frameCount) && value.frameCount <= 0) {
+    errors.push(`${path}.frameCount must be positive`);
+  }
+  if (
+    finiteNumber(value.dropped) &&
+    finiteNumber(value.frameCount) &&
+    (value.dropped < 0 || value.dropped > value.frameCount)
+  ) {
+    errors.push(`${path}.dropped must be within the measured frame count`);
+  }
+  if (finiteNumber(value.droppedPct) && (value.droppedPct < 0 || value.droppedPct > 100)) {
+    errors.push(`${path}.droppedPct must be within 0..100`);
+  }
+  for (const field of ['frameCount', 'dropped', 'gcSpikes'] as const) {
+    if (finiteNumber(value[field]) && !Number.isInteger(value[field])) {
+      errors.push(`${path}.${field} must be an integer`);
+    }
+  }
+  if (
+    finiteNumber(value.minMs) &&
+    finiteNumber(value.p50Ms) &&
+    finiteNumber(value.p95Ms) &&
+    finiteNumber(value.p99Ms) &&
+    finiteNumber(value.maxMs) &&
+    !(
+      value.minMs <= value.p50Ms &&
+      value.p50Ms <= value.p95Ms &&
+      value.p95Ms <= value.p99Ms &&
+      value.p99Ms <= value.maxMs
+    )
+  ) {
+    errors.push(`${path} percentiles must be monotonically ordered within min/max`);
+  }
+  if (
+    finiteNumber(value.avgMs) &&
+    finiteNumber(value.minMs) &&
+    finiteNumber(value.maxMs) &&
+    (value.avgMs < value.minMs || value.avgMs > value.maxMs)
+  ) {
+    errors.push(`${path}.avgMs must be within min/max`);
   }
   return true;
 }
@@ -458,7 +503,9 @@ export function analyzeQca0ScaleKneeReport(
         'geometriesMax',
         'texturesMax',
       ] as const) {
-        if (!finiteNumber(gpu[field])) errors.push(`step ${index + 1} gpu.${field} must be finite`);
+        if (!finiteNumber(gpu[field]) || gpu[field] < 0) {
+          errors.push(`step ${index + 1} gpu.${field} must be finite and non-negative`);
+        }
       }
     }
     const memory = objectAt(raw, 'memory');
@@ -487,21 +534,20 @@ export function analyzeQca0ScaleKneeReport(
       if (representation.sourceRowCount !== expected.rowCount) {
         errors.push(`step ${index + 1} representation sourceRowCount must be ${expected.rowCount}`);
       }
-      if (
-        !finiteNumber(representation.renderedNodeCount) ||
-        representation.renderedNodeCount <= 0
-      ) {
-        errors.push(`step ${index + 1} renderedNodeCount must be positive`);
+      if (representation.renderedNodeCount !== expected.rowCount) {
+        errors.push(`step ${index + 1} renderedNodeCount must be ${expected.rowCount}`);
+      }
+      if (representation.representedSourceRows !== expected.rowCount) {
+        errors.push(`step ${index + 1} representedSourceRows must be ${expected.rowCount}`);
+      }
+      if (representation.renderedFraction !== 1) {
+        errors.push(`step ${index + 1} renderedFraction must be 1`);
       }
       if (representation.coverageMode !== 'ROW_ADDRESSABLE') {
         errors.push(`step ${index + 1} coverageMode must be ROW_ADDRESSABLE`);
       }
-      if (
-        representation.candidateId !== 'POINT_SET' &&
-        representation.candidateId !== 'MATRIX_FIELD'
-      ) {
-        errors.push(`step ${index + 1} candidateId must be POINT_SET or MATRIX_FIELD`);
-      }
+      if (representation.candidateId !== null)
+        errors.push(`step ${index + 1} candidateId must be null`);
       if (representation.semanticEmbodimentStatus !== null) {
         errors.push(`step ${index + 1} semanticEmbodimentStatus must be null`);
       }
@@ -523,12 +569,19 @@ export function analyzeQca0ScaleKneeReport(
         'governorLodScaleMinimum',
         'governorLodScaleFinal',
       ] as const) {
-        if (!nullableFinite(representation[field])) {
+        if (
+          !nullableFinite(representation[field]) ||
+          (finiteNumber(representation[field]) && representation[field] < 0)
+        ) {
           errors.push(`step ${index + 1} representation.${field} must be finite or null`);
         }
       }
-      if (!finiteNumber(representation.governorThrottleEvents)) {
-        errors.push(`step ${index + 1} governorThrottleEvents must be finite`);
+      if (
+        !finiteNumber(representation.governorThrottleEvents) ||
+        !Number.isInteger(representation.governorThrottleEvents) ||
+        representation.governorThrottleEvents < 0
+      ) {
+        errors.push(`step ${index + 1} governorThrottleEvents must be a non-negative integer`);
       }
     }
     if (!finiteNumber(raw.loadDurationMs) || raw.loadDurationMs < 0) {

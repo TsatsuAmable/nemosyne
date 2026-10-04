@@ -1183,7 +1183,7 @@ export class World {
    */
   loadDataset(
     entry: DatasetLoadEntry,
-    options: { requirementsOverride?: RepresentationRequirements } = {}
+    options: { representationControl?: 'ROW_ADDRESSABLE_FALLBACK' } = {}
   ): Promise<void> {
     console.warn('[World] loading dataset:', entry.name ?? entry.label, entry.topology);
     const sequence = ++this._datasetLoadSequence;
@@ -1218,7 +1218,7 @@ export class World {
       preserveAnalyticalState = false,
       preserveAuxiliaryPresentation = false,
       authoritativeRepresentation,
-      requirementsOverride,
+      representationControl,
     }: {
       preserveAnalyticalState?: boolean;
       preserveAuxiliaryPresentation?: boolean;
@@ -1227,7 +1227,7 @@ export class World {
           | import('../moneta/representation/RepresentationDecision.ts').RepresentationDecision
           | null;
       };
-      requirementsOverride?: RepresentationRequirements;
+      representationControl?: 'ROW_ADDRESSABLE_FALLBACK';
     } = {}
   ): void {
     this._lastLoadedEntry = entry;
@@ -1241,10 +1241,13 @@ export class World {
 
     const result = this.loadDatasetUseCase.execute(entry, {
       preserveAnalyticalState,
-      requirements: requirementsOverride ?? this._activeRequirements,
-      authoritativeRepresentation,
+      requirements: this._activeRequirements,
+      authoritativeRepresentation:
+        representationControl === 'ROW_ADDRESSABLE_FALLBACK'
+          ? { decision: null }
+          : authoritativeRepresentation,
     });
-    if (!requirementsOverride) this._activeRequirements = result.requirements;
+    this._activeRequirements = result.requirements;
     this._activeOutcome = result.outcome;
     this.uiManager?.recommendationPanel?.markDirty();
 

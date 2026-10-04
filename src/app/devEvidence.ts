@@ -87,15 +87,16 @@ export function captureActiveSpecInfo(
     nodeMeshes.length > 0 &&
     nodeMeshes.every((mesh) => mesh.isInstancedMesh && mesh.userData?.instancedCloud != null);
   const semanticEmbodiment = node.dataInput?.semanticEmbodiment;
+  const candidateId = node.representationDecision?.chosenCandidateId ?? null;
   return {
     geometry: usesInstancedPointCloud ? 'INSTANCED_POINT_CLOUD' : String(spec.geometry),
     layout: String(spec.layout),
-    candidateId: node.representationDecision?.chosenCandidateId ?? null,
+    candidateId,
     renderedNodeCount,
     representedSourceRows:
       semanticEmbodiment?.approximation?.representedRowCount ??
       semanticEmbodiment?.resource?.sourceRowCount ??
-      node.dataInput?.dataset?.rows?.length ??
+      (candidateId === null ? node.dataInput?.dataset?.rows?.length : null) ??
       null,
     semanticEmbodimentStatus:
       typeof node.group?.userData?.semanticEmbodimentStatus === 'string'

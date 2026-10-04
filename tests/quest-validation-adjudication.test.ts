@@ -204,6 +204,66 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
       },
     ],
     [
+      'partial rendered cardinality',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        (report.steps[4].representation as { renderedNodeCount: number }).renderedNodeCount = 1;
+      },
+    ],
+    [
+      'excess rendered cardinality',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        (report.steps[4].representation as { renderedNodeCount: number }).renderedNodeCount =
+          100_001;
+      },
+    ],
+    [
+      'fractional rendered cardinality',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        (report.steps[4].representation as { renderedNodeCount: number }).renderedNodeCount =
+          99_999.5;
+      },
+    ],
+    [
+      'inconsistent represented source rows',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        (
+          report.steps[4].representation as { representedSourceRows: number }
+        ).representedSourceRows = 99_999;
+      },
+    ],
+    [
+      'inconsistent rendered fraction',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].representation.renderedFraction = 0.5;
+      },
+    ],
+    [
+      'zero measured frames',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].frames.frameCount = 0;
+        report.steps[4].frameCadence.frameCount = 0;
+      },
+    ],
+    [
+      'negative GPU counters',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].gpu.trianglesAvg = -1;
+      },
+    ],
+    [
+      'negative governor counters',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].representation.governorThrottleEvents = -1;
+      },
+    ],
+    [
+      'impossible frame percentile ordering',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].frameCadence.p50Ms = 30;
+        report.steps[4].frameCadence.p95Ms = 20;
+      },
+    ],
+    [
       'wrong source cardinality',
       (report: ReturnType<typeof makeQca0Report>) => {
         (report.steps[2].representation as { sourceRowCount: number }).sourceRowCount = 7_999;

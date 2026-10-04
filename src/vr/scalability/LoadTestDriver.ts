@@ -2,7 +2,6 @@ import { makeStressDataset } from '../../data/makeStressDataset.ts';
 import { getDefaultEncodings } from '../../data/SampleDatasets.ts';
 import type { DatasetLoadEntry, Updatable } from '../coordinators/types.ts';
 import type { TopologyType } from '../../data/types.ts';
-import { createDefaultRequirements } from '../../moneta/representation/RepresentationRequirements.ts';
 import { WorldTopics } from '../../utils/EventBus.ts';
 import {
   UXR0_PROFILE_DURATIONS_SEC,
@@ -53,8 +52,8 @@ export interface LoadTestProfile {
   /** Seconds to wait after load before measuring (lets the load spike pass). */
   settleSec?: number;
   deviceTarget?: QuestDeviceTarget;
-  /** Explicit product intent used by governed diagnostic profiles. */
-  representationTask?: 'individual-inspection';
+  /** Explicit production control used only by a governed diagnostic profile. */
+  representationControl?: 'ROW_ADDRESSABLE_FALLBACK';
 }
 
 export interface LoadTestSummary {
@@ -101,7 +100,7 @@ export interface LoadTestSummary {
 export interface LoadTestWorldLike {
   loadDataset(
     entry: DatasetLoadEntry,
-    options?: { requirementsOverride?: ReturnType<typeof createDefaultRequirements> }
+    options?: { representationControl?: 'ROW_ADDRESSABLE_FALLBACK' }
   ): void | Promise<void>;
   /** Dataset active before the run; restored on finish so the UI is usable. */
   currentEntry: DatasetLoadEntry | null;
@@ -168,7 +167,7 @@ export const QUEST_3S_QUALIFICATION_PROFILE: LoadTestProfile = {
 export const QCA0_ROW_ADDRESSABLE_KNEE_PROFILE: LoadTestProfile = {
   name: 'qca0-row-addressable-knee-v1',
   deviceTarget: 'META_QUEST_3S',
-  representationTask: 'individual-inspection',
+  representationControl: 'ROW_ADDRESSABLE_FALLBACK',
   settleSec: 5,
   steps: [
     {
@@ -313,6 +312,15 @@ export class LoadTestDriver implements Updatable {
   /** Abort a running test; emits COMPLETE with whatever was collected. */
   stop(): void {
     if (this.phase === 'IDLE' || this.phase === 'COMPLETE') return;
+    if (
+      (this.phase === 'SETTLING' || this.phase === 'MEASURING') &&
+      this._activeEntry !== null &&
+      this._world.currentEntry !== this._activeEntry
+    ) {
+      const spec = this._profile.steps[this._stepIndex - 1];
+      this._abortForDatasetReplacement(spec, 'active loadtest dataset was replaced before stop');
+      return;
+    }
     this._aborted = true;
     if (this.phase === 'MEASURING') {
       this._finishStep(true, false);
@@ -405,8 +413,8 @@ export class LoadTestDriver implements Updatable {
     try {
       const result = this._world.loadDataset(
         entry,
-        this._profile.representationTask
-          ? { requirementsOverride: createDefaultRequirements(this._profile.representationTask) }
+        this._profile.representationControl
+          ? { representationControl: this._profile.representationControl }
           : undefined
       );
       if (result && typeof result.then === 'function') {
