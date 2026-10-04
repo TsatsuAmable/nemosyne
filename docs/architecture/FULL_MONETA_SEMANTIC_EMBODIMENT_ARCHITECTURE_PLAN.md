@@ -1031,9 +1031,10 @@ resulting bounded semantic working set as the primary architectural performance 
 detailed contracts, research questions, success criteria, falsifiers and verification matrix are in
 [`MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md).
 
-It is sequenced as:
+Under proposed RFC 0012 its initial sequence is DSE0 -> DSE1 -> DSE2/DSE3, with DSE6
+qualification beginning at DSE1. DSE4/DSE5 are conditional. The retained capability definitions are:
 
-1. **DSE0:** owner decision, subject/multi-dataset schema preflight, production falsifiers and two-dataset fixtures;
+1. **DSE0:** removal/caller inventory, owner decision, necessary subject contract preflight and production falsifiers;
 2. **DSE1:** stable subject plus grounded multi-phenomenon bounded overview and complete reverse explanation;
 3. **DSE2:** reversible semantic refinement and obligation-preserving resource variants;
 4. **DSE3:** dual-mode product loop, typed critique, alternatives and durable feedback lineage;

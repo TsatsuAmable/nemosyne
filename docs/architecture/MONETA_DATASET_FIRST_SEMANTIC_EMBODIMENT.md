@@ -767,7 +767,7 @@ future use, not prerequisites for the first complete investigation loop.
 
 ### DSE0 — decision, schema preflight and falsifiers
 
-- owner review of this ADAPT decision;
+- owner review of RFC 0012's removal-first scope and the retained ADAPT contracts;
 - source/caller/archive deletion inventory and only necessary subject identity/public-format decisions; defer multi-dataset schema;
 - production-path test that a dataset overview cannot enter whole-row rendering;
 - current-path cardinality/row-access instrumentation;

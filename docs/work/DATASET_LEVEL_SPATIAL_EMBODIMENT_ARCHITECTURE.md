@@ -1,9 +1,13 @@
 # Dataset-Level Spatial Embodiment Architecture Critique
 
-**Status:** CRITIQUE COMPLETE / PROPOSED ADAPT DECISION UNDER OWNER REVIEW
+**Status:** CRITIQUE COMPLETE / PROPOSED REMOVAL-FIRST SCOPE UNDER OWNER REVIEW
 **Date:** 2026-10-04  
 **Scope:** Full Moneta / Forma representation abstraction boundary + semantic LOD / Quest performance  
 **Owner lane:** Astra architecture
+
+[RFC 0012](../rfcs/0012-minimum-nemosyne-architecture.md) now narrows the implementation proposal:
+four product subsystems, removal before adaptation, and conditional multi-dataset/runtime-search work.
+This original critique retains its eventual proof targets; they do not all gate the first useful slice.
 
 **Proposed resolution:** [`../architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](../architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md). This document remains the intake critique and falsification brief; the linked design owns the proposed solution, research gaps, FM0-FM8 reconciliation and DSE0-DSE6 roadmap.
 
