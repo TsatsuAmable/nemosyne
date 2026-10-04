@@ -84,7 +84,7 @@
     {
       "id": "memory-palace",
       "classification": "production",
-      "sources": ["src/memory", "src/vr/presentation/epistemic/MemoryPalaceWorldView.ts"],
+      "sources": ["src/memory/EpistemicObject.ts", "src/vr/presentation/epistemic/MemoryPalaceWorldView.ts"],
       "entrypoints": ["src/vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts"],
       "discovery": [{ "path": "src/vr/presentation/epistemic/FunctionalWorldObjectsPresenter.ts", "contains": "MemoryPalaceWorldView" }],
       "evidence": ["tests/smoke/p1uv-c1-functional-world-objects.spec.ts"]
