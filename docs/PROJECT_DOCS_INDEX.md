@@ -51,6 +51,10 @@ These documents may describe current implementation but must not override the go
 - [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md)
 - [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)
 
+## Current Full Moneta review
+
+- [`review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md`](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) — source-grounded completeness audit at f00b3f90, prioritized defects and ordered repair handoffs; ROADMAP owns execution status.
+
 ## Study and research governance
 
 - [`study/README.md`](study/README.md)

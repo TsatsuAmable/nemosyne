@@ -3,7 +3,7 @@
 Date: 4 October 2026
 Base: `main@284cc5951664fc86c87db98f804595db1ec339ff`
 Worktree / Branch: `feat/fm8-full-moneta-adaptive-intelligence`
-Status: VERIFIED COMPLETE
+Status: Historical closure claim; superseded by the [4 October completeness audit](FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md). Current status is owned by [ROADMAP](../ROADMAP.md).
 
 ## 1. High-Risk Pre-Implementation Adversarial Contract
 

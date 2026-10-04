@@ -3,7 +3,7 @@
 Date: 3 October 2026
 Base: `main@62aecff66e5f1a541604a37f597fe2dae1be22f2`
 Worktree / Branch: `feat/fm1-perspective-product`
-Status: VERIFIED COMPLETE
+Status: Historical closure claim; superseded by the [4 October completeness audit](FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md). Current status is owned by [ROADMAP](../ROADMAP.md).
 
 ## 1. High-Risk Adversarial Contract & Invariant
 
