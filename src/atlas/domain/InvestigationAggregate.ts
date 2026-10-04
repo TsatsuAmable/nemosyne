@@ -72,21 +72,34 @@ import {
   type FullMonetaSynthesisResult,
 } from '../../moneta/adaptation/index.ts';
 import type { ObjectivePreference } from '../../moneta/search/RepresentationObjectiveModel.ts';
-import type { FormaCompiledSliceV1, SpatialPhenotype } from '../../moneta/forma/FormaSpatialCompiler.ts';
+import type {
+  FormaCompiledSliceV1,
+  SpatialPhenotype,
+} from '../../moneta/forma/FormaSpatialCompiler.ts';
 import type { FormaProposalSetV1 } from '../../moneta/forma/FormaSystem1Proposer.ts';
 import type { System1ProposalSource } from '../../moneta/forma/FormaSystem1Proposer.ts';
 import {
   compileDirectEmbodimentPlan,
+  compileObligationPreservingVariants,
   type DirectEmbodimentCompileResult,
   type AttributableCritiqueV1,
+  type GovernedPhenomenonKind,
+  type ObligationPreservingVariantPairV1,
 } from '../../moneta/representation/DirectEmbodimentCompiler.ts';
+import {
+  DirectTraversalSession,
+  type EstablishedDetailAuthorityV1,
+} from '../../moneta/representation/DirectTraversalSession.ts';
 import {
   normalizeEnvelopeToSnapshot,
   type SemanticSnapshotV1,
   type EvidenceReferenceTupleV1,
 } from '../../moneta/representation/SemanticSnapshotV1.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
-import type { DeviceCapabilityBudgetV1, SemanticObligationContractV1 } from '../../moneta/forma/FormaResolutionBroker.ts';
+import type {
+  DeviceCapabilityBudgetV1,
+  SemanticObligationContractV1,
+} from '../../moneta/forma/FormaResolutionBroker.ts';
 import type { FormaAdmissionOptionsV1 } from '../../moneta/forma/FormaAdmission.ts';
 
 export interface FormaInvestigationStateV1 {
@@ -99,7 +112,6 @@ export interface FormaInvestigationStateV1 {
   readonly admission?: unknown;
   readonly context?: CommittedInvestigationContextV2;
 }
-
 
 export interface InvestigationDigestIdentityOptions {
   /**
@@ -177,7 +189,6 @@ export class InvestigationAggregate {
     this.formaKnowledge = new FormaKnowledgeStore();
   }
 
-
   get sessionId(): string {
     return this.context.sessionId;
   }
@@ -253,7 +264,11 @@ export class InvestigationAggregate {
   }
 
   /** Reset all constituent sub-states on loading a new typed/columnar dataset. */
-  loadTypedDataset(handle: number, fingerprint: string, destroyer?: (handle: number) => void): void {
+  loadTypedDataset(
+    handle: number,
+    fingerprint: string,
+    destroyer?: (handle: number) => void
+  ): void {
     this.analytical.adoptColumnarHandle(handle, { fingerprint }, destroyer);
     this.ledger.reset();
     this.decisions.reset();
@@ -447,10 +462,7 @@ export class InvestigationAggregate {
    * in the InvestigationGraph, maintaining parent-child lineage while leaving parent node state
    * and historical digests bitwise invariant. Fails closed against disqualified alternatives.
    */
-  branchToAlternative(
-    candidateId: string,
-    intentOverride?: unknown
-  ): InvestigationNode {
+  branchToAlternative(candidateId: string, intentOverride?: unknown): InvestigationNode {
     const { embodiment, candidate } = this.previewAlternative(candidateId);
     if (candidate.eligibility === 'DISQUALIFIED') {
       throw new Error(
@@ -472,9 +484,7 @@ export class InvestigationAggregate {
 
     const currentDecision = this.representation.activeDecision;
     if (!currentDecision) {
-      throw new Error(
-        '[InvestigationAggregate] Cannot branch: no active representation decision'
-      );
+      throw new Error('[InvestigationAggregate] Cannot branch: no active representation decision');
     }
 
     // Preserve parent decision in _nodeDecisions if not already recorded
@@ -491,8 +501,7 @@ export class InvestigationAggregate {
     }
 
     const fp = this.analytical.getFingerprint() ?? '';
-    const branchIndex =
-      this.graph.nodes.filter((n) => n.parentId === parentNodeId).length + 1;
+    const branchIndex = this.graph.nodes.filter((n) => n.parentId === parentNodeId).length + 1;
     const childNodeId = `${parentNodeId}:branch-rnt-${candidate.candidateId.toLowerCase()}-${branchIndex}`;
 
     const childNode: InvestigationNode = {
@@ -582,7 +591,14 @@ export class InvestigationAggregate {
    * Does not mutate underlying scientific analytical data or dataset state.
    */
   recordEmbodimentCritique(input: EmbodimentCritiqueInputV1): EmbodimentCritiqueRecordV1 {
-    assertNotSelfLabeled(input as unknown as { automated?: boolean; passiveClick?: boolean; systemDefault?: boolean; source?: string });
+    assertNotSelfLabeled(
+      input as unknown as {
+        automated?: boolean;
+        passiveClick?: boolean;
+        systemDefault?: boolean;
+        source?: string;
+      }
+    );
     const record = recordCritiqueHelper(input);
     this.embodimentCritiques.push(record);
     return record;
@@ -594,7 +610,14 @@ export class InvestigationAggregate {
    * Does not mutate underlying scientific analytical data or dataset state.
    */
   recordHumanMeaningJudgment(input: HumanMeaningJudgmentInputV1): HumanMeaningJudgmentRecordV1 {
-    assertNotSelfLabeled(input as unknown as { automated?: boolean; passiveClick?: boolean; systemDefault?: boolean; source?: string });
+    assertNotSelfLabeled(
+      input as unknown as {
+        automated?: boolean;
+        passiveClick?: boolean;
+        systemDefault?: boolean;
+        source?: string;
+      }
+    );
     const record = recordJudgmentHelper(input);
     this.humanMeaningJudgments.push(record);
     return record;
@@ -684,9 +707,13 @@ export class InvestigationAggregate {
         studyId: this.context.studyId,
         researchQuestion: this.context.researchQuestion,
         hypothesis: this.context.hypothesis,
-        ...(this.context.variablesOfInterest ? { variablesOfInterest: [...this.context.variablesOfInterest] } : {}),
+        ...(this.context.variablesOfInterest
+          ? { variablesOfInterest: [...this.context.variablesOfInterest] }
+          : {}),
         ...(this.context.currentTask ? { currentTask: this.context.currentTask } : {}),
-        ...(this.context.observerMode !== undefined ? { observerMode: this.context.observerMode } : {}),
+        ...(this.context.observerMode !== undefined
+          ? { observerMode: this.context.observerMode }
+          : {}),
       },
     };
   }
@@ -791,7 +818,7 @@ export class InvestigationAggregate {
   /** Compute the canonical cryptographic digest representing this aggregate's semantic state. */
   async computeDigest(
     kernelVersion = 'unknown',
-    identityOptions: InvestigationDigestIdentityOptions = {},
+    identityOptions: InvestigationDigestIdentityOptions = {}
   ): Promise<string> {
     if (
       identityOptions.evidenceReceiptBytes !== undefined &&
@@ -807,7 +834,7 @@ export class InvestigationAggregate {
       ? String(
           identityOptions.legacyImmutableDatasetSeedHash
             ? originalDataset.seedHash
-            : originalDataset.fingerprint,
+            : originalDataset.fingerprint
         )
       : fp;
 
@@ -890,9 +917,13 @@ export class InvestigationAggregate {
           studyId: this.context.studyId,
           researchQuestion: this.context.researchQuestion,
           hypothesis: this.context.hypothesis,
-          ...(this.context.variablesOfInterest ? { variablesOfInterest: [...this.context.variablesOfInterest] } : {}),
+          ...(this.context.variablesOfInterest
+            ? { variablesOfInterest: [...this.context.variablesOfInterest] }
+            : {}),
           ...(this.context.currentTask ? { currentTask: this.context.currentTask } : {}),
-          ...(this.context.observerMode !== undefined ? { observerMode: this.context.observerMode } : {}),
+          ...(this.context.observerMode !== undefined
+            ? { observerMode: this.context.observerMode }
+            : {}),
         },
       });
     }
@@ -901,9 +932,13 @@ export class InvestigationAggregate {
       studyId: this.context.studyId,
       researchQuestion: this.context.researchQuestion,
       hypothesis: this.context.hypothesis,
-      ...(this.context.variablesOfInterest ? { variablesOfInterest: [...this.context.variablesOfInterest] } : {}),
+      ...(this.context.variablesOfInterest
+        ? { variablesOfInterest: [...this.context.variablesOfInterest] }
+        : {}),
       ...(this.context.currentTask ? { currentTask: this.context.currentTask } : {}),
-      ...(this.context.observerMode !== undefined ? { observerMode: this.context.observerMode } : {}),
+      ...(this.context.observerMode !== undefined
+        ? { observerMode: this.context.observerMode }
+        : {}),
     };
 
     // RFC 0009: the governed V3 composition must commit exactly the semantic
@@ -934,7 +969,10 @@ export class InvestigationAggregate {
     };
 
     if (identityOptions.evidenceReceiptBytes !== undefined) {
-      return computeGovernedInvestigationDigest(semanticState, identityOptions.evidenceReceiptBytes);
+      return computeGovernedInvestigationDigest(
+        semanticState,
+        identityOptions.evidenceReceiptBytes
+      );
     }
     return computeSemanticInvestigationDigest(semanticState);
   }
@@ -972,6 +1010,8 @@ export class InvestigationAggregate {
 
   private _activeFormaResult?: FullMonetaSynthesisResult;
   private _activeDirectCompileResult?: DirectEmbodimentCompileResult;
+  private _activeVariantPair?: ObligationPreservingVariantPairV1;
+  private _activeDirectTraversal?: DirectTraversalSession;
   private _formaState?: FormaInvestigationStateV1;
 
   /**
@@ -1023,6 +1063,8 @@ export class InvestigationAggregate {
       researchMode: this.researchMode,
     });
     this._activeDirectCompileResult = result;
+    this._activeVariantPair = undefined;
+    this._activeDirectTraversal = undefined;
     this._activeFormaResult = undefined;
     this._formaState = undefined;
     return result;
@@ -1030,6 +1072,103 @@ export class InvestigationAggregate {
 
   getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {
     return this._activeDirectCompileResult;
+  }
+
+  /**
+   * DSE2: Compiles desktop and constrained budget variants of the active
+   * evidence, admitting the pair only when mandatory obligations survive in
+   * both. The desktop result becomes the active direct compilation.
+   */
+  compileObligationPreservingVariants(options?: {
+    readonly snapshot?: SemanticSnapshotV1;
+    readonly analyticalEvidence?: {
+      readonly envelope: SemanticEmbodimentEnvelopeV1;
+      readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
+    };
+    readonly desktopBudget?: DeviceCapabilityBudgetV1;
+    readonly constrainedBudget?: DeviceCapabilityBudgetV1;
+    readonly obligations?: SemanticObligationContractV1;
+    readonly admissionOptions?: FormaAdmissionOptionsV1;
+    readonly phenotype?: SpatialPhenotype;
+    readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
+  }): ObligationPreservingVariantPairV1 {
+    let snapshot = options?.snapshot;
+    if (!snapshot && options?.analyticalEvidence) {
+      snapshot = normalizeEnvelopeToSnapshot(
+        options.analyticalEvidence.envelope,
+        options.analyticalEvidence.evidenceReferences
+      );
+    }
+    if (!snapshot) {
+      throw new Error(
+        '[InvestigationAggregate] Variant compilation refused: analytical evidence is unavailable or ungrounded'
+      );
+    }
+
+    const context = this.getActiveContext();
+    if (!context) {
+      throw new Error(
+        '[InvestigationAggregate] Variant compilation refused: committed investigation context is strictly required'
+      );
+    }
+
+    const ds = this.analytical.current;
+    const pair = compileObligationPreservingVariants({
+      datasetFingerprint: ds.fingerprint,
+      snapshot,
+      context,
+      desktopBudget: options?.desktopBudget,
+      constrainedBudget: options?.constrainedBudget,
+      obligations: options?.obligations,
+      admissionOptions: options?.admissionOptions,
+      phenotype: options?.phenotype,
+      critiqueFeedback: options?.critiqueFeedback,
+      researchMode: this.researchMode,
+    });
+    this._activeVariantPair = pair;
+    this._activeDirectCompileResult = pair.desktop;
+    this._activeDirectTraversal = undefined;
+    this._activeFormaResult = undefined;
+    this._formaState = undefined;
+    return pair;
+  }
+
+  getActiveVariantPair(): ObligationPreservingVariantPairV1 | undefined {
+    return this._activeVariantPair;
+  }
+
+  /**
+   * DSE2: Opens a reversible traversal session over the active direct
+   * compilation. Detail authority is caller-established via governed builders;
+   * the session binds to it explicitly and the analytical runtime refuses
+   * closed when it is absent.
+   */
+  openDirectTraversal(
+    planElementId: string,
+    phenomenon: GovernedPhenomenonKind,
+    detailAuthority: EstablishedDetailAuthorityV1
+  ): DirectTraversalSession {
+    const compilation = this._activeDirectCompileResult;
+    if (!compilation) {
+      throw new Error(
+        '[InvestigationAggregate] Direct traversal refused: no active direct compilation'
+      );
+    }
+    const outcome = DirectTraversalSession.open(
+      compilation,
+      planElementId,
+      phenomenon,
+      detailAuthority
+    );
+    if (outcome.status === 'REFUSED') {
+      throw new Error(`[InvestigationAggregate] Direct traversal refused: ${outcome.message}`);
+    }
+    this._activeDirectTraversal = outcome.value;
+    return outcome.value;
+  }
+
+  getActiveDirectTraversal(): DirectTraversalSession | undefined {
+    return this._activeDirectTraversal;
   }
 
   /**

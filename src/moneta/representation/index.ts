@@ -32,3 +32,4 @@ export * from './RawRowAuthority.ts';
 
 export * from './ComposedRepresentationValidation.ts';
 export * from './DirectEmbodimentCompiler.ts';
+export * from './DirectTraversalSession.ts';

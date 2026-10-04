@@ -3510,3 +3510,7 @@ Add future historical summaries here when a live roadmap section is retired. Kee
 roadmap focused on active work, blockers, acceptance criteria, and decisions. Do not append
 completed feature inventories to `docs/ROADMAP.md`.
 
+
+## 2026-10-04 — DSE2 semantic resolution landed
+
+FM-DSE advanced DSE2 READY to DSE2 IMPLEMENTED: reversible direct traversal (`DirectTraversalSession`), obligation-preserving desktop/constrained variant pairs, and evict/rebuild lifecycle identity, with refusal battery and AtlasCore entry-point evidence. Next authorized tranche: DSE3 dual-mode feedback loop.
