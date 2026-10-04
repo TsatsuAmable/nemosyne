@@ -57,6 +57,12 @@ import type {
   DiscoveryOutcomeLinkJudgement,
   JudgementOutcome,
 } from '../../judgement/RepresentationJudgement.ts';
+import { buildDatasetSignature } from '../../moneta/representation/SignatureBuilder.ts';
+import {
+  RepresentationSearchEngine,
+  type RepresentationSearchResult,
+  type SearchOptions,
+} from '../../moneta/search/index.ts';
 
 
 export interface InvestigationDigestIdentityOptions {
@@ -799,6 +805,19 @@ export class InvestigationAggregate {
       return computeGovernedInvestigationDigest(semanticState, identityOptions.evidenceReceiptBytes);
     }
     return computeSemanticInvestigationDigest(semanticState);
+  }
+
+  /**
+   * FM7: Executes multi-objective search & synthesis for representations.
+   * Pure inquiry; does not mutate analytical state, dataset fingerprint, or graph.
+   */
+  searchRepresentations(options?: SearchOptions): RepresentationSearchResult {
+    const ds = this.analytical.current;
+    const signature = buildDatasetSignature(ds);
+    return RepresentationSearchEngine.search(signature, {
+      ...options,
+      context: this.getActiveContext(),
+    });
   }
 
   /** Clean up transient resources. */

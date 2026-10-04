@@ -97,6 +97,14 @@ import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidence
 
 import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload, GovernedEvidenceCaptureV1 } from './ports/AnalyticalExecutionPort.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
+import {
+  type RepresentationSearchResult,
+  type SynthesizedCandidate,
+  type SearchOptions,
+  type RepresentationObjectiveVectorV1,
+  type ObjectivePreference,
+  explainObjectiveTradeoffs,
+} from '../moneta/search/index.ts';
 
 export { KernelUnavailableError };
 export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
@@ -1700,6 +1708,28 @@ export class AtlasCore {
     return this._aggregate.promoteFormaMetaphorCase(candidate);
   }
 
+  /**
+   * FM7: Executes multi-objective search & synthesis for representations.
+   * Discovers Pareto-optimal candidates outside the hand-authored catalogue.
+   * Pure inquiry; does not mutate dataset, active representation, or graph.
+   */
+  searchRepresentations(options?: SearchOptions): RepresentationSearchResult {
+    return this._aggregate.searchRepresentations(options);
+  }
+
+  /**
+   * FM7: Explains objective trade-offs for a synthesized candidate for TechnoCore inspection.
+   */
+  explainObjectiveTradeoffs(
+    vectorOrCandidate: RepresentationObjectiveVectorV1 | SynthesizedCandidate,
+    preference: ObjectivePreference = 'BALANCED'
+  ): string {
+    const vector =
+      'objectiveVector' in vectorOrCandidate
+        ? vectorOrCandidate.objectiveVector
+        : vectorOrCandidate;
+    return explainObjectiveTradeoffs(vector, preference);
+  }
 
   arbitrateSpatialStrategy(
     requirements?: RepresentationRequirements,

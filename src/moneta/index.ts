@@ -13,3 +13,5 @@ export * from './EvidenceInformedRecommender.ts';
 export * from './layouts/index.ts';
 export * from './evidence/index.ts';
 export * from './representation/index.ts';
+export * from './forma/index.ts';
+export * from './search/index.ts';
