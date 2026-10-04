@@ -231,7 +231,7 @@ Only canonical governed inputs may be consumed. The durable metaphor knowledge i
 - information-preservation/loss descriptors;
 - device/perceptual budget and channel availability;
 - explicit researcher-context fields allowed by policy;
-- versioned Forma case/template/contraindication features once L2-FORMA-KB0 is qualified.
+- versioned Forma case/template/contraindication features once L2-FORMA-0 + bounded KB0 is qualified.
 
 The model must not traverse raw datasets independently or manufacture analytical features in TypeScript.
 

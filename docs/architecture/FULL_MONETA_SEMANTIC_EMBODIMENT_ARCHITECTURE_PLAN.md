@@ -281,7 +281,7 @@ This is a Rust-owned family-specific analytical envelope. Its semantic families 
 
 **Gap:** no single normalized semantic vocabulary/adapter currently turns all governed analytical families into coherent semantic nodes/relations.
 
-This is the purpose of **L0-SEM-NORM**.
+This is the purpose of **L0-SEM-NORM-A**.
 
 #### `RepresentationGraph`
 
@@ -991,7 +991,7 @@ This is not a global serialization barrier. Parallel work is permitted when prer
 
 ## 19. Roadmap tranches
 
-These are the implementation-sized units the live roadmap should schedule. ERA-ASTRA1 requires one authority/version decision before durable Forma schemas freeze.
+These are the implementation-sized units the live roadmap should schedule. This plan owns the ladder definitions; the live `docs/ROADMAP.md` schedules only the current slice, so a rung absent from the roadmap is unscheduled, not retired. ERA-ASTRA1 requires one authority/version decision before durable Forma schemas freeze.
 
 ### A27-0 — authority/version decision
 
