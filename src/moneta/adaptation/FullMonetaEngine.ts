@@ -31,7 +31,7 @@ import {
   type ComposedRepresentationStateV1,
 } from '../forma/FormaMultiElementRuntime.js';
 import type { FormaKnowledgeStore } from '../forma/FormaKnowledgeBase.js';
-import { FormaSystem1Proposer, DEFAULT_SYSTEM1_WEIGHTS } from '../forma/FormaSystem1Proposer.js';
+import { FormaSystem1Proposer, DEFAULT_SYSTEM1_WEIGHTS, type FormaProposalSetV1 } from '../forma/FormaSystem1Proposer.js';
 import {
   type ConjecturalProposalV1,
   createConjecturalProposal,
@@ -82,10 +82,12 @@ export interface FullMonetaSynthesisResult {
   readonly transition?: AdaptationTransition;
   readonly researchModeFrozen: boolean;
   readonly conjecturalProposals?: readonly ConjecturalProposalV1[];
+  readonly system1ProposalSet: FormaProposalSetV1;
   readonly provenance: {
     readonly datasetFingerprint: string;
     readonly timestamp: string;
     readonly fitnessModelVersion: string;
+    readonly system1ProposalSetId: string;
   };
 }
 
@@ -330,12 +332,14 @@ export class FullMonetaEngine {
       transition,
       researchModeFrozen: isResearchMode,
       conjecturalProposals: conjecturalProposals.length > 0 ? conjecturalProposals : undefined,
+      system1ProposalSet: s1Proposals,
       provenance: {
         datasetFingerprint: signature.provenance.datasetFingerprint,
         timestamp: new Date().toISOString(),
         fitnessModelVersion: isResearchMode
           ? 'FullMonetaEngine-FrozenResearchMode-v1'
           : `FullMonetaEngine-Adaptive-s1-${s1Proposals.status}`,
+        system1ProposalSetId: s1Proposals.proposalSetId,
       },
     };
   }
