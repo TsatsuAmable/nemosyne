@@ -222,12 +222,13 @@ export class FullMonetaEngine {
 
     // 7. Resolution adaptation broker
     const broker = options.broker ?? new FormaResolutionBroker();
+    const contextObj = context as unknown as { activationEpoch?: number };
     const requestedGeneration =
       options.contextGeneration ??
       (typeof context.runtimeGeneration === 'number'
         ? context.runtimeGeneration
-        : typeof (context as { activationEpoch?: unknown }).activationEpoch === 'number'
-          ? (context as { activationEpoch: number }).activationEpoch
+        : typeof contextObj.activationEpoch === 'number'
+          ? contextObj.activationEpoch
           : broker.getContextGeneration(context.nodeId));
 
     const brokerOutcome = broker.brokerVariant(

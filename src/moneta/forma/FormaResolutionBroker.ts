@@ -133,13 +133,13 @@ export class FormaResolutionBroker {
       };
     }
 
-    // 2. Context generation guard: must match active context generation exactly
+    const contextObj = context as unknown as { activationEpoch?: number };
     const activeGen =
       this.activeContextGenerations.get(context.nodeId) ??
       (typeof context.runtimeGeneration === 'number'
         ? context.runtimeGeneration
-        : typeof (context as { activationEpoch?: unknown }).activationEpoch === 'number'
-          ? (context as { activationEpoch: number }).activationEpoch
+        : typeof contextObj.activationEpoch === 'number'
+          ? contextObj.activationEpoch
           : 1);
     if (requestedGeneration !== activeGen) {
       const msg = requestedGeneration < activeGen
