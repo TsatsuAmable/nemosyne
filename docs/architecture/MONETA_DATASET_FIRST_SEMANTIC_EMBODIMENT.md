@@ -886,3 +886,34 @@ After acceptance:
 2. write the DSE0/DSE1 implementation plan against fresh `main`;
 3. implement one tranche at a time with high-risk falsifiers and independent review;
 4. keep unsupported research claims explicitly open.
+
+## 19. Agent entry point and implementation handoff
+
+This section is the routing contract for future implementation agents. The [roadmap](../ROADMAP.md)
+owns current authorization and status; this design owns the target contracts and DSE tranche exits.
+
+1. Start with `AGENTS.md`, the [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md),
+   the live [roadmap](../ROADMAP.md), and this design. Read the [Full Moneta target](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md),
+   [Completeness Audit](../review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md), and linked
+   FM/QCA records only for the tranche being prepared.
+2. Before any source change, verify current remote `main`, inspect active workstream claims/PRs,
+   acquire the required exclusive lease, and use an isolated branch/worktree. Declare touched files,
+   risk class, authority path, invariants and falsifiers in a tranche-specific implementation plan.
+3. The first eligible work item is **DSE0**, after owner acceptance or revision of ADAPT. DSE0 resolves
+   snapshot/subject schema placement, multi-dataset seam and RFC/ADR need; pins the supported semantic
+   fixtures, row-access and cardinality falsifiers; and freezes benchmark/human-evidence thresholds.
+   It must not silently implement the public schema while that decision is open.
+4. DSE1 is the first runtime tranche only after DSE0 closes. It must implement and test the bounded
+   evidence-bound deterministic composition, Dataset subject, two-structure overview, full reverse
+   explanation and minimum attributable critique capture in the real production path. Extend existing
+   FM3/4, admission, replay and QCA suites; do not treat design assertions or isolated compiler tests
+   as shipped capability evidence.
+5. Later DSE tranches are separate plans and PRs in roadmap order. A tranche may not claim or repair
+   another FM lane by implication. Stop and revise if its falsifiers show hidden O(N) presentation
+   work, unsupported meaning, disclosure/obligation loss, identity collision, unbounded resource cost,
+   or no useful task-equivalent improvement.
+
+The design is therefore discoverable from `PROJECT_DOCS_INDEX.md`, the canonical architecture
+reference and Full Moneta target, and the live roadmap row. The per-tranche plans created after owner
+acceptance become the agent-addressable implementation specifications; they are deliberately not
+pre-authorized by this architecture proposal.
