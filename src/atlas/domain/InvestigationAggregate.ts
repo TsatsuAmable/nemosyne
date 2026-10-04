@@ -22,6 +22,9 @@ import {
   CommittedInvestigationContextLedger,
   type CommittedInvestigationContextV2,
   type CommittedContextActivation,
+  type EpistemicPurpose,
+  type ContextBinding,
+  checkContextCompatibility,
 } from './CommittedInvestigationContext.ts';
 import { canonicalizeInvestigationPerspective } from './InvestigationPerspective.ts';
 import { canonicalizeInvestigationIntent } from './InvestigationIntent.ts';
@@ -315,6 +318,44 @@ export class InvestigationAggregate {
       perspective: canonicalPerspective,
     };
     return this.contextLedger.commit(active.nodeId, updatedContext);
+  }
+
+  /**
+   * FM1 / DM-0: Transition the epistemic purpose (CLAIM_BEARING vs EXPLORATORY_ABDUCTION)
+   * of the currently active investigation context, returning a fresh activation epoch
+   * and updating context identity. Revokes pending adoptions from the previous context.
+   */
+  setEpistemicPurpose(purpose: EpistemicPurpose): CommittedContextActivation {
+    const active = this.getActiveContext();
+    if (!active) {
+      throw new Error('Cannot set epistemic purpose: no committed investigation context is active');
+    }
+    const updatedContext: CommittedInvestigationContextV2 = {
+      ...active,
+      epistemicPurpose: purpose,
+    };
+    return this.contextLedger.commit(active.nodeId, updatedContext);
+  }
+
+  /**
+   * FMA-08: Check whether an asynchronous result binding is compatible with the currently active context.
+   */
+  canAdopt(binding: ContextBinding): boolean {
+    const activeActivation = this.contextLedger.getActiveActivation();
+    const result = checkContextCompatibility(binding, activeActivation);
+    return result.ok;
+  }
+
+  /**
+   * FMA-08: Assert that an asynchronous result binding is compatible with the currently active context,
+   * throwing if the context has moved or changed purpose.
+   */
+  assertCanAdopt(binding: ContextBinding): void {
+    const activeActivation = this.contextLedger.getActiveActivation();
+    const result = checkContextCompatibility(binding, activeActivation);
+    if (!result.ok) {
+      throw new Error(`[InvestigationAggregate] Cannot adopt result: ${result.reason}`);
+    }
   }
 
   /**

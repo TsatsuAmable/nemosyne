@@ -33,8 +33,63 @@ export const MAX_ENTRY_COUNT = 1000;
  */
 export const NEMOSYNE_PACKAGE_FORMAT_VERSION = 2 as const;
 export const GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION = 3 as const;
+export const FORMA_PACKAGE_FORMAT_VERSION = 4 as const;
 export const EVIDENCE_RECEIPTS_ENTRY = 'investigation/evidence-receipts.json' as const;
+export const FORMA_INVESTIGATION_ENTRY = 'investigation/forma.json' as const;
 export const LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION = 1 as const;
+
+export interface FormaStaticCaptureCapturedV1 {
+  readonly status: 'CAPTURED';
+  readonly planId: string;
+  readonly variantTier: string;
+  readonly admittedPlan?: unknown;
+  readonly compiledVariants?: unknown;
+  readonly timestamp: string;
+  readonly isConjectural: boolean;
+  readonly uncertaintyDisclosure?: string;
+}
+
+export interface FormaStaticCaptureNoneV1 {
+  readonly status: 'NONE';
+  readonly reason: string;
+}
+
+export type FormaStaticCaptureV1 = FormaStaticCaptureCapturedV1 | FormaStaticCaptureNoneV1;
+
+export interface FormaInvestigationPayloadV1 {
+  readonly schemaVersion: 1;
+  readonly contextRef: string;
+  readonly conjecturalProposalRefs: readonly string[];
+  readonly epistemicBindingsRef: readonly string[];
+  readonly generationRecordRef?: string;
+  readonly staticCapture: FormaStaticCaptureV1;
+}
+
+export interface HistoricalInspectionCapability {
+  readonly kind: 'HISTORICAL_INSPECTION';
+  readonly captureId: string;
+  readonly runtimeInstanceId: string;
+  readonly inspectionEpoch: number;
+  readonly isConjectural: boolean;
+  readonly canAuthorizeActiveUse: false;
+}
+
+export function createHistoricalInspectionCapability(
+  captureId: string,
+  isConjectural: boolean = false
+): HistoricalInspectionCapability {
+  const instanceId = typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `hist-rt-${Date.now().toString(36)}`;
+  return {
+    kind: 'HISTORICAL_INSPECTION',
+    captureId,
+    runtimeInstanceId: instanceId,
+    inspectionEpoch: 1,
+    isConjectural,
+    canAuthorizeActiveUse: false,
+  };
+}
 
 export interface NemosynePackageReadLimits {
   archiveBytes?: number;
@@ -59,6 +114,7 @@ export const NemosyneManifestSchema = v.object({
   nilOutcomeCount: v.nullish(v.number()),
   investigationDigest: v.nullish(v.string()),
   evidenceReceiptDigest: v.nullish(v.string()),
+  formaDigest: v.nullish(v.string()),
   /** RF-046: absent means the historical schema-v1 digest contract. */
   investigationDigestAlgorithm: v.nullish(v.string()),
   /** Portable research semantics committed by the RF-046 v2 digest. */
@@ -106,6 +162,7 @@ export interface NemosynePackagePayload {
   discoveryEpisodesBytes?: Uint8Array;
   nilOutcomesBytes?: Uint8Array;
   evidenceReceiptBytes?: Uint8Array;
+  formaInvestigationBytes?: Uint8Array;
   extraFiles?: Record<string, Uint8Array>;
 }
 
@@ -116,7 +173,9 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
     }
     return;
   }
-  const governed = manifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION;
+  const isV3 = manifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION;
+  const isV4 = manifest.formatVersion === FORMA_PACKAGE_FORMAT_VERSION;
+  const governed = isV3 || isV4;
   if (!governed && manifest.formatVersion !== NEMOSYNE_PACKAGE_FORMAT_VERSION) {
     throw new Error(`Unsupported .nemosyne formatVersion ${manifest.formatVersion}`);
   }
@@ -131,14 +190,19 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
   if (governed) {
     for (const field of ['analyticalDatasetFingerprint', 'investigationDigest', 'evidenceReceiptDigest'] as const) {
       if (typeof manifest[field] !== 'string' || !/^[0-9a-f]{64}$/.test(manifest[field])) {
-        throw new Error(`Format-v3 package requires ${field} as a lowercase SHA-256 digest`);
+        throw new Error(`Format-${isV4 ? 'v4' : 'v3'} package requires ${field} as a lowercase SHA-256 digest`);
       }
     }
     if (!manifest.analyticalKernelVersion || !manifest.kernelVersion) {
-      throw new Error('Format-v3 package requires explicit kernel identities');
+      throw new Error(`Format-${isV4 ? 'v4' : 'v3'} package requires explicit kernel identities`);
     }
     if (manifest.investigationDigestAlgorithm !== GOVERNED_INVESTIGATION_DIGEST_ALGORITHM) {
-      throw new Error('Format-v3 package requires its investigation digest algorithm');
+      throw new Error(`Format-${isV4 ? 'v4' : 'v3'} package requires its investigation digest algorithm`);
+    }
+    if (isV4) {
+      if (typeof manifest.formaDigest !== 'string' || !/^[0-9a-f]{64}$/.test(manifest.formaDigest)) {
+        throw new Error('Format-v4 package requires formaDigest as a lowercase SHA-256 digest');
+      }
     }
     return;
   }
@@ -152,22 +216,25 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
   }
 }
 
-/** Legacy readers historically ignored unknown metadata; only V3 owns this field. */
+/** Legacy readers historically ignored unknown metadata; only V3/V4 own their extra digest fields. */
 function manifestInput(value: unknown): unknown {
-  if (value !== null && typeof value === 'object' &&
-      (value as Record<string, unknown>).formatVersion !== GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION) {
-    const { evidenceReceiptDigest: _ignored, ...legacy } = value as Record<string, unknown>;
-    return legacy;
+  if (value !== null && typeof value === 'object') {
+    const formatVersion = (value as Record<string, unknown>).formatVersion;
+    if (formatVersion !== GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION && formatVersion !== FORMA_PACKAGE_FORMAT_VERSION) {
+      const { evidenceReceiptDigest: _ignored, formaDigest: _ignoredForma, ...legacy } = value as Record<string, unknown>;
+      return legacy;
+    }
   }
   return value;
 }
 
 /** Checks transport integrity and declared identity only, never reconstructed identity. */
 function assertEvidenceContract(manifest: NemosynePackageManifest, bytes?: Uint8Array): void {
-  if (manifest.formatVersion !== GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+  if (manifest.formatVersion !== GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION &&
+      manifest.formatVersion !== FORMA_PACKAGE_FORMAT_VERSION) {
     return;
   }
-  if (!bytes) throw new Error('Format-v3 package is missing evidence receipts');
+  if (!bytes) throw new Error(`Format-v${manifest.formatVersion} package is missing evidence receipts`);
   if (sha256Hex(bytes) !== manifest.evidenceReceiptDigest) {
     throw new Error('Evidence receipt entry digest mismatch');
   }
@@ -175,6 +242,16 @@ function assertEvidenceContract(manifest: NemosynePackageManifest, bytes?: Uint8
   if (envelope.bundle.datasetFingerprint !== manifest.analyticalDatasetFingerprint ||
       envelope.bundle.kernelVersion !== manifest.analyticalKernelVersion) {
     throw new Error('Evidence receipt bundle identity does not match analytical manifest identity');
+  }
+}
+
+function assertFormaContract(manifest: NemosynePackageManifest, bytes?: Uint8Array): void {
+  if (manifest.formatVersion !== FORMA_PACKAGE_FORMAT_VERSION) {
+    return;
+  }
+  if (!bytes) throw new Error('Format-v4 package is missing forma investigation data');
+  if (sha256Hex(bytes) !== manifest.formaDigest) {
+    throw new Error('Forma investigation entry digest mismatch');
   }
 }
 
@@ -234,11 +311,18 @@ export class NemosynePackageManager {
   static pack(payload: NemosynePackagePayload): Uint8Array {
     const validatedManifest = v.parse(NemosyneManifestSchema, manifestInput(payload.manifest));
     assertSupportedManifestIdentityContract(validatedManifest);
-    const evidenceSource = validatedManifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION
+    const evidenceSource = (validatedManifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION ||
+      validatedManifest.formatVersion === FORMA_PACKAGE_FORMAT_VERSION)
       ? payload.evidenceReceiptBytes : undefined;
     // Caller-owned buffers/getters must not change the bytes after validation.
     const evidenceReceiptBytes = evidenceSource === undefined ? undefined : new Uint8Array(evidenceSource);
     assertEvidenceContract(validatedManifest, evidenceReceiptBytes);
+
+    const formaSource = validatedManifest.formatVersion === FORMA_PACKAGE_FORMAT_VERSION
+      ? payload.formaInvestigationBytes : undefined;
+    const formaInvestigationBytes = formaSource === undefined ? undefined : new Uint8Array(formaSource);
+    assertFormaContract(validatedManifest, formaInvestigationBytes);
+
     const zipFiles: Record<string, Uint8Array> = {
       'manifest.json': strToU8(JSON.stringify(validatedManifest, null, 2)),
       'data/dataset.raw': payload.datasetBytes,
@@ -246,6 +330,7 @@ export class NemosynePackageManager {
     };
 
     if (evidenceReceiptBytes) zipFiles[EVIDENCE_RECEIPTS_ENTRY] = evidenceReceiptBytes;
+    if (formaInvestigationBytes) zipFiles[FORMA_INVESTIGATION_ENTRY] = formaInvestigationBytes;
 
     if (payload.representationDecisionBytes) {
       zipFiles['investigation/representation.json'] = payload.representationDecisionBytes;
@@ -364,9 +449,14 @@ export class NemosynePackageManager {
     }
     assertSupportedManifestIdentityContract(manifestResult.output);
 
-    const evidenceReceiptBytes = manifestResult.output.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION
+    const evidenceReceiptBytes = (manifestResult.output.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION ||
+      manifestResult.output.formatVersion === FORMA_PACKAGE_FORMAT_VERSION)
       ? finalFiles[EVIDENCE_RECEIPTS_ENTRY] : undefined;
     assertEvidenceContract(manifestResult.output, evidenceReceiptBytes);
+
+    const formaInvestigationBytes = manifestResult.output.formatVersion === FORMA_PACKAGE_FORMAT_VERSION
+      ? finalFiles[FORMA_INVESTIGATION_ENTRY] : undefined;
+    assertFormaContract(manifestResult.output, formaInvestigationBytes);
 
     const datasetBytes = finalFiles['data/dataset.raw'];
     if (!datasetBytes || datasetBytes.byteLength === 0) {
@@ -406,6 +496,7 @@ export class NemosynePackageManager {
     return {
       manifest: manifestResult.output,
       evidenceReceiptBytes,
+      formaInvestigationBytes,
       datasetBytes,
       commandLogBytes,
       representationDecisionBytes,

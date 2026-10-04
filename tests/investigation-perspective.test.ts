@@ -29,7 +29,7 @@ function contextOf(
   nodeId: string,
   variables: string[],
   temporal?: 'recency' | 'historical',
-  epistemicPurpose?: EpistemicPurpose
+  epistemicPurpose: EpistemicPurpose = 'CLAIM_BEARING'
 ) {
   return {
     schemaVersion: COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V2,

@@ -302,10 +302,20 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     const ds = makeMultiDimensionalDataset();
     const signature = buildDatasetSignature(ds);
     const evidence = makeValidEvidence(signature.provenance.datasetFingerprint);
+    const context = {
+      schemaVersion: 2 as const,
+      nodeId: 'node-test-g',
+      intent: {
+        schemaVersion: 1 as const,
+        researchQuestion: 'Channel obligation test',
+        currentTask: 'obligation_testing',
+      },
+      epistemicPurpose: 'CLAIM_BEARING' as const,
+    };
 
     // Requesting a channel that QUEST_CONSTRAINED_BUDGET cannot satisfy
     expect(() => {
-      FullMonetaEngine.synthesizeOrAdapt(signature, undefined, undefined, {
+      FullMonetaEngine.synthesizeOrAdapt(signature, context, undefined, {
         budget: QUEST_CONSTRAINED_BUDGET,
         mandatoryChannels: ['spatial_surface', 'secondary_voxel_surface'],
         analyticalEvidence: evidence,
