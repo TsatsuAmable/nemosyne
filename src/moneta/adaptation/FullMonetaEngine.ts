@@ -31,7 +31,7 @@ import {
   type ComposedRepresentationStateV1,
 } from '../forma/FormaMultiElementRuntime.js';
 import type { FormaKnowledgeStore } from '../forma/FormaKnowledgeBase.js';
-import { FormaSystem1Proposer, DEFAULT_SYSTEM1_WEIGHTS, type FormaProposalSetV1 } from '../forma/FormaSystem1Proposer.js';
+import { FormaSystem1Proposer, DEFAULT_SYSTEM1_WEIGHTS, FORMA_SYSTEM1_PROPOSAL_SCHEMA_VERSION, type FormaProposalSetV1, type System1ProposalSource } from '../forma/FormaSystem1Proposer.js';
 import {
   type ConjecturalProposalV1,
   createConjecturalProposal,
@@ -62,6 +62,12 @@ export interface AdaptationOptions {
    * the result so baseline comparisons stay auditable.
    */
   readonly ignoreSystem1Advice?: boolean;
+  /**
+   * Replay: consume a previously recorded proposal set instead of rerunning
+   * the proposer. The engine verifies schema/snapshot/context identity and
+   * refuses on mismatch — a stale or foreign set never silently applies.
+   */
+  readonly recordedSystem1Proposals?: FormaProposalSetV1;
 }
 
 export interface AdaptationTransition {
@@ -90,6 +96,7 @@ export interface FullMonetaSynthesisResult {
   readonly conjecturalProposals?: readonly ConjecturalProposalV1[];
   readonly system1ProposalSet: FormaProposalSetV1;
   readonly system1AdviceApplied: boolean;
+  readonly system1ProposalSource: System1ProposalSource;
   readonly provenance: {
     readonly datasetFingerprint: string;
     readonly timestamp: string;
@@ -159,11 +166,35 @@ export class FullMonetaEngine {
 
     const manifest = createKB0Manifest();
 
-    // 3. System-1 proposals generated before search to guide candidate exploration (DM-5).
+    // 3. System-1 proposals: fresh inference, or a verified recorded set on replay (SHADOW-0018).
     // A caller-requested deterministic fallback withholds the advice from
     // seeding while still recording exactly what was bypassed.
     const proposer = new FormaSystem1Proposer(DEFAULT_SYSTEM1_WEIGHTS, knowledgeStore);
-    const s1Proposals = proposer.generateProposals(snapshot, context, manifest, budget);
+    let s1Proposals: FormaProposalSetV1;
+    let system1ProposalSource: System1ProposalSource;
+    const recorded = options.recordedSystem1Proposals;
+    if (recorded !== undefined) {
+      if (recorded.schemaVersion !== FORMA_SYSTEM1_PROPOSAL_SCHEMA_VERSION) {
+        throw new TypeError(
+          `[FullMonetaEngine] Recorded System-1 set refused: unsupported schema version ${String(recorded.schemaVersion)}`
+        );
+      }
+      if (recorded.snapshotId !== snapshot.snapshotId) {
+        throw new Error(
+          '[FullMonetaEngine] Recorded System-1 set refused: snapshot identity mismatch'
+        );
+      }
+      if (recorded.contextId !== context.nodeId) {
+        throw new Error(
+          '[FullMonetaEngine] Recorded System-1 set refused: investigation context mismatch'
+        );
+      }
+      s1Proposals = recorded;
+      system1ProposalSource = 'RECORDED';
+    } else {
+      s1Proposals = proposer.generateProposals(snapshot, context, manifest, budget);
+      system1ProposalSource = 'GENERATED';
+    }
     const system1AdviceApplied =
       options.ignoreSystem1Advice !== true && s1Proposals.status === 'PROPOSED';
 
@@ -345,6 +376,7 @@ export class FullMonetaEngine {
       conjecturalProposals: conjecturalProposals.length > 0 ? conjecturalProposals : undefined,
       system1ProposalSet: s1Proposals,
       system1AdviceApplied,
+      system1ProposalSource,
       provenance: {
         datasetFingerprint: signature.provenance.datasetFingerprint,
         timestamp: new Date().toISOString(),
@@ -422,6 +454,9 @@ export class FullMonetaEngine {
     const advisory = result.system1ProposalSet;
     let section = `System-1 Advisory Disclosure:\n`;
     section += `   - Advisory proposal set: ${advisory.proposalSetId}\n`;
+    section += result.system1ProposalSource === 'RECORDED'
+      ? `   - Advisory origin: RECORDED (restored record; proposer was not rerun).\n`
+      : `   - Advisory origin: GENERATED (fresh inference for this synthesis).\n`;
     if (advisory.status === 'ABSTAIN') {
       section += `   - Status: ABSTAINED — ${advisory.abstentionReason}\n`;
       section += `   - Effect: proceeded on the deterministic/search path without System-1 advice.\n`;
