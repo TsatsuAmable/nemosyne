@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { InstancedPointCloud } from '../src/vr/scalability/InstancedPointCloud.ts';
+import { createRowMarkerGeometry } from '../src/moneta/embodiment/ScalableTopologyEmbodiment.ts';
 
 describe('InstancedPointCloud', () => {
   it('creates an InstancedMesh with the given max count', () => {
@@ -65,6 +66,20 @@ describe('InstancedPointCloud', () => {
     expect(hit?.data).toEqual({ id: 'hit' });
     expect(hit?.index).toBe(0);
     expect(hit?.distance).toBeGreaterThan(0);
+  });
+
+  it('preserves row identity when raycasting the production row marker geometry', () => {
+    const cloud = new InstancedPointCloud(10, createRowMarkerGeometry());
+    cloud.setPoints([
+      { position: [0, 0, -1], color: 0xff00ff, scale: 1, data: { id: 'production-hit' } },
+    ]);
+
+    const raycaster = new THREE.Raycaster(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1));
+    const hit = cloud.intersect(raycaster);
+
+    expect(hit).not.toBeNull();
+    expect(hit?.data).toEqual({ id: 'production-hit' });
+    expect(hit?.index).toBe(0);
   });
 
   it('returns null when the ray misses all instances', () => {
