@@ -40,6 +40,11 @@ export interface CommittedInvestigationContextV2 {
   readonly epistemicPurpose: EpistemicPurpose;
   readonly intent: InvestigationIntentV1;
   readonly perspective?: InvestigationPerspectiveV1;
+  readonly investigationId?: string;
+  readonly datasetFingerprint?: string;
+  readonly scopeId?: string;
+  readonly committedRevision?: number;
+  readonly runtimeGeneration?: number;
 }
 
 /** Mutable activation state. Never hashed, never used as scientific meaning. */
@@ -48,6 +53,10 @@ export interface CommittedContextActivation {
   readonly nodeId: string;
   readonly revision: number;
   readonly activationEpoch: number;
+  readonly investigationId?: string;
+  readonly datasetFingerprint?: string;
+  readonly scopeId?: string;
+  readonly runtimeGeneration?: number;
 }
 
 /** The bindings an asynchronous result must still hold to be adoptable. */
@@ -55,6 +64,10 @@ export interface ContextBinding {
   readonly contextId: string;
   readonly nodeId: string;
   readonly activationEpoch: number;
+  readonly investigationId?: string;
+  readonly datasetFingerprint?: string;
+  readonly scopeId?: string;
+  readonly runtimeGeneration?: number;
 }
 
 export type ContextCompatibility =
@@ -86,6 +99,26 @@ function normalizeEpistemicPurpose(value: unknown): EpistemicPurpose {
   return value as EpistemicPurpose;
 }
 
+function normalizeOptionalString(value: unknown, fieldName: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    throw new TypeError(`CommittedInvestigationContext ${fieldName} must be a string`);
+  }
+  const normalized = value.normalize('NFC').trim();
+  if (normalized === '') {
+    throw new TypeError(`CommittedInvestigationContext ${fieldName} cannot be empty`);
+  }
+  return normalized;
+}
+
+function normalizeOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new TypeError(`CommittedInvestigationContext ${fieldName} must be a positive integer`);
+  }
+  return value;
+}
+
 export function canonicalizeCommittedInvestigationContext(
   context: unknown
 ): CommittedInvestigationContextV2 {
@@ -100,6 +133,11 @@ export function canonicalizeCommittedInvestigationContext(
     'epistemicPurpose',
     'intent',
     'perspective',
+    'investigationId',
+    'datasetFingerprint',
+    'scopeId',
+    'committedRevision',
+    'runtimeGeneration',
   ]);
   for (const key of Object.keys(candidate)) {
     if (!allowedKeys.has(key)) {
@@ -127,6 +165,11 @@ export function canonicalizeCommittedInvestigationContext(
     epistemicPurpose: EpistemicPurpose;
     intent: InvestigationIntentV1;
     perspective?: InvestigationPerspectiveV1;
+    investigationId?: string;
+    datasetFingerprint?: string;
+    scopeId?: string;
+    committedRevision?: number;
+    runtimeGeneration?: number;
   } = {
     schemaVersion: COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V2,
     nodeId,
@@ -136,6 +179,21 @@ export function canonicalizeCommittedInvestigationContext(
 
   if (candidate.perspective !== undefined) {
     canonical.perspective = canonicalizeInvestigationPerspective(candidate.perspective);
+  }
+  if (candidate.investigationId !== undefined) {
+    canonical.investigationId = normalizeOptionalString(candidate.investigationId, 'investigationId');
+  }
+  if (candidate.datasetFingerprint !== undefined) {
+    canonical.datasetFingerprint = normalizeOptionalString(candidate.datasetFingerprint, 'datasetFingerprint');
+  }
+  if (candidate.scopeId !== undefined) {
+    canonical.scopeId = normalizeOptionalString(candidate.scopeId, 'scopeId');
+  }
+  if (candidate.committedRevision !== undefined) {
+    canonical.committedRevision = normalizeOptionalPositiveInteger(candidate.committedRevision, 'committedRevision');
+  }
+  if (candidate.runtimeGeneration !== undefined) {
+    canonical.runtimeGeneration = normalizeOptionalPositiveInteger(candidate.runtimeGeneration, 'runtimeGeneration');
   }
 
   return canonical;
@@ -151,6 +209,10 @@ function bindingOf(activation: CommittedContextActivation): ContextBinding {
     contextId: activation.contextId,
     nodeId: activation.nodeId,
     activationEpoch: activation.activationEpoch,
+    investigationId: activation.investigationId,
+    datasetFingerprint: activation.datasetFingerprint,
+    scopeId: activation.scopeId,
+    runtimeGeneration: activation.runtimeGeneration,
   };
 }
 
@@ -188,6 +250,50 @@ export function checkContextCompatibility(
       reason: `Stale activation epoch: captured ${captured.activationEpoch}, active ${active.activationEpoch}.`,
     };
   }
+  if (
+    captured.datasetFingerprint !== undefined &&
+    active.datasetFingerprint !== undefined &&
+    captured.datasetFingerprint !== active.datasetFingerprint
+  ) {
+    return {
+      ok: false,
+      code: CONTEXT_INCOMPATIBLE,
+      reason: `Dataset fingerprint mismatch: captured ${captured.datasetFingerprint}, active ${active.datasetFingerprint}.`,
+    };
+  }
+  if (
+    captured.investigationId !== undefined &&
+    active.investigationId !== undefined &&
+    captured.investigationId !== active.investigationId
+  ) {
+    return {
+      ok: false,
+      code: CONTEXT_INCOMPATIBLE,
+      reason: `Investigation mismatch: captured ${captured.investigationId}, active ${active.investigationId}.`,
+    };
+  }
+  if (
+    captured.scopeId !== undefined &&
+    active.scopeId !== undefined &&
+    captured.scopeId !== active.scopeId
+  ) {
+    return {
+      ok: false,
+      code: CONTEXT_INCOMPATIBLE,
+      reason: `Scope mismatch: captured ${captured.scopeId}, active ${active.scopeId}.`,
+    };
+  }
+  if (
+    captured.runtimeGeneration !== undefined &&
+    active.runtimeGeneration !== undefined &&
+    captured.runtimeGeneration !== active.runtimeGeneration
+  ) {
+    return {
+      ok: false,
+      code: CONTEXT_INCOMPATIBLE,
+      reason: `Runtime generation mismatch: captured ${captured.runtimeGeneration}, active ${active.runtimeGeneration}.`,
+    };
+  }
 
   return { ok: true };
 }
@@ -199,10 +305,17 @@ interface LedgerEntry {
 }
 
 export class CommittedInvestigationContextLedger {
+  private static _monotonicEpochCounter = 0;
   private readonly _entries: Map<string, LedgerEntry> = new Map();
+  private readonly _history: Map<string, LedgerEntry[]> = new Map();
   private _revision = 0;
   private _epoch = 0;
   private _activeNodeId: string | null = null;
+
+  constructor() {
+    CommittedInvestigationContextLedger._monotonicEpochCounter += 1;
+    this._epoch = CommittedInvestigationContextLedger._monotonicEpochCounter;
+  }
 
   get activeNodeId(): string | null {
     return this._activeNodeId;
@@ -218,46 +331,101 @@ export class CommittedInvestigationContextLedger {
 
   reset(): void {
     this._entries.clear();
+    this._history.clear();
     this._revision = 0;
-    this._epoch = 0;
+    // Epoch must NEVER rewind to 0 on reset; advance monotonic counter
+    CommittedInvestigationContextLedger._monotonicEpochCounter += 1;
+    this._epoch = CommittedInvestigationContextLedger._monotonicEpochCounter;
     this._activeNodeId = null;
   }
 
   commit(nodeId: string, context: unknown): CommittedContextActivation {
-    const canonical = canonicalizeCommittedInvestigationContext({ ...(context as object), nodeId });
-    const contextId = computeCommittedContextIdentity(canonical);
     this._revision += 1;
-    this._epoch += 1;
+    CommittedInvestigationContextLedger._monotonicEpochCounter += 1;
+    this._epoch = CommittedInvestigationContextLedger._monotonicEpochCounter;
+
+    const candidate = ((typeof context === 'object' && context !== null) ? context : {}) as Record<string, unknown>;
+    const existingHistory = this._history.get(nodeId) ?? [];
+    const canonicalInput: Record<string, unknown> = {
+      ...candidate,
+      nodeId,
+    };
+    if (candidate.committedRevision !== undefined) {
+      canonicalInput.committedRevision = candidate.committedRevision;
+    }
+
+    const canonical = canonicalizeCommittedInvestigationContext(canonicalInput);
+    const contextId = computeCommittedContextIdentity(canonical);
+
     const activation: CommittedContextActivation = {
       contextId,
       nodeId: canonical.nodeId,
       revision: this._revision,
       activationEpoch: this._epoch,
+      investigationId: canonical.investigationId,
+      datasetFingerprint: canonical.datasetFingerprint,
+      scopeId: canonical.scopeId,
+      runtimeGeneration: canonical.runtimeGeneration,
     };
-    this._entries.set(canonical.nodeId, { context: canonical, contextId, activation });
+
+    const entry: LedgerEntry = { context: canonical, contextId, activation };
+    this._entries.set(canonical.nodeId, entry);
+
+    existingHistory.push(entry);
+    this._history.set(canonical.nodeId, existingHistory);
     this._activeNodeId = canonical.nodeId;
     return activation;
   }
 
-  activate(nodeId: string): CommittedContextActivation {
-    const entry = this._entries.get(nodeId);
-    if (entry === undefined) {
+  activate(nodeId: string, revision?: number): CommittedContextActivation {
+    const history = this._history.get(nodeId);
+    if (!history || history.length === 0) {
       throw new Error(`Cannot activate uncommitted investigation context node: ${nodeId}`);
     }
-    this._epoch += 1;
-    const nodeIdOfEntry = entry.context.nodeId;
-    entry.activation = {
-      contextId: entry.contextId,
-      nodeId: nodeIdOfEntry,
-      revision: entry.activation.revision,
+
+    let targetEntry: LedgerEntry | undefined;
+    if (revision !== undefined) {
+      targetEntry = history.find((e) => e.activation.revision === revision);
+      if (!targetEntry) {
+        throw new Error(
+          `Cannot activate revision ${revision} for node ${nodeId}; available revisions: ${history.map((e) => e.activation.revision).join(', ')}`
+        );
+      }
+    } else {
+      targetEntry = this._entries.get(nodeId) ?? history[history.length - 1];
+    }
+
+    CommittedInvestigationContextLedger._monotonicEpochCounter += 1;
+    this._epoch = CommittedInvestigationContextLedger._monotonicEpochCounter;
+
+    const updatedActivation: CommittedContextActivation = {
+      contextId: targetEntry.contextId,
+      nodeId: targetEntry.context.nodeId,
+      revision: targetEntry.activation.revision,
       activationEpoch: this._epoch,
+      investigationId: targetEntry.context.investigationId,
+      datasetFingerprint: targetEntry.context.datasetFingerprint,
+      scopeId: targetEntry.context.scopeId,
+      runtimeGeneration: targetEntry.context.runtimeGeneration,
     };
-    this._activeNodeId = nodeIdOfEntry;
-    return entry.activation;
+
+    targetEntry.activation = updatedActivation;
+    this._entries.set(nodeId, targetEntry);
+    this._activeNodeId = targetEntry.context.nodeId;
+    return updatedActivation;
   }
 
-  getCommitted(nodeId: string): CommittedInvestigationContextV2 | undefined {
+  getCommitted(nodeId: string, revision?: number): CommittedInvestigationContextV2 | undefined {
+    if (revision !== undefined) {
+      const history = this._history.get(nodeId);
+      return history?.find((e) => e.activation.revision === revision)?.context;
+    }
     return this._entries.get(nodeId)?.context;
+  }
+
+  getRevisions(nodeId: string): readonly CommittedInvestigationContextV2[] {
+    const history = this._history.get(nodeId);
+    return history ? history.map((e) => e.context) : [];
   }
 
   getActivation(nodeId: string): CommittedContextActivation | undefined {

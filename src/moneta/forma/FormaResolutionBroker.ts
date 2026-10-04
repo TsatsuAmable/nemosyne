@@ -68,7 +68,8 @@ export type VariantBrokerOutcomeV1 =
           | 'MANDATORY_OBLIGATION_UNSATISFIED'
           | 'STALE_CONTEXT_ADOPTION_REFUSED'
           | 'COMPILATION_REFUSED'
-          | 'BUDGET_EXCEEDED';
+          | 'BUDGET_EXCEEDED'
+          | 'INVALID_BUDGET';
         readonly message: string;
       };
     };
@@ -111,19 +112,41 @@ export class FormaResolutionBroker {
     obligations: SemanticObligationContractV1,
     requestedGeneration: number,
   ): VariantBrokerOutcomeV1 {
-    // 1. Stale-context guard
-    const activeGen = this.activeContextGenerations.get(context.nodeId) ?? 1;
-    if (requestedGeneration < activeGen) {
+    // 1. Validate budget integrity (reject non-positive or missing limits)
+    if (
+      !budget ||
+      typeof budget.maxElements !== 'number' ||
+      budget.maxElements <= 0 ||
+      typeof budget.maxMemoryBytes !== 'number' ||
+      budget.maxMemoryBytes <= 0 ||
+      typeof budget.maxChannels !== 'number' ||
+      budget.maxChannels <= 0
+    ) {
       return {
         status: 'REFUSED',
         refusal: {
-          code: 'STALE_CONTEXT_ADOPTION_REFUSED',
-          message: `Requested context generation ${requestedGeneration} is stale (active generation: ${activeGen})`,
+          code: 'INVALID_BUDGET',
+          message: `DeviceCapabilityBudget requires positive non-zero limits for maxElements, maxMemoryBytes, and maxChannels (received maxElements=${budget?.maxElements}, maxMemoryBytes=${budget?.maxMemoryBytes}, maxChannels=${budget?.maxChannels})`,
         },
       };
     }
 
-    // 2. Determine applicable variant tier based on budget
+    // 2. Context generation guard: must match active context generation exactly
+    const activeGen = this.activeContextGenerations.get(context.nodeId) ?? 1;
+    if (requestedGeneration !== activeGen) {
+      const msg = requestedGeneration < activeGen
+        ? `Requested context generation ${requestedGeneration} is stale (active generation: ${activeGen})`
+        : `Requested context generation ${requestedGeneration} is invalid or future (active generation: ${activeGen})`;
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'STALE_CONTEXT_ADOPTION_REFUSED',
+          message: msg,
+        },
+      };
+    }
+
+    // 3. Determine applicable variant tier based on budget
     let variantTier: ResolutionVariantTier;
     let targetPhenotype: SpatialPhenotype;
     let allowedChannels: string[];
@@ -145,7 +168,37 @@ export class FormaResolutionBroker {
       shedOptionalChannels.push('opacity_modulation');
     }
 
-    // 3. Validate mandatory channel obligations against allowed channels
+    // 4. Validate and enforce maxChannels budget limit
+    const mandatorySet = new Set(obligations.mandatoryChannels);
+    if (mandatorySet.size > budget.maxChannels) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'MANDATORY_OBLIGATION_UNSATISFIED',
+          message: `Mandatory channel count (${mandatorySet.size}) exceeds budget maxChannels (${budget.maxChannels})`,
+        },
+      };
+    }
+
+    for (let i = allowedChannels.length - 1; i >= 0 && allowedChannels.length > budget.maxChannels; i--) {
+      const ch = allowedChannels[i];
+      if (!mandatorySet.has(ch)) {
+        allowedChannels.splice(i, 1);
+        shedOptionalChannels.push(ch);
+      }
+    }
+
+    if (allowedChannels.length > budget.maxChannels) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'BUDGET_EXCEEDED',
+          message: `Allowed channels count (${allowedChannels.length}) exceeds budget maxChannels (${budget.maxChannels})`,
+        },
+      };
+    }
+
+    // Validate mandatory channel obligations against allowed channels
     for (const mandatoryChannel of obligations.mandatoryChannels) {
       if (!allowedChannels.includes(mandatoryChannel)) {
         return {
@@ -158,7 +211,7 @@ export class FormaResolutionBroker {
       }
     }
 
-    // 4. Compile base spatial slice
+    // 5. Compile base spatial slice
     const compilationOutcome = compileFormaSpatialSlice(snapshot, context, manifest, targetPhenotype);
     if (compilationOutcome.status === 'REFUSED') {
       return {
@@ -172,7 +225,7 @@ export class FormaResolutionBroker {
 
     const compiledSlice = compilationOutcome.slice;
 
-    // 5. Pre-check element count budget
+    // 6. Pre-check element count and memory budget
     if (compiledSlice.elements.length > budget.maxElements) {
       return {
         status: 'REFUSED',
@@ -183,7 +236,19 @@ export class FormaResolutionBroker {
       };
     }
 
-    // 6. Filter/shape elements to satisfy device budget
+    // Memory estimation: ~256 bytes per element + 64 bytes per channel
+    const estimatedMemoryBytes = compiledSlice.elements.length * 256 + allowedChannels.length * 64;
+    if (estimatedMemoryBytes > budget.maxMemoryBytes) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'BUDGET_EXCEEDED',
+          message: `Estimated plan memory (${estimatedMemoryBytes} bytes) exceeds budget maxMemoryBytes (${budget.maxMemoryBytes})`,
+        },
+      };
+    }
+
+    // 7. Filter/shape elements to satisfy device budget
     const elementsByNode = new Map<string, SpatialElementV1>();
     for (const el of compiledSlice.elements) {
       const shape = budget.allowedShapes.includes(el.visualEncoding.shape)
@@ -223,14 +288,23 @@ export class FormaResolutionBroker {
       }
     }
 
-    // 7. Build adapted reverse explanation
+    // 8. Build adapted reverse explanation
     const adaptedReverseExplanation: FormaReverseTraceV1[] = compiledSlice.reverseExplanation.filter((trace) =>
       elementsByNode.has(trace.semanticNodeId),
     );
 
+    const adaptedElements = Array.from(elementsByNode.values());
+    const adaptedContentDigest = canonicalSha256Hex({
+      phenotype: compiledSlice.phenotype,
+      elements: adaptedElements,
+      reverseExplanation: adaptedReverseExplanation,
+    });
+    const adaptedSliceId = `forma-slice-v1:${adaptedContentDigest}`;
+
     const adaptedSlice: FormaCompiledSliceV1 = {
       ...compiledSlice,
-      elements: Array.from(elementsByNode.values()),
+      sliceId: adaptedSliceId,
+      elements: adaptedElements,
       reverseExplanation: adaptedReverseExplanation,
     };
 
@@ -239,6 +313,11 @@ export class FormaResolutionBroker {
       variantTier,
       budgetProfile: budget.profileName,
       contextGeneration: requestedGeneration,
+      allowedShapes: budget.allowedShapes,
+      allowSecondaryEncodings: budget.allowSecondaryEncodings,
+      maxMemoryBytes: budget.maxMemoryBytes,
+      maxChannels: budget.maxChannels,
+      adaptedContentDigest,
     })}`;
 
     return {
