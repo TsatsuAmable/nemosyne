@@ -1,4 +1,5 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
+import type { EpistemicPurpose } from '../../atlas/domain/CommittedInvestigationContext.ts';
 import {
   type DirectEmbodimentCompileResult,
   type GovernedPhenomenonKind,
@@ -79,6 +80,7 @@ export interface DirectTraversalBindingV1 {
   readonly semanticNodeId: string;
   readonly phenomenon: GovernedPhenomenonKind;
   readonly isConjectural: boolean;
+  readonly epistemicPurpose: EpistemicPurpose;
 }
 
 export interface DirectSubsetPageV1 {
@@ -128,6 +130,7 @@ export type DirectTraversalRefusalCode =
   | 'OBSERVATION_NOT_IN_PAGE'
   | 'NO_ACTIVE_SUBSET'
   | 'REBUILD_IDENTITY_MISMATCH'
+  | 'CONJECTURAL_PURPOSE_REFUSAL'
   | 'UNKNOWN_RECONSTRUCTION_TOKEN';
 
 export type DirectTraversalOutcome<T> =
@@ -211,7 +214,10 @@ export class DirectTraversalSession {
     compilation: DirectEmbodimentCompileResult,
     planElementId: string,
     phenomenon: GovernedPhenomenonKind,
-    detailAuthority: EstablishedDetailAuthorityV1
+    detailAuthority: EstablishedDetailAuthorityV1,
+    options?: {
+      readonly epistemicPurpose?: EpistemicPurpose;
+    }
   ): DirectTraversalOutcome<DirectTraversalSession> {
     const element = compilation.plan.elements.find((e) => e.id === planElementId);
     if (!element) {
@@ -236,12 +242,23 @@ export class DirectTraversalSession {
         '[DirectTraversal] Detail authority does not match the compiled dataset and phenomenon family'
       );
     }
+    // DSE3: dual-mode purpose enforcement. An omitted purpose defaults to
+    // CLAIM_BEARING (fail closed): conjectural targets require an explicit
+    // EXPLORATORY_ABDUCTION declaration to traverse.
+    const epistemicPurpose = options?.epistemicPurpose ?? 'CLAIM_BEARING';
+    if (element.parameters.isConjectural && epistemicPurpose !== 'EXPLORATORY_ABDUCTION') {
+      return refused(
+        'CONJECTURAL_PURPOSE_REFUSAL',
+        '[DirectTraversal] Conjectural plan elements are traversable only under EXPLORATORY_ABDUCTION'
+      );
+    }
 
     const traversalId = `traversal-direct-${canonicalSha256Hex({
       directDecisionId: compilation.plan.decisionId,
       planElementId,
       detailDecisionId: detailAuthority.decisionId,
       datasetFingerprint: compilation.plan.datasetFingerprint,
+      epistemicPurpose,
     }).slice(0, 16)}`;
 
     return {
@@ -259,6 +276,7 @@ export class DirectTraversalSession {
           semanticNodeId: element.semanticNodeId,
           phenomenon,
           isConjectural: Boolean(element.parameters.isConjectural),
+          epistemicPurpose,
         },
         detailAuthority,
         `direct:${planElementId}`
@@ -446,6 +464,13 @@ export class DirectTraversalSession {
       return refused(
         'OBSERVATION_NOT_IN_PAGE',
         '[DirectTraversal] Observation is not in the active bounded detail page'
+      );
+    }
+    // DSE3: conjectural observations stay purpose-gated through inspection.
+    if (page.isConjectural && this.bindingValue.epistemicPurpose !== 'EXPLORATORY_ABDUCTION') {
+      return refused(
+        'CONJECTURAL_PURPOSE_REFUSAL',
+        '[DirectTraversal] Conjectural observations are inspectable only under EXPLORATORY_ABDUCTION'
       );
     }
     const residency = this.checkResidency(port);

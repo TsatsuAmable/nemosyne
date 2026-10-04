@@ -133,6 +133,14 @@ import type {
   EstablishedDetailAuthorityV1,
 } from '../moneta/representation/DirectTraversalSession.ts';
 import type {
+  AlternativeFeedbackBindingV1,
+  ConjecturalDisclosureResultV1,
+  CritiqueAlternativeLinkV1,
+  DirectAlternativeAdjustmentV1,
+} from '../moneta/representation/DirectFeedbackLoop.ts';
+import type { ConjecturalProposalV1 } from '../moneta/forma/ConjecturalProposal.ts';
+import type { EpistemicPurpose } from './domain/CommittedInvestigationContext.ts';
+import type {
   SemanticSnapshotV1,
   EvidenceReferenceTupleV1,
 } from '../moneta/representation/SemanticSnapshotV1.ts';
@@ -1387,9 +1395,7 @@ export class AtlasCore {
     };
   }
 
-  async computePersistenceEvidenceAsync(
-    params: Record<string, unknown>
-  ): Promise<{
+  async computePersistenceEvidenceAsync(params: Record<string, unknown>): Promise<{
     value: PersistenceInterval[];
     provenance: Provenance | null;
     datasetVersion: number;
@@ -1409,9 +1415,7 @@ export class AtlasCore {
     return this._computeTdaEvidenceAsync<PersistenceInterval[]>('tda.persistence', params);
   }
 
-  async computeMapperEvidenceAsync(
-    params: Record<string, unknown>
-  ): Promise<{
+  async computeMapperEvidenceAsync(params: Record<string, unknown>): Promise<{
     value: TdaMapperGraph;
     provenance: Provenance | null;
     datasetVersion: number;
@@ -1431,9 +1435,7 @@ export class AtlasCore {
     return this._computeTdaEvidenceAsync<TdaMapperGraph>('tda.mapper', params);
   }
 
-  async computeBetti0EvidenceAsync(
-    params: Record<string, unknown>
-  ): Promise<{
+  async computeBetti0EvidenceAsync(params: Record<string, unknown>): Promise<{
     value: BettiPoint[];
     provenance: Provenance | null;
     datasetVersion: number;
@@ -1941,6 +1943,53 @@ export class AtlasCore {
 
   getActiveDirectTraversal(): DirectTraversalSession | undefined {
     return this._aggregate.getActiveDirectTraversal();
+  }
+
+  /**
+   * DSE3: Visible disclosure of conjectural plan elements on the active
+   * direct compilation, joined to the admitted proposals.
+   */
+  discloseDirectConjectural(
+    proposals: readonly ConjecturalProposalV1[],
+    admittedUnder?: EpistemicPurpose
+  ): ConjecturalDisclosureResultV1 {
+    return this._aggregate.discloseDirectConjectural(proposals, admittedUnder);
+  }
+
+  /**
+   * DSE3: Resolves an attributable critique on the active direct compilation
+   * to a recompiled Road Not Taken alternative with recorded lineage.
+   */
+  resolveDirectAlternativeFromCritique(
+    critiqueId: string,
+    adjustment?: DirectAlternativeAdjustmentV1
+  ): {
+    readonly alternative: DirectEmbodimentCompileResult;
+    readonly link: CritiqueAlternativeLinkV1;
+  } {
+    return this._aggregate.resolveDirectAlternativeFromCritique(critiqueId, adjustment);
+  }
+
+  getDirectFeedbackLinks(): readonly CritiqueAlternativeLinkV1[] {
+    return this._aggregate.getDirectFeedbackLinks();
+  }
+
+  /**
+   * DSE3: Records attributable outcome feedback on a critique->alternative
+   * link through the FM6 critique record.
+   */
+  recordDirectAlternativeFeedback(
+    linkId: string,
+    feedback: EmbodimentCritiqueInputV1
+  ): {
+    readonly record: EmbodimentCritiqueRecordV1;
+    readonly binding: AlternativeFeedbackBindingV1;
+  } {
+    return this._aggregate.recordDirectAlternativeFeedback(linkId, feedback);
+  }
+
+  getDirectAlternativeFeedbackBindings(): readonly AlternativeFeedbackBindingV1[] {
+    return this._aggregate.getDirectAlternativeFeedbackBindings();
   }
 
   /**
