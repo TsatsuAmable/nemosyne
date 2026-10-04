@@ -30,6 +30,18 @@ const handleMap = new Map<string, number>();
 const fence: { generation?: number; datasetVersion?: number; datasetFingerprint?: string } = {};
 const resourceDiagnosticsEnabled = import.meta.env.VITE_NEMOSYNE_Q3B_RESOURCE_PROBE === '1';
 
+class WorkerDatasetNotRegisteredError extends Error {
+  readonly code = 'DATASET_NOT_REGISTERED' as const;
+
+  constructor(fingerprint: string) {
+    super(
+      `Worker dataset ${fingerprint} is not registered; ` +
+        'register the dataset in this worker generation before analytical execution.'
+    );
+    this.name = 'WorkerDatasetNotRegisteredError';
+  }
+}
+
 function roundMs(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
@@ -105,10 +117,7 @@ function requireRegisteredHandle(
   handle: number | undefined
 ): number {
   if (!handle || handle === 0) {
-    throw new Error(
-      `Worker dataset ${req.dataset.fingerprint} is not registered; ` +
-        'register the dataset in this worker generation before analytical execution.'
-    );
+    throw new WorkerDatasetNotRegisteredError(req.dataset.fingerprint);
   }
   return handle;
 }
@@ -655,6 +664,7 @@ self.onmessage = async (ev: MessageEvent) => {
         datasetFingerprint: req.dataset.fingerprint,
         value: null,
         error: err instanceof Error ? err.message : String(err),
+        ...(err instanceof WorkerDatasetNotRegisteredError ? { errorCode: err.code } : {}),
       };
       self.postMessage({
         type: 'RESULT',

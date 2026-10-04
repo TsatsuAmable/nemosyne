@@ -666,6 +666,18 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     if (result.error) {
       const kernelErr = new KernelUnavailableError(result.error);
+      if (result.errorCode === 'DATASET_NOT_REGISTERED') {
+        // This is a Worker-local residency/cache coherence failure, not proof
+        // that the separately instantiated main-thread Rust/WASM runtime is
+        // unavailable. Revoke the optimistic cache entry so the next
+        // authoritative caller re-registers the exact identity, reject this
+        // request fail-closed, and keep the main runtime usable.
+        this._registered.delete(
+          this._registrationKey(result.generation, result.datasetFingerprint)
+        );
+        pending.reject(kernelErr);
+        return;
+      }
       this._onKernelFailure?.(kernelErr);
       pending.reject(kernelErr);
       return;

@@ -257,6 +257,50 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     expect(failureSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('B5d: worker-local residency loss revokes the cache without invalidating the main runtime', async () => {
+    const transport = createMockWorkerTransport();
+    const failureSpy = vi.fn();
+    const port = new WorkerAnalyticalPort(transport, failureSpy);
+    const registration: AnalyticalDatasetRegistration = {
+      registrationId: 'reg-residency-loss',
+      dataset: { fingerprint: 'fp_residency', version: 4 },
+      generation: 2,
+      payload: {
+        type: 'json',
+        data: { name: 'residency', columns: [], rows: [] },
+      },
+    };
+    await port.registerDataset(registration);
+    expect(port.hasRegisteredDataset(2, 'fp_residency')).toBe(true);
+
+    const req: AnalyticalExecutionRequest = {
+      requestId: 'areq-residency-loss',
+      operation: 'statistics',
+      dataset: { fingerprint: 'fp_residency', version: 4 },
+      generation: 2,
+      params: {},
+    };
+    const pending = port.execute(req);
+    const rejection = expect(pending).rejects.toBeInstanceOf(KernelUnavailableError);
+    transport.simulateResult({
+      requestId: req.requestId,
+      generation: req.generation,
+      datasetVersion: req.dataset.version,
+      datasetFingerprint: req.dataset.fingerprint,
+      value: null,
+      error: 'Worker dataset fp_residency is not registered',
+      errorCode: 'DATASET_NOT_REGISTERED',
+    });
+
+    await rejection;
+    expect(failureSpy).not.toHaveBeenCalled();
+    expect(port.hasRegisteredDataset(2, 'fp_residency')).toBe(false);
+
+    await port.registerDataset({ ...registration, registrationId: 'reg-residency-recovery' });
+    expect(registerMessages(transport)).toHaveLength(2);
+    expect(port.hasRegisteredDataset(2, 'fp_residency')).toBe(true);
+  });
+
   it('B5c: malformed worker messages terminate the port', async () => {
     const transport = createMockWorkerTransport();
     const failureSpy = vi.fn();

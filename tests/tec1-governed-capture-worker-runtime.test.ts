@@ -156,6 +156,49 @@ function probeInWorker(
 }
 
 describe('TEC1 governed capture from a real Worker runtime (issue #834)', () => {
+  it('treats a Worker-local residency miss as recoverable without failing the main runtime', async () => {
+    const transport = await startWorkerThread();
+    try {
+      await awaitHostReady(transport.worker);
+      const workerIdentity = await probeInWorker(transport.worker, WORKER_DATASET);
+      let globalFailureCount = 0;
+      const port = new WorkerAnalyticalPort(transport, () => {
+        globalFailureCount += 1;
+      });
+
+      await expect(
+        port.execute({
+          requestId: 'missing-worker-residency',
+          operation: 'statistics',
+          dataset: { fingerprint: workerIdentity.fingerprint, version: 1 },
+          generation: 1,
+          params: {},
+        })
+      ).rejects.toBeInstanceOf(bridge.KernelUnavailableError);
+      expect(globalFailureCount).toBe(0);
+      expect(port.hasRegisteredDataset(1, workerIdentity.fingerprint)).toBe(false);
+
+      await port.registerDataset({
+        registrationId: 'recover-worker-residency',
+        dataset: { fingerprint: workerIdentity.fingerprint, version: 1 },
+        generation: 1,
+        payload: { type: 'json', data: WORKER_DATASET },
+      });
+      const recovered = await port.execute({
+        requestId: 'recovered-worker-residency',
+        operation: 'statistics',
+        dataset: { fingerprint: workerIdentity.fingerprint, version: 1 },
+        generation: 1,
+        params: {},
+      });
+
+      expect(recovered.value).not.toBeNull();
+      expect(globalFailureCount).toBe(0);
+    } finally {
+      transport.terminate();
+    }
+  }, 60000);
+
   it('returns the bundle of the Worker-owned Rust instance, not the caller runtime', async () => {
     // The caller's runtime holds a *different* dataset, so any read that
     // resolved through main-thread state would produce this identity.
