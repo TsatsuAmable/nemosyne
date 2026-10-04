@@ -22,6 +22,7 @@ import {
 import {
   NEMOSYNE_PACKAGE_FORMAT_VERSION,
   GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
+  FORMA_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
   type NemosynePackageManifest,
 } from './NemosynePackage.ts';
@@ -81,6 +82,10 @@ export interface NemosyneSessionJSON extends AtlasCoreState {
    * rejected at load instead of silently dropped.
    */
   evidenceReceiptSnapshot?: string;
+  /**
+   * DM-4 / FMA-09: base64 of the exact closed investigation/forma.json entry bytes.
+   */
+  formaInvestigationSnapshot?: string;
 }
 
 export interface GovernedPortableExportOptions {
@@ -90,6 +95,12 @@ export interface GovernedPortableExportOptions {
    * never silently downgrades to V2.
    */
   governedEvidence?: boolean;
+  /**
+   * DM-4 / FMA-09: when true or when formaInvestigationBytes are provided,
+   * export a V4 package containing investigation/forma.json.
+   */
+  formaPreservation?: boolean;
+  formaInvestigationBytes?: Uint8Array;
 }
 
 function base64Encode(bytes: Uint8Array): string {
@@ -142,6 +153,7 @@ export class NemosyneSession {
    * the envelope on every save.
    */
   private _evidenceReceiptIdentity: string | null = null;
+  private _formaInvestigationBytes: Uint8Array | null = null;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
@@ -185,6 +197,29 @@ export class NemosyneSession {
     if (partial.focus) this._presentation.focus = partial.focus;
   }
 
+  get formaInvestigationBytes(): Uint8Array | null { return this._formaInvestigationBytes; }
+  setFormaInvestigationBytes(bytes: Uint8Array | null): void { this._formaInvestigationBytes = bytes; }
+
+  private _formaInvestigationSnapshotBase64(): string | undefined {
+    const bytes = this._formaInvestigationBytes ?? this._atlas.exportFormaInvestigationBytes();
+    return bytes ? base64Encode(bytes) : undefined;
+  }
+
+  private _restoreFormaInvestigationSnapshot(json: NemosyneSessionJSON): void {
+    this._formaInvestigationBytes = json.formaInvestigationSnapshot
+      ? base64Decode(json.formaInvestigationSnapshot)
+      : null;
+    if (this._formaInvestigationBytes) {
+      try {
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(this._formaInvestigationBytes);
+        const parsed = JSON.parse(text);
+        this._atlas.setFormaState(parsed);
+      } catch {
+        // malformed forma bytes handled by replay/validation
+      }
+    }
+  }
+
   serialize(): NemosyneSessionJSON {
     const core = this._atlas.toState();
     // The same analytical identity the governed export validates a carrier
@@ -196,6 +231,7 @@ export class NemosyneSession {
     const evidenceReceiptSnapshot = this._governedEvidenceSnapshotBase64(
       committedAnalyticalFingerprint
     );
+    const formaInvestigationSnapshot = this._formaInvestigationSnapshotBase64();
     return {
       schemaVersion: 2,
       savedAt: (typeof Date !== 'undefined' && Date.now) ? Date.now() : 0,
@@ -225,6 +261,9 @@ export class NemosyneSession {
       ...(evidenceReceiptSnapshot === null
         ? {}
         : { evidenceReceiptSnapshot }),
+      ...(formaInvestigationSnapshot === undefined
+        ? {}
+        : { formaInvestigationSnapshot }),
     };
   }
 
@@ -406,34 +445,54 @@ export class NemosyneSession {
       webxrSupported: environment.webxrSupported ?? null,
     };
 
-    const manifest: NemosynePackageManifest = {
-      formatVersion: governedBundleIdentity
+    let formaInvestigationBytes: Uint8Array | undefined;
+    if (governedOptions?.formaPreservation === true || governedOptions?.formaInvestigationBytes !== undefined) {
+      formaInvestigationBytes =
+        governedOptions.formaInvestigationBytes ??
+        this._formaInvestigationBytes ??
+        this._atlas.exportFormaInvestigationBytes() ??
+        undefined;
+      if (!formaInvestigationBytes) {
+        throw new Error('Forma preservation export requires formaInvestigationBytes; none is available for this session');
+      }
+    }
+
+    const isV4 = formaInvestigationBytes !== undefined;
+    const formatVersion = isV4
+      ? FORMA_PACKAGE_FORMAT_VERSION
+      : (governedBundleIdentity
         ? GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION
-        : NEMOSYNE_PACKAGE_FORMAT_VERSION,
+        : NEMOSYNE_PACKAGE_FORMAT_VERSION);
+
+    const manifest: NemosynePackageManifest = {
+      formatVersion,
       sessionId: this._sessionId,
       datasetFingerprint: originalDatasetFingerprint,
       datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
-      analyticalDatasetFingerprint: governedBundleIdentity
-        ? governedBundleIdentity.datasetFingerprint
+      analyticalDatasetFingerprint: (governedBundleIdentity || isV4)
+        ? (governedBundleIdentity?.datasetFingerprint ?? originalDatasetFingerprint)
         : (representationDecision?.datasetFingerprint ??
           nilProvenance?.datasetFingerprint ??
           core.datasetFingerprint ??
           originalDatasetFingerprint),
       datasetName: originalDataset.name,
       kernelVersion,
-      analyticalKernelVersion: governedBundleIdentity
-        ? governedBundleIdentity.kernelVersion
+      analyticalKernelVersion: (governedBundleIdentity || isV4)
+        ? (governedBundleIdentity?.kernelVersion ?? kernelVersion)
         : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion),
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
       nilOutcomeCount: nilOutcomes.outcomes.length,
       investigationDigest,
-      investigationDigestAlgorithm: governedBundleIdentity
+      investigationDigestAlgorithm: (governedBundleIdentity || isV4)
         ? GOVERNED_INVESTIGATION_DIGEST_ALGORITHM
         : INVESTIGATION_DIGEST_ALGORITHM,
       ...(evidenceReceiptBytes !== undefined
         ? { evidenceReceiptDigest: sha256Hex(evidenceReceiptBytes) }
+        : {}),
+      ...(formaInvestigationBytes !== undefined
+        ? { formaDigest: sha256Hex(formaInvestigationBytes) }
         : {}),
       researchContext: this._researchContext,
       representationModel:
@@ -470,6 +529,9 @@ export class NemosyneSession {
       ...(evidenceReceiptBytes === undefined
         ? {}
         : { evidenceReceiptBytes }),
+      ...(formaInvestigationBytes === undefined
+        ? {}
+        : { formaInvestigationBytes }),
     });
   }
 
@@ -539,6 +601,7 @@ export class NemosyneSession {
 
   loadFromJSON(json: NemosyneSessionJSON): void {
     this._restoreEvidenceReceiptSnapshot(json);
+    this._restoreFormaInvestigationSnapshot(json);
     this._atlas.restoreState(json);
     if (typeof json.sessionId === 'string' && json.sessionId.length > 0) {
       this._sessionId = json.sessionId;
@@ -565,6 +628,7 @@ export class NemosyneSession {
       : undefined;
     const session = new NemosyneSession({ atlas, sessionId });
     session._restoreEvidenceReceiptSnapshot(json);
+    session._restoreFormaInvestigationSnapshot(json);
     if (json.nilOutcomes) session._nilOutcomes.restore(json.nilOutcomes);
     session._presentation = {
       camera: json.presentation?.camera ?? { position: [0, 0, 0], rotationY: 0 },
