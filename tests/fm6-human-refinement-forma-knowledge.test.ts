@@ -339,6 +339,18 @@ describe('FM6: Human-Refined Moneta / Forma Knowledge (PT9 / L4-LEARN)', () => {
 
     const snapshots = new Map([
       [
+        'rep-1',
+        {
+          schemaVersion: '1.0.0' as const,
+          featureSchemaVersion: '1.0.0' as const,
+          graphId: 'rep-1',
+          datasetFingerprint: 'sha256-dataset-alpha',
+          fitnessModelVersion: '1.0.0',
+          features: [0.85, 0.75, 0.65, 0.55],
+          bootstrapUtility: 0.70,
+        },
+      ],
+      [
         'graph-A',
         {
           schemaVersion: '1.0.0' as const,
@@ -485,7 +497,7 @@ describe('FM6: Human-Refined Moneta / Forma Knowledge (PT9 / L4-LEARN)', () => {
       superiorCandidate,
       passEvaluation,
       registry,
-      'dataset-hash-001',
+      corpus.corpusId,
       'policy-hash-001'
     );
 
