@@ -56,6 +56,7 @@ These documents may describe current implementation but must not override the go
 ## Current Full Moneta review
 
 - [`review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md`](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) — source-grounded completeness audit at f00b3f90, prioritized defects and ordered repair handoffs; ROADMAP owns execution status.
+- [`review-plans/DSE0_PREFLIGHT_AND_REMOVAL_INVENTORY.md`](review-plans/DSE0_PREFLIGHT_AND_REMOVAL_INVENTORY.md) — DSE0 reduction preflight, candidate removal caller inventory, direct deterministic compile path specification, and production falsifiers under RFC 0012 / ADR-0013.
 
 ## Study and research governance
 
