@@ -1,8 +1,10 @@
 # QCA4b Low-Triangle Row Markers
 
-**Status:** Approved for implementation  
-**Date:** 4 October 2026  
-**Stacked base:** `codex/qca4a-glyph-warning@8a765f33cbc1c91bef2d872601d4809c5a0e8d14`  
+**Status:** Approved for implementation
+
+**Date:** 4 October 2026
+
+**Stacked base:** `codex/qca4a-glyph-warning@8a765f33cbc1c91bef2d872601d4809c5a0e8d14`
 **Programme:** `docs/work/quest-compute/QCA4_WEBXR_RENDERING.md`
 
 ## Purpose

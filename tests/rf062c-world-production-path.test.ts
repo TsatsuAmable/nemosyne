@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as THREE from 'three';
 import { World } from '../src/vr/World.ts';
 import { REPRESENTATION_RESOURCE_POLICY_V1 } from '../src/vr/scalability/ResourceLifecycleGovernor.ts';
 import { LoadTestDriver } from '../src/vr/scalability/LoadTestDriver.ts';
@@ -8,6 +9,10 @@ import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
 import { WorldTopics } from '../src/utils/EventBus.ts';
 import { captureActiveSpecInfo } from '../src/app/devEvidence.ts';
+
+function triangleCount(geometry: THREE.BufferGeometry): number {
+  return geometry.index ? geometry.index.count / 3 : geometry.getAttribute('position').count / 3;
+}
 
 describe('RF-062C production World path', () => {
   let world: World | null = null;
@@ -90,6 +95,16 @@ describe('RF-062C production World path', () => {
       },
     });
     expect(summary.steps[0].loadDurationMs).toBeGreaterThanOrEqual(0);
+
+    const rowMarkerMesh = world.dracoNode?.artifact?.nodeMeshes?.[0];
+    expect(rowMarkerMesh).toBeInstanceOf(THREE.InstancedMesh);
+    expect((rowMarkerMesh as THREE.InstancedMesh).count).toBe(100_000);
+    expect(rowMarkerMesh?.geometry).toBeInstanceOf(THREE.TetrahedronGeometry);
+    expect(triangleCount(rowMarkerMesh!.geometry)).toBe(4);
+    expect(
+      triangleCount(rowMarkerMesh!.geometry) * (rowMarkerMesh as THREE.InstancedMesh).count
+    ).toBe(400_000);
+    expect(rowMarkerMesh?.userData.instancedCloud).toBeDefined();
 
     driver.dispose();
   }, 30_000);
