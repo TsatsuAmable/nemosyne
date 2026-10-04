@@ -8,6 +8,8 @@ import {
 } from '../src/moneta/forma/FormaResolutionBroker.ts';
 import { FullMonetaEngine } from '../src/moneta/adaptation/index.ts';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
+import type { EvidenceReferenceTupleV1 } from '../src/moneta/representation/SemanticSnapshotV1.ts';
+import type { SemanticEmbodimentEnvelopeV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 
 describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', () => {
   function makeMultiDimensionalDataset(): Dataset {
@@ -49,6 +51,85 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     );
   }
 
+  function makeValidEvidence(datasetFingerprint: string): {
+    envelope: SemanticEmbodimentEnvelopeV1;
+    evidenceReferences: EvidenceReferenceTupleV1[];
+  } {
+    const evidenceReferences: EvidenceReferenceTupleV1[] = [
+      {
+        datasetFingerprint,
+        kernelVersion: '1.0.0',
+        bundleContentDigest: 'sha256-bundle-001',
+        receiptId: 'receipt-001',
+        receiptContentDigest: 'sha256-receipt-digest-001',
+        consumerId: 'descriptive-summary/v1',
+        requirementProfileId: 'profile-001',
+        requirementProfileDigest: 'sha256-profile-digest-001',
+        admissionPolicyId: 'policy-001',
+        admissionPolicyDigest: 'sha256-policy-digest-001',
+      },
+    ];
+
+    const envelope: SemanticEmbodimentEnvelopeV1 = {
+      schemaVersion: 1,
+      datasetFingerprint,
+      candidateId: 'AGGREGATE_VOLUME',
+      representationFamily: 'AGGREGATE',
+      analyticalMethod: {
+        name: 'aggregateVolume',
+        version: '1.0.0',
+        parameters: { groupingFields: ['category'], measure: 'COUNT' },
+      },
+      approximation: {
+        mode: 'EXACT',
+        representedRowCount: 80,
+      },
+      informationContract: {
+        preserves: ['exact-metric-values'],
+        loses: ['individual-observation-identity'],
+      },
+      resource: {
+        sourceRowCount: 80,
+        elementCount: 2,
+        maxElementCount: 4096,
+      },
+      provenance: {
+        kernelVersion: '1.0.0',
+        algorithmVersion: '1.0.0',
+        decisionId: 'decision-fm8-001',
+        decisionModelVersion: 'onnx-v2',
+        decisionModelArtifactHash: 'hash-xyz',
+      },
+      result: {
+        status: 'READY',
+        payload: {
+          kind: 'AGGREGATE_VOLUME',
+          data: {
+            groupingFields: ['category'],
+            measure: { function: 'COUNT' },
+            groups: [
+              { semanticId: 'group-type-a', key: 'TypeA', count: 40 },
+              { semanticId: 'group-type-b', key: 'TypeB', count: 40 },
+            ],
+          },
+        },
+      },
+    };
+
+    return { envelope, evidenceReferences };
+  }
+
+  test('FMA-01 falsifier: adaptation on ungrounded input without analytical evidence refuses fail-closed and cannot fabricate C1/C2 groups or receipts', () => {
+    const bridge = makeKernelMockBridge();
+    const atlas = new AtlasCore({ kernel: bridge });
+    const ds = makeMultiDimensionalDataset();
+    atlas.loadDataset(ds);
+
+    expect(() => {
+      atlas.adaptRepresentation({ preference: 'BALANCED' });
+    }).toThrowError(/Adaptation refused: analytical evidence is unavailable/);
+  });
+
   test('falsifier A: synthesizes complete Full Moneta representation integrating context, search, multi-element runtime, and budget adaptation', () => {
     const bridge = makeKernelMockBridge();
     const atlas = new AtlasCore({ kernel: bridge });
@@ -67,10 +148,12 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
       epistemicPurpose: 'CLAIM_BEARING',
     });
 
+    const evidence = makeValidEvidence(atlas.datasetFingerprint!);
     const result = atlas.adaptRepresentation({
       preference: 'BALANCED',
       budget: DESKTOP_EXPANSIVE_BUDGET,
       maxGenerations: 2,
+      analyticalEvidence: evidence,
     });
 
     expect(result).toBeDefined();
@@ -92,10 +175,10 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     const initialFingerprint = atlas.datasetFingerprint;
     const initialDigest = await atlas.computeDigest();
 
-    // Perform multiple adaptive syntheses with distinct profiles and budgets
-    atlas.adaptRepresentation({ preference: 'SIMPLER', budget: QUEST_CONSTRAINED_BUDGET });
-    atlas.adaptRepresentation({ preference: 'HIGH_FIDELITY', budget: DESKTOP_EXPANSIVE_BUDGET });
-    atlas.adaptRepresentation({ preference: 'SHOW_MORE_UNCERTAINTY' });
+    const evidence = makeValidEvidence(atlas.datasetFingerprint!);
+    atlas.adaptRepresentation({ preference: 'SIMPLER', budget: QUEST_CONSTRAINED_BUDGET, analyticalEvidence: evidence });
+    atlas.adaptRepresentation({ preference: 'HIGH_FIDELITY', budget: DESKTOP_EXPANSIVE_BUDGET, analyticalEvidence: evidence });
+    atlas.adaptRepresentation({ preference: 'SHOW_MORE_UNCERTAINTY', analyticalEvidence: evidence });
 
     // Assert strict analytical and historical invariance
     expect(atlas.datasetFingerprint).toBe(initialFingerprint);
@@ -108,10 +191,13 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     const ds = makeMultiDimensionalDataset();
     atlas.loadDataset(ds);
 
+    const evidence = makeValidEvidence(atlas.datasetFingerprint!);
+
     // 1. Constrained budget (e.g. standalone Quest)
     const constrainedResult = atlas.adaptRepresentation({
       budget: QUEST_CONSTRAINED_BUDGET,
       mandatoryChannels: ['spatial_position', 'spatial_scatter'],
+      analyticalEvidence: evidence,
     });
 
     expect(constrainedResult.resolutionVariant.variantTier).toBe('STICKMAN_SPARSE');
@@ -124,6 +210,7 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     // 2. Expansive budget (e.g. desktop/PC-XR)
     const expansiveResult = atlas.adaptRepresentation({
       budget: DESKTOP_EXPANSIVE_BUDGET,
+      analyticalEvidence: evidence,
     });
 
     expect(expansiveResult.resolutionVariant.variantTier).toBe('MONA_LISA_EXPANSIVE');
@@ -136,10 +223,13 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     const ds = makeMultiDimensionalDataset();
     atlas.loadDataset(ds);
 
+    const evidence = makeValidEvidence(atlas.datasetFingerprint!);
+
     // Initial representation
     const initial = atlas.adaptRepresentation({
       preference: 'BALANCED',
       maxGenerations: 2,
+      analyticalEvidence: evidence,
     });
 
     // Adaptive step from initial graph
@@ -147,6 +237,7 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
       preference: 'SIMPLER',
       currentGraph: initial.selectedGraph,
       maxGenerations: 2,
+      analyticalEvidence: evidence,
     });
 
     expect(adapted.transition).toBeDefined();
@@ -173,8 +264,9 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     atlas.setResearchMode(true);
     expect(atlas.isResearchMode()).toBe(true);
 
-    const r1 = atlas.adaptRepresentation({ maxGenerations: 2 });
-    const r2 = atlas.adaptRepresentation({ maxGenerations: 2 });
+    const evidence = makeValidEvidence(atlas.datasetFingerprint!);
+    const r1 = atlas.adaptRepresentation({ maxGenerations: 2, analyticalEvidence: evidence });
+    const r2 = atlas.adaptRepresentation({ maxGenerations: 2, analyticalEvidence: evidence });
 
     expect(r1.researchModeFrozen).toBe(true);
     expect(r2.researchModeFrozen).toBe(true);
@@ -189,10 +281,12 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     const ds = makeMultiDimensionalDataset();
     atlas.loadDataset(ds);
 
-    const initial = atlas.adaptRepresentation({ preference: 'BALANCED' });
+    const evidence = makeValidEvidence(atlas.datasetFingerprint!);
+    const initial = atlas.adaptRepresentation({ preference: 'BALANCED', analyticalEvidence: evidence });
     const adapted = atlas.adaptRepresentation({
       preference: 'SIMPLER',
       currentGraph: initial.selectedGraph,
+      analyticalEvidence: evidence,
     });
 
     const report = atlas.explainFullMonetaDecision(adapted, 'SIMPLER');
@@ -207,12 +301,14 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
   test('falsifier G: refusal of unsatisfied mandatory channel obligations fails closed', () => {
     const ds = makeMultiDimensionalDataset();
     const signature = buildDatasetSignature(ds);
+    const evidence = makeValidEvidence(signature.provenance.datasetFingerprint);
 
     // Requesting a channel that QUEST_CONSTRAINED_BUDGET cannot satisfy
     expect(() => {
       FullMonetaEngine.synthesizeOrAdapt(signature, undefined, undefined, {
         budget: QUEST_CONSTRAINED_BUDGET,
         mandatoryChannels: ['spatial_surface', 'secondary_voxel_surface'],
+        analyticalEvidence: evidence,
       });
     }).toThrowError(/Resolution adaptation refused.*MANDATORY_OBLIGATION_UNSATISFIED/);
   });

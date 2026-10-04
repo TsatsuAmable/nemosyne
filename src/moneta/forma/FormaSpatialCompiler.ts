@@ -101,14 +101,107 @@ export function compileFormaSpatialSlice(
     }
   }
 
+  const perspective = context.perspective;
+  if (perspective && perspective.mode === 'foreground') {
+    if (perspective.temporalForegrounding) {
+      const isTemporal =
+        snapshot.body.sources.some((s) => s.family === 'TEMPORAL') ||
+        snapshot.body.nodes.some(
+          (n) =>
+            n.descriptor.frame === 'temporal' ||
+            n.descriptor.unit === 'time' ||
+            n.descriptor.label.toLowerCase().includes('time') ||
+            n.descriptor.label.toLowerCase().includes('temporal')
+        );
+      if (!isTemporal) {
+        return {
+          status: 'REFUSED',
+          refusal: {
+            code: 'UNSUPPORTED_MAPPING',
+            message: `Temporal foregrounding (${perspective.temporalForegrounding}) requested on snapshot lacking temporal semantics`,
+          },
+        };
+      }
+    }
+
+    if (perspective.uncertaintyForegrounding === 'interval') {
+      const hasInterval = snapshot.body.nodes.some(
+        (n) =>
+          n.descriptor.unit === 'interval' ||
+          n.propertyPath.toLowerCase().includes('interval') ||
+          n.propertyPath.toLowerCase().includes('bound') ||
+          (typeof n.value === 'object' && n.value !== null && ('lower' in n.value || 'upper' in n.value))
+      );
+      if (!hasInterval) {
+        return {
+          status: 'REFUSED',
+          refusal: {
+            code: 'UNSUPPORTED_MAPPING',
+            message: 'Interval uncertainty foregrounding requested on snapshot lacking interval or variance metadata',
+          },
+        };
+      }
+    }
+
+    if (perspective.uncertaintyForegrounding === 'distribution') {
+      const hasDistribution =
+        snapshot.body.sources.some((s) => s.family === 'DISTRIBUTION') ||
+        snapshot.body.nodes.some(
+          (n) =>
+            n.descriptor.valueType === 'vector' ||
+            n.propertyPath.toLowerCase().includes('distribution') ||
+            n.propertyPath.toLowerCase().includes('density')
+        );
+      if (!hasDistribution) {
+        return {
+          status: 'REFUSED',
+          refusal: {
+            code: 'UNSUPPORTED_MAPPING',
+            message: 'Distribution uncertainty foregrounding requested on snapshot lacking distribution metadata',
+          },
+        };
+      }
+    }
+  }
+
   const nodes = snapshot.body.nodes;
   const elements: SpatialElementV1[] = [];
   const reverseExplanation: FormaReverseTraceV1[] = [];
 
+  // Extract and validate numeric values strictly without silent index/zero fallback
+  const numericValues: number[] = [];
+  for (const node of nodes) {
+    if (node.state.status !== 'AVAILABLE' || node.value === undefined) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'UNSUPPORTED_MAPPING',
+          message: `Semantic node ${node.nodeId} (${node.producerSemanticId}.${node.propertyPath}) has unavailable or missing value`,
+        },
+      };
+    }
+    const val = typeof node.value === 'number' ? node.value : Number(node.value);
+    if (!Number.isFinite(val)) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'UNSUPPORTED_MAPPING',
+          message: `Semantic node ${node.nodeId} (${node.producerSemanticId}.${node.propertyPath}) has non-finite numeric value: ${node.value}`,
+        },
+      };
+    }
+    numericValues.push(val);
+  }
+
+  const minVal = numericValues.length > 0 ? Math.min(...numericValues) : 0;
+  const maxVal = numericValues.length > 0 ? Math.max(...numericValues) : 0;
+  const valRange = maxVal - minVal;
+
   // 3. Deterministic Phenotype Layout Generation
   nodes.forEach((node: SemanticNodeRecordV1, index: number) => {
-    const rawVal = typeof node.value === 'number' ? node.value : index;
-    const normVal = Number.isFinite(rawVal) ? rawVal : 0;
+    const normVal = numericValues[index];
+    // Monotonic scale mapping across full observation range without modulo loss
+    const normHeight = valRange === 0 ? 1.0 : 0.2 + ((normVal - minVal) / valRange) * 2.0;
 
     let position: [number, number, number];
     let shape: 'SPHERE' | 'VOXEL';
@@ -119,30 +212,39 @@ export function compileFormaSpatialSlice(
       const radius = 1.0 + (index % 5) * 0.4;
       position = [
         Math.cos(angle) * radius,
-        (normVal % 10) * 0.2,
+        normHeight,
         Math.sin(angle) * radius,
       ];
       shape = 'SPHERE';
     } else {
-      // 3D stepped surface elevation
+      // 3D stepped surface elevation with monotonic range mapping
       const col = index % 4;
       const row = Math.floor(index / 4);
+      const surfaceHeight = valRange === 0 ? 0.5 : 0.2 + ((normVal - minVal) / valRange) * 2.8;
       position = [
         col * 0.8 - 1.2,
-        Math.min(Math.max(normVal * 0.1, 0.1), 3.0),
+        surfaceHeight,
         row * 0.8 - 1.2,
       ];
       shape = 'VOXEL';
     }
 
-    const elementId = `elem-${phenotype.toLowerCase()}-${node.nodeId.slice(0, 16)}`;
+    // Full node identity hashed to guarantee 1:1 element uniqueness (FMA-04 fix)
+    const elementHash = canonicalSha256Hex({
+      phenotype,
+      nodeId: node.nodeId,
+      sourceId: node.sourceId,
+      producerSemanticId: node.producerSemanticId,
+      propertyPath: node.propertyPath,
+    });
+    const elementId = `elem-${phenotype.toLowerCase().replace(/_/g, '-')}-${elementHash.slice(0, 24)}`;
+
     let channel = phenotype === 'SPATIAL_SCATTER_V1' ? 'spatial_radial_scatter' : 'spatial_elevation_grid';
     let colorHex = phenotype === 'SPATIAL_SCATTER_V1' ? '#38bdf8' : '#34d399';
     let opacity = 0.95;
     let scale: [number, number, number] = [0.15, 0.15, 0.15];
     let rationale = `Perceptual element ${elementId} embodies semantic node ${node.producerSemanticId}.${node.propertyPath} via ${channel} [Phenotype ${phenotype}]`;
 
-    const perspective = context.perspective;
     if (perspective) {
       if (perspective.mode === 'foreground') {
         if (perspective.temporalForegrounding === 'recency') {
@@ -206,6 +308,20 @@ export function compileFormaSpatialSlice(
       rationale,
     });
   });
+
+  const seenElementIds = new Set<string>();
+  for (const el of elements) {
+    if (seenElementIds.has(el.elementId)) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'UNSUPPORTED_MAPPING',
+          message: `Colliding spatial element ID: ${el.elementId}`,
+        },
+      };
+    }
+    seenElementIds.add(el.elementId);
+  }
 
   const planId = admissionOutcome.result.body.planId;
   const sliceBody = {

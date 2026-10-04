@@ -16,7 +16,12 @@ import {
   type SemanticObligationContractV1,
 } from '../forma/FormaResolutionBroker.js';
 import { createKB0Manifest } from '../forma/KB0Manifest.js';
-import { normalizeEnvelopeToSnapshot, type EvidenceReferenceTupleV1 } from '../representation/SemanticSnapshotV1.js';
+import {
+  normalizeEnvelopeToSnapshot,
+  type EvidenceReferenceTupleV1,
+  type SemanticSnapshotV1,
+  validateSemanticSnapshot,
+} from '../representation/SemanticSnapshotV1.js';
 import type { SemanticEmbodimentEnvelopeV1 } from '../representation/SemanticEmbodimentPayload.js';
 import {
   FormaMultiElementRuntime,
@@ -34,6 +39,11 @@ export interface AdaptationOptions {
   readonly mandatoryChannels?: readonly string[];
   readonly mandatoryNodeIds?: readonly string[];
   readonly researchMode?: boolean;
+  readonly snapshot?: SemanticSnapshotV1;
+  readonly analyticalEvidence?: {
+    readonly envelope: SemanticEmbodimentEnvelopeV1;
+    readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
+  };
 }
 
 export interface AdaptationTransition {
@@ -110,77 +120,34 @@ export class FullMonetaEngine {
       transition = this.computeAdaptationTransition(options.currentGraph, selectedGraph);
     }
 
-    // 4. Hardware capability resolution brokering
+    // 4. Analytical evidence resolution & validation (FMA-01)
+    let snapshot: SemanticSnapshotV1 | undefined = options.snapshot;
+
+    if (!snapshot && options.analyticalEvidence) {
+      snapshot = normalizeEnvelopeToSnapshot(
+        options.analyticalEvidence.envelope,
+        options.analyticalEvidence.evidenceReferences
+      );
+    }
+
+    if (!snapshot) {
+      throw new Error(
+        '[FullMonetaEngine] Adaptation refused: analytical evidence is unavailable or ungrounded for selected representation family'
+      );
+    }
+
+    validateSemanticSnapshot(snapshot);
+
     const budget = options.budget ?? DESKTOP_EXPANSIVE_BUDGET;
     const mandatoryChannels = options.mandatoryChannels ?? ['spatial_position', 'spatial_scatter'];
-    const mandatoryNodeIds = options.mandatoryNodeIds ? [...options.mandatoryNodeIds] : ['group-1'];
+    const mandatoryNodeIds = options.mandatoryNodeIds
+      ? [...options.mandatoryNodeIds]
+      : snapshot.body.nodes.slice(0, 1).map((n) => n.nodeId);
     const obligations: SemanticObligationContractV1 = {
       mandatoryNodeIds,
       mandatoryChannels,
     };
 
-    const dummyEvidence: EvidenceReferenceTupleV1[] = [
-      {
-        datasetFingerprint: signature.provenance.datasetFingerprint,
-        kernelVersion: signature.provenance.kernelVersion,
-        bundleContentDigest: 'sha256-full-moneta-bundle',
-        receiptId: 'fm8-receipt-root',
-        receiptContentDigest: 'sha256-fm8-receipt-digest',
-        consumerId: 'full-moneta-engine/v1',
-        requirementProfileId: 'fm8-profile',
-        requirementProfileDigest: 'sha256-fm8-profile-digest',
-        admissionPolicyId: 'fm8-admission-policy',
-        admissionPolicyDigest: 'sha256-fm8-admission-digest',
-      },
-    ];
-
-    const envelope: SemanticEmbodimentEnvelopeV1 = {
-      schemaVersion: 1,
-      datasetFingerprint: signature.provenance.datasetFingerprint,
-      candidateId: 'AGGREGATE_VOLUME',
-      representationFamily: 'AGGREGATE',
-      analyticalMethod: {
-        name: 'aggregateVolume',
-        version: '1.0.0',
-        parameters: { groupingFields: ['cluster'], measure: 'COUNT' },
-      },
-      approximation: {
-        mode: 'EXACT',
-        representedRowCount: signature.cardinality.rowCount,
-      },
-      informationContract: {
-        preserves: ['exact-metric-values'],
-        loses: ['individual-observation-identity'],
-      },
-      resource: {
-        sourceRowCount: signature.cardinality.rowCount,
-        elementCount: Math.min(signature.cardinality.rowCount, 50),
-        maxElementCount: 4096,
-      },
-      provenance: {
-        kernelVersion: signature.provenance.kernelVersion,
-        algorithmVersion: '1.0.0',
-        decisionId: `fm8-decision-${selectedGraph.graphId}`,
-        decisionModelVersion: 'fm8-full-moneta-v1',
-        decisionModelArtifactHash: 'sha256-fm8-model-hash',
-      },
-      result: {
-        status: 'READY',
-        payload: {
-          kind: 'AGGREGATE_VOLUME',
-          data: {
-            groupingFields: ['cluster'],
-            measure: { function: 'COUNT' },
-            groups: [
-              { semanticId: 'group-1', key: 'C1', count: Math.floor(signature.cardinality.rowCount / 2) },
-              { semanticId: 'group-2', key: 'C2', count: Math.ceil(signature.cardinality.rowCount / 2) },
-            ],
-          },
-        },
-      },
-    };
-
-    const snapshot = normalizeEnvelopeToSnapshot(envelope, dummyEvidence);
     const manifest = createKB0Manifest();
 
     // 5. Query System-1 proposal and knowledge store precedents
