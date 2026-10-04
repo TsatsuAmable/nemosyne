@@ -18,12 +18,12 @@ Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The his
 
 ## Status snapshot - 4 October 2026
 
-**Integration base:** `main@f00b3f90f62ab6c2a06f28f9b21926d8445dd170`.
+**Integration base:** `main@4f8c6a426d0868326263c5d5888848d3626c9c19` (PR #955, FMA-01–04 immediate authority/compiler containment).
 
 - Architecture 2027 decisions are integrated: A27-0 and A27-1 accepted; L0 semantic snapshot, L1 committed perspective/context V2 and L2 Forma admission/KB0 contracts landed in PRs #936-#938. These are enabling contracts, not automatic product-capability promotion.
 - **P1-TEC / FM0 remains active**. Governed replay/consumer-policy work is substantially landed; remaining evidence-identity, calibration/qualification and downstream evidence-reference closure must remain fail-closed. See [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md).
 - **UXR0-UXR3 are at bounded software exits. UXR4/UXR5 remain physical-evidence open.** See [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) and [Quest validation operations](roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md).
-- **Full Moneta is IMPLEMENTATION PARTIAL.** The [4 October completeness audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) identifies authority, identity, integration and learning defects in the recent FM1–FM8 implementations. Repair evidence/admission first; previous completion labels do not authorize downstream promotion. See [incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) and [architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
+- **Full Moneta is IMPLEMENTATION PARTIAL.** PR #955 landed the immediate FMA-01–04 authority/compiler containment, removing fabricated grounded analytics and hardening several compiler failures. The [4 October completeness audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md), including its dual-epistemic addendum, remains the repair authority: Full Moneta must preserve RFC 0011's two intended epistemic purposes, grounded/reproducible claim-bearing output and explicitly conjectural exploratory/predictive output. The typed conjectural path and remaining identity/integration/learning work are still open; previous completion labels do not authorize downstream promotion. See [incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) and [architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
 - **Quest Compute Acceleration is active as a bounded parallel performance lane.** QCA0 baseline comes first. See [QCA index](work/quest-compute/README.md).
 - **scriptc is parked for Quest/WebXR.** It may be reconsidered only for a real native CLI/sidecar/tool deployment with measured benefit. See [scriptc evaluation](roadmap/SCRIPTC_NATIVE_TYPESCRIPT_EVALUATION.md).
 
@@ -31,6 +31,7 @@ Current order:
 
 ```text
 P1-TEC / FM0 evidence closure
+  -> dual-epistemic contract repair DM-0..DM-3 (RFC 0011 / audit addendum)
   -> L2-FORMA-1 first static Forma vertical slice
   -> FM3/4 composition + resolution qualification
   -> FM5 System-1 assistance
@@ -46,14 +47,14 @@ then: P1-WP -> P1-WQ -> PT9/PT10
 | Work | Status | Next action / dependency | Detail |
 | --- | --- | --- | --- |
 | **P1-TEC / FM0 trustworthy evidence** | **ACTIVE** | Finish finite evidence identity/calibration/consumer qualification required by claim-bearing downstream work. | [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md), generated RF table below |
-| **FM1 perspective/context** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Restore complete context identity, immutable history, actual product consumption and render-time activation checks (FMA-06/08). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
+| **FM1 perspective/context** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | DM-0 first: make epistemic purpose explicit/no-default and complete context identity; then restore immutable history, product consumption and render-time activation checks (FMA-06/08). | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 | **FM2 alternative-aware / Road Not Taken** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair atomic branching and coherent graph/context/decision revisit; wire real product interactions (FMA-06/07/08). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM3 Forma first vertical slice / L2-FORMA-1** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair evidence admission and semantic mapping, then deliver real renderer and V4 static restoration (FMA-01–04/09). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
+| **FM3 Forma first vertical slice / L2-FORMA-1** | **IMPLEMENTATION PARTIAL — immediate FMA-01–04 containment landed in #955** | DM-1..DM-3 next: add typed conjectural proposals and grounded/conjectural Forma bindings on top of the hardened admission/compiler boundary; then deliver real renderer and V4 static restoration (FMA-01–04/09). | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 | **FM3/4 composition + resolution adaptation / L2-FORMA-2 + L4-RUNTIME-BUDGET** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair final-content identity, enforced budgets, context authorization and selected-graph fidelity (FMA-05/10). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 | **FM5 System-1 assistance** | **IMPLEMENTATION PARTIAL** | Establish governed advisory influence and baseline/model/device evidence; current FM8 proposals do not drive graph selection (FMA-10). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 | **FM6 human refinement / Forma knowledge** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair attributable knowledge qualification, corpus identity and candidate-bound measured promotion (FMA-11–13). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 | **FM7 searching / synthesizing Moneta** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Compile selected bindings/relations and establish real governed product integration (FMA-08/10). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM8 full Moneta / controlled adaptive representation** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Remove fabricated analytics/evidence; complete prerequisite authority, integration and durable qualification (FMA-01/08–13). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
+| **FM8 full Moneta / controlled adaptive representation** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Remove fabricated grounded analytics/evidence **without deleting predictive capability**; route adaptive/search output through ConjecturalProposalV1 + typed Forma admission, then complete integration and durable qualification (FMA-01/08–13; DM-1/DM-5). | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 
 | **UXR4/UXR5 device qualification** | **EVIDENCE ACQUISITION OPEN** | Capture attributable Quest interaction/render/resource/comfort evidence when hardware is available. | [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) |
 | **P1-WP → P1-WQ** | **BLOCKED BY REQUIRED UXR/ASSURANCE CLOSURE** | Productionize web surfaces, then ordinary-browser investigator qualification. | [Product transition plan](roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md) |
