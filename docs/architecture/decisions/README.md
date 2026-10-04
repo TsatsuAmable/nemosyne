@@ -34,3 +34,4 @@ Each ADR contains:
 - [ADR-0009: AP-INV Architecture Preflight for FM1 Question-Aware Moneta](0009-ap-inv-fm1-question-aware-investigation.md) — defines investigation graph boundaries and versioned intent.
 - [ADR-0010: AP-SEARCH Architecture Preflight for FM7 Representation Search and Synthesis](0010-ap-search-representation-search-and-synthesis.md) — defines grammar authority, objective model, Pareto search, deterministic baseline, and MCR7 genome handoff.
 - [ADR-0011: Controlled Adaptive Representation Intelligence for Full Moneta (FM8)](0011-full-moneta-controlled-adaptive-representation.md) — unifies evidence, context, alternatives, composition, adaptive resolution, search, and research-mode freezing under invariant analytical truth.
+- [ADR-0012: Memory Palace graph authority](0012-memory-palace-graph-authority.md) — retires `MemoryPalaceGraph` as an authority; the aggregate/evidence ledger owns identity and the palace view stays a deterministic projection.
