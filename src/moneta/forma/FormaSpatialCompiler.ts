@@ -300,8 +300,7 @@ export function compileFormaSpatialSlice(
       ) ??
       admissionOutcome.result.body.bindings?.find(
         (b) =>
-          b.elementId === elementId ||
-          b.elementId === node.nodeId ||
+          (b.kind === 'CONJECTURAL' && (b.elementId === elementId || b.elementId === node.nodeId)) ||
           b.propertyPath === node.propertyPath
       );
     const bindingKind = admittedBinding?.kind ?? 'GROUNDED';
