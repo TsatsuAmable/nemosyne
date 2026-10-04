@@ -8,6 +8,9 @@ import type { FormaKnowledgeStore } from './FormaKnowledgeBase.js';
 
 export const FORMA_SYSTEM1_PROPOSAL_SCHEMA_VERSION = 1 as const;
 
+/** Provenance of the advisory set consumed by a synthesis: fresh inference or restored record. */
+export type System1ProposalSource = 'GENERATED' | 'RECORDED';
+
 export interface FormaProposalCandidateV1 {
   readonly candidateId: string;
   readonly templateId: string;
