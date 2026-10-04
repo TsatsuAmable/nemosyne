@@ -141,3 +141,208 @@ Reuse the two-group envelope, context and manifest fixture at `tests/forma-spati
 6. **Integrated qualification — FM5–FM8:** wire honest proposal influence, search/selected graph semantics and frozen-state capture only after prerequisites. Keep Quest/human performance and comprehension claims open until attributable evidence exists.
 
 Each repair PR must name finding IDs, state its exact changed-file ownership, add negative and positive production-path falsifiers, and obtain independent review under AGENTS.md. Do not fix all findings in one broad PR or treat this document as authorization to collide with another worktree. These IDs are audit-local findings, not replacements for existing RF/Shadow ledgers; SHADOW-0002 remains unclosed. New architectural departures require adjudication; implementing the already accepted contracts does not require inventing another architecture programme.
+
+
+## Addendum — dual epistemic operating modes and FMA repair interpretation
+
+**Added:** 4 October 2026, after review against accepted RFC 0011 and A27-1.
+**Disposition:** this addendum narrows the interpretation of FMA-01/FMA-02 and maps the implementation needed to preserve the intended predictive capability. It does not withdraw the audit defects. Fabricated analytical values still may not enter the grounded snapshot/evidence path.
+
+### Architectural correction
+
+Full Moneta / Moneta Forma is intentionally dual-epistemic:
+
+1. **Grounded / reproducible operation** — claim-bearing representation is compiled only from authoritative analytical outputs and evidence. Same committed inputs, policies and pinned implementation state must reproduce the same admitted semantic/perceptual result or a typed refusal.
+2. **Exploratory / predictive operation** — System-1/System-2/search or other governed generators may propose missing structure, analogies, hypotheses, counterfactuals or representation candidates. Those products may exceed what the dataset establishes and therefore remain typed conjecture. They never become grounded analytical truth merely because a model generated them.
+
+The two user-facing modes must be implemented as bundles over three independent axes, not as one permissive mode flag:
+
+| Axis | Values | Rule |
+| --- | --- | --- |
+| Epistemic purpose | CLAIM_BEARING / EXPLORATORY_ABDUCTION | Committed in Investigation context. Purpose change creates a new context identity and invalidates stale adoption. |
+| Execution permission | PRODUCTION / STUDY_ONLY / REFUSED | Separate authorization axis. Exploratory output may be ordinary product use; a formal study still needs study authorization. |
+| Generation regime | frozen/pinned reproducible generation / adaptive generation | Separate provenance/control axis. Claim-bearing and governed studies may require frozen state; exploratory generation may adapt when policy allows. |
+
+Do not reuse the current researchMode boolean as epistemic purpose. A predictive exploratory experience may itself be frozen for a study, and a claim-bearing representation may execute in ordinary product use.
+
+### Required target dataflow
+
+    Dataset / governed analytical request
+            |
+            v
+    Rust/WASM analytical authority
+            |
+            v
+    SemanticSnapshotV1  ------------------------------+
+    (grounded only; immutable evidence identity)       |
+            |                                          |
+            |                              System-1 / System-2 / search
+            |                                          |
+            |                                          v
+            |                              ConjecturalProposalV1
+            |                              (typed hypothesis/imputation/
+            |                               counterfactual + provenance)
+            |                                          |
+            +----------------------+-------------------+
+                                   v
+                        ONE Forma admission boundary
+                         - resolves context purpose
+                         - validates grounded evidence
+                         - validates conjectural lineage
+                         - resolves qualification/policy
+                         - emits typed FormaBinding set
+                                   |
+                                   v
+                       deterministic Forma compiler
+                       (no new scientific inference)
+                                   |
+                                   v
+                 perceptual plan / resolution variants / runtime
+                 preserving property-level epistemic status
+                                   |
+                                   v
+                       renderer + reverse explanation
+                                   |
+                                   v
+                        V4 materialized preservation
+
+The grounded snapshot remains decision-independent and generator-independent. A predictive model never manufactures a SemanticSnapshotV1, evidence receipt, analytical method, unit or observed status. Exploratory output is represented by a separately hashed proposal that references the grounded snapshot and committed context.
+
+### DM-0 — make epistemic purpose genuinely authoritative
+
+**Primary surface:** src/atlas/domain/CommittedInvestigationContext.ts.
+
+- Remove the current fallback that silently maps missing epistemicPurpose to CLAIM_BEARING. RFC 0011 requires explicit purpose on the governed V2 path.
+- Complete the accepted V2 identity: investigation identity, immutable context revision, analytical dataset fingerprint and policy-scope reference participate in committed meaning; runtime/activation generation remains separate capability state.
+- Purpose changes create a new immutable context/DAG revision. Revisit restores the old exact purpose and body.
+- FullMonetaEngine must not synthesize an ambient fallback exploratory context. The caller supplies a committed context.
+
+**Falsifiers:** omitted purpose refuses; changing only purpose changes context identity; stale results captured under the other purpose cannot adopt.
+
+### DM-1 — introduce a real conjectural proposal authority
+
+Implement the accepted versioned ConjecturalProposalV1 contract under Moneta proposal ownership. It commits at least:
+
+- proposalId, snapshotId and contextId;
+- generator/model/state/policy provenance;
+- closed bounded elements and relations;
+- property/relation epistemic status IMPUTED, HYPOTHESIZED or COUNTERFACTUAL;
+- assumptions and dependency references;
+- supporting and contradicting grounded evidence references where available;
+- explicit uncertainty availability.
+
+Proposal identity hashes the complete canonical body. Proposal content never enters SemanticSnapshotV1. Derived-from-conjecture content remains conjectural until an analytical authority independently establishes it.
+
+**Likely integration surfaces:** FormaSystem1Proposer, FM7 search/synthesis output and FullMonetaEngine.
+
+**Falsifiers:** altering a conjectural value changes proposal identity but never snapshot identity; relabelling a hypothesis as observed/grounded refuses; unavailable grounded evidence may coexist with a conjectural completion only where fixed policy permits it.
+
+### DM-2 — replace snapshot-only Forma admission with typed binding admission
+
+**Primary surface:** src/moneta/forma/FormaAdmission.ts plus a versioned binding contract.
+
+Forma admits property/relation bindings, not “whatever values exist in a snapshot.” The accepted shape is a discriminated union:
+
+- GROUNDED binding: snapshotId + sourceId + propertyPath + OBSERVED/DERIVED/IMPUTED status.
+- CONJECTURAL binding: proposalId + elementId + propertyPath + IMPUTED/HYPOTHESIZED/COUNTERFACTUAL status.
+
+Admission must:
+
+- validate immutable snapshot identity and exact grounded receipt/profile/current-disposition bindings;
+- validate proposal identity, dependencies, generator provenance and fixed policy;
+- allow CONJECTURAL material bindings only under EXPLORATORY_ABDUCTION;
+- reject conjectural material bindings in claim-bearing output;
+- keep PRODUCTION/STUDY_ONLY permission independent of purpose;
+- resolve qualification/policy from owners rather than caller-selected strings;
+- bind the result to exact context, purpose, bindings, obligations and permitted use.
+
+An exploratory result may therefore be PRODUCTION in the authorization sense while still being explicitly conjectural in the epistemic sense. PRODUCTION must never mean “scientifically established.”
+
+**Falsifiers:** claim-bearing + conjectural material binding refuses; exploratory + valid typed conjecture succeeds; model confidence cannot mint a grounded binding; REFUSED use never coerces to production.
+
+### DM-3 — make the compiler epistemically transparent
+
+**Primary surfaces:** FormaSpatialCompiler.ts, FormaResolutionBroker.ts, FormaMultiElementRuntime.ts, then the real render/adoption path.
+
+The compiler consumes admitted bindings, not raw snapshot nodes plus presentation guesses. It may deterministically transform admitted semantics into geometry, sound, motion, interaction or other channels, but may not invent scientific meaning.
+
+Every material element/relation and reverse explanation retains:
+
+- binding kind GROUNDED / CONJECTURAL;
+- property-level epistemic status;
+- source/proposal identity and dependency lineage;
+- required uncertainty/support/contradiction disclosure;
+- loss/scale/unit/frame semantics for the perceptual mapping.
+
+Resolution variants may simplify presentation only while preserving those mandatory disclosures and identities. Predictive geometry is allowed; unlabeled predictive geometry that looks grounded is not.
+
+**Falsifiers:** changing only epistemic status changes admitted/compiled identity; adaptive resolution cannot drop the conjectural discriminator; count-only data cannot acquire temporal/interval meaning; reverse explanation reaches either authoritative evidence or the exact conjectural proposal.
+
+### DM-4 — split reproducible regeneration from materialized preservation
+
+**Primary surfaces:** src/session/NemosynePackage.ts, NemosyneSession.ts and V4 investigation/forma.json.
+
+Grounded/reproducible operation preserves the exact inputs, policies, implementation/model identities and deterministic admission/compiler closure needed for replay.
+
+Exploratory/predictive operation does not always require exact generator replay. V4 instead preserves the materialized scene and epistemic envelope so an investigator can revisit what was experienced even if the generator later changes or disappears.
+
+V4 therefore carries the accepted RFC 0011 fields: contextRef, conjecturalProposalRefs, complete epistemicBindingsRef, generationRecordRef and discriminated staticCapture. Historical restoration is inspectable state, not current scientific authorization; fresh execution/use still rechecks current policies and dispositions.
+
+**Falsifiers:** generator unavailable + valid static capture restores the historical exploratory scene with conjectural markings; the archive cannot mint a current grounded claim; changing proposal/binding bytes breaks the V4 digest.
+
+### DM-5 — repair FullMonetaEngine orchestration instead of deleting prediction
+
+**Primary surface:** src/moneta/adaptation/FullMonetaEngine.ts.
+
+The FMA-01 repair has two legal paths:
+
+- **Claim-bearing:** acquire an authentic grounded snapshot through the injected analytical/evidence authority. Missing required analysis refuses. No synthetic C1/C2, receipts, method claims or pseudo-digests.
+- **Exploratory:** keep the authentic grounded snapshot as the anchor, run System-1/System-2/search as proposal generators, capture output as ConjecturalProposalV1, and pass grounded + conjectural inputs to the single Forma admission boundary.
+
+Search/predictive proposal generation should occur before final graph/admission choice when it is intended to influence representation. The selected graph carries its actual bindings/relations rather than duplicating one aggregate slice for every primitive.
+
+PR #955 correctly removes the fabricated grounded data and hardens the immediate FMA-01–04 authority/compiler boundary. That closes the unsafe grounded-data behavior but does not by itself complete Full Moneta's predictive mode: “no grounded snapshot means delete predictive capability” is not a sufficient end state. A typed conjectural path remains required before FM8 completion can be restored.
+
+### DM-6 — product mode transition and UX semantics
+
+A user-visible mode control is an Investigation action that commits a new epistemic purpose. It is not a renderer-only toggle.
+
+- **Grounded / Reproducible:** only grounded material bindings; explicit ABSTAIN/refusal where evidence is insufficient.
+- **Exploratory / Predictive:** grounded anchors plus visibly and inspectably conjectural bindings; predictive/adaptive generation permitted according to policy.
+- Switching mode revokes pending adoption from the prior context.
+- TechnoCore/reverse explanation exposes what is observed/derived versus what Moneta proposes, including assumptions and supporting/contradicting evidence.
+- Promotion of a conjecture to grounded status is a new analytical/evidence event and a new decision with lineage, never an in-place UI relabel.
+
+### Repair impact on existing findings
+
+| Finding | Addendum interpretation |
+| --- | --- |
+| FMA-01 | Remains BLOCKER. Synthetic C1/C2 and fake evidence leave the grounded path. Generated structure is allowed only as typed conjectural proposal content. |
+| FMA-02 | Remains BLOCKER. Admission becomes more expressive, not merely stricter: validate both grounded and conjectural bindings under committed purpose. |
+| FMA-03/04/05 | Apply to both modes. Prediction does not license fabricated semantics, identity collisions or stale/budget-unsafe adoption. |
+| FMA-06 | Prerequisite for the two-mode contract because current context V2 defaults missing purpose and omits parts of the accepted identity contract. |
+| FMA-08 | Real UI/adoption wiring enforces purpose at the final mutation boundary; a mode selector without stale-context invalidation is insufficient. |
+| FMA-09 | V4 supports deterministic regeneration and safe materialized exploratory restoration. |
+| FMA-10 | Predictive/search machinery is expected to influence candidate generation; outputs flow through proposal capture and deterministic admission. |
+| FMA-11–13 | Adaptive learning remains permitted, but qualification/training identity cannot self-authorize or contaminate claim-bearing execution. |
+
+### Implementation order for engineers
+
+1. DM-0 context contract and no-default purpose.
+2. DM-1 conjectural proposal contract with canonical identity/provenance.
+3. DM-2 admission/binding V2 with positive controls for both purposes.
+4. DM-3 compiler/runtime propagation of property-level epistemic status.
+5. DM-5 FM8/search/System-1 orchestration against those contracts.
+6. DM-4 V4 preservation and clean-room restore.
+7. DM-6 real product mode transition/adoption/UX, followed by human/device qualification.
+
+DM-0 through DM-3 are prerequisites to calling FMA-01/FMA-02 repaired for **Full Moneta**, even if the immediate authority-containment PR safely closes the fabricated-grounded-data exploit. This implements already accepted RFC 0011 architecture; it creates no second analytical authority and relaxes no scientific gate.
+
+### Completion criterion
+
+Full Moneta supports the intended two modes only when the same grounded snapshot can safely feed both:
+
+- a claim-bearing, reproducible embodiment whose material assertions are authoritative and replayable; and
+- an exploratory embodiment that may contain generated hypotheses while preserving a machine-checkable and user-visible boundary between grounded and conjectural content.
+
+The system must be able to be imaginative without becoming confused about what it knows.

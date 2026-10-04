@@ -20,6 +20,7 @@ const pageByAuthority = new Map([
   ['product-research-architecture', 'Vision-and-Roadmap'],
   ['semantic-embodiment-vision-clarification', 'Semantic-Embodiment-Vision-Clarification'],
   ['full-moneta-semantic-embodiment-architecture', 'Full-Moneta-Semantic-Embodiment-Architecture'],
+  ['full-moneta-completeness-audit', 'Full-Moneta-Completeness-Audit'],
   ['architecture-2027-review', 'Architecture-2027-Review'],
   ['dual-epistemic-architecture-reassessment', 'A27-1-Dual-Epistemic-Reassessment'],
   ['dual-epistemic-preservation-rfc', 'Dual-Epistemic-Preservation-RFC'],
