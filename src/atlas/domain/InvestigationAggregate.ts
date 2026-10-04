@@ -129,6 +129,7 @@ export class InvestigationAggregate {
   readonly discoveries: DiscoveryEpisodeStore;
   readonly formaKnowledge: FormaKnowledgeStore;
   readonly contextLedger: CommittedInvestigationContextLedger;
+  private readonly _nodeDecisions: Map<string, RepresentationDecision> = new Map();
   private readonly embodimentCritiques: EmbodimentCritiqueRecordV1[] = [];
   private readonly humanMeaningJudgments: HumanMeaningJudgmentRecordV1[] = [];
   private readonly discoveryLinks: DiscoveryOutcomeLinkJudgement[] = [];
@@ -176,6 +177,7 @@ export class InvestigationAggregate {
     this.decisions.reset();
     this.graph.reset();
     this.discoveries.reset();
+    this._nodeDecisions.clear();
 
     const fp = this.analytical.getFingerprint() ?? '';
     if (fp && this.analytical.originalNullable) {
@@ -205,6 +207,7 @@ export class InvestigationAggregate {
       label: 'Initial Dataset',
       timestamp: this.context.now(),
     });
+    this.graph.setActiveNode(rootNodeId);
 
     this.contextLedger.reset();
     this.contextLedger.commit(rootNodeId, {
@@ -249,6 +252,7 @@ export class InvestigationAggregate {
       label: 'Initial Dataset (Columnar)',
       timestamp: this.context.now(),
     });
+    this.graph.setActiveNode(rootNodeId);
 
     this.contextLedger.reset();
     this.contextLedger.commit(rootNodeId, {
@@ -267,7 +271,9 @@ export class InvestigationAggregate {
    * FM1: Commit an authoritative investigation context bound to an investigation node.
    */
   commitContext(nodeId: string, context: unknown): CommittedContextActivation {
-    return this.contextLedger.commit(nodeId, context);
+    const activation = this.contextLedger.commit(nodeId, context);
+    this.graph.setActiveNode(nodeId);
+    return activation;
   }
 
   /**
@@ -280,10 +286,17 @@ export class InvestigationAggregate {
   }
 
   /**
-   * FM1: Activate an existing committed investigation node/context.
+   * FM1: Activate an existing committed investigation node/context, aligning graph and decision state.
    */
-  activateContext(nodeId: string): CommittedContextActivation {
-    return this.contextLedger.activate(nodeId);
+  activateContext(nodeId: string, revision?: number): CommittedContextActivation {
+    const activation = this.contextLedger.activate(nodeId, revision);
+    this.graph.setActiveNode(nodeId);
+    const nodeDecision = this._nodeDecisions.get(nodeId);
+    if (nodeDecision) {
+      this.representation.activeDecision = nodeDecision;
+      this.representation.activeStrategy = nodeDecision.embodiment.spatialStrategy;
+    }
+    return activation;
   }
 
   /**
@@ -389,6 +402,19 @@ export class InvestigationAggregate {
       );
     }
 
+    // Preserve parent decision in _nodeDecisions if not already recorded
+    if (!this._nodeDecisions.has(parentNodeId)) {
+      this._nodeDecisions.set(parentNodeId, currentDecision);
+    }
+
+    const activeContext = this.getActiveContext();
+
+    // Validate and canonicalize intentOverride BEFORE mutating any graph state!
+    let validatedIntent = activeContext?.intent;
+    if (intentOverride !== undefined) {
+      validatedIntent = canonicalizeInvestigationIntent(intentOverride);
+    }
+
     const fp = this.analytical.getFingerprint() ?? '';
     const branchIndex =
       this.graph.nodes.filter((n) => n.parentId === parentNodeId).length + 1;
@@ -412,30 +438,6 @@ export class InvestigationAggregate {
       },
     };
 
-    this.graph.addNode(childNode);
-    this.graph.addEdge({
-      id: `edge:${parentNodeId}->${childNodeId}:branches_from`,
-      source: parentNodeId,
-      target: childNodeId,
-      relationship: 'branches_from',
-      metadata: { candidateId: candidate.candidateId },
-    });
-    this.graph.setActiveNode(childNodeId);
-
-    const activeContext = this.getActiveContext();
-    if (activeContext) {
-      const newContext: CommittedInvestigationContextV2 = {
-        schemaVersion: 2,
-        nodeId: childNodeId,
-        epistemicPurpose: activeContext.epistemicPurpose,
-        intent: intentOverride
-          ? canonicalizeInvestigationIntent(intentOverride)
-          : activeContext.intent,
-        perspective: activeContext.perspective,
-      };
-      this.contextLedger.commit(childNodeId, newContext);
-    }
-
     const now = this.context.now();
     const branchedDecision: RepresentationDecision = {
       ...currentDecision,
@@ -454,6 +456,31 @@ export class InvestigationAggregate {
       },
     };
 
+    // Commit graph mutations atomically only after all validations have passed
+    this.graph.addNode(childNode);
+    this.graph.addEdge({
+      id: `edge:${parentNodeId}->${childNodeId}:branches_from`,
+      source: parentNodeId,
+      target: childNodeId,
+      relationship: 'branches_from',
+      metadata: { candidateId: candidate.candidateId },
+    });
+    this.graph.setActiveNode(childNodeId);
+
+    if (activeContext) {
+      const newContext: CommittedInvestigationContextV2 = {
+        schemaVersion: 2,
+        nodeId: childNodeId,
+        epistemicPurpose: activeContext.epistemicPurpose,
+        intent: validatedIntent!,
+        perspective: activeContext.perspective,
+        investigationId: activeContext.investigationId ?? this.sessionId,
+        datasetFingerprint: fp,
+      };
+      this.contextLedger.commit(childNodeId, newContext);
+    }
+
+    this._nodeDecisions.set(childNodeId, branchedDecision);
     this.representation.activeDecision = branchedDecision;
     this.representation.activeStrategy = embodiment.spatialStrategy;
 
@@ -466,7 +493,7 @@ export class InvestigationAggregate {
         },
         datasetVersion: this.analytical.datasetVersion,
         datasetFingerprint: fp,
-        stateHash: fp,
+        stateHash: childNodeId,
       },
       this.sessionId
     );
