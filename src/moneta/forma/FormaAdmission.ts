@@ -1,5 +1,9 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
-import type { SemanticSnapshotV1, SemanticSourceRecordV1, SemanticNodeRecordV1 } from '../representation/SemanticSnapshotV1.js';
+import {
+  type SemanticSnapshotV1,
+  type SemanticNodeRecordV1,
+  validateSemanticSnapshot,
+} from '../representation/SemanticSnapshotV1.js';
 import {
   computeCommittedContextIdentity,
   type CommittedInvestigationContextV2,
@@ -43,17 +47,103 @@ export function compileFormaAdmission(
   context: CommittedInvestigationContextV2,
   requestedUse: PermittedExecutionUse = 'PRODUCTION'
 ): FormaAdmissionOutcomeV1 {
-  // Scientific admissibility check: Refused evidence sources refuse admission
-  if (snapshot.body.sources.some((s: SemanticSourceRecordV1) => s.state.status === 'REFUSED')) {
+  // 1. Refusal on non-admitted requested use
+  if (requestedUse === 'REFUSED' || (requestedUse !== 'PRODUCTION' && requestedUse !== 'STUDY_ONLY')) {
     return {
       status: 'REFUSED',
       refusal: {
         code: 'POLICY_REFUSAL',
-        message: 'Analytical snapshot contains refused evidence sources',
+        message: `Requested execution use is refused or unsupported: ${requestedUse}`,
       },
     };
   }
 
+  // 2. Strict decoding & structural validation of analytical snapshot
+  try {
+    validateSemanticSnapshot(snapshot);
+  } catch (err: unknown) {
+    return {
+      status: 'REFUSED',
+      refusal: {
+        code: 'UNTRUSTED_DECODING',
+        message: `Semantic snapshot decoding or validation failed: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    };
+  }
+
+  // 3. Evidence and source validation
+  if (!snapshot.body.sources || snapshot.body.sources.length === 0) {
+    return {
+      status: 'REFUSED',
+      refusal: {
+        code: 'OBLIGATION_UNSATISFIED',
+        message: 'Analytical snapshot contains no evidence sources',
+      },
+    };
+  }
+
+  for (const src of snapshot.body.sources) {
+    if (src.state.status === 'REFUSED') {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'POLICY_REFUSAL',
+          message: `Analytical snapshot contains refused evidence sources (${src.sourceId}: ${src.state.owningReason})`,
+        },
+      };
+    }
+    if (src.state.status === 'UNAVAILABLE') {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'OBLIGATION_UNSATISFIED',
+          message: `Analytical snapshot contains unavailable evidence sources (${src.sourceId})`,
+        },
+      };
+    }
+    if (!src.evidenceReferences || src.evidenceReferences.length === 0) {
+      return {
+        status: 'REFUSED',
+        refusal: {
+          code: 'OBLIGATION_UNSATISFIED',
+          message: `Source ${src.sourceId} lacks required analytical evidence references`,
+        },
+      };
+    }
+    for (const ev of src.evidenceReferences) {
+      if (
+        !ev.datasetFingerprint ||
+        !ev.kernelVersion ||
+        !ev.bundleContentDigest ||
+        !ev.receiptId ||
+        !ev.receiptContentDigest ||
+        !ev.consumerId ||
+        !ev.requirementProfileId ||
+        !ev.requirementProfileDigest ||
+        !ev.admissionPolicyId ||
+        !ev.admissionPolicyDigest
+      ) {
+        return {
+          status: 'REFUSED',
+          refusal: {
+            code: 'OBLIGATION_UNSATISFIED',
+            message: `Source ${src.sourceId} has incomplete evidence reference tuple`,
+          },
+        };
+      }
+      if (ev.datasetFingerprint !== snapshot.body.analyticalDatasetFingerprint) {
+        return {
+          status: 'REFUSED',
+          refusal: {
+            code: 'OBLIGATION_UNSATISFIED',
+            message: `Evidence dataset fingerprint mismatch: ${ev.datasetFingerprint} vs ${snapshot.body.analyticalDatasetFingerprint}`,
+          },
+        };
+      }
+    }
+  }
+
+  // 4. Reverse mappings from valid semantic nodes
   const mappings: FormaReverseMappingV1[] = snapshot.body.nodes.map((node: SemanticNodeRecordV1) => ({
     semanticNodeId: node.nodeId,
     channel: 'spatial_position',
@@ -66,7 +156,7 @@ export function compileFormaAdmission(
   const body = {
     snapshotId: snapshot.snapshotId,
     contextId,
-    permittedUse: requestedUse === 'STUDY_ONLY' ? ('STUDY_ONLY' as PermittedExecutionUse) : ('PRODUCTION' as PermittedExecutionUse),
+    permittedUse: requestedUse,
     planId,
     reverseExplanation: { mappings },
   };

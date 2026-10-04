@@ -22,6 +22,7 @@ import { compileFormaAdmission } from '../src/moneta/forma/FormaAdmission.ts';
 import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
 import {
   normalizeEnvelopeToSnapshot,
+  computeSnapshotId,
   type EvidenceReferenceTupleV1,
 } from '../src/moneta/representation/SemanticSnapshotV1.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
@@ -308,9 +309,37 @@ describe('FM1: Question & Perspective Product Path Integration', () => {
         },
       };
 
-      const sliceRecency = compileFormaSpatialSlice(sampleSnapshot, recencyContext, kb0Manifest, 'SPATIAL_SCATTER_V1');
-      const sliceHistorical = compileFormaSpatialSlice(sampleSnapshot, historicalContext, kb0Manifest, 'SPATIAL_SCATTER_V1');
-      const sliceUncertainty = compileFormaSpatialSlice(sampleSnapshot, uncertaintyContext, kb0Manifest, 'SPATIAL_SCATTER_V1');
+      // FMA-03: count-only sampleSnapshot must refuse temporal and interval foregrounding
+      expect(compileFormaSpatialSlice(sampleSnapshot, recencyContext, kb0Manifest, 'SPATIAL_SCATTER_V1').status).toBe('REFUSED');
+      expect(compileFormaSpatialSlice(sampleSnapshot, uncertaintyContext, kb0Manifest, 'SPATIAL_SCATTER_V1').status).toBe('REFUSED');
+
+      // Perspective foregrounding succeeds on a qualified temporal and interval snapshot
+      const temporalBody = {
+        ...sampleSnapshot.body,
+        sources: [
+          {
+            ...sampleSnapshot.body.sources[0],
+            family: 'TEMPORAL',
+          },
+        ],
+        nodes: sampleSnapshot.body.nodes.map((node) => ({
+          ...node,
+          descriptor: {
+            ...node.descriptor,
+            unit: 'interval',
+            frame: 'temporal',
+          },
+        })),
+      };
+      const temporalSnapshot = {
+        ...sampleSnapshot,
+        snapshotId: computeSnapshotId(temporalBody),
+        body: temporalBody,
+      };
+
+      const sliceRecency = compileFormaSpatialSlice(temporalSnapshot, recencyContext, kb0Manifest, 'SPATIAL_SCATTER_V1');
+      const sliceHistorical = compileFormaSpatialSlice(temporalSnapshot, historicalContext, kb0Manifest, 'SPATIAL_SCATTER_V1');
+      const sliceUncertainty = compileFormaSpatialSlice(temporalSnapshot, uncertaintyContext, kb0Manifest, 'SPATIAL_SCATTER_V1');
 
       expect(sliceRecency.status).toBe('COMPILED');
       expect(sliceHistorical.status).toBe('COMPILED');
@@ -325,14 +354,14 @@ describe('FM1: Question & Perspective Product Path Integration', () => {
       }
 
       // CRITICAL SCIENTIFIC INVARIANT: Snapshot identity and analytical coverage are 100% invariant
-      expect(sliceRecency.slice.snapshotId).toBe(sampleSnapshot.snapshotId);
-      expect(sliceHistorical.slice.snapshotId).toBe(sampleSnapshot.snapshotId);
-      expect(sliceUncertainty.slice.snapshotId).toBe(sampleSnapshot.snapshotId);
+      expect(sliceRecency.slice.snapshotId).toBe(temporalSnapshot.snapshotId);
+      expect(sliceHistorical.slice.snapshotId).toBe(temporalSnapshot.snapshotId);
+      expect(sliceUncertainty.slice.snapshotId).toBe(temporalSnapshot.snapshotId);
 
       // Node count is untouched: no rows/nodes filtered
-      expect(sliceRecency.slice.elements.length).toBe(sampleSnapshot.body.nodes.length);
-      expect(sliceHistorical.slice.elements.length).toBe(sampleSnapshot.body.nodes.length);
-      expect(sliceUncertainty.slice.elements.length).toBe(sampleSnapshot.body.nodes.length);
+      expect(sliceRecency.slice.elements.length).toBe(temporalSnapshot.body.nodes.length);
+      expect(sliceHistorical.slice.elements.length).toBe(temporalSnapshot.body.nodes.length);
+      expect(sliceUncertainty.slice.elements.length).toBe(temporalSnapshot.body.nodes.length);
 
       // Visual encodings legitimately differ based on perspective
       // In recency: node at index 3 (recent) is amber (#f59e0b) with opacity 1.0, while node 0 is opacity 0.45

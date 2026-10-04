@@ -9,6 +9,7 @@ import {
 import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.js';
 import {
   normalizeEnvelopeToSnapshot,
+  computeSnapshotId,
   type EvidenceReferenceTupleV1,
 } from '../src/moneta/representation/SemanticSnapshotV1.js';
 import {
@@ -129,22 +130,122 @@ describe('FormaSpatialCompiler (L2-FORMA-1)', () => {
   });
 
   test('Exit Requirement 3: evidence substitution and drift refuses closed', () => {
-    // Tampered snapshot with empty evidence references
+    // Snapshot with valid digest but empty evidence references
+    const noEvidenceBody = {
+      ...snapshot.body,
+      sources: snapshot.body.sources.map((src) => ({
+        ...src,
+        evidenceReferences: [],
+      })),
+    };
     const tamperedSnapshot = {
-      ...snapshot,
-      body: {
-        ...snapshot.body,
-        sources: snapshot.body.sources.map((src) => ({
-          ...src,
-          evidenceReferences: [],
-        })),
-      },
+      schemaVersion: snapshot.schemaVersion,
+      snapshotId: computeSnapshotId(noEvidenceBody),
+      body: noEvidenceBody,
     };
 
     const outcome = compileFormaSpatialSlice(tamperedSnapshot, context, manifest, 'SPATIAL_SCATTER_V1');
     expect(outcome.status).toBe('REFUSED');
     if (outcome.status === 'REFUSED') {
       expect(outcome.refusal.code).toBe('OBLIGATION_UNSATISFIED');
+    }
+  });
+
+  test('FMA-02b falsifier: snapshot value tampering under stale snapshotId refuses with UNTRUSTED_DECODING', () => {
+    const tamperedValueSnapshot = {
+      ...snapshot,
+      body: {
+        ...snapshot.body,
+        nodes: [
+          {
+            ...snapshot.body.nodes[0],
+            value: 99999,
+          },
+          ...snapshot.body.nodes.slice(1),
+        ],
+      },
+    };
+
+    const outcome = compileFormaSpatialSlice(tamperedValueSnapshot, context, manifest, 'SPATIAL_SCATTER_V1');
+    expect(outcome.status).toBe('REFUSED');
+    if (outcome.status === 'REFUSED') {
+      expect(outcome.refusal.code).toBe('UNTRUSTED_DECODING');
+    }
+  });
+
+  test('FMA-03 falsifier: count-only fixture refuses interval uncertainty foregrounding', () => {
+    const intervalContext = {
+      ...context,
+      perspective: {
+        schemaVersion: 1 as const,
+        mode: 'foreground' as const,
+        uncertaintyForegrounding: 'interval' as const,
+      },
+    };
+
+    const outcome = compileFormaSpatialSlice(snapshot, intervalContext, manifest, 'SPATIAL_SCATTER_V1');
+    expect(outcome.status).toBe('REFUSED');
+    if (outcome.status === 'REFUSED') {
+      expect(outcome.refusal.code).toBe('UNSUPPORTED_MAPPING');
+      expect(outcome.refusal.message).toContain('lacking interval');
+    }
+  });
+
+  test('FMA-03 falsifier: non-temporal fixture refuses temporal foregrounding', () => {
+    const temporalContext = {
+      ...context,
+      perspective: {
+        schemaVersion: 1 as const,
+        mode: 'foreground' as const,
+        temporalForegrounding: 'recency' as const,
+      },
+    };
+
+    const outcome = compileFormaSpatialSlice(snapshot, temporalContext, manifest, 'SPATIAL_SCATTER_V1');
+    expect(outcome.status).toBe('REFUSED');
+    if (outcome.status === 'REFUSED') {
+      expect(outcome.refusal.code).toBe('UNSUPPORTED_MAPPING');
+      expect(outcome.refusal.message).toContain('lacking temporal semantics');
+    }
+  });
+
+  test('FMA-03 falsifier: distinct numeric values 1 and 11 do not produce identical spatial heights', () => {
+    const customEnvelope: SemanticEmbodimentEnvelopeV1 = {
+      ...envelope,
+      result: {
+        status: 'READY',
+        payload: {
+          kind: 'AGGREGATE_VOLUME',
+          data: {
+            groupingFields: ['region'],
+            measure: { function: 'COUNT' },
+            groups: [
+              { semanticId: 'group-one', key: 'One', count: 1 },
+              { semanticId: 'group-eleven', key: 'Eleven', count: 11 },
+            ],
+          },
+        },
+      },
+    };
+    const customSnapshot = normalizeEnvelopeToSnapshot(customEnvelope, dummyEvidence);
+    const outcome = compileFormaSpatialSlice(customSnapshot, context, manifest, 'SPATIAL_SCATTER_V1');
+    expect(outcome.status).toBe('COMPILED');
+    if (outcome.status === 'COMPILED') {
+      const height1 = outcome.slice.elements[0].position[1];
+      const height11 = outcome.slice.elements[1].position[1];
+      expect(height1).not.toBe(height11);
+    }
+  });
+
+  test('FMA-04 falsifier: every semantic node produces a strictly unique spatial element ID', () => {
+    const outcome = compileFormaSpatialSlice(snapshot, context, manifest, 'SPATIAL_SCATTER_V1');
+    expect(outcome.status).toBe('COMPILED');
+    if (outcome.status === 'COMPILED') {
+      const elementIds = outcome.slice.elements.map((e) => e.elementId);
+      const uniqueIds = new Set(elementIds);
+      expect(uniqueIds.size).toBe(outcome.slice.elements.length);
+      expect(outcome.slice.elements.length).toBe(snapshot.body.nodes.length);
+      expect(elementIds[0]).not.toBe(elementIds[1]);
     }
   });
 
