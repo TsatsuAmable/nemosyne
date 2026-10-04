@@ -3514,3 +3514,7 @@ completed feature inventories to `docs/ROADMAP.md`.
 ## 2026-10-04 — DSE2 semantic resolution landed
 
 FM-DSE advanced DSE2 READY to DSE2 IMPLEMENTED: reversible direct traversal (`DirectTraversalSession`), obligation-preserving desktop/constrained variant pairs, and evict/rebuild lifecycle identity, with refusal battery and AtlasCore entry-point evidence. Next authorized tranche: DSE3 dual-mode feedback loop.
+
+## 2026-10-04 — DSE3 dual-mode feedback loop landed
+
+FM-DSE advanced DSE3 READY to DSE3 IMPLEMENTED: purpose-gated direct traversal (`CONJECTURAL_PURPOSE_REFUSAL`, CLAIM_BEARING default), per-element conjectural disclosure joined to admitted proposals, critique-to-recompiled-alternative links, and FM6-attributed feedback bindings on the aggregate. Next: DSE6 qualification of the completed loop; DSE4/5 remain conditional.

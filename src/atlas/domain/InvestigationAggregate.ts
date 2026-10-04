@@ -91,6 +91,16 @@ import {
   type EstablishedDetailAuthorityV1,
 } from '../../moneta/representation/DirectTraversalSession.ts';
 import {
+  bindAlternativeFeedback,
+  discloseConjecturalElements,
+  resolveCritiqueToAlternative,
+  type AlternativeFeedbackBindingV1,
+  type ConjecturalDisclosureResultV1,
+  type CritiqueAlternativeLinkV1,
+  type DirectAlternativeAdjustmentV1,
+} from '../../moneta/representation/DirectFeedbackLoop.ts';
+import type { ConjecturalProposalV1 } from '../../moneta/forma/ConjecturalProposal.ts';
+import {
   normalizeEnvelopeToSnapshot,
   type SemanticSnapshotV1,
   type EvidenceReferenceTupleV1,
@@ -1010,8 +1020,11 @@ export class InvestigationAggregate {
 
   private _activeFormaResult?: FullMonetaSynthesisResult;
   private _activeDirectCompileResult?: DirectEmbodimentCompileResult;
+  private _activeDirectSnapshot?: SemanticSnapshotV1;
   private _activeVariantPair?: ObligationPreservingVariantPairV1;
   private _activeDirectTraversal?: DirectTraversalSession;
+  private readonly _directFeedbackLinks: CritiqueAlternativeLinkV1[] = [];
+  private readonly _directFeedbackBindings: AlternativeFeedbackBindingV1[] = [];
   private _formaState?: FormaInvestigationStateV1;
 
   /**
@@ -1063,6 +1076,7 @@ export class InvestigationAggregate {
       researchMode: this.researchMode,
     });
     this._activeDirectCompileResult = result;
+    this._activeDirectSnapshot = snapshot;
     this._activeVariantPair = undefined;
     this._activeDirectTraversal = undefined;
     this._activeFormaResult = undefined;
@@ -1127,6 +1141,7 @@ export class InvestigationAggregate {
     });
     this._activeVariantPair = pair;
     this._activeDirectCompileResult = pair.desktop;
+    this._activeDirectSnapshot = snapshot;
     this._activeDirectTraversal = undefined;
     this._activeFormaResult = undefined;
     this._formaState = undefined;
@@ -1154,11 +1169,16 @@ export class InvestigationAggregate {
         '[InvestigationAggregate] Direct traversal refused: no active direct compilation'
       );
     }
+    // DSE3: the session enforces the active investigation purpose; without a
+    // committed context the session default (CLAIM_BEARING) applies.
     const outcome = DirectTraversalSession.open(
       compilation,
       planElementId,
       phenomenon,
-      detailAuthority
+      detailAuthority,
+      {
+        epistemicPurpose: this.getActiveContext()?.epistemicPurpose,
+      }
     );
     if (outcome.status === 'REFUSED') {
       throw new Error(`[InvestigationAggregate] Direct traversal refused: ${outcome.message}`);
@@ -1169,6 +1189,98 @@ export class InvestigationAggregate {
 
   getActiveDirectTraversal(): DirectTraversalSession | undefined {
     return this._activeDirectTraversal;
+  }
+
+  /**
+   * DSE3: Visible disclosure of conjectural plan elements on the active
+   * direct compilation, joined to the admitted proposals. Purpose defaults to
+   * the active investigation context.
+   */
+  discloseDirectConjectural(
+    proposals: readonly ConjecturalProposalV1[],
+    admittedUnder?: EpistemicPurpose
+  ): ConjecturalDisclosureResultV1 {
+    const compilation = this._activeDirectCompileResult;
+    if (!compilation) {
+      throw new Error('[InvestigationAggregate] Disclosure refused: no active direct compilation');
+    }
+    const context = this.getActiveContext();
+    const purpose = admittedUnder ?? context?.epistemicPurpose ?? 'CLAIM_BEARING';
+    return discloseConjecturalElements(compilation, proposals, purpose);
+  }
+
+  /**
+   * DSE3: Resolves an attributable critique on the active direct compilation
+   * to a recompiled Road Not Taken alternative. The link is recorded as
+   * investigation lineage; the active compilation is not switched silently.
+   */
+  resolveDirectAlternativeFromCritique(
+    critiqueId: string,
+    adjustment?: DirectAlternativeAdjustmentV1
+  ): {
+    readonly alternative: DirectEmbodimentCompileResult;
+    readonly link: CritiqueAlternativeLinkV1;
+  } {
+    const compilation = this._activeDirectCompileResult;
+    if (!compilation) {
+      throw new Error('[InvestigationAggregate] Alternative refused: no active direct compilation');
+    }
+    const snapshot = this._activeDirectSnapshot;
+    if (!snapshot) {
+      throw new Error(
+        '[InvestigationAggregate] Alternative refused: active compilation snapshot is unavailable'
+      );
+    }
+    const context = this.getActiveContext();
+    if (!context) {
+      throw new Error(
+        '[InvestigationAggregate] Alternative refused: committed investigation context is strictly required'
+      );
+    }
+    const ds = this.analytical.current;
+    const resolved = resolveCritiqueToAlternative({
+      datasetFingerprint: ds.fingerprint,
+      snapshot,
+      context,
+      compilation,
+      critiqueId,
+      adjustment,
+      researchMode: this.researchMode,
+    });
+    this._directFeedbackLinks.push(resolved.link);
+    return resolved;
+  }
+
+  getDirectFeedbackLinks(): readonly CritiqueAlternativeLinkV1[] {
+    return this._directFeedbackLinks;
+  }
+
+  /**
+   * DSE3: Records attributable outcome feedback on a critique->alternative
+   * link through the FM6 critique record (author attribution and the
+   * self-labeling prohibition travel with it) and binds the record to the link.
+   */
+  recordDirectAlternativeFeedback(
+    linkId: string,
+    feedback: EmbodimentCritiqueInputV1
+  ): {
+    readonly record: EmbodimentCritiqueRecordV1;
+    readonly binding: AlternativeFeedbackBindingV1;
+  } {
+    const link = this._directFeedbackLinks.find((l) => l.linkId === linkId);
+    if (!link) {
+      throw new Error(
+        `[InvestigationAggregate] Feedback refused: unknown critique->alternative link '${linkId}'`
+      );
+    }
+    const record = this.recordEmbodimentCritique(feedback);
+    const binding = bindAlternativeFeedback(link, record.critiqueId);
+    this._directFeedbackBindings.push(binding);
+    return { record, binding };
+  }
+
+  getDirectAlternativeFeedbackBindings(): readonly AlternativeFeedbackBindingV1[] {
+    return this._directFeedbackBindings;
   }
 
   /**
