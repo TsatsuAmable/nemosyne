@@ -1,7 +1,11 @@
 # QCA4 — WebXR Rendering Fast Wins
 
-**Status:** READY AFTER QCA0  
+**Status:** BOUNDED CHANGES LANDED / PHYSICAL COMPARISON OPEN
 **Purpose:** attack GPU/draw-call/frame-pacing costs directly rather than assuming CPU compilation is the limiting factor.
+
+Low-triangle observation markers merged in #979; operator glyph hygiene merged in #986.
+These establish software changes, not measured Quest improvement. Controlled physical frame-time,
+legibility and selection comparisons remain required before adopting a performance claim.
 
 ## Work
 

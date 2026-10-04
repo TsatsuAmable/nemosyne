@@ -32,11 +32,12 @@ Current order:
 
 ```text
 P1-TEC / FM0 finite evidence closure
-  -> FM5 governed System-1 advisory + held-out/target-device qualification [ACTIVE]
-  -> owner review of FM-DSE ADAPT design
+  -> applicable grounded-evidence gates for each downstream claim
+owner review of FM-DSE ADAPT design
   -> DSE0 schema/falsifiers -> DSE1 bounded grounded overview -> DSE2/DSE3
   -> FM8 integrated product/human/device qualification
 residual before FM8 completion: FM1/FM2 user-facing intent/alternative actions
+remaining FM5: measured advisory value and target-device qualification
 parallel when disjoint: UXR4/5 physical qualification + QCA physical attribution/controlled probes
 then: P1-WP -> P1-WQ -> PT9/PT10
 ```
@@ -50,7 +51,7 @@ then: P1-WP -> P1-WQ -> PT9/PT10
 | **FM2 alternative-aware / Road Not Taken** | **CORE IMPLEMENTATION LANDED / PRODUCT ACTIONS OPEN** | Atomic branch/revisit semantics are landed (#957). Wire REQUEST_ALTERNATIVE/COMPARE/PREFER/REJECT/EXPLAIN through UI/NIL and qualify branch replay; Memory Palace remains an aggregate projection after duplicate-store retirement (#963/#964). | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md), [ADR-0012](architecture/decisions/0012-memory-palace-graph-authority.md) |
 | **FM3 Forma first vertical slice / L2-FORMA-1** | **STATIC PRODUCT SLICE LANDED / SEMANTIC QUALIFICATION OPEN** | Typed grounded/conjectural admission, production adoption guard, 3D Forma rendering, reverse explanation and V4 static replay are landed (#960/#961). Qualify multi-phenomenon semantic comprehension and product usefulness before the full FM3 exit. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM3/4 composition + resolution adaptation / L2-FORMA-2 + L4-RUNTIME-BUDGET** | **IMPLEMENTATION LANDED / DEVICE QUALIFICATION OPEN** | Final-content identity, budget/generation refusal and selected-graph fidelity are landed (#962). Qualify semantic recoverability and information-loss disclosure across materially different Quest/desktop budgets. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
-| **FM5 System-1 assistance** | **ACTIVE — FORWARD TRANCHE** | Governed System-1 advisory influence is in flight. Exit still requires measurable held-out and target-device value over deterministic/reference baselines with explicit ABSTAIN, provenance, replay and hard-gate preservation. | [System-1/System-2 architecture](architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md) |
+| **FM5 System-1 assistance** | **ADVISORY IMPLEMENTATION / PROBES LANDED; VALUE QUALIFICATION OPEN** | Consumed advice, disclosure, bypass, recorded replay, ABSTAIN and R5/R7/R8 comparison probes are merged. Finite/reproducible deltas alone do not establish benefit; evaluate measured value and target-device cost. | [System-1/System-2 architecture](architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md), [evidence inventory](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md#132-existing-qualification-evidence-to-retain-and-extend) |
 | **FM6 human refinement / Forma knowledge** | **QUALIFICATION VERIFIED** | Qualification battery (`FM6-R6`) merged in #980: verified holdout evaluation gate fail-closed behavior, System-1 proposal scoring improvement with knowledge case identity binding, frozen research mode, and clean registry rollback. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM7 searching / synthesizing Moneta** | **QUALIFICATION VERIFIED** | Qualification battery (`FM7-R7`) merged in #983: verified novel admissible representation graph construction outside fixed catalogue, System-1 advisory seeding and bypass, Pareto non-domination, MCR7 genome handoff analytical gates, and Research Mode bitwise digest invariance. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM8 full Moneta / controlled adaptive representation** | **IMPLEMENTATION PARTIAL / INTEGRATED QUALIFICATION OPEN** | The FMA-01–13 repair set and dual-epistemic core are landed; do not restore completion claims until qualified FM5/FM6/FM7 behavior, residual FM1/FM2 product surfaces and human/device evidence satisfy the integrated V3.1 exit. | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
@@ -86,7 +87,7 @@ This replaces scriptc as the immediate Quest-browser optimization experiment. Ru
 | **QCA1** | **READY AFTER QCA0** | QCA0 hotspot evidence | [Rust/WASM SIMD128](work/quest-compute/QCA1_WASM_SIMD.md) |
 | **QCA2** | **READY AFTER QCA0** | QCA0 main-thread evidence | [Worker/main-thread offload audit](work/quest-compute/QCA2_WORKER_OFFLOAD.md) |
 | **QCA3** | **BLOCKED_BY QCA2 MEASUREMENTS** | prove transfer/synchronization cost matters | [Transferable buffers, memory and WASM threads](work/quest-compute/QCA3_TRANSPORT_THREADS.md) |
-| **QCA4** | **READY AFTER QCA0** | QCA0 render/GPU evidence | [WebXR rendering fast wins](work/quest-compute/QCA4_WEBXR_RENDERING.md) |
+| **QCA4** | **BOUNDED CHANGES LANDED / PHYSICAL COMPARISON OPEN** | Low-triangle markers (#979) and operator glyph hygiene (#986) merged; physical frame/legibility/selection benefit remains unqualified | [WebXR rendering fast wins](work/quest-compute/QCA4_WEBXR_RENDERING.md) |
 | **QCA5** | **EXPERIMENTAL AFTER QCA0** | select one measured non-authoritative parallel workload | [WebGPU compute spike](work/quest-compute/QCA5_WEBGPU_COMPUTE.md) |
 
 QCA1, QCA2 and QCA4 may run concurrently only when their files/ownership do not collide. No Quest performance claim closes from desktop/simulator evidence alone.
