@@ -133,6 +133,38 @@ describe('LoadTestPanel UIKit dispatch', () => {
     expect(JSON.parse(body)).toEqual(summary);
   });
 
+  it('renders live performance values with the supported spatial separator', () => {
+    handlers[WorldTopics.LOADTEST_SAMPLE][0]({
+      stepIndex: 3,
+      totalSteps: 6,
+      spec: { topology: 'TABULAR', rowCount: 8_000, durationSec: 15, label: '8k' },
+      elapsedMs: 7_500,
+      frameCount: 420,
+      frames: {
+        frameCount: 420,
+        dropped: 62,
+        droppedPct: 14.8,
+        p50Ms: 15.5,
+        p95Ms: 20.9,
+        p99Ms: 24.1,
+        avgMs: 15.45,
+        minMs: 10,
+        maxMs: 30,
+        fpsAvg: 64.7,
+        gcSpikes: 2,
+      },
+      gpu: { drawCalls: 109, triangles: 199_000, points: 0, lines: 0 },
+      criticalFrames: 4,
+    });
+    panel.update();
+
+    const summary = panel.getRenderedSummary();
+    expect(summary).toContain('Step: 3/6 | 8k');
+    expect(summary).toContain('p50 15.5 | p95 20.9 | p99 24.1 ms');
+    expect(summary).toContain('draw 109 | tri 199000 | pts 0 | lines 0');
+    expect(summary).not.toContain('·');
+  });
+
   it('unsubscribes all load-test event listeners on dispose', () => {
     expect(unsubs).toHaveLength(6);
     panel.dispose();

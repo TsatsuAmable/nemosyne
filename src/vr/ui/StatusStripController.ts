@@ -111,7 +111,7 @@ function clampCount(value: number): number {
 function compactId(value: string | null, max = 24): string {
   if (!value) return 'ROOT';
   if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
+  return `${value.slice(0, max - 3)}...`;
 }
 
 export class StatusStripController {
@@ -198,7 +198,7 @@ export class StatusStripController {
     const focusPart = this._state.focusTarget ? `FOCUS: ${this._state.focusTarget}` : 'FOCUS: NONE';
     const actionPart = this._state.lastAction ? `ACTION: ${this._state.lastAction}` : null;
 
-    return [dataPart, modePart, focusPart, actionPart].filter(Boolean).join(' · ');
+    return [dataPart, modePart, focusPart, actionPart].filter(Boolean).join(' | ');
   }
 
   /** Compact normal-mode grounding text; each row answers one C2 question family. */
@@ -206,12 +206,12 @@ export class StatusStripController {
     const focus = this._state.focusTarget
       ? `${this._state.focusLevel.toUpperCase()}:${compactId(this._state.focusTarget)}`
       : this._state.focusLevel.toUpperCase();
-    const context = `${this._state.datasetLabel} · ${this._state.topology}/${this._state.itemCount.toLocaleString()} · FOCUS ${focus}`;
+    const context = `${this._state.datasetLabel} | ${this._state.topology}/${this._state.itemCount.toLocaleString()} | FOCUS ${focus}`;
 
     const evidence = this._state.evidence;
     const analysis =
-      `ANALYSIS ${this._state.analyticalStatus} · DECISION ${this._state.decisionState} · ` +
-      `${this._state.representationState} · EVIDENCE +${evidence.supports}/-${evidence.refutes} O${evidence.observations} F${evidence.findings}`;
+      `ANALYSIS ${this._state.analyticalStatus} | DECISION ${this._state.decisionState} | ` +
+      `${this._state.representationState} | EVIDENCE +${evidence.supports}/-${evidence.refutes} O${evidence.observations} F${evidence.findings}`;
 
     const recoveryTokens = [
       this._state.recovery.canUndo ? 'UNDO' : null,
@@ -225,11 +225,11 @@ export class StatusStripController {
         : this._state.origin.activeNodeId
           ? `STATE ${compactId(this._state.origin.activeNodeId)}`
           : 'ORIGIN ROOT';
-    const recovery = `RECOVERY ${recoveryTokens.length > 0 ? recoveryTokens.join('/') : 'NONE'} · ${origin}`;
+    const recovery = `RECOVERY ${recoveryTokens.length > 0 ? recoveryTokens.join('/') : 'NONE'} | ${origin}`;
 
     const change = this._state.lastAction ?? 'No recorded change';
     const next = this._state.nextAffordance ?? 'Continue investigation';
-    const action = `CHANGE ${change} · NEXT ${next}`;
+    const action = `CHANGE ${change} | NEXT ${next}`;
 
     return [context, analysis, recovery, action];
   }

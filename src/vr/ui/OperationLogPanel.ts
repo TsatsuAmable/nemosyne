@@ -132,7 +132,7 @@ export class OperationLogPanel extends SpatialPanel {
             second: '2-digit',
           })
         : '--:--:--';
-      const suffix = entry.rowCount != null ? ' — ' + entry.rowCount + ' rows' : '';
+      const suffix = entry.rowCount != null ? ' - ' + entry.rowCount + ' rows' : '';
       lines.push(time + '  ' + entry.operation + suffix);
     }
     return lines.join('\n');

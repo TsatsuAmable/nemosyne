@@ -117,7 +117,7 @@ export class FunctionalWorldObjectsPresenter {
       'not yet decided';
     const mode = preview ? 'PREVIEW' : 'COMMITTED';
     this.host.core.group.userData.tooltipMeta = {
-      title: `TechnoCore · ${state}`,
+      title: `TechnoCore | ${state}`,
       body: `${mode}: ${String(candidate)}. Select to inspect why, alternatives, constraints, and remediation.`,
       priority: 3,
     };

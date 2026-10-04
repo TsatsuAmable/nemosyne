@@ -216,7 +216,7 @@ export class DataOperationController {
   private _computeViaAtlas(operation: string, dataset: Dataset): Dataset {
     if (!this._atlas || !this._atlas.isReady()) {
       throw new KernelUnavailableError(
-        '[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
+        '[DataOperationController] analytical kernel unavailable - Rust/WASM is the sole analytical authority.'
       );
     }
     const spec = toAnalysisSpec(operation, dataset, this._atlas);
@@ -265,7 +265,7 @@ export class DataOperationController {
     try {
       if (!this._atlas || !this._atlas.isReady()) {
         throw new KernelUnavailableError(
-          '[DataOperationController] analytical kernel unavailable — Rust/WASM is the sole analytical authority.'
+          '[DataOperationController] analytical kernel unavailable - Rust/WASM is the sole analytical authority.'
         );
       }
       const spec = toAnalysisSpec(operation, current, this._atlas);

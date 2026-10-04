@@ -192,7 +192,7 @@ export class TelemetryPanel extends SpatialPanel {
 
   private _formatReport(report: TelemetryReport | null): string {
     if (!report || !report.enabled) {
-      return 'Telemetry is disabled.\nEnable it in Settings → Telemetry Opt-in.';
+      return 'Telemetry is disabled.\nEnable it in Settings -> Telemetry Opt-in.';
     }
 
     const { session, frames, operations, gestures, errors } = report;

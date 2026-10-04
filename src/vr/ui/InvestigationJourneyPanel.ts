@@ -214,16 +214,16 @@ export class InvestigationJourneyPanel extends SpatialPanel {
 
     this.buttons = [];
     add('refresh', 'Refresh investigation', true);
-    add('notice', '1 · Save a notice', true);
-    add('question', '2 · Ask a question', hasObservation);
+    add('notice', '1 | Save a notice', true);
+    add('question', '2 | Ask a question', hasObservation);
     add(
       'hypothesis',
-      '3 · Form a hypothesis',
+      '3 | Form a hypothesis',
       Boolean(episode && episode.validationStatus === 'UNTESTED'),
     );
     add(
       'understanding',
-      '4 · Record understanding from latest evidence',
+      '4 | Record understanding from latest evidence',
       Boolean(
         episode &&
           episode.validationStatus === 'UNDER_INVESTIGATION' &&
@@ -232,9 +232,9 @@ export class InvestigationJourneyPanel extends SpatialPanel {
       ),
     );
     const canValidate = Boolean(episode?.conclusion && !terminal(episode) && hasResult);
-    add('support', '5 · Evidence supports the hypothesis', canValidate);
-    add('refute', '5 · Evidence refutes the hypothesis', canValidate);
-    add('inconclusive', '5 · Evidence is inconclusive', canValidate);
+    add('support', '5 | Evidence supports the hypothesis', canValidate);
+    add('refute', '5 | Evidence refutes the hypothesis', canValidate);
+    add('inconclusive', '5 | Evidence is inconclusive', canValidate);
     add('return', 'Return to recorded discovery', Boolean(episode?.conclusion));
   }
 
@@ -281,7 +281,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
       onSubmit,
     };
     this.uppercase = false;
-    this.status = 'Enter text · 0/' + options.maxLength;
+    this.status = 'Enter text | 0/' + options.maxLength;
     this.registerButtons();
     this.render();
   }
@@ -329,13 +329,13 @@ export class InvestigationJourneyPanel extends SpatialPanel {
     }
     if (id === 'clear') {
       session.value = '';
-      this.status = 'Enter text · 0/' + session.maxLength;
+      this.status = 'Enter text | 0/' + session.maxLength;
       this.render();
       return;
     }
     if (id === 'backspace') {
       session.value = session.value.slice(0, -1);
-      this.status = 'Enter text · ' + session.value.length + '/' + session.maxLength;
+      this.status = 'Enter text | ' + session.value.length + '/' + session.maxLength;
       this.render();
       return;
     }
@@ -353,7 +353,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
     const raw = button.value;
     if (raw === undefined) return;
     if (session.value.length >= session.maxLength) {
-      this.status = 'Text limit reached · ' + session.maxLength + ' characters';
+      this.status = 'Text limit reached | ' + session.maxLength + ' characters';
       this.render();
       return;
     }
@@ -363,7 +363,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
       this.uppercase = false;
       this.registerTextEntryButtons();
     }
-    this.status = 'Enter text · ' + session.value.length + '/' + session.maxLength;
+    this.status = 'Enter text | ' + session.value.length + '/' + session.maxLength;
     this.render();
   }
 
@@ -404,7 +404,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
         async (note) => {
           await this.run(async () => {
             const observation = await this.journey.observe(note);
-            this.status = 'Notice saved · ' + observation.id;
+            this.status = 'Notice saved | ' + observation.id;
           });
         },
         { maxLength: TEXT_LIMITS.notice, submitLabel: 'Save notice' },
@@ -439,7 +439,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
         async (hypothesis) => {
           await this.run(async () => {
             await this.journey.hypothesise(episode.discoveryId, hypothesis);
-            this.status = 'Hypothesis saved · investigate with an analytical tool';
+            this.status = 'Hypothesis saved | investigate with an analytical tool';
           });
         },
         { maxLength: TEXT_LIMITS.hypothesis, submitLabel: 'Save hypothesis' },
@@ -464,7 +464,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
               };
               await this.run(async () => {
                 await this.journey.recordUnderstanding(input);
-                this.status = 'Understanding recorded · ready to validate';
+                this.status = 'Understanding recorded | ready to validate';
               });
             },
             {
@@ -487,10 +487,10 @@ export class InvestigationJourneyPanel extends SpatialPanel {
         await this.journey.validate(episode.discoveryId, result.resultId, outcome);
         this.status =
           outcome === 'SUPPORTS'
-            ? 'Discovery recorded · hypothesis supported'
+            ? 'Discovery recorded | hypothesis supported'
             : outcome === 'REFUTES'
-              ? 'Discovery recorded · hypothesis refuted'
-              : 'Discovery recorded · evidence inconclusive';
+              ? 'Discovery recorded | hypothesis refuted'
+              : 'Discovery recorded | evidence inconclusive';
       });
       return;
     }
@@ -498,7 +498,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
     if (id === 'return') {
       try {
         const node = this.journey.returnToDiscovery(episode.discoveryId);
-        this.status = 'Returned to discovery · ' + node.id;
+        this.status = 'Returned to discovery | ' + node.id;
       } catch (error: unknown) {
         this.status = error instanceof Error ? error.message : String(error);
       }
@@ -553,16 +553,16 @@ export class InvestigationJourneyPanel extends SpatialPanel {
     const episode = this.selectedEpisode();
     const lines = [
       'GUIDED INVESTIGATION',
-      'Next · ' + stageLabel(this.snapshotValue, episode),
+      'Next | ' + stageLabel(this.snapshotValue, episode),
       this.status,
     ];
     if (episode) {
       lines.push(
-        'Question · ' + (episode.question ?? 'not set').slice(0, 68),
-        'Status · ' + friendlyStatus(episode.validationStatus),
+        'Question | ' + (episode.question ?? 'not set').slice(0, 68),
+        'Status | ' + friendlyStatus(episode.validationStatus),
       );
     } else if (this.snapshotValue.latestObservation) {
-      lines.push('Notice · ' + this.snapshotValue.latestObservation.notes.slice(0, 68));
+      lines.push('Notice | ' + this.snapshotValue.latestObservation.notes.slice(0, 68));
     }
     return lines.join('\n');
   }

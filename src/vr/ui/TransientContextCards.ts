@@ -42,7 +42,7 @@ export class TransientContextCardManager {
     const card: TransientCard = {
       id: `card-dataset-${Date.now()}`,
       title: `Dataset Loaded: ${name}`,
-      summary: `${rowCount.toLocaleString()} rows · ${topology} topology`,
+      summary: `${rowCount.toLocaleString()} rows | ${topology} topology`,
       type: 'dataset_loaded',
       actions: [
         { id: 'inspect', label: 'Inspect Rows', isPrimary: true },

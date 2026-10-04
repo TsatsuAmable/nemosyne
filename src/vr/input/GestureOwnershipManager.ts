@@ -80,7 +80,7 @@ export class GestureOwnershipManager {
       case 'OBSERVE':
         return {
           action: 'resume_interaction',
-          hudFeedbackChip: '▶ Resume Interaction',
+          hudFeedbackChip: '> Resume Interaction',
           isSuppressed: false,
         };
     }

@@ -29,7 +29,7 @@ export function bindOperationUiProjection({
       const result = `${rowCount} rows`;
       updateOperationLog();
       updateNarrative();
-      logConsole(`Operation: ${operation} → ${result}`);
+      logConsole(`Operation: ${operation} -> ${result}`);
       recordInteraction(operation, result);
     }),
     eventBus.on(WorldTopics.HISTORY_SEEK, () => {

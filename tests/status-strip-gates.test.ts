@@ -14,7 +14,7 @@ describe('Cockpit Status & UX Acceptance Gates (Sprints 24.8, 24.9)', () => {
       controller.recordAction('COMPARE_DISTRIBUTION', 'Filter anomaly subgraphs');
 
       const formatted = controller.formatStripText();
-      expect(formatted).toBe('GRAPH / 18,420 items · MODE: INTERACT · FOCUS: COMMUNITY_7 · ACTION: COMPARE_DISTRIBUTION');
+      expect(formatted).toBe('GRAPH / 18,420 items | MODE: INTERACT | FOCUS: COMMUNITY_7 | ACTION: COMPARE_DISTRIBUTION');
       expect(SEMANTIC_PALETTE.analysis).toBeDefined();
       expect(SEMANTIC_PALETTE.accent).toBeDefined();
     });
@@ -23,6 +23,16 @@ describe('Cockpit Status & UX Acceptance Gates (Sprints 24.8, 24.9)', () => {
       const controller = new StatusStripController();
       controller.setSpotlight('cluster-mesh-node-42');
       expect(controller.spotlightEntityId).toBe('cluster-mesh-node-42');
+    });
+
+    it('truncates long identifiers with supported ASCII punctuation', () => {
+      const controller = new StatusStripController();
+      controller.setFocusTarget('A-VERY-LONG-STRUCTURE-IDENTIFIER');
+
+      expect(controller.formatInvestigationLines()[0]).toContain(
+        'FOCUS DATASET:A-VERY-LONG-STRUCTURE...'
+      );
+      expect(controller.formatInvestigationLines()[0]).not.toContain('…');
     });
   });
 

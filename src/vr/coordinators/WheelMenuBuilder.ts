@@ -210,13 +210,13 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
         },
         {
           id: 'scroll-dashboard-left',
-          label: '◀ Dash',
+          label: '< Dash',
           icon: '⬅️',
           callback: () => dashboard?.scrollBySlots(-1),
         },
         {
           id: 'scroll-dashboard-right',
-          label: 'Dash ▶',
+          label: 'Dash >',
           icon: '➡️',
           callback: () => dashboard?.scrollBySlots(1),
         },
@@ -379,7 +379,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
         {
           id: 'live-toggle',
           label: world.isLiveConnected() ? 'Stop' : 'Start',
-          icon: world.isLiveConnected() ? '⏹️' : '▶️',
+          icon: world.isLiveConnected() ? '⏹️' : '>',
           callback: () =>
             world.isLiveConnected() ? world.disconnectLiveStream() : world.connectLiveStream(),
         },
@@ -446,7 +446,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
         {
           id: 'loadtest-start',
           label: 'Start',
-          icon: '▶️',
+          icon: '>',
           callback: () => world.engine.onStartLoadTest?.(),
         },
         {
@@ -595,13 +595,13 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
         { id: 'recenter', label: 'Recenter Panels', icon: '🧲', callback: () => world.uiManager?.recenterWorkspaceSurfaces?.() },
         {
           id: 'dash-left',
-          label: '◀ Dash',
+          label: '< Dash',
           icon: '⬅️',
           callback: () => dashboard?.scrollBySlots(-1),
         },
         {
           id: 'dash-right',
-          label: 'Dash ▶',
+          label: 'Dash >',
           icon: '➡️',
           callback: () => dashboard?.scrollBySlots(1),
         },
@@ -904,7 +904,7 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
         {
           id: 'su-loadtest-start',
           label: 'Load Start',
-          icon: '▶️',
+          icon: '>',
           callback: () => world.engine.onStartLoadTest?.(),
         },
         {

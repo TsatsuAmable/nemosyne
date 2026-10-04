@@ -212,6 +212,10 @@ export class LoadTestPanel extends SpatialPanel {
     return this._lastStep;
   }
 
+  getRenderedSummary(): string {
+    return this._formatSummary();
+  }
+
   update(delta = 0): void {
     super.update(delta);
     if (!this._dirty) return;
@@ -327,7 +331,7 @@ export class LoadTestPanel extends SpatialPanel {
           step.spec.rowCount +
             ': ' +
             step.grade.toUpperCase() +
-            (step.reasons.length ? ' · ' + step.reasons.join('; ') : '')
+            (step.reasons.length ? ' | ' + step.reasons.join('; ') : '')
         );
       }
       lines.push('', this._lastSummary.verdict.recommendation);
@@ -346,35 +350,35 @@ export class LoadTestPanel extends SpatialPanel {
           this._lastSample.stepIndex +
           '/' +
           this._lastSample.totalSteps +
-          ' · ' +
+          ' | ' +
           (this._lastSample.spec.label ?? this._lastSample.spec.rowCount),
         'p50 ' +
           frame.p50Ms.toFixed(1) +
-          ' · p95 ' +
+          ' | p95 ' +
           frame.p95Ms.toFixed(1) +
-          ' · p99 ' +
+          ' | p99 ' +
           frame.p99Ms.toFixed(1) +
           ' ms',
         'FPS ' +
           frame.fpsAvg.toFixed(0) +
-          ' · dropped ' +
+          ' | dropped ' +
           frame.droppedPct.toFixed(1) +
-          '% · GC spikes ' +
+          '% | GC spikes ' +
           frame.gcSpikes,
         'draw ' +
           this._lastSample.gpu.drawCalls +
-          ' · tri ' +
+          ' | tri ' +
           this._lastSample.gpu.triangles +
-          ' · pts ' +
+          ' | pts ' +
           this._lastSample.gpu.points +
-          ' · lines ' +
+          ' | lines ' +
           this._lastSample.gpu.lines,
-        'Progress ' + progress.toFixed(0) + '% · critical frames ' + this._lastSample.criticalFrames
+        'Progress ' + progress.toFixed(0) + '% | critical frames ' + this._lastSample.criticalFrames
       );
       return lines.join('\n');
     }
 
-    lines.push('Idle · select a size or qualification profile to start.');
+    lines.push('Idle | select a size or qualification profile to start.');
     return lines.join('\n');
   }
 

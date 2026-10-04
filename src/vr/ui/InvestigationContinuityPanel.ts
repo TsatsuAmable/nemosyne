@@ -121,7 +121,7 @@ export class InvestigationContinuityPanel extends SpatialPanel {
       this.status = summary.latestCheckpoint
         ? String(summary.checkpointCount) + ' saved ' +
           (summary.checkpointCount === 1 ? 'checkpoint' : 'checkpoints') +
-          ' · latest ' + summary.latestCheckpoint.label
+          ' | latest ' + summary.latestCheckpoint.label
         : 'No checkpoints yet';
     } catch (error) {
       this.status = error instanceof Error ? error.message : String(error);
@@ -179,14 +179,14 @@ export class InvestigationContinuityPanel extends SpatialPanel {
       await this.run(async () => {
         const entry = await this.continuity.createCheckpoint();
         await this.refreshContinuity();
-        return 'Checkpoint created · ' + entry.discoveryCount + ' discoveries';
+        return 'Checkpoint created | ' + entry.discoveryCount + ' discoveries';
       });
       return;
     }
     if (id === 'restore') {
       await this.run(async () => {
         const entry = await this.continuity.restoreLatestCheckpoint();
-        return 'Checkpoint restored · ' + entry.label;
+        return 'Checkpoint restored | ' + entry.label;
       });
       return;
     }
@@ -201,14 +201,14 @@ export class InvestigationContinuityPanel extends SpatialPanel {
       await this.run(async () => {
         const bytes = await this.continuity.exportCurrent();
         downloadPackage(bytes);
-        return 'Portable investigation ready · ' + bytes.byteLength + ' bytes';
+        return 'Portable investigation ready | ' + bytes.byteLength + ' bytes';
       });
       return;
     }
     if (id === 'open') {
       const bytes = await choosePackage();
       if (!bytes) {
-        this.status = 'Open cancelled · current investigation unchanged';
+        this.status = 'Open cancelled | current investigation unchanged';
         this.render();
         return;
       }

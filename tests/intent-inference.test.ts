@@ -115,7 +115,7 @@ describe('World intent inference integration', () => {
     const logSpy = vi.spyOn(world.uiManager.vrConsole, 'log').mockImplementation(() => {});
     world.inputCoordinator.togglePauseInput();
     world.inputCoordinator.onGesture('swipeRight', { openHands: true });
-    expect(logSpy).toHaveBeenCalledWith('log', ['Input paused — gesture ignored']);
+    expect(logSpy).toHaveBeenCalledWith('log', ['Input paused - gesture ignored']);
   });
 
   it('resets view on open-hand pushForward', () => {

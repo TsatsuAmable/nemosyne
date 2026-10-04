@@ -47,7 +47,7 @@ describe('CapabilityGuidePanel', () => {
     );
     expect(summary).toContain('MENTAL MODEL');
     expect(summary).toContain(
-      'dataset → representation → structure → question → investigation → evidence'
+      'dataset -> representation -> structure -> question -> investigation -> evidence'
     );
     expect(summary).toContain(
       'A representation is a governed view of the dataset, not the dataset itself.'
@@ -69,11 +69,11 @@ describe('CapabilityGuidePanel', () => {
 
     panel.show();
     expect(panel.getRenderedSummary()).not.toContain('GLOBAL CAPABILITIES');
-    expect(panel.getRenderedSummary()).not.toContain('Navigate — No linked path');
+    expect(panel.getRenderedSummary()).not.toContain('Navigate - No linked path');
 
     panel.setCapabilityDetailsExpanded(true);
     expect(panel.getRenderedSummary()).toContain('GLOBAL CAPABILITIES');
-    expect(panel.getRenderedSummary()).toContain('Navigate — No linked path');
+    expect(panel.getRenderedSummary()).toContain('Navigate - No linked path');
     panel.dispose();
     taskSurface.dispose();
   });
@@ -92,7 +92,7 @@ describe('CapabilityGuidePanel', () => {
     const summary = panel.getRenderedSummary();
     expect(summary).toContain('Dataset loaded. Nothing selected.');
     expect(summary).toContain(
-      'NEXT: Select a structure — choose a visible dataset structure to inspect or challenge'
+      'NEXT: Select a structure - choose a visible dataset structure to inspect or challenge'
     );
     expect(summary).not.toContain('NEXT: Data Sources');
     panel.dispose();
@@ -113,7 +113,7 @@ describe('CapabilityGuidePanel', () => {
     panel.show();
     const summary = panel.getRenderedSummary();
     expect(summary).toContain('Dataset loaded. No representation is currently promoted.');
-    expect(summary).toContain('NEXT: More — Open constraints and additional context');
+    expect(summary).toContain('NEXT: More - Open constraints and additional context');
     expect(summary).not.toContain('NEXT: Select a structure');
     expect(panel.dispatchSelected('more')).toBe(true);
     expect(onMore).toHaveBeenCalledOnce();
@@ -131,7 +131,7 @@ describe('CapabilityGuidePanel', () => {
 
     panel.show();
     expect(panel.getRenderedSummary()).toContain(
-      'NEXT: Data Sources — load a dataset to begin an investigation'
+      'NEXT: Data Sources - load a dataset to begin an investigation'
     );
     panel.dispose();
     taskSurface.dispose();
@@ -148,7 +148,7 @@ describe('CapabilityGuidePanel', () => {
 
     panel.show();
     expect(panel.getRenderedSummary()).toContain(
-      'NEXT: Inspect — Inspect the selected data object'
+      'NEXT: Inspect - Inspect the selected data object'
     );
     panel.dispose();
     taskSurface.dispose();
@@ -175,7 +175,7 @@ describe('CapabilityGuidePanel', () => {
     panel.update(0.016);
     expect(refresh).toHaveBeenCalledOnce();
     expect(panel.getRenderedSummary()).toContain(
-      'NEXT: Inspect — Inspect the selected data object'
+      'NEXT: Inspect - Inspect the selected data object'
     );
     panel.dispose();
     taskSurface.dispose();
@@ -193,15 +193,16 @@ describe('CapabilityGuidePanel', () => {
     panel.show();
     expect(panel.getRenderedSummary()).toContain('Selected: row-1');
     expect(panel.getRenderedSummary()).toContain(
-      'NEXT: Inspect — Inspect the selected data object'
+      'NEXT: Inspect - Inspect the selected data object'
     );
 
     panel.setCapabilityDetailsExpanded(true);
     const summary = panel.getRenderedSummary();
-    expect(summary).toContain('Inspect — Inspect the selected data object');
-    expect(summary).toContain('Navigate — No linked path');
+    expect(summary).toContain('Inspect - Inspect the selected data object');
+    expect(summary).toContain('Navigate - No linked path');
     expect(summary).toContain('Data: Data Sources');
     expect(summary).not.toContain('What can I do here? ·');
+    expect(summary).not.toMatch(/[—−…→▶◀░]/u);
     expect(panel.visible).toBe(true);
     panel.dispose();
     taskSurface.dispose();

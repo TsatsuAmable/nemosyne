@@ -158,7 +158,7 @@ export class MonetaDiagnosticHUD extends SpatialPanel {
         flexGrow: 1,
       });
       const decrease = new Button({
-        label: '−5',
+        label: '-5',
         variant: 'danger',
         onClick: () => {
           this.adjustConstraint(constraint.name, -5);

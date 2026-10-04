@@ -259,7 +259,7 @@ export class ContextualTaskSurface extends SpatialPanel {
     this._openInspectorBudgetSlot();
 
     const identity = data?.name ?? data?.label ?? data?.id ?? nodeMesh?.name ?? 'Selected object';
-    this._selectionText.setProperties({ text: `Selected · ${String(identity).slice(0, 38)}` });
+    this._selectionText.setProperties({ text: `Selected | ${String(identity).slice(0, 38)}` });
 
     this._updateAnchorTransform();
     this._updateButtonStates();
