@@ -67,7 +67,7 @@ This replaces scriptc as the immediate Quest-browser optimization experiment. Ru
 
 | ID | Status | Dependency | Task |
 | --- | --- | --- | --- |
-| **QCA0** | **ACTIVE / BASELINE INTEGRITY** | baseline driver/qualification work in progress; physical Quest evidence still required | [Quest performance baseline](work/quest-compute/QCA0_BASELINE.md) |
+| **QCA0** | **BASELINE CAPTURED / QCA1–QCA4 OPEN** | custody-sealed Quest 3S QCA0 baseline | [Quest performance baseline](work/quest-compute/QCA0_BASELINE.md) |
 | **QCA1** | **READY AFTER QCA0** | QCA0 hotspot evidence | [Rust/WASM SIMD128](work/quest-compute/QCA1_WASM_SIMD.md) |
 | **QCA2** | **READY AFTER QCA0** | QCA0 main-thread evidence | [Worker/main-thread offload audit](work/quest-compute/QCA2_WORKER_OFFLOAD.md) |
 | **QCA3** | **BLOCKED_BY QCA2 MEASUREMENTS** | prove transfer/synchronization cost matters | [Transferable buffers, memory and WASM threads](work/quest-compute/QCA3_TRANSPORT_THREADS.md) |

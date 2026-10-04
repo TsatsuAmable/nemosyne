@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { resolveGovernedQuestPerformanceProfile } from '../src/app/devEvidence.ts';
+import { QCA0_ROW_ADDRESSABLE_KNEE_PROFILE } from '../src/vr/scalability/LoadTestDriver.ts';
 import { ValidationOperatorPanel } from '../src/vr/ui/ValidationOperatorPanel.ts';
 import { SpatialPanel } from '../src/vr/ui-system/SpatialPanel.ts';
 import {
@@ -96,14 +97,23 @@ function panelFor(mode: ValidationMode = 'quest-perf') {
 }
 
 describe('governed Quest performance profile dispatch', () => {
+  it('returns the exact governed QCA0 profile object', () => {
+    expect(resolveGovernedQuestPerformanceProfile('qca0-row-addressable-knee-v1')).toBe(
+      QCA0_ROW_ADDRESSABLE_KNEE_PROFILE
+    );
+  });
+
   it('maps each manifest profile to the same production profile and rejects unknown values', () => {
     for (const name of [
       'quest-3s-qualification',
       'uxr0-functional-5m',
       'uxr0-resource-trend-30m',
       'uxr0-sustained-60m',
+      'qca0-row-addressable-knee-v1',
     ]) {
-      expect(resolveGovernedQuestPerformanceProfile(name).name).toBe(name);
+      const profile = resolveGovernedQuestPerformanceProfile(name);
+      expect(profile.name).toBe(name);
+      expect(profile.deviceTarget).toBe('META_QUEST_3S');
     }
     expect(() => resolveGovernedQuestPerformanceProfile('uxr0-invented')).toThrow(/unsupported/i);
   });
@@ -129,6 +139,21 @@ describe('ValidationOperatorPanel governed semantic dispatch', () => {
     expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
     expect(panel.getActionState('run-performance')?.label).toBe('CONFIRM PERF');
+
+    expect(panel.dispatchAction('run-performance')).toBe(true);
+    expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);
+    panel.dispose();
+  });
+
+  it('requires QCA0-specific arm and confirmation before the diagnostic starts', () => {
+    const { panel, callbacks } = panelFor('quest-qca0');
+    panel.setServerStatus(status('quest-qca0'));
+    panel.update();
+
+    expect(panel.getActionState('run-performance')?.label).toBe('ARM QCA0');
+    expect(panel.dispatchAction('run-performance')).toBe(true);
+    expect(callbacks.onStartPerformance).not.toHaveBeenCalled();
+    expect(panel.getActionState('run-performance')?.label).toBe('CONFIRM QCA0');
 
     expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);

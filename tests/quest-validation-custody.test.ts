@@ -7,6 +7,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,14 +17,17 @@ import {
   deriveValidationManifest,
   type QuestDeviceIdentity,
   type ValidationManifest,
+  type ValidationMode,
 } from '../src/validation/validation-manifest.ts';
 import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.ts';
 import { QUEST_PERF_STEP_POLICY } from '../dev/validation-adjudication.ts';
 import {
   finalizeValidationSession,
   getValidationFinalizationStatus,
+  scanValidationCohort,
   verifyFinalizedCustody,
 } from '../dev/validation-finalizer.ts';
+import { makeQca0Report } from './helpers/qca0Report.ts';
 import {
   createValidationFinalizationHandler,
   VALIDATION_FINALIZATION_STATUS_ENDPOINT,
@@ -63,16 +67,34 @@ function device(): QuestDeviceIdentity {
   };
 }
 
-function manifest(): ValidationManifest {
+function manifest(mode: ValidationMode = 'quest-perf'): ValidationManifest {
   return deriveValidationManifest({
     sessionId: SESSION.id,
     sessionLabel: SESSION.label,
     buildId: BUILD,
     worktree: 'clean',
-    mode: 'quest-perf',
+    mode,
     createdAt: '2026-09-05T09:00:00.000Z',
     deviceIdentity: device(),
   });
+}
+
+function writeRawQca0Session(root: string, report?: unknown) {
+  const value = manifest('quest-qca0');
+  const validationRoot = join(root, 'logs', 'validation');
+  const evidenceDir = join(validationRoot, value.sessionLabel);
+  mkdirSync(evidenceDir, { recursive: true });
+  writeFileSync(join(evidenceDir, 'manifest.json'), `${JSON.stringify(value, null, 2)}\n`);
+  writeFileSync(join(evidenceDir, 'analysis.json'), `${JSON.stringify({ status: 'pending' })}\n`);
+  writeFileSync(
+    join(evidenceDir, 'disposition.json'),
+    `${JSON.stringify({ gateDisposition: { status: null, reasons: [] } })}\n`
+  );
+  writeFileSync(
+    join(evidenceDir, 'loadtest-results.jsonl'),
+    `${JSON.stringify(report ?? makeQca0Report(value))}\n`
+  );
+  return { validationRoot, evidenceDir, value };
 }
 
 function greenReport(value: ValidationManifest) {
@@ -170,6 +192,162 @@ function fakeRequest(method: string, url: string): IncomingMessage {
 }
 
 describe('QV4 evidence finalization and custody', () => {
+  it('custody-seals a valid QCA0 diagnostic without minting a gate result', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    const result = finalizeValidationSession({
+      validationLogRoot: validationRoot,
+      sessionLabel: value.sessionLabel,
+      now: () => new Date('2026-09-05T09:30:00.000Z'),
+    });
+    expect(result).toMatchObject({ status: 'finalized', aggregateStatus: 'PARTIAL' });
+    expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
+
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    const disposition = JSON.parse(readFileSync(join(evidenceDir, 'disposition.json'), 'utf8'));
+    expect(analysis).toMatchObject({
+      captureStatus: 'VALID_CAPTURE',
+      qca0Analysis: { captureStatus: 'VALID_CAPTURE', kneeRowCount: null },
+      gateResults: [],
+    });
+    expect(disposition).toMatchObject({
+      captureStatus: 'VALID_CAPTURE',
+      qca0Analysis: { captureStatus: 'VALID_CAPTURE', kneeRowCount: null },
+      gates: [],
+    });
+    expect(readFileSync(join(evidenceDir, 'report.md'), 'utf8')).toMatch(
+      /Capture status:\*\* `VALID_CAPTURE`/
+    );
+    expect(scanValidationCohort(validationRoot, value)).toMatchObject({
+      perfCompletedRunCount: 0,
+      perfPassingRunCount: 0,
+    });
+  });
+
+  it('custody-seals invalid QCA0 evidence as INVALID_RUN without emitting a knee', () => {
+    const root = tempRoot();
+    const value = manifest('quest-qca0');
+    const report = makeQca0Report(value);
+    report.aborted = true;
+    const { validationRoot, evidenceDir } = writeRawQca0Session(root, report);
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.captureStatus).toBe('INVALID_RUN');
+    expect(analysis.qca0Analysis.kneeRowCount).toBeNull();
+    expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
+  });
+
+  it('custody-seals a valid QCA0 line plus a truncated terminal line as INVALID_RUN', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    appendFileSync(join(evidenceDir, 'loadtest-results.jsonl'), '{"profileName":"truncated"');
+
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.captureStatus).toBe('INVALID_RUN');
+    expect(analysis.validationErrors.join(' ')).toMatch(/one object|exactly one|terminal reports/i);
+    expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
+  });
+
+  it.each([
+    ['JSON null', 'null\n'],
+    ['a malformed-only terminal', '{"profileName":"truncated"'],
+  ])('custody-seals %s as INVALID_RUN', (_name, terminal) => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    writeFileSync(join(evidenceDir, 'loadtest-results.jsonl'), terminal);
+
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    const analysis = JSON.parse(readFileSync(join(evidenceDir, 'analysis.json'), 'utf8'));
+    expect(analysis.captureStatus).toBe('INVALID_RUN');
+    expect(verifyFinalizedCustody(evidenceDir).ok).toBe(true);
+  });
+
+  it('does not reseal a completed bundle whose custody record is corrupt', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    writeFileSync(join(evidenceDir, 'custody.json'), '{"state":"broken"}\n');
+
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      })
+    ).toMatchObject({ status: 'tamper-detected' });
+    expect(readFileSync(join(evidenceDir, 'custody.json'), 'utf8')).toContain('broken');
+  });
+
+  it.each(['evidence-index.json', 'analysis.json'])(
+    'does not reseal after custody and %s are both removed',
+    (additionalMissingArtifact) => {
+      const root = tempRoot();
+      const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+      expect(
+        finalizeValidationSession({
+          validationLogRoot: validationRoot,
+          sessionLabel: value.sessionLabel,
+        }).status
+      ).toBe('finalized');
+      unlinkSync(join(evidenceDir, 'custody.json'));
+      unlinkSync(join(evidenceDir, additionalMissingArtifact));
+
+      expect(getValidationFinalizationStatus(evidenceDir)).toMatchObject({
+        state: 'tamper-detected',
+      });
+      expect(
+        finalizeValidationSession({
+          validationLogRoot: validationRoot,
+          sessionLabel: value.sessionLabel,
+        })
+      ).toMatchObject({ status: 'tamper-detected' });
+      expect(existsSync(join(evidenceDir, 'custody.json'))).toBe(false);
+    }
+  );
+
+  it('treats a removed custody record from a completed bundle as tamper detection', () => {
+    const root = tempRoot();
+    const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    unlinkSync(join(evidenceDir, 'custody.json'));
+    expect(getValidationFinalizationStatus(evidenceDir)).toMatchObject({
+      state: 'tamper-detected',
+      gateDisposition: 'PARTIAL',
+    });
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: value.sessionLabel,
+      })
+    ).toMatchObject({ status: 'tamper-detected' });
+    expect(existsSync(join(evidenceDir, 'custody.json'))).toBe(false);
+  });
+
   it('freezes raw evidence before adjudication and emits a verifiable complete bundle', () => {
     const root = tempRoot();
     const { validationRoot, evidenceDir } = writeRawSession(root);

@@ -26,6 +26,7 @@ import { QUEST_PERF_STEP_POLICY } from '../dev/validation-adjudication.ts';
 import { finalizeValidationSession, verifyFinalizedCustody } from '../dev/validation-finalizer.ts';
 import { computeQualificationProgress } from '../dev/loadtest-server.ts';
 import { recordValidationPrerequisite } from '../scripts/quest-validation-prerequisite.mjs';
+import { makeQca0Report } from './helpers/qca0Report.ts';
 
 const BUILD = '4d54a76c49ebb57ae8cac5a5166fe8a3dfd7c318';
 const PUBLISH_VALIDATION_SCRIPT = join(process.cwd(), 'scripts', 'publish-validation-docs.mjs');
@@ -272,6 +273,35 @@ describe('QV lifecycle fidelity', () => {
 });
 
 describe('QV cohort and ledger fidelity', () => {
+  it('keeps a finalized QCA0 diagnostic outside the PERF qualification cohort', () => {
+    const root = tempRoot();
+    const validationRoot = join(root, 'logs', 'validation');
+    const active = manifest(
+      'quest-perf',
+      'PERF04-4d54a76-20260905T090900',
+      '5f2504e0-4f89-41d3-9a0c-0305e82c3310'
+    );
+    writePerfEvidence(root, active);
+    const qca = manifest(
+      'quest-qca0',
+      'questqca0-4d54a76-20260905T090800',
+      '5f2504e0-4f89-41d3-9a0c-0305e82c3311'
+    );
+    const qcaDir = writeManifest(root, qca);
+    writeFileSync(
+      join(qcaDir, 'loadtest-results.jsonl'),
+      `${JSON.stringify(makeQca0Report(qca))}\n`,
+      'utf8'
+    );
+    expect(
+      finalizeValidationSession({
+        validationLogRoot: validationRoot,
+        sessionLabel: qca.sessionLabel,
+      }).status
+    ).toBe('finalized');
+    expect(computeQualificationProgress(validationRoot, active)?.renderCompleted).toBe(1);
+  });
+
   it('projects the same unique custody-verified cohort used by adjudication', () => {
     const root = tempRoot();
     const validationRoot = join(root, 'logs', 'validation');

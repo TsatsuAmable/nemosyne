@@ -131,6 +131,12 @@ export interface AnalyticalExecutionResult<T = unknown> {
   readonly provenance?: Provenance | null;
   readonly error?: string;
   /**
+   * Machine-readable worker boundary classification. A missing worker-local
+   * registration is recoverable by re-registering the exact identity and must
+   * not be promoted into failure of an independent main-thread WASM runtime.
+   */
+  readonly errorCode?: 'DATASET_NOT_REGISTERED';
+  /**
    * RF-030: kernel-inline TDA resource refusal surfaced from the worker. When
    * present, the typed {@link UnsupportedAtScaleError} is reconstructed at the
    * port boundary and durably recorded before the request rejects. Mutually

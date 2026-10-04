@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   MANIFEST_SCHEMA_VERSION,
+  QCA0_PROFILE_NAME,
   QUEST_PERFORMANCE_PROFILES,
   VALIDATION_MODE_TABLE,
   deriveValidationManifest,
@@ -162,6 +163,21 @@ describe('QV0 validation manifest schema', () => {
 });
 
 describe('QV1 mode/gate/profile/evidence/runtime mapping', () => {
+  it('binds quest-qca0 to one fixed no-gate governed diagnostic profile', () => {
+    const manifest = deriveValidationManifest(baseInput({ mode: 'quest-qca0' }));
+    expect(manifest.gates).toEqual([]);
+    expect(manifest.profile).toBe('qca0-row-addressable-knee-v1');
+    expect(manifest.profile).toBe(QCA0_PROFILE_NAME);
+    expect(manifest.evidenceClass).toBe('governed-physical-validation');
+    expect(manifest.runtimeClass).toBe('vite-dev');
+    expect(VALIDATION_MODE_TABLE['quest-qca0'].wasmRequired).toBe(true);
+    expect(() =>
+      deriveValidationManifest(
+        baseInput({ mode: 'quest-qca0', profileOverride: 'quest-3s-qualification' })
+      )
+    ).toThrow(/does not accept a profile override/i);
+  });
+
   it('maps quest-perf to PERF-04/PERF-05 and the quest-3s-qualification profile', () => {
     const manifest = deriveValidationManifest(baseInput({ mode: 'quest-perf' }));
     expect(manifest.gates).toEqual(['PERF-04', 'PERF-05']);
@@ -402,6 +418,7 @@ describe('QV1 npm script surface', () => {
     const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'));
     expect(pkg.scripts['dev:quest']).toBe('node scripts/quest-validation.mjs quest');
     expect(pkg.scripts['dev:quest:perf']).toBe('node scripts/quest-validation.mjs quest-perf');
+    expect(pkg.scripts['dev:quest:qca0']).toBe('node scripts/quest-validation.mjs quest-qca0');
     expect(pkg.scripts['dev:quest:ux']).toBe('node scripts/quest-validation.mjs quest-ux');
     expect(pkg.scripts['dev:quest:10m']).toBe('node scripts/quest-validation.mjs quest-10m');
     expect(pkg.scripts['dev:quest:validate']).toBe(

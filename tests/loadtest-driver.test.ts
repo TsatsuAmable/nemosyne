@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   LoadTestDriver,
   DEFAULT_LOAD_TEST_PROFILE,
+  QCA0_ROW_ADDRESSABLE_KNEE_PROFILE,
   QUEST_3S_QUALIFICATION_PROFILE,
   UXR0_FUNCTIONAL_5M_PROFILE,
   UXR0_RESOURCE_TREND_30M_PROFILE,
@@ -39,10 +40,12 @@ function makeWorld(
   tracker: { count: number; entries: unknown[] },
   events: { topic: string; payload?: unknown }[]
 ): LoadTestWorldLike {
-  return {
+  const world: LoadTestWorldLike = {
+    currentEntry: null,
     loadDataset(entry) {
       tracker.count++;
       tracker.entries.push(entry);
+      world.currentEntry = entry;
     },
     getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
     eventBus: {
@@ -51,11 +54,45 @@ function makeWorld(
       },
     },
   };
+  return world;
 }
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('LoadTestDriver state machine', () => {
+  it('freezes the governed QCA0 row-addressable scale-knee profile', () => {
+    expect(QCA0_ROW_ADDRESSABLE_KNEE_PROFILE).toMatchObject({
+      name: 'qca0-row-addressable-knee-v1',
+      deviceTarget: 'META_QUEST_3S',
+      representationControl: 'ROW_ADDRESSABLE_FALLBACK',
+      settleSec: 5,
+    });
+    expect(QCA0_ROW_ADDRESSABLE_KNEE_PROFILE.steps).toEqual([
+      {
+        topology: 'TABULAR',
+        rowCount: 1_000,
+        durationSec: 10,
+        label: 'cold-start warmup (ungraded)',
+        warmup: true,
+      },
+      { topology: 'TABULAR', rowCount: 1_000, durationSec: 15, label: '1k baseline' },
+      { topology: 'TABULAR', rowCount: 8_000, durationSec: 15, label: '8k' },
+      { topology: 'TABULAR', rowCount: 32_000, durationSec: 15, label: '32k' },
+      { topology: 'TABULAR', rowCount: 65_000, durationSec: 15, label: '65k' },
+      { topology: 'TABULAR', rowCount: 100_000, durationSec: 30, label: '100k control' },
+    ]);
+  });
+
   it('freezes UXR0 5m/30m/60m same-scale observation profiles without changing legacy profiles', () => {
     const profiles = [
       UXR0_FUNCTIONAL_5M_PROFILE,
@@ -68,10 +105,13 @@ describe('LoadTestDriver state machine', () => {
       expect(profile.steps[0].warmup).toBe(true);
       expect(profile.steps[0].rowCount).toBe(profile.steps[1].rowCount);
       expect(profile.steps[0].topology).toBe(profile.steps[1].topology);
+      expect(profile.deviceTarget).toBe('META_QUEST_3S');
     }
     expect(QUEST_3S_QUALIFICATION_PROFILE.name).toBe('quest-3s-qualification');
     expect(createUxr0QualificationProfile('functional-5m', 8_000).steps[1].rowCount).toBe(8_000);
-    expect(() => createUxr0QualificationProfile('functional-5m', 0)).toThrow(/positive safe integer/);
+    expect(() => createUxr0QualificationProfile('functional-5m', 0)).toThrow(
+      /positive safe integer/
+    );
   });
 
   it('transitions IDLE → SETTLING → MEASURING → COMPLETE across the staircase', async () => {
@@ -200,9 +240,226 @@ describe('LoadTestDriver state machine', () => {
     const summary = events.find((e) => e.topic === WorldTopics.LOADTEST_COMPLETE)!.payload as {
       aborted: boolean;
       steps: unknown[];
+      verdict: {
+        grades: unknown[];
+        jsPathSufficientTo: number | null;
+        commandBufferWarrantedAt: number | null;
+      };
     };
     expect(summary.aborted).toBe(true);
     expect(summary.steps.length).toBe(1);
+    expect(summary.verdict.grades).toEqual([]);
+    expect(summary.verdict.jsPathSufficientTo).toBeNull();
+    expect(summary.verdict.commandBufferWarrantedAt).toBeNull();
+  });
+
+  it('keeps the production load in LOADING until its promise resolves and measures completion', async () => {
+    const load = deferred();
+    const events: { topic: string; payload?: unknown }[] = [];
+    const world: LoadTestWorldLike = {
+      currentEntry: null,
+      loadDataset: vi.fn((entry) =>
+        load.promise.then(() => {
+          world.currentEntry = entry;
+        })
+      ),
+      getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
+      eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
+    };
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'async-load',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 0 }],
+    });
+
+    expect(driver.phase).toBe('LOADING');
+    driver.update(0.016, 0);
+    expect(driver.phase).toBe('LOADING');
+
+    await wait(20);
+    load.resolve();
+    await load.promise;
+    await Promise.resolve();
+
+    expect(driver.phase).toBe('SETTLING');
+    driver.update(0.016, 0);
+    driver.update(0.016, 0);
+
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
+      .payload as { steps: { loadDurationMs: number }[] };
+    expect(summary.steps).toHaveLength(1);
+    expect(summary.steps[0].loadDurationMs).toBeGreaterThanOrEqual(15);
+  });
+
+  it('fails closed when the production load promise rejects', async () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    const world: LoadTestWorldLike = {
+      currentEntry: null,
+      loadDataset: () => Promise.reject(new Error('representation build failed')),
+      eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
+    };
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'rejected-load',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 1 }],
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(driver.phase).toBe('COMPLETE');
+    const summaries = events.filter((event) => event.topic === WorldTopics.LOADTEST_COMPLETE);
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].payload).toMatchObject({
+      aborted: true,
+      failure: { phase: 'dataset-load', message: 'representation build failed' },
+      steps: [],
+      verdict: {
+        commandBufferWarrantedAt: null,
+        jsPathSufficientTo: null,
+        recommendation: expect.stringMatching(/no recommendation.*aborted/i),
+      },
+    });
+  });
+
+  it('clears prior qualification fields when a later production load rejects', async () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    let loadCount = 0;
+    const world = makeWorld({ count: 0, entries: [] }, events);
+    world.loadDataset = (entry) => {
+      loadCount += 1;
+      if (loadCount === 2) return Promise.reject(new Error('second load failed'));
+      world.currentEntry = entry;
+    };
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'later-rejection',
+      settleSec: 0,
+      steps: [
+        { topology: 'TABULAR', rowCount: 10, durationSec: 0 },
+        { topology: 'TABULAR', rowCount: 20, durationSec: 1 },
+      ],
+    });
+    driver.update(0.016, 0);
+    driver.update(0.016, 0);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
+      .payload as {
+      aborted: boolean;
+      steps: unknown[];
+      verdict: {
+        grades: unknown[];
+        jsPathSufficientTo: number | null;
+        commandBufferWarrantedAt: number | null;
+      };
+    };
+    expect(summary.aborted).toBe(true);
+    expect(summary.steps).toHaveLength(1);
+    expect(summary.verdict.grades).toEqual([]);
+    expect(summary.verdict.jsPathSufficientTo).toBeNull();
+    expect(summary.verdict.commandBufferWarrantedAt).toBeNull();
+  });
+
+  it.each(['stop', 'dispose'] as const)(
+    '%s fences a late production-load completion from resurrecting the run',
+    async (termination) => {
+      const load = deferred();
+      const events: { topic: string; payload?: unknown }[] = [];
+      const world: LoadTestWorldLike = {
+        currentEntry: null,
+        loadDataset: () => load.promise,
+        eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
+      };
+      const driver = new LoadTestDriver(world, makeEngine(8));
+      driver.run({
+        name: `late-${termination}`,
+        settleSec: 0,
+        steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 1 }],
+      });
+
+      expect(driver.phase).toBe('LOADING');
+      driver[termination]();
+      expect(driver.phase).toBe('COMPLETE');
+
+      load.resolve();
+      await load.promise;
+      await Promise.resolve();
+      driver.update(0.016, 0);
+
+      expect(driver.phase).toBe('COMPLETE');
+      expect(events.filter((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)).toHaveLength(
+        1
+      );
+      expect(
+        events.filter(
+          (event) =>
+            event.topic === WorldTopics.LOADTEST_STEP &&
+            (event.payload as { phase?: string })?.phase === 'SETTLING'
+        )
+      ).toHaveLength(0);
+    }
+  );
+
+  it('fails closed when another dataset replaces the measured stress entry', () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    const world = makeWorld({ count: 0, entries: [] }, events);
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'mid-measure-supersession',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 60 }],
+    });
+    driver.update(0.016, 0);
+    expect(driver.phase).toBe('MEASURING');
+
+    world.currentEntry = { key: 'external', name: 'External dataset' };
+    driver.update(0.016, 0);
+
+    expect(driver.phase).toBe('COMPLETE');
+    const summary = events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)!
+      .payload as {
+      aborted: boolean;
+      failure: { phase: string; message: string } | null;
+      steps: { reasons: string[] }[];
+    };
+    expect(summary).toMatchObject({
+      aborted: true,
+      failure: { phase: 'dataset-load', message: expect.stringMatching(/replaced/i) },
+    });
+    expect(summary.steps).toHaveLength(1);
+    expect(summary.steps[0].reasons[0]).toBe('step aborted early');
+  });
+
+  it('does not restore over an external dataset when stopped before replacement is polled', () => {
+    const events: { topic: string; payload?: unknown }[] = [];
+    const tracker = { count: 0, entries: [] as unknown[] };
+    const world = makeWorld(tracker, events);
+    const preRunEntry = { key: 'before', name: 'Before' };
+    const externalEntry = { key: 'external', name: 'External' };
+    world.currentEntry = preRunEntry;
+    const driver = new LoadTestDriver(world, makeEngine(8));
+    driver.run({
+      name: 'settling-stop-supersession',
+      settleSec: 60,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 60 }],
+    });
+    expect(driver.phase).toBe('SETTLING');
+
+    world.currentEntry = externalEntry;
+    driver.stop();
+
+    expect(world.currentEntry).toBe(externalEntry);
+    expect(tracker.entries).not.toContain(preRunEntry);
+    expect(
+      events.find((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)?.payload
+    ).toMatchObject({
+      aborted: true,
+      failure: { phase: 'dataset-load', message: expect.stringMatching(/replaced/i) },
+    });
   });
 
   it('default profile is the documented warmup + 1k→250k TABULAR staircase', () => {
@@ -324,7 +581,8 @@ describe('LoadTestDriver state machine', () => {
     const preRunEntry = { key: 'supply-chain', name: 'Supply Chain Hierarchy' };
     const tracker = { count: 0, entries: [] as unknown[] };
     const events: { topic: string; payload?: unknown }[] = [];
-    const world = { ...makeWorld(tracker, events), currentEntry: preRunEntry };
+    const world = makeWorld(tracker, events);
+    world.currentEntry = preRunEntry;
     const driver = new LoadTestDriver(world, makeEngine(8));
 
     driver.run(profile);
@@ -335,6 +593,48 @@ describe('LoadTestDriver state machine', () => {
     expect(driver.phase).toBe('COMPLETE');
     expect(tracker.count).toBe(2);
     expect(tracker.entries[tracker.entries.length - 1]).toBe(preRunEntry);
+  });
+
+  it('contains an asynchronous pre-run dataset restore failure', async () => {
+    const profile: LoadTestProfile = {
+      name: 'restore-rejection',
+      settleSec: 0,
+      steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 0 }],
+    };
+    const preRunEntry = { key: 'supply-chain', name: 'Supply Chain Hierarchy' };
+    const events: { topic: string; payload?: unknown }[] = [];
+    const restoreError = new Error('restore failed');
+    const report = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let loadCount = 0;
+    const world: LoadTestWorldLike = {
+      currentEntry: preRunEntry,
+      loadDataset: (entry) => {
+        loadCount += 1;
+        if (loadCount === 1) {
+          world.currentEntry = entry;
+          return Promise.resolve();
+        }
+        return Promise.reject(restoreError);
+      },
+      getActiveSpecInfo: () => ({ geometry: 'point', layout: 'grid' }),
+      eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
+    };
+    const driver = new LoadTestDriver(world, makeEngine(8));
+
+    driver.run(profile);
+    await Promise.resolve();
+    await Promise.resolve();
+    driver.update(0.016, 0);
+    driver.update(0.016, 0);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(driver.phase).toBe('COMPLETE');
+    expect(events.filter((event) => event.topic === WorldTopics.LOADTEST_COMPLETE)).toHaveLength(1);
+    expect(report).toHaveBeenCalledWith(
+      '[LoadTestDriver] pre-run dataset restore failed:',
+      restoreError
+    );
   });
 
   it('skips the restore when no dataset was active before the run', async () => {

@@ -98,7 +98,9 @@ function executeMessages(transport: { postedMessages: unknown[] }): AnalyticalEx
     .map((message) => (message as { request: AnalyticalExecutionRequest }).request);
 }
 
-function registerMessages(transport: { postedMessages: unknown[] }): AnalyticalDatasetRegistration[] {
+function registerMessages(transport: {
+  postedMessages: unknown[];
+}): AnalyticalDatasetRegistration[] {
   return transport.postedMessages
     .filter((message) => (message as { type?: string }).type === 'REGISTER')
     .map((message) => (message as { registration: AnalyticalDatasetRegistration }).registration);
@@ -194,11 +196,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const port = atlas.executionPort!;
     const supersedeSpy = vi.spyOn(port, 'supersede');
 
-    const ds = new Dataset(
-      'TestDS',
-      [{ name: 'x', type: ColumnType.NUMERIC }],
-      [{ x: 1 }]
-    );
+    const ds = new Dataset('TestDS', [{ name: 'x', type: ColumnType.NUMERIC }], [{ x: 1 }]);
     atlas.loadDataset(ds);
 
     expect(supersedeSpy).toHaveBeenCalled();
@@ -257,6 +255,50 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     expect(failureSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('B5d: worker-local residency loss revokes the cache without invalidating the main runtime', async () => {
+    const transport = createMockWorkerTransport();
+    const failureSpy = vi.fn();
+    const port = new WorkerAnalyticalPort(transport, failureSpy);
+    const registration: AnalyticalDatasetRegistration = {
+      registrationId: 'reg-residency-loss',
+      dataset: { fingerprint: 'fp_residency', version: 4 },
+      generation: 2,
+      payload: {
+        type: 'json',
+        data: { name: 'residency', columns: [], rows: [] },
+      },
+    };
+    await port.registerDataset(registration);
+    expect(port.hasRegisteredDataset(2, 'fp_residency')).toBe(true);
+
+    const req: AnalyticalExecutionRequest = {
+      requestId: 'areq-residency-loss',
+      operation: 'statistics',
+      dataset: { fingerprint: 'fp_residency', version: 4 },
+      generation: 2,
+      params: {},
+    };
+    const pending = port.execute(req);
+    const rejection = expect(pending).rejects.toBeInstanceOf(KernelUnavailableError);
+    transport.simulateResult({
+      requestId: req.requestId,
+      generation: req.generation,
+      datasetVersion: req.dataset.version,
+      datasetFingerprint: req.dataset.fingerprint,
+      value: null,
+      error: 'Worker dataset fp_residency is not registered',
+      errorCode: 'DATASET_NOT_REGISTERED',
+    });
+
+    await rejection;
+    expect(failureSpy).not.toHaveBeenCalled();
+    expect(port.hasRegisteredDataset(2, 'fp_residency')).toBe(false);
+
+    await port.registerDataset({ ...registration, registrationId: 'reg-residency-recovery' });
+    expect(registerMessages(transport)).toHaveLength(2);
+    expect(port.hasRegisteredDataset(2, 'fp_residency')).toBe(true);
+  });
+
   it('B5c: malformed worker messages terminate the port', async () => {
     const transport = createMockWorkerTransport();
     const failureSpy = vi.fn();
@@ -284,11 +326,15 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
       val1: i * 2,
       val2: 100 - i * 3,
     }));
-    const dataset = new Dataset('ParityDS', [
-      { name: 'id', type: ColumnType.CATEGORICAL },
-      { name: 'val1', type: ColumnType.NUMERIC },
-      { name: 'val2', type: ColumnType.NUMERIC },
-    ], rows);
+    const dataset = new Dataset(
+      'ParityDS',
+      [
+        { name: 'id', type: ColumnType.CATEGORICAL },
+        { name: 'val1', type: ColumnType.NUMERIC },
+        { name: 'val2', type: ColumnType.NUMERIC },
+      ],
+      rows
+    );
 
     atlas.loadDataset(dataset);
     expect(atlas.executionPort?.isAsync).toBe(false);
@@ -339,11 +385,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const port = new InlineAnalyticalPort(kernel as any);
     expect(port.isAsync).toBe(false);
 
-    const ds = new Dataset(
-      'InlineDS',
-      [{ name: 'val', type: ColumnType.NUMERIC }],
-      [{ val: 10 }]
-    );
+    const ds = new Dataset('InlineDS', [{ name: 'val', type: ColumnType.NUMERIC }], [{ val: 10 }]);
     const res = await port.execute({
       requestId: 'areq-inline-1',
       operation: 'statistics',
@@ -415,7 +457,10 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const inputFingerprint = atlas.datasetFingerprint ?? '';
 
     const promise = atlas.applyAnalysisAsync({
-      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 } },
+      operation: {
+        op: 'filter',
+        predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 },
+      },
       datasetFingerprint: inputFingerprint,
       datasetVersion: atlas.datasetVersion,
       algorithmVersion: '1.0.0',
@@ -430,7 +475,11 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     };
     expect(lastMsg.request.operation).toBe('operation');
 
-    const outDS = new Dataset('FilteredDS', [{ name: 'val', type: ColumnType.NUMERIC }], [{ val: 20 }]);
+    const outDS = new Dataset(
+      'FilteredDS',
+      [{ name: 'val', type: ColumnType.NUMERIC }],
+      [{ val: 20 }]
+    );
     transport.simulateResult({
       requestId: lastMsg.request.requestId,
       generation: 1,
@@ -460,7 +509,10 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const inputFingerprint = atlas.datasetFingerprint ?? '';
 
     const promise = atlas.applyAnalysisAsync({
-      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 0 } },
+      operation: {
+        op: 'filter',
+        predicate: { type: 'comparison', column: 'val', op: 'gt', value: 0 },
+      },
       datasetFingerprint: inputFingerprint,
       datasetVersion: atlas.datasetVersion,
       algorithmVersion: '1.0.0',
@@ -486,11 +538,7 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const atlas = new AtlasCore({ kernel: kernel as any });
     atlas.setExecutionPort(port);
     atlas.loadDataset(
-      new Dataset(
-        'ConcurrentTDA',
-        [{ name: 'x', type: ColumnType.NUMERIC }],
-        [{ x: 1 }, { x: 2 }]
-      )
+      new Dataset('ConcurrentTDA', [{ name: 'x', type: ColumnType.NUMERIC }], [{ x: 1 }, { x: 2 }])
     );
 
     const p = atlas.computePersistenceIntervalsAsync({ featureColumns: ['x'] });
@@ -545,7 +593,9 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const registrations = registerMessages(transport);
     expect(registrations[0].dataset.fingerprint).toBe(fingerprint);
     expect(registrations[0].payload.type).toBe('typed');
-    expect(Array.from(registrations[0].payload.data as Uint8Array)).toEqual(Array.from(typedPayload));
+    expect(Array.from(registrations[0].payload.data as Uint8Array)).toEqual(
+      Array.from(typedPayload)
+    );
 
     const request = executeMessages(transport).at(-1)!;
     expect(request.handle).toBeUndefined();
@@ -576,7 +626,10 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
     const inputFingerprint = atlas.datasetFingerprint ?? '';
 
     const promise = atlas.applyAnalysisAsync({
-      operation: { op: 'filter', predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 } },
+      operation: {
+        op: 'filter',
+        predicate: { type: 'comparison', column: 'val', op: 'gt', value: 15 },
+      },
       datasetFingerprint: inputFingerprint,
       datasetVersion: atlas.datasetVersion,
       algorithmVersion: '1.0.0',

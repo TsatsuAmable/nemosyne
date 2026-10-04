@@ -12,10 +12,7 @@ import { resolveDatasetCycleCursor } from './dataset/DatasetCycleCursor.ts';
 import { SemanticDetailTransition } from './dataset/SemanticDetailTransition.ts';
 import { mountSemanticDetailReturnControl } from './dataset/SemanticDetailReturnControl.ts';
 import { mountSemanticDatumInspector } from './dataset/SemanticDatumInspector.ts';
-import {
-  setupDevTraceRecorder,
-  type DevTraceBindings,
-} from './devTrace.ts';
+import { setupDevTraceRecorder, type DevTraceBindings } from './devTrace.ts';
 import { assessAnalystRepresentation } from './AnalystRepresentationAssessment.ts';
 import {
   mountInvestigationShell,
@@ -26,16 +23,12 @@ import {
   mountDesktopSelectionTaskRail,
   type DesktopSelectionTaskActions,
 } from './DesktopSelectionTaskRail.ts';
-import {
-  DiscoveryReasoningService,
-} from './investigation/DiscoveryReasoningService.ts';
+import { DiscoveryReasoningService } from './investigation/DiscoveryReasoningService.ts';
 import {
   mountDesktopReasoningRail,
   type DesktopReasoningRailActions,
 } from './investigation/DesktopReasoningRail.ts';
-import {
-  RepresentationReviewService,
-} from './investigation/RepresentationReviewService.ts';
+import { RepresentationReviewService } from './investigation/RepresentationReviewService.ts';
 import {
   mountDesktopReviewRecoveryRail,
   type DesktopReviewRecoveryActions,
@@ -79,7 +72,7 @@ function synchronizeDatasetCycleCursor(world: World, step: number): void {
       label: world.currentEntry?.label,
       datasetName: world.currentEntry?.dataset?.name ?? world.atlas.dataset?.name ?? null,
     },
-    step,
+    step
   );
 }
 
@@ -94,14 +87,16 @@ function applicationIntentDispatcher(world: World): ApplicationDispatchIntentDis
     undoHistory: () => world.undoAnalysis(),
     redoHistory: () => world.redoAnalysis(),
     toggleStatisticalLens: () => world._toggleStatisticalLens(),
-    openSettings: () => { world.uiManager.showWorkspaceSurface('settings'); },
+    openSettings: () => {
+      world.uiManager.showWorkspaceSurface('settings');
+    },
   });
 }
 
 function investigationActions(
   world: World,
   dispatchIntent: ApplicationDispatchIntentDispatcher,
-  functionalWorldObjects: FunctionalWorldObjectsPresenter,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter
 ): InvestigationActions {
   return {
     dispatchIntent,
@@ -147,7 +142,8 @@ function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions 
     getSelection: () => {
       const data = surface.activeData;
       if (!data) return null;
-      const rawLabel = data.name ?? data.label ?? data.id ?? surface.activeNode?.name ?? 'Selected object';
+      const rawLabel =
+        data.name ?? data.label ?? data.id ?? surface.activeNode?.name ?? 'Selected object';
       return {
         label: String(rawLabel).slice(0, 80),
         data,
@@ -158,11 +154,11 @@ function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions 
     subscribeSelectionContext: (handler) => {
       const refreshAfterSelectionSettles = () => queueMicrotask(handler);
       const unsubscribeSelection = world.representationSurface.subscribeSelection(
-        refreshAfterSelectionSettles,
+        refreshAfterSelectionSettles
       );
       const unsubscribeDataset = world.eventBus.on(
         WorldTopics.DATASET_LOADED,
-        refreshAfterSelectionSettles,
+        refreshAfterSelectionSettles
       );
       return () => {
         unsubscribeSelection();
@@ -175,7 +171,7 @@ function desktopSelectionTaskActions(world: World): DesktopSelectionTaskActions 
 function desktopReasoningRailActions(
   world: World,
   reasoning: DiscoveryReasoningService,
-  functionalWorldObjects: FunctionalWorldObjectsPresenter,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter
 ): DesktopReasoningRailActions {
   const syncPresentation = (): void => functionalWorldObjects.syncNow();
   return {
@@ -229,7 +225,7 @@ function desktopReasoningRailActions(
 async function waitForProductState(
   predicate: () => boolean,
   failureMessage: string,
-  timeoutMs = 10_000,
+  timeoutMs = 10_000
 ): Promise<void> {
   const deadline = performance.now() + timeoutMs;
   while (performance.now() < deadline) {
@@ -242,7 +238,7 @@ async function waitForProductState(
 function desktopReviewRecoveryActions(
   world: World,
   review: RepresentationReviewService,
-  functionalWorldObjects: FunctionalWorldObjectsPresenter,
+  functionalWorldObjects: FunctionalWorldObjectsPresenter
 ): DesktopReviewRecoveryActions {
   const syncPresentation = (): void => functionalWorldObjects.syncNow();
   return {
@@ -275,7 +271,7 @@ function desktopReviewRecoveryActions(
       freeze();
       await waitForProductState(
         () => world.uiManager.vaultPanel.archives.length > before,
-        'Evidence Vault did not publish the frozen investigation.',
+        'Evidence Vault did not publish the frozen investigation.'
       );
       syncPresentation();
     },
@@ -290,7 +286,7 @@ function desktopReviewRecoveryActions(
           world.atlas.datasetFingerprint === latest.datasetFingerprint &&
           world.atlas.ledger.length === latest.eventCount,
         'The latest frozen investigation did not restore to its recorded analytical state.',
-        15_000,
+        15_000
       );
       syncPresentation();
     },
@@ -382,17 +378,21 @@ export async function bootstrapApp(): Promise<AppInstance> {
   const dispatchIntent = applicationIntentDispatcher(world);
   const dispatchCanonicalIntent: ApplicationIntentDispatcher = (intent) => dispatchIntent(intent);
 
-  bindInputCallbacksToApplicationIntents(world.inputCoordinator.callbacks, dispatchCanonicalIntent, {
-    onUnsupportedOperation: (operation) =>
-      console.warn(`[ApplicationIntent] unsupported input operation: ${operation}`),
-    onDispatchError: (error) =>
-      console.error('[ApplicationIntent] input dispatch failed:', error),
-  });
+  bindInputCallbacksToApplicationIntents(
+    world.inputCoordinator.callbacks,
+    dispatchCanonicalIntent,
+    {
+      onUnsupportedOperation: (operation) =>
+        console.warn(`[ApplicationIntent] unsupported input operation: ${operation}`),
+      onDispatchError: (error) =>
+        console.error('[ApplicationIntent] input dispatch failed:', error),
+    }
+  );
   world.dispatchIntent = dispatchCanonicalIntent;
 
   const semanticDetailTransition = new SemanticDetailTransition(
     world.representationSurface,
-    world.atlas,
+    world.atlas
   );
   const semanticDetailReturnControl = mountSemanticDetailReturnControl(semanticDetailTransition);
   const semanticDatumInspector = mountSemanticDatumInspector(semanticDetailTransition);
@@ -462,45 +462,16 @@ export async function bootstrapApp(): Promise<AppInstance> {
   world.registerExtensionDisposer(() => investigationState.dispose());
 
   if (import.meta.env.DEV) {
-    const { installDevEvidence } = await import('./devEvidence.ts');
+    const { captureActiveSpecInfo, installDevEvidence } = await import('./devEvidence.ts');
     const devEvidence = installDevEvidence({
       engine: world.engine,
       eventBus: world.eventBus,
       telemetryCollector: world.telemetryCollector,
       uiManager: world.uiManager,
-      loadDataset: (entry) => world.loadDataset(entry),
-      getActiveSpecInfo: () => {
-        const spec = world.dracoNode?.solverResult?.spec;
-        if (!spec) return null;
-        const node = world.dracoNode;
-        const renderedNodeCount = node?.artifact?.nodeMeshes?.reduce((total, mesh) => {
-          const candidate = mesh as { isInstancedMesh?: boolean; count?: number };
-          return total + (candidate.isInstancedMesh ? (candidate.count ?? 0) : 1);
-        }, 0);
-        const semanticInput = node?.dataInput as
-          | {
-              semanticEmbodiment?: {
-                approximation?: { representedRowCount?: number };
-                resource?: { sourceRowCount?: number };
-              } | null;
-            }
-          | undefined;
-        const semanticEmbodiment = semanticInput?.semanticEmbodiment;
-        return {
-          geometry: String(spec.geometry),
-          layout: String(spec.layout),
-          candidateId: node?.representationDecision?.chosenCandidateId ?? null,
-          renderedNodeCount,
-          representedSourceRows:
-            semanticEmbodiment?.approximation?.representedRowCount ??
-            semanticEmbodiment?.resource?.sourceRowCount ??
-            null,
-          semanticEmbodimentStatus:
-            typeof node?.group?.userData.semanticEmbodimentStatus === 'string'
-              ? node.group.userData.semanticEmbodimentStatus
-              : null,
-        };
-      },
+      loadDataset: (entry, options) => world.loadDataset(entry, options),
+      getCurrentEntry: () => world.currentEntry,
+      getDatasetLoadGeneration: () => world.datasetLoadGeneration,
+      getActiveSpecInfo: () => captureActiveSpecInfo(world.dracoNode),
       getWasmMemoryBytes: () => {
         try {
           return world.analyticalRuntime.runtime?.memory?.().buffer.byteLength ?? null;
@@ -547,9 +518,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
   }
 
   if (import.meta.env.VITE_NEMOSYNE_Q3B_RESOURCE_PROBE === '1') {
-    const { installResourceEnvelopeDiagnosticHook } = await import(
-      './resourceEnvelopeDiagnostics.ts'
-    );
+    const { installResourceEnvelopeDiagnosticHook } =
+      await import('./resourceEnvelopeDiagnostics.ts');
     installResourceEnvelopeDiagnosticHook(world);
   }
 
@@ -560,7 +530,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
   }
 
   if (import.meta.env.VITE_NEMOSYNE_GRAPH_B4_EVIDENCE === '1') {
-    const { installGraphEvidenceDiagnosticHook } = await import('./graphEvidenceDiagnosticWrapper.ts');
+    const { installGraphEvidenceDiagnosticHook } =
+      await import('./graphEvidenceDiagnosticWrapper.ts');
     const disposeGraphEvidence = installGraphEvidenceDiagnosticHook(world);
     world.registerExtensionDisposer(disposeGraphEvidence);
   }
@@ -578,7 +549,8 @@ export async function bootstrapApp(): Promise<AppInstance> {
   }
 
   if (import.meta.env.VITE_NEMOSYNE_Q3D_BROWSER_PROBE === '1') {
-    const { installBrowserEnvelopeDiagnosticHook } = await import('./browserEnvelopeDiagnostics.ts');
+    const { installBrowserEnvelopeDiagnosticHook } =
+      await import('./browserEnvelopeDiagnostics.ts');
     installBrowserEnvelopeDiagnosticHook(world);
   }
 
@@ -607,16 +579,16 @@ export async function bootstrapApp(): Promise<AppInstance> {
   }
 
   const shell = mountInvestigationShell(
-    investigationActions(world, dispatchIntent, functionalWorldObjects),
+    investigationActions(world, dispatchIntent, functionalWorldObjects)
   );
   const desktopSelectionTaskRail = mountDesktopSelectionTaskRail(
-    desktopSelectionTaskActions(world),
+    desktopSelectionTaskActions(world)
   );
   const desktopReasoningRail = mountDesktopReasoningRail(
-    desktopReasoningRailActions(world, discoveryReasoning, functionalWorldObjects),
+    desktopReasoningRailActions(world, discoveryReasoning, functionalWorldObjects)
   );
   const desktopReviewRecoveryRail = mountDesktopReviewRecoveryRail(
-    desktopReviewRecoveryActions(world, representationReview, functionalWorldObjects),
+    desktopReviewRecoveryActions(world, representationReview, functionalWorldObjects)
   );
   const investigationShell: InvestigationShellHandle = {
     refreshContext: () => {
