@@ -513,13 +513,7 @@ export function getValidationFinalizationStatus(evidenceDir: string): {
   reason: string | null;
 } {
   if (!fs.existsSync(path.join(evidenceDir, 'custody.json'))) {
-    const completedAnalysis = readJson(path.join(evidenceDir, 'analysis.json'));
-    if (
-      isRecord(completedAnalysis) &&
-      completedAnalysis.status === 'complete' &&
-      fs.existsSync(path.join(evidenceDir, 'evidence-index.json')) &&
-      fs.existsSync(path.join(evidenceDir, 'disposition.json'))
-    ) {
+    if (hasCompletedBundleMarker(evidenceDir)) {
       return {
         state: 'tamper-detected',
         bundleDigest: null,
@@ -549,6 +543,42 @@ export function getValidationFinalizationStatus(evidenceDir: string): {
     gateDisposition: readDispositionStatus(evidenceDir),
     reason: null,
   };
+}
+
+function hasCompletedBundleMarker(evidenceDir: string): boolean {
+  const analysis = readJson(path.join(evidenceDir, 'analysis.json'));
+  if (
+    isRecord(analysis) &&
+    analysis.schemaVersion === VALIDATION_CUSTODY_SCHEMA_VERSION &&
+    analysis.status === 'complete' &&
+    typeof analysis.recordedAt === 'string' &&
+    typeof analysis.rawEvidenceDigest === 'string'
+  ) {
+    return true;
+  }
+
+  const evidenceIndex = readJson(path.join(evidenceDir, 'evidence-index.json'));
+  if (
+    isRecord(evidenceIndex) &&
+    evidenceIndex.schemaVersion === VALIDATION_CUSTODY_SCHEMA_VERSION &&
+    typeof evidenceIndex.sessionId === 'string' &&
+    typeof evidenceIndex.rawEvidenceDigest === 'string' &&
+    Array.isArray(evidenceIndex.artifacts)
+  ) {
+    return true;
+  }
+
+  const disposition = readJson(path.join(evidenceDir, 'disposition.json'));
+  if (
+    isRecord(disposition) &&
+    disposition.schemaVersion === VALIDATION_CUSTODY_SCHEMA_VERSION &&
+    typeof disposition.recordedAt === 'string' &&
+    typeof disposition.rawEvidenceDigest === 'string'
+  ) {
+    return true;
+  }
+
+  return fs.existsSync(path.join(evidenceDir, 'report.md'));
 }
 
 export function finalizeValidationSession(options: {

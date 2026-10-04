@@ -470,6 +470,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
       uiManager: world.uiManager,
       loadDataset: (entry, options) => world.loadDataset(entry, options),
       getCurrentEntry: () => world.currentEntry,
+      getDatasetLoadGeneration: () => world.datasetLoadGeneration,
       getActiveSpecInfo: () => captureActiveSpecInfo(world.dracoNode),
       getWasmMemoryBytes: () => {
         try {

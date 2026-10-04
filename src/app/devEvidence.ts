@@ -141,6 +141,7 @@ export interface DevEvidenceInstallerDependencies {
     options?: Parameters<LoadTestWorldLike['loadDataset']>[1]
   ): void | Promise<void>;
   getCurrentEntry(): DatasetLoadEntry | null;
+  getDatasetLoadGeneration(): number;
   getActiveSpecInfo(): ActiveSpecInfo | null;
   getWasmMemoryBytes(): number | null;
 }
@@ -265,6 +266,7 @@ export function installDevEvidence({
   uiManager,
   loadDataset,
   getCurrentEntry,
+  getDatasetLoadGeneration,
   getActiveSpecInfo,
   getWasmMemoryBytes,
 }: DevEvidenceInstallerDependencies): DevEvidenceHandle {
@@ -273,6 +275,9 @@ export function installDevEvidence({
       loadDataset,
       get currentEntry() {
         return getCurrentEntry();
+      },
+      get datasetLoadGeneration() {
+        return getDatasetLoadGeneration();
       },
       getActiveSpecInfo,
       eventBus,

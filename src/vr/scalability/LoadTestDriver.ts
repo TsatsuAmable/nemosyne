@@ -104,6 +104,8 @@ export interface LoadTestWorldLike {
   ): void | Promise<void>;
   /** Dataset active before the run; restored on finish so the UI is usable. */
   currentEntry: DatasetLoadEntry | null;
+  /** Monotonic ownership token for queued as well as adopted dataset loads. */
+  readonly datasetLoadGeneration?: number;
   /** Read the geometry/layout the Draco solver actually picked, if available. */
   getActiveSpecInfo?(): {
     geometry?: string;
@@ -265,6 +267,7 @@ export class LoadTestDriver implements Updatable {
   private _disposed = false;
   private _loadGeneration = 0;
   private _activeEntry: DatasetLoadEntry | null = null;
+  private _activeWorldLoadGeneration: number | null = null;
   /** Entry active before run(); restored after _finishRun so the stress dataset does not freeze the UI. */
   private _preRunEntry: DatasetLoadEntry | null = null;
 
@@ -289,6 +292,7 @@ export class LoadTestDriver implements Updatable {
     this._steps = [];
     this._aborted = false;
     this._failure = null;
+    this._activeWorldLoadGeneration = null;
     this._preRunEntry = this._world.currentEntry;
     this._startedAt = performance.now();
     this._runId =
@@ -312,6 +316,11 @@ export class LoadTestDriver implements Updatable {
   /** Abort a running test; emits COMPLETE with whatever was collected. */
   stop(): void {
     if (this.phase === 'IDLE' || this.phase === 'COMPLETE') return;
+    if (this._worldLoadOwnershipLost()) {
+      const spec = this._profile.steps[this._stepIndex - 1];
+      this._abortForDatasetReplacement(spec, 'active loadtest dataset was superseded before stop');
+      return;
+    }
     if (
       (this.phase === 'SETTLING' || this.phase === 'MEASURING') &&
       this._activeEntry !== null &&
@@ -343,6 +352,11 @@ export class LoadTestDriver implements Updatable {
   /** Engine updatable hook — drives the state machine. */
   update(_delta: number, _time: number): void {
     const now = performance.now();
+    if (this._worldLoadOwnershipLost()) {
+      const spec = this._profile.steps[this._stepIndex - 1];
+      this._abortForDatasetReplacement(spec, 'active loadtest dataset was superseded');
+      return;
+    }
     if (
       (this.phase === 'SETTLING' || this.phase === 'MEASURING') &&
       this._activeEntry !== null &&
@@ -417,6 +431,7 @@ export class LoadTestDriver implements Updatable {
           ? { representationControl: this._profile.representationControl }
           : undefined
       );
+      this._activeWorldLoadGeneration = this._world.datasetLoadGeneration ?? null;
       if (result && typeof result.then === 'function') {
         void Promise.resolve(result).then(
           () => this._completeLoad(loadGeneration, spec, entry, loadStartedAt),
@@ -438,6 +453,10 @@ export class LoadTestDriver implements Updatable {
     loadStartedAt: number
   ): void {
     if (loadGeneration !== this._loadGeneration || this.phase !== 'LOADING') return;
+    if (this._worldLoadOwnershipLost()) {
+      this._abortForDatasetReplacement(spec, 'dataset load was superseded before adoption');
+      return;
+    }
     if (this._world.currentEntry !== entry) {
       this._abortForDatasetReplacement(spec, 'dataset load was superseded before adoption');
       return;
@@ -471,6 +490,15 @@ export class LoadTestDriver implements Updatable {
     this._failure = { phase: 'dataset-load', message };
     console.error('[LoadTestDriver] loadDataset failed for step', spec, new Error(message));
     this._finishRun();
+  }
+
+  private _worldLoadOwnershipLost(): boolean {
+    const currentGeneration = this._world.datasetLoadGeneration;
+    return (
+      this._activeWorldLoadGeneration !== null &&
+      currentGeneration !== undefined &&
+      currentGeneration !== this._activeWorldLoadGeneration
+    );
   }
 
   private _startMeasuring(): void {
@@ -515,6 +543,7 @@ export class LoadTestDriver implements Updatable {
   private _finishRun(): void {
     this._loadGeneration++;
     this._activeEntry = null;
+    this._activeWorldLoadGeneration = null;
     this.phase = 'COMPLETE';
     this._finishedAt = performance.now();
     const verdict: OverallVerdict = this._aborted

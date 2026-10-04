@@ -197,6 +197,52 @@ describe('RF-062C production World path', () => {
     driver.dispose();
   });
 
+  it.each([
+    ['LOADING', 'stop'],
+    ['LOADING', 'dispose'],
+    ['SETTLING', 'stop'],
+    ['SETTLING', 'dispose'],
+  ] as const)(
+    'does not cancel a queued real World replacement during %s via %s',
+    async (phase, action) => {
+      world = new World();
+      world.atlas.setKernel(makeKernelMockBridge(), 0x3c07);
+      const before = getSampleDataset('sales-table');
+      const external = getSampleDataset('fraud-graph');
+      if (!before || !external) throw new Error('required sample datasets are unavailable');
+      await world.loadDataset({
+        name: before.label,
+        topology: before.topology,
+        dataset: before.dataset,
+        maxDepth: before.depth,
+      });
+      const driver = new LoadTestDriver(world, world.engine);
+      driver.run({
+        name: `real-world-queued-${phase.toLowerCase()}-stop`,
+        settleSec: 60,
+        steps: [{ topology: 'TABULAR', rowCount: 10, durationSec: 60 }],
+      });
+      if (phase === 'SETTLING') {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        expect(driver.phase).toBe('SETTLING');
+      } else {
+        expect(driver.phase).toBe('LOADING');
+      }
+
+      const pendingExternal = world.loadDataset({
+        name: external.label,
+        topology: external.topology,
+        dataset: external.dataset,
+        maxDepth: external.depth,
+      });
+      driver[action]();
+      await pendingExternal;
+
+      expect(world.currentEntry?.name).toBe(external.label);
+      if (action === 'stop') driver.dispose();
+    }
+  );
+
   it('delegates representation teardown to the surface owner', async () => {
     world = new World();
     const bridge = makeKernelMockBridge();

@@ -1181,6 +1181,10 @@ export class World {
    * The returned promise is the completion boundary used by session restore and
    * any caller that must observe the rebuilt representation.
    */
+  get datasetLoadGeneration(): number {
+    return this._datasetLoadSequence;
+  }
+
   loadDataset(
     entry: DatasetLoadEntry,
     options: { representationControl?: 'ROW_ADDRESSABLE_FALLBACK' } = {}

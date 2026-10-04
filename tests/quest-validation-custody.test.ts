@@ -298,6 +298,33 @@ describe('QV4 evidence finalization and custody', () => {
     expect(readFileSync(join(evidenceDir, 'custody.json'), 'utf8')).toContain('broken');
   });
 
+  it.each(['evidence-index.json', 'analysis.json'])(
+    'does not reseal after custody and %s are both removed',
+    (additionalMissingArtifact) => {
+      const root = tempRoot();
+      const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
+      expect(
+        finalizeValidationSession({
+          validationLogRoot: validationRoot,
+          sessionLabel: value.sessionLabel,
+        }).status
+      ).toBe('finalized');
+      unlinkSync(join(evidenceDir, 'custody.json'));
+      unlinkSync(join(evidenceDir, additionalMissingArtifact));
+
+      expect(getValidationFinalizationStatus(evidenceDir)).toMatchObject({
+        state: 'tamper-detected',
+      });
+      expect(
+        finalizeValidationSession({
+          validationLogRoot: validationRoot,
+          sessionLabel: value.sessionLabel,
+        })
+      ).toMatchObject({ status: 'tamper-detected' });
+      expect(existsSync(join(evidenceDir, 'custody.json'))).toBe(false);
+    }
+  );
+
   it('treats a removed custody record from a completed bundle as tamper detection', () => {
     const root = tempRoot();
     const { validationRoot, evidenceDir, value } = writeRawQca0Session(root);
