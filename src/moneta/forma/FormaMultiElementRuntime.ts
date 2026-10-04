@@ -5,7 +5,13 @@ export const FORMA_MULTI_ELEMENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 
 export type ElementLifecycleState = 'RESIDENT' | 'COOLED' | 'EVICTED';
 
-export type CompositionRelationship = 'OVERLAY' | 'COORDINATES_WITH' | 'DETAIL_OF';
+export type CompositionRelationship =
+  | 'OVERLAY'
+  | 'CONTAINS'
+  | 'DERIVES_FROM'
+  | 'COORDINATES_WITH'
+  | 'DETAIL_OF'
+  | 'COMPARES_WITH';
 
 export interface RuntimeElementRecordV1 {
   readonly elementId: string;

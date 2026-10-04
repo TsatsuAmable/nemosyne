@@ -48,11 +48,14 @@ export interface AdaptationOptions {
   readonly mandatoryNodeIds?: readonly string[];
   readonly researchMode?: boolean;
   readonly snapshot?: SemanticSnapshotV1;
+  readonly snapshots?: readonly SemanticSnapshotV1[];
   readonly analyticalEvidence?: {
     readonly envelope: SemanticEmbodimentEnvelopeV1;
     readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
   };
   readonly admissionOptions?: FormaAdmissionOptionsV1;
+  readonly broker?: FormaResolutionBroker;
+  readonly contextGeneration?: number;
 }
 
 export interface AdaptationTransition {
@@ -218,7 +221,15 @@ export class FullMonetaEngine {
     };
 
     // 7. Resolution adaptation broker
-    const broker = new FormaResolutionBroker();
+    const broker = options.broker ?? new FormaResolutionBroker();
+    const contextObj = context as unknown as { activationEpoch?: number };
+    const requestedGeneration =
+      options.contextGeneration ??
+      (typeof context.runtimeGeneration === 'number'
+        ? context.runtimeGeneration
+        : typeof contextObj.activationEpoch === 'number'
+          ? contextObj.activationEpoch
+          : broker.getContextGeneration(context.nodeId));
 
     const brokerOutcome = broker.brokerVariant(
       snapshot,
@@ -226,7 +237,7 @@ export class FullMonetaEngine {
       manifest,
       budget,
       obligations,
-      1,
+      requestedGeneration,
       effectiveAdmissionOptions
     );
 
@@ -240,36 +251,63 @@ export class FullMonetaEngine {
 
     // 8. Multi-element runtime composition preserving graph relations (FMA-10c)
     const multiRuntime = new FormaMultiElementRuntime();
-    for (const prim of selectedGraph.primitives) {
+    const snapshotsList = options.snapshots ?? [snapshot];
+
+    for (let i = 0; i < selectedGraph.primitives.length; i++) {
+      const prim = selectedGraph.primitives[i];
+      // Match snapshot by primitive kind or family if possible, or use index/primary
+      const primSnapshot: SemanticSnapshotV1 =
+        snapshotsList.find((s) => s.body.sources.some((src) => src.family === prim.kind)) ??
+        snapshotsList[i] ??
+        snapshot;
+
+      let sliceToRegister = resolutionVariant.slice;
+      if (primSnapshot !== snapshot) {
+        const primOutcome = broker.brokerVariant(
+          primSnapshot,
+          context,
+          manifest,
+          budget,
+          obligations,
+          requestedGeneration,
+          effectiveAdmissionOptions
+        );
+        if (primOutcome.status === 'ADMITTED') {
+          sliceToRegister = primOutcome.variant.slice;
+        }
+      }
+
       multiRuntime.registerElement(
         `element-${prim.id}`,
-        resolutionVariant.slice,
+        sliceToRegister,
         prim.kind
       );
     }
 
     const registeredIds = new Set(selectedGraph.primitives.map((p) => `element-${p.id}`));
-    const validRelations = new Set(['OVERLAY', 'COORDINATES_WITH', 'DETAIL_OF']);
+    const validRelations = new Set([
+      'OVERLAY',
+      'CONTAINS',
+      'DERIVES_FROM',
+      'COORDINATES_WITH',
+      'DETAIL_OF',
+      'COMPARES_WITH',
+    ]);
 
     if (selectedGraph.edges.length > 0) {
       for (const edge of selectedGraph.edges) {
         const sourceId = `element-${edge.from}`;
         const targetId = `element-${edge.to}`;
         if (registeredIds.has(sourceId) && registeredIds.has(targetId) && sourceId !== targetId) {
-          const relation = validRelations.has(edge.relation)
-            ? (edge.relation as 'OVERLAY' | 'COORDINATES_WITH' | 'DETAIL_OF')
-            : 'COORDINATES_WITH';
-          multiRuntime.addRelationship(sourceId, targetId, relation);
+          if (!validRelations.has(edge.relation)) {
+            throw new Error(`[FullMonetaEngine] Invalid composition relationship: ${edge.relation}`);
+          }
+          multiRuntime.addRelationship(
+            sourceId,
+            targetId,
+            edge.relation as import('../forma/FormaMultiElementRuntime.js').CompositionRelationship
+          );
         }
-      }
-    } else if (selectedGraph.primitives.length > 1) {
-      const rootId = `element-${selectedGraph.primitives[0].id}`;
-      for (let i = 1; i < selectedGraph.primitives.length; i++) {
-        multiRuntime.addRelationship(
-          rootId,
-          `element-${selectedGraph.primitives[i].id}`,
-          'COORDINATES_WITH'
-        );
       }
     }
 

@@ -1063,7 +1063,7 @@ human comment
 
 TechnoCore is the primary product surface.
 
-### L2-FORMA-5 — feedback/study expansion, still non-adaptive
+### FM6 / Forma knowledge — feedback/study expansion, still non-adaptive (formerly L2-FORMA-5)
 
 Expand attributable critique/judgment capture, frozen treatment/exposure metadata and purpose-restricted study routing against exact plan/binding/context versions. The first vertical slice already supports minimum capture. Do **not** update production priors automatically.
 
