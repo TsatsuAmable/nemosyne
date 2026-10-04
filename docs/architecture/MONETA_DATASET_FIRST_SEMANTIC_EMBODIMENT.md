@@ -2,7 +2,7 @@
 
 **Status:** proposed **ADAPT** decision for owner review; implementation is not authorized by this document alone
 **Date:** 4 October 2026
-**Reviewed base:** `dfdec118193ad383a22b2365fa7c5c41e38a6275` (`origin/main`)
+**Reviewed base:** `e0445257` (`origin/main`, incorporating the Astra semantic-LOD brief)
 **Governing vision:** [`../Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md)
 **Live sequencing authority:** [`../ROADMAP.md`](../ROADMAP.md)
 **Canonical Full-Moneta target:** [`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md)
@@ -100,7 +100,14 @@ Moneta's primary subject is a **dataset**, not a cloud of observations. Existing
 
 The remaining defect is the product-level ontology and integration path. A user can still encounter a row-addressable world whose apparent dataset representation is largely one mark per observation. The current `RepresentationGraph` vocabulary contains useful techniques but no explicit stable dataset subject. The current static Forma slice maps semantic nodes into spatial elements but does not yet establish a meaningful independently addressable dataset body. Existing System-1, search, genome, feedback and knowledge contracts are not yet joined around that subject through the real product path.
 
-QCA0 makes the cost visible on Quest 3S at 100,000 rows:
+The [QCA0 record](../work/quest-compute/QCA0_BASELINE.md) is operator-accepted engineering evidence
+with a custody-sealed physical Quest 3S manifest. Its governed PERF-04/PERF-05 result remains
+`INVALID_RUN` because the summary emitted `deviceTarget: UNDECLARED`. The original load-duration
+measurements timed dispatch and are excluded. A corrected declared-device, completion-timed physical
+control run is mandatory for governed qualification; comparison with this historical run cannot
+change its disposition.
+
+The usable QCA0 observations make the cost visible on Quest 3S at 100,000 rows:
 
 - CPU frame time was approximately 224 ms p50 and 244 ms p95;
 - XR frame time was approximately 249 ms p95;
@@ -431,6 +438,53 @@ The compiler should produce backend-ready compact buffers and element descriptio
 
 Steady-state runtime work should use instancing, batching, culling, bounded labels, allocation reuse, multiview/foveation and GPU assistance where physical measurement justifies them. These are subordinate optimizations; no one technique is assumed to close the budget.
 
+### 9.4 Cost model, caching and falsifiable benchmark
+
+Let N be source observations, S the available semantic structure, K the admitted visible working set,
+E its visible relations, and C the bounded candidate population. Ingestion, fingerprinting and many
+exact analytical operations remain at least O(N); graph analysis may cost more. Dataset-first design
+does not make those operations constant-time. The intended steady overview transfer, compilation,
+hit-target storage and scene traversal are O(K + E), with explicit caps on K, E and label/channel
+counts. Search cost depends on C, grammar depth and evaluations, with a wall-time/work budget.
+GPU cost additionally depends on visible pixels, overdraw, material/channel complexity and geometry;
+bounded element count alone cannot guarantee cadence.
+
+The reference pipeline must acquire a bounded hierarchy cut through Rust-owned queries. Materializing
+all S nodes in TypeScript and then selecting K would merely move the bottleneck. Retain canonical
+analytical caches under dataset fingerprint, method/parameters and evidence/profile identities;
+representation caches additionally bind snapshot, context, obligations, qualification/knowledge
+manifest and generator versions. Compiled variants additionally bind the exact resource policy and
+backend. A cache hit never bypasses current evidence disposition or activation checks. Purpose,
+population or evidence changes invalidate affected entries; a presentation-only change may reuse the
+authoritative snapshot. Bound cache residency, work queues and concurrent compilation; cancel stale
+requests and account for overlap peaks during replacement. Incremental analytical algorithms require
+separate Rust qualification before reuse; this design does not assume they already exist.
+
+DSE0 must freeze a benchmark protocol before optimization:
+
+- Compare the recorded QCA0 reference, the current low-triangle observation path, and the proposed
+  dataset-body path on the same fixtures/tasks. Preserve legacy observation mode as an explicit
+  control/detail choice; unsupported dataset-body compilation yields a typed unavailable/refusal
+  rather than silently returning to an unbounded observation scene.
+- Vary N with approximately fixed semantic information, then separately vary semantic complexity at
+  fixed N. Include rare exceptions, missingness, uncertainty and a high-complexity case whose required
+  meaning cannot fit; refusal is a valid outcome and must be measured.
+- Measure cold ingest/analysis, first useful view, warm recomposition, steady frames, refinement,
+  return, cancellation and eviction/rebuild separately. Record CPU/XR frame distributions, GPU timing
+  where supported, transfer bytes, scene/interaction counts, geometry/overdraw proxies, peak residency,
+  search work, and total energy/thermal behavior where available. Missing GPU timing stays unavailable.
+- Use repeated, counterbalanced physical runs with pinned device model/browser/build, refresh policy,
+  thermal conditions, datasets, intent and evidence. QCA0 is a historical anchor; rerun the controls
+  when environment drift prevents a fair comparison. Quest 3 and Quest 3S results remain separate.
+- Predeclare acceptable task-information loss, comprehension/error criteria, frame/resource budgets,
+  a practically meaningful improvement margin and analysis/uncertainty protocol. DSE0 must select the
+  numeric thresholds from the target refresh policy and pilot variance; this proposal does not invent
+  them. A flatter warm cost curve fails the overall hypothesis if cold analysis, search, refinement,
+  cognitive cost or peak memory erases the user-visible benefit.
+
+Success requires both bounded complexity at fixed task information and measured task-equivalent
+physical benefit. If either fails, revise the working-set policy or reject the performance claim.
+
 ---
 
 ## 10. Structural explanation, critique and human-grounded learning
@@ -606,6 +660,31 @@ work remains separately gated. DSE5 consumes FM5-FM7 only after their applicable
 are ready. DSE6 contributes the dataset-first physical/human evidence required by FM3, FM4 and FM8; it
 cannot by itself close residual FM0, FM1, FM2 or FM5 obligations.
 
+### 13.2 Existing qualification evidence to retain and extend
+
+The historical closure reports for [FM1](../review-plans/FM1_PERSPECTIVE_PRODUCT_CONSUMPTION_2026-10-03.md),
+[FM2](../review-plans/FM2_ALTERNATIVES_ROAD_NOT_TAKEN_2026-10-03.md),
+[FM6](../review-plans/FM6_HUMAN_REFINEMENT_FORMA_KNOWLEDGE_2026-10-03.md),
+[FM7](../review-plans/FM7_SEARCHING_SYNTHESIZING_MONETA_2026-10-03.md) and
+[FM8](../review-plans/FM8_FULL_MONETA_CONTROLLED_ADAPTIVE_INTELLIGENCE_2026-10-04.md)
+are preserved as initial evidence. Their own status notices subordinate their closure claims to the
+later completeness audit. Use the repaired production paths and subsequent tests as regression seeds;
+do not repeat the original defects or treat historical green suites as current product qualification.
+
+| Existing artifact | Evidence worth retaining | Additional proof required for this design |
+| --- | --- | --- |
+| `tests/fm1-perspective-product.test.ts`, `tests/fm2-alternatives-road-not-taken.test.ts` and subsequent context/atomicity repairs | Context correspondence, analytical invariance, preview/branch/revisit and refusal controls | Real intent and alternative actions targeting Dataset subjects, with delayed-result and replay cases |
+| `tests/fm3-4-composition-resolution.test.ts` plus static Forma/adoption/V4 suites | Final-content identity, invalid budget/generation refusal, selected-edge fidelity, context serialization and static restoration | Dataset-body semantics, bounded hierarchy cuts, meaningful refinement and human recoverability across budgets |
+| `tests/fm5-s1-consumed-record.test.ts`, disclosure, fallback, recorded-replay and abstention suites | Advice influence/recording, disclosed bypass, stale/foreign replay refusal and ABSTAIN behavior | Dataset-body feature/candidate coverage and device cost under the same guards |
+| `tests/fm5-advice-measurement.test.ts`, `fm5-advice-heldout.test.ts`, `fm5-advice-coverage.test.ts` (R5/R7/R8) | Reproducible advised-versus-bypassed probes across fixture structures/tasks and frontier coverage | Their finite-delta/reproducibility assertions do not establish positive utility, human benefit or physical Quest performance; inspect measured outputs and predeclare meaningful benefit before promotion |
+| `tests/fm6-r6-learned-prior-qualification.test.ts` (#980) | Fixture-based evaluation gate, knowledge influence/identity, frozen mode and rollback mechanics | Attributable acquired human evidence and dataset/investigator-disjoint generalization; fixture-created confirmed judgments are not a human study |
+| `tests/fm7-r7-search-synthesis-qualification.test.ts` (#983) | Bounded novel graph construction, Pareto mechanics, advisory seeding/bypass, genome guards and frozen digest | Claim-complete dataset-body bindings plus independent task/human/resource evaluation; an objective named perceptual recoverability is not itself measured comprehension |
+| `tests/fm8-full-moneta-adaptive-intelligence.test.ts` and FMA repair suites | Integrated orchestration, ungrounded-input refusal, frozen state, obligations and explanations | Actual investigator loop, physical interaction/cadence and human orientation; bounded internal stability scores cannot prove absence of disorientation |
+
+This is a source/evidence reconciliation, not a claim that these suites were rerun by the architecture
+PR. DSE plans must reference and extend the applicable existing tests, preserve their positive and
+negative controls, and specify which new production or human/device observation closes the residual gap.
+
 ---
 
 ## 14. Research programme
@@ -683,8 +762,10 @@ Each code tranche requires a fresh written implementation plan, exact-head verif
 
 - derive the stable Dataset subject from authoritative fingerprint;
 - build one production-reachable dataset body from at least two governed semantic structures;
+- supply a bounded deterministic composer whose every binding resolves supported semantics and evidence before admission;
 - compile a bounded working set with zero default observation marks;
 - extend reverse explanation to the dataset root and composition;
+- capture confirmed attributable critiques against exact subject/plan/binding identities, with durable replay and no automatic learning; DSE3 adds full alternative instantiation;
 - retain explicit observation-level compatibility through detail transition.
 
 **Exit:** deleting row access does not break the overview; plan/render cardinality is bounded under N growth; every property reverse-resolves.
@@ -718,7 +799,7 @@ Each code tranche requires a fresh written implementation plan, exact-head verif
 
 ### DSE5 — proposal/search/evolution integration
 
-- replace heuristic reference composition with semantic/evidence-bound composition;
+- generalize the DSE1 evidence-bound deterministic composer for the broader supported grammar, replacing remaining heuristic paths before their use;
 - qualify System-1 dataset-body proposals;
 - tighten RepresentationGraph grammar/objectives/bindings for dataset subjects;
 - route System-2/search and external genomes through identical admission;
@@ -728,7 +809,7 @@ Each code tranche requires a fresh written implementation plan, exact-head verif
 
 ### DSE6 — physical and human qualification
 
-- exact-head Quest comparisons against QCA0 and controlled renderer variants;
+- corrected governed physical control capture and exact-head Quest comparisons, retaining QCA0 as historical engineering evidence and controlled renderer variants;
 - corrected main-thread/Worker/GPU attribution;
 - long-session bounded-resource evidence;
 - known-structure and investigator semantic-recovery studies;

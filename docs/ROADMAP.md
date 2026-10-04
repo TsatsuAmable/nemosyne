@@ -18,13 +18,13 @@ Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The his
 
 ## Status snapshot - 4 October 2026
 
-**Integration base:** `main@dfdec118193ad383a22b2365fa7c5c41e38a6275`.
+**Integration base:** `main@e0445257`.
 
 - Architecture 2027 decisions are integrated: A27-0 and A27-1 accepted; L0 semantic snapshot, L1 committed perspective/context V2 and L2 Forma admission/KB0 contracts landed in PRs #936-#938. These are enabling contracts, not automatic product-capability promotion.
 - **P1-TEC / FM0 remains active**. Governed replay/consumer-policy work is substantially landed; remaining evidence-identity, calibration/qualification and downstream evidence-reference closure must remain fail-closed. See [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md).
 - **UXR0-UXR3 are at bounded software exits. UXR4/UXR5 remain physical-evidence open.** See [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) and [Quest validation operations](roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md).
 - **Full Moneta remains IMPLEMENTATION PARTIAL.** Bounded FMA-01–13 repairs, static Forma rendering/reverse explanation, V4 replay, FM3/4 composition/resolution fidelity and FM6/FM7 qualification batteries are landed. Remaining work includes FM1/FM2 product actions, measured FM5 target-device value, the proposed FM-DSE dataset-first integration, and integrated human/device evidence. See the [4 October completeness audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md), [incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) and [architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
-- **Quest Compute Acceleration is active as a bounded parallel performance lane.** QCA0 captured the governed Quest 3S baseline; QCA1-QCA4 attribution and controlled physical comparisons remain open. See [QCA index](work/quest-compute/README.md).
+- **Quest Compute Acceleration is active as a bounded parallel performance lane.** QCA0 captured an operator-accepted Quest 3S engineering baseline; its governed `INVALID_RUN` is unchanged and a corrected physical rerun remains required. QCA1-QCA4 attribution/comparisons remain open. See [QCA index](work/quest-compute/README.md).
 - **Memory Palace authority cleanup is complete:** the duplicate mutable `MemoryPalaceGraph` store was retired under ADR-0012/#964; the product palace remains a deterministic projection of `InvestigationAggregate` state.
 - **scriptc is parked for Quest/WebXR.** It may be reconsidered only for a real native CLI/sidecar/tool deployment with measured benefit. See [scriptc evaluation](roadmap/SCRIPTC_NATIVE_TYPESCRIPT_EVALUATION.md).
 
@@ -67,7 +67,7 @@ The default execution model remains **one owner-controlled forward tranche plus 
 | Tranche | Gate / outcome |
 | --- | --- |
 | **DSE0 decision + preflight** | Owner accepts/revises ADAPT; freeze subject/multi-dataset schema route, two-dataset fixtures, N/cardinality instrumentation, production raw-row falsifier and evidence plans. |
-| **DSE1 grounded bounded overview** | Stable Dataset subject plus at least two governed semantic structures; zero default observation marks; bounded plan/render cardinality; complete reverse explanation. |
+| **DSE1 grounded bounded overview** | Stable Dataset subject, evidence-bound deterministic composition, two governed structures, bounded cardinality, reverse explanation and attributable critique capture. |
 | **DSE2 semantic resolution** | Reversible dataset -> structure -> subset -> observation traversal; obligation-preserving device variants; lifecycle identity survives evict/rebuild. |
 | **DSE3 dual-mode feedback loop** | Grounded/conjectural purpose enforcement, visible disclosure, TechnoCore critique -> Road Not Taken alternative, attributable feedback and V4 lineage. |
 | **DSE4 multi-dataset comparison** | Two independently admitted dataset worlds compare/refine/replay without fingerprint, evidence or selection collision. |
