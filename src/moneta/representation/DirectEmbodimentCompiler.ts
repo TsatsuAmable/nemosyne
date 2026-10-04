@@ -21,6 +21,7 @@ import {
   type AdmittedVariantSliceV1,
   type SemanticObligationContractV1,
   DESKTOP_EXPANSIVE_BUDGET,
+  QUEST_CONSTRAINED_BUDGET,
   FormaResolutionBroker,
 } from '../forma/FormaResolutionBroker.js';
 import {
@@ -40,11 +41,7 @@ export const DIRECT_EMBODIMENT_COMPILER_SCHEMA_VERSION = '1.0.0' as const;
 export type GovernedPhenomenonKind = 'DISTRIBUTION' | 'TOPOLOGICAL_CLUSTERING';
 
 export type CritiqueKind =
-  | 'SPATIAL_SCALE'
-  | 'DENSITY_RESOLUTION'
-  | 'CLUSTER_SEPARATION'
-  | 'OCCLUSION'
-  | 'CUSTOM';
+  'SPATIAL_SCALE' | 'DENSITY_RESOLUTION' | 'CLUSTER_SEPARATION' | 'OCCLUSION' | 'CUSTOM';
 
 export interface AttributableCritiqueV1 {
   readonly critiqueId: string;
@@ -114,10 +111,14 @@ export function recordInvestigatorCritique(input: {
   readonly timestamp?: number;
 }): AttributableCritiqueV1 {
   if (!input.investigatorId.trim()) {
-    throw new Error('[DirectEmbodimentCompiler] Investigator ID is required for attributable critique');
+    throw new Error(
+      '[DirectEmbodimentCompiler] Investigator ID is required for attributable critique'
+    );
   }
   if (!input.targetElementId.trim()) {
-    throw new Error('[DirectEmbodimentCompiler] Target element ID is required for attributable critique');
+    throw new Error(
+      '[DirectEmbodimentCompiler] Target element ID is required for attributable critique'
+    );
   }
   if (!input.note.trim()) {
     throw new Error('[DirectEmbodimentCompiler] Critique note cannot be empty');
@@ -157,7 +158,12 @@ function detectGovernedPhenomena(snapshot: SemanticSnapshotV1): GovernedPhenomen
     if (fam.includes('DISTRIBUTION') || fam.includes('DENSITY') || fam.includes('HISTOGRAM')) {
       phenomena.add('DISTRIBUTION');
     }
-    if (fam.includes('CLUSTER') || fam.includes('TOPOLOGY') || fam.includes('SPATIAL') || fam.includes('MANIFOLD')) {
+    if (
+      fam.includes('CLUSTER') ||
+      fam.includes('TOPOLOGY') ||
+      fam.includes('SPATIAL') ||
+      fam.includes('MANIFOLD')
+    ) {
       phenomena.add('TOPOLOGICAL_CLUSTERING');
     }
   }
@@ -273,8 +279,9 @@ export function compileDirectEmbodimentPlan(
     const mandatoryNodes = snapshot.body.nodes.filter((n) => mandatorySet.has(n.nodeId));
     const optionalNodes = snapshot.body.nodes.filter((n) => !mandatorySet.has(n.nodeId));
     const remainingSlots = Math.max(0, maxBudgetElements - mandatoryNodes.length);
-    const clampedNodes = [...mandatoryNodes, ...optionalNodes.slice(0, remainingSlots)]
-      .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+    const clampedNodes = [...mandatoryNodes, ...optionalNodes.slice(0, remainingSlots)].sort(
+      (a, b) => a.nodeId.localeCompare(b.nodeId)
+    );
 
     const clampedBody = {
       ...snapshot.body,
@@ -357,7 +364,8 @@ export function compileDirectEmbodimentPlan(
     schemaVersion: SPATIAL_EMBODIMENT_PLAN_SCHEMA_VERSION,
     planId,
     semanticGraphId: snapshot.snapshotId,
-    datasetFingerprint: datasetFingerprint || snapshot.body.analyticalDatasetFingerprint || 'unknown-dataset',
+    datasetFingerprint:
+      datasetFingerprint || snapshot.body.analyticalDatasetFingerprint || 'unknown-dataset',
     decisionId,
     elements: spatialElements,
   };
@@ -419,5 +427,122 @@ export function compileDirectEmbodimentPlan(
       neuralAdviceApplied: false,
       evolutionarySearchGenerations: 0,
     },
+  };
+}
+
+export interface ObligationPreservingVariantRequest {
+  readonly datasetFingerprint: string;
+  readonly snapshot: SemanticSnapshotV1;
+  readonly context: CommittedInvestigationContextV2;
+  readonly desktopBudget?: DeviceCapabilityBudgetV1;
+  readonly constrainedBudget?: DeviceCapabilityBudgetV1;
+  readonly obligations?: SemanticObligationContractV1;
+  readonly admissionOptions?: FormaAdmissionOptionsV1;
+  readonly broker?: FormaResolutionBroker;
+  readonly phenotype?: SpatialPhenotype;
+  readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
+  readonly maxElementsOverride?: number;
+  readonly researchMode?: boolean;
+}
+
+export interface ObligationPreservingVariantPairV1 {
+  readonly schemaVersion: typeof DIRECT_EMBODIMENT_COMPILER_SCHEMA_VERSION;
+  readonly traversalRootId: string;
+  readonly datasetFingerprint: string;
+  readonly snapshotId: string;
+  readonly contextId: string;
+  readonly desktop: DirectEmbodimentCompileResult;
+  readonly constrained: DirectEmbodimentCompileResult;
+  readonly preservedObligations: SemanticObligationContractV1;
+  readonly variantBudgets: readonly [string, string];
+  readonly constrainedShedChannels: readonly string[];
+}
+
+function obligationSetKey(obligations: SemanticObligationContractV1): string {
+  return canonicalSha256Hex({
+    mandatoryNodeIds: [...obligations.mandatoryNodeIds].sort(),
+    mandatoryChannels: [...obligations.mandatoryChannels].sort(),
+  });
+}
+
+/**
+ * DSE2: compiles the same snapshot and investigation context under a desktop
+ * and a constrained device budget, admitting the pair only when every
+ * mandatory node/channel obligation survives in both plans. The shared
+ * traversal root identity lets a later device switch preserve meaning instead
+ * of silently shedding mandatory content.
+ */
+export function compileObligationPreservingVariants(
+  request: ObligationPreservingVariantRequest
+): ObligationPreservingVariantPairV1 {
+  const desktopBudget = request.desktopBudget ?? DESKTOP_EXPANSIVE_BUDGET;
+  const constrainedBudget = request.constrainedBudget ?? QUEST_CONSTRAINED_BUDGET;
+  const broker = request.broker ?? new FormaResolutionBroker();
+
+  const desktop = compileDirectEmbodimentPlan({ ...request, budget: desktopBudget, broker });
+  const constrained = compileDirectEmbodimentPlan({
+    ...request,
+    budget: constrainedBudget,
+    broker,
+  });
+
+  if (
+    desktop.plan.datasetFingerprint !== request.datasetFingerprint ||
+    constrained.plan.datasetFingerprint !== request.datasetFingerprint ||
+    desktop.plan.semanticGraphId !== request.snapshot.snapshotId ||
+    constrained.plan.semanticGraphId !== request.snapshot.snapshotId
+  ) {
+    throw new Error(
+      '[DirectEmbodimentCompiler] Variant identity divergence: budget variants do not share snapshot identity'
+    );
+  }
+
+  const desktopObligations = desktop.admittedVariant.preservedObligations;
+  const constrainedObligations = constrained.admittedVariant.preservedObligations;
+  if (obligationSetKey(desktopObligations) !== obligationSetKey(constrainedObligations)) {
+    throw new Error(
+      '[DirectEmbodimentCompiler] Obligation divergence: budget variants preserve different mandatory obligations'
+    );
+  }
+
+  const desktopNodeIds = new Set(desktop.plan.elements.map((e) => e.semanticNodeId));
+  const constrainedNodeIds = new Set(constrained.plan.elements.map((e) => e.semanticNodeId));
+  for (const mandatoryNodeId of desktopObligations.mandatoryNodeIds) {
+    if (!desktopNodeIds.has(mandatoryNodeId) || !constrainedNodeIds.has(mandatoryNodeId)) {
+      throw new Error(
+        `[DirectEmbodimentCompiler] Obligation divergence: mandatory node '${mandatoryNodeId}' is not embodied in both budget variants`
+      );
+    }
+  }
+
+  const mandatoryChannels = new Set(desktopObligations.mandatoryChannels);
+  for (const variant of [desktop, constrained] as const) {
+    for (const shed of variant.admittedVariant.shedOptionalChannels) {
+      if (mandatoryChannels.has(shed)) {
+        throw new Error(
+          `[DirectEmbodimentCompiler] Obligation divergence: mandatory channel '${shed}' was shed under budget '${variant.admittedVariant.budgetProfile}'`
+        );
+      }
+    }
+  }
+
+  const traversalRootId = `traversal-root-${canonicalSha256Hex({
+    datasetFingerprint: request.datasetFingerprint,
+    snapshotId: request.snapshot.snapshotId,
+    contextId: request.context.nodeId,
+    obligations: obligationSetKey(desktopObligations),
+  }).slice(0, 16)}`;
+
+  return {
+    schemaVersion: DIRECT_EMBODIMENT_COMPILER_SCHEMA_VERSION,
+    traversalRootId,
+    datasetFingerprint: request.datasetFingerprint,
+    snapshotId: request.snapshot.snapshotId,
+    contextId: request.context.nodeId,
+    desktop,
+    constrained,
+    preservedObligations: desktopObligations,
+    variantBudgets: [desktopBudget.profileName, constrainedBudget.profileName],
+    constrainedShedChannels: [...constrained.admittedVariant.shedOptionalChannels],
   };
 }

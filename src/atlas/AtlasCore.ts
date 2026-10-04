@@ -84,7 +84,11 @@ import {
 } from './structures.ts';
 import type { StructureSet } from './structures.ts';
 import { generateGuidance } from './GuidanceEngine.ts';
-import { KernelAbiError, KernelUnavailableError, UnsupportedAtScaleError } from '../wasm/RuntimeBridge.ts';
+import {
+  KernelAbiError,
+  KernelUnavailableError,
+  UnsupportedAtScaleError,
+} from '../wasm/RuntimeBridge.ts';
 import {
   InvestigationAggregate,
   EvidenceLedger,
@@ -98,7 +102,13 @@ import type { FormaCompiledSliceV1 } from '../moneta/forma/FormaSpatialCompiler.
 import type { AnalyticalKernelPort } from './adapters/AnalyticalKernelPort.ts';
 import { RustAnalyticalEvidenceAdapter } from './adapters/RustAnalyticalEvidenceAdapter.ts';
 
-import type { AnalyticalExecutionPort, AnalyticalOperationOutput, AnalyticalRowView, DatasetPayload, GovernedEvidenceCaptureV1 } from './ports/AnalyticalExecutionPort.ts';
+import type {
+  AnalyticalExecutionPort,
+  AnalyticalOperationOutput,
+  AnalyticalRowView,
+  DatasetPayload,
+  GovernedEvidenceCaptureV1,
+} from './ports/AnalyticalExecutionPort.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 import {
   type RepresentationSearchResult,
@@ -115,10 +125,22 @@ import {
 import type {
   DirectEmbodimentCompileResult,
   AttributableCritiqueV1,
+  GovernedPhenomenonKind,
+  ObligationPreservingVariantPairV1,
 } from '../moneta/representation/DirectEmbodimentCompiler.ts';
-import type { SemanticSnapshotV1, EvidenceReferenceTupleV1 } from '../moneta/representation/SemanticSnapshotV1.ts';
+import type {
+  DirectTraversalSession,
+  EstablishedDetailAuthorityV1,
+} from '../moneta/representation/DirectTraversalSession.ts';
+import type {
+  SemanticSnapshotV1,
+  EvidenceReferenceTupleV1,
+} from '../moneta/representation/SemanticSnapshotV1.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
-import type { DeviceCapabilityBudgetV1, SemanticObligationContractV1 } from '../moneta/forma/FormaResolutionBroker.ts';
+import type {
+  DeviceCapabilityBudgetV1,
+  SemanticObligationContractV1,
+} from '../moneta/forma/FormaResolutionBroker.ts';
 import type { FormaAdmissionOptionsV1 } from '../moneta/forma/FormaAdmission.ts';
 import type { SpatialPhenotype } from '../moneta/forma/FormaSpatialCompiler.ts';
 
@@ -178,10 +200,14 @@ export class AtlasCore {
   ): string {
     const inputFingerprint = this.datasetFingerprint ?? '';
     if (!inputFingerprint) {
-      throw new KernelUnavailableError('[AtlasCore] current dataset has no authoritative fingerprint.');
+      throw new KernelUnavailableError(
+        '[AtlasCore] current dataset has no authoritative fingerprint.'
+      );
     }
     if (spec.datasetFingerprint && spec.datasetFingerprint !== inputFingerprint) {
-      throw new Error(`[AtlasCore] ${mode} analysis spec targets a non-current dataset fingerprint.`);
+      throw new Error(
+        `[AtlasCore] ${mode} analysis spec targets a non-current dataset fingerprint.`
+      );
     }
     return inputFingerprint;
   }
@@ -204,7 +230,9 @@ export class AtlasCore {
     outputFingerprint: string
   ): { dataset: Dataset; json: DatasetJSON } {
     if (input.edges !== undefined || view.edgesPresent) {
-      throw new KernelUnavailableError('[AtlasCore] compact row-view cannot represent dataset edges.');
+      throw new KernelUnavailableError(
+        '[AtlasCore] compact row-view cannot represent dataset edges.'
+      );
     }
     const sourceIds = input.rowIds;
     if (
@@ -222,11 +250,15 @@ export class AtlasCore {
     const rows = view.rowIds.map((id) => {
       const row = byId.get(id);
       if (!row) {
-        throw new KernelUnavailableError(`[AtlasCore] compact row-view references unknown row id ${id}.`);
+        throw new KernelUnavailableError(
+          `[AtlasCore] compact row-view references unknown row id ${id}.`
+        );
       }
       return row;
     });
-    const dataset = new Dataset(view.name, input.columns.slice(), rows, undefined, [...view.rowIds]);
+    const dataset = new Dataset(view.name, input.columns.slice(), rows, undefined, [
+      ...view.rowIds,
+    ]);
     const json = dataset.toJSON();
     if (canonicalDatasetIdentityHex(json) !== outputFingerprint) {
       throw new KernelUnavailableError(
@@ -445,7 +477,7 @@ export class AtlasCore {
    */
   private _composeGovernedEvidence(
     capture: GovernedEvidenceCaptureV1,
-    expected: { generation: number; version: number; fingerprint: string },
+    expected: { generation: number; version: number; fingerprint: string }
   ): GovernedEvidenceReceiptSnapshotV1 | null {
     if (
       expected.generation !== this._generation ||
@@ -485,7 +517,9 @@ export class AtlasCore {
 
   loadTypedDataset(payload: ArrayBuffer | Uint8Array, name?: string): number {
     if (!this.isReady()) {
-      throw new KernelUnavailableError('Analytical kernel unavailable — cannot load typed columns.');
+      throw new KernelUnavailableError(
+        'Analytical kernel unavailable — cannot load typed columns.'
+      );
     }
     const workerCopy = this._cloneTypedPayload(payload);
     const handle = this._analytics.loadTypedColumns(payload, name);
@@ -954,10 +988,13 @@ export class AtlasCore {
         inputDataset
       );
     }
-    const res = await this._executionPort.execute<AnalyticalOperationOutput | {
-      dataset: DatasetJSON;
-      outputFingerprint: string;
-    }>({
+    const res = await this._executionPort.execute<
+      | AnalyticalOperationOutput
+      | {
+          dataset: DatasetJSON;
+          outputFingerprint: string;
+        }
+    >({
       requestId: reqId,
       operation: 'operation',
       dataset: { fingerprint: inputFingerprint, version },
@@ -992,7 +1029,8 @@ export class AtlasCore {
     const outputHash = res.value.outputFingerprint;
     let json: DatasetJSON;
     let nextDataset: Dataset;
-    let verifiedRowViewSourceRef: { datasetVersion: number; datasetFingerprint: string } | null = null;
+    let verifiedRowViewSourceRef: { datasetVersion: number; datasetFingerprint: string } | null =
+      null;
 
     if ('kind' in res.value && res.value.kind === 'row-view') {
       if (!compactRowView || !inputDataset) {
@@ -1310,8 +1348,13 @@ export class AtlasCore {
 
   private async _computeTdaEvidenceAsync<T>(
     operation: 'tda.persistence' | 'tda.mapper' | 'tda.betti0',
-    params: Record<string, unknown>,
-  ): Promise<{ value: T; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+    params: Record<string, unknown>
+  ): Promise<{
+    value: T;
+    provenance: Provenance | null;
+    datasetVersion: number;
+    datasetFingerprint: string;
+  } | null> {
     const fp = this.datasetFingerprint ?? '';
     if (!fp) return null;
     const version = this.datasetVersion;
@@ -1346,45 +1389,66 @@ export class AtlasCore {
 
   async computePersistenceEvidenceAsync(
     params: Record<string, unknown>
-  ): Promise<{ value: PersistenceInterval[]; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+  ): Promise<{
+    value: PersistenceInterval[];
+    provenance: Provenance | null;
+    datasetVersion: number;
+    datasetFingerprint: string;
+  } | null> {
     if (!this._executionPort?.isAsync) {
       const value = this.computePersistenceIntervalsForCurrent(params);
-      return value ? {
-        value,
-        provenance: this.lastProvenance(),
-        datasetVersion: this.datasetVersion,
-        datasetFingerprint: this.datasetFingerprint ?? '',
-      } : null;
+      return value
+        ? {
+            value,
+            provenance: this.lastProvenance(),
+            datasetVersion: this.datasetVersion,
+            datasetFingerprint: this.datasetFingerprint ?? '',
+          }
+        : null;
     }
     return this._computeTdaEvidenceAsync<PersistenceInterval[]>('tda.persistence', params);
   }
 
   async computeMapperEvidenceAsync(
     params: Record<string, unknown>
-  ): Promise<{ value: TdaMapperGraph; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+  ): Promise<{
+    value: TdaMapperGraph;
+    provenance: Provenance | null;
+    datasetVersion: number;
+    datasetFingerprint: string;
+  } | null> {
     if (!this._executionPort?.isAsync) {
       const value = this.computeMapperGraphForCurrent(params);
-      return value ? {
-        value,
-        provenance: this.lastProvenance(),
-        datasetVersion: this.datasetVersion,
-        datasetFingerprint: this.datasetFingerprint ?? '',
-      } : null;
+      return value
+        ? {
+            value,
+            provenance: this.lastProvenance(),
+            datasetVersion: this.datasetVersion,
+            datasetFingerprint: this.datasetFingerprint ?? '',
+          }
+        : null;
     }
     return this._computeTdaEvidenceAsync<TdaMapperGraph>('tda.mapper', params);
   }
 
   async computeBetti0EvidenceAsync(
     params: Record<string, unknown>
-  ): Promise<{ value: BettiPoint[]; provenance: Provenance | null; datasetVersion: number; datasetFingerprint: string } | null> {
+  ): Promise<{
+    value: BettiPoint[];
+    provenance: Provenance | null;
+    datasetVersion: number;
+    datasetFingerprint: string;
+  } | null> {
     if (!this._executionPort?.isAsync) {
       const value = this.computeBetti0CurveForCurrent(params);
-      return value ? {
-        value,
-        provenance: this.lastProvenance(),
-        datasetVersion: this.datasetVersion,
-        datasetFingerprint: this.datasetFingerprint ?? '',
-      } : null;
+      return value
+        ? {
+            value,
+            provenance: this.lastProvenance(),
+            datasetVersion: this.datasetVersion,
+            datasetFingerprint: this.datasetFingerprint ?? '',
+          }
+        : null;
     }
     return this._computeTdaEvidenceAsync<BettiPoint[]>('tda.betti0', params);
   }
@@ -1395,29 +1459,28 @@ export class AtlasCore {
     if (this._executionPort?.isAsync) {
       const fingerprint = this.datasetFingerprint ?? '';
       if (!fingerprint) return null;
-      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion)))
+        return null;
     }
     return (await this.computePersistenceEvidenceAsync(params))?.value ?? null;
   }
 
-  async computeMapperGraphAsync(
-    params: Record<string, unknown>
-  ): Promise<TdaMapperGraph | null> {
+  async computeMapperGraphAsync(params: Record<string, unknown>): Promise<TdaMapperGraph | null> {
     if (this._executionPort?.isAsync) {
       const fingerprint = this.datasetFingerprint ?? '';
       if (!fingerprint) return null;
-      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion)))
+        return null;
     }
     return (await this.computeMapperEvidenceAsync(params))?.value ?? null;
   }
 
-  async computeBetti0CurveAsync(
-    params: Record<string, unknown>
-  ): Promise<BettiPoint[] | null> {
+  async computeBetti0CurveAsync(params: Record<string, unknown>): Promise<BettiPoint[] | null> {
     if (this._executionPort?.isAsync) {
       const fingerprint = this.datasetFingerprint ?? '';
       if (!fingerprint) return null;
-      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion))) return null;
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, this.datasetVersion)))
+        return null;
     }
     return (await this.computeBetti0EvidenceAsync(params))?.value ?? null;
   }
@@ -1583,9 +1646,7 @@ export class AtlasCore {
   }
 
   /** Evaluate Moneta ranking without changing the active representation state. */
-  previewRepresentation(
-    requirements?: RepresentationRequirements,
-  ): RepresentationDecision {
+  previewRepresentation(requirements?: RepresentationRequirements): RepresentationDecision {
     return this._aggregate.representation.previewRepresentationFromEvidence(
       this.datasetEvidence(),
       requirements
@@ -1599,8 +1660,7 @@ export class AtlasCore {
   ): RepresentationDecision {
     const activeContext = this._aggregate.getActiveContext();
     const effectiveReq =
-      requirements ??
-      (activeContext ? createRequirementsFromContext(activeContext) : undefined);
+      requirements ?? (activeContext ? createRequirementsFromContext(activeContext) : undefined);
     return this._aggregate.representation.arbitrateRepresentationFromEvidence(
       this.datasetEvidence(),
       effectiveReq
@@ -1841,6 +1901,46 @@ export class AtlasCore {
 
   getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {
     return this._aggregate.getActiveDirectCompileResult();
+  }
+
+  /**
+   * DSE2: Compiles desktop and constrained budget variants, admitting the
+   * pair only when mandatory obligations survive in both plans.
+   */
+  compileObligationPreservingVariants(options?: {
+    readonly snapshot?: SemanticSnapshotV1;
+    readonly analyticalEvidence?: {
+      readonly envelope: SemanticEmbodimentEnvelopeV1;
+      readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
+    };
+    readonly desktopBudget?: DeviceCapabilityBudgetV1;
+    readonly constrainedBudget?: DeviceCapabilityBudgetV1;
+    readonly obligations?: SemanticObligationContractV1;
+    readonly admissionOptions?: FormaAdmissionOptionsV1;
+    readonly phenotype?: SpatialPhenotype;
+    readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
+  }): ObligationPreservingVariantPairV1 {
+    return this._aggregate.compileObligationPreservingVariants(options);
+  }
+
+  getActiveVariantPair(): ObligationPreservingVariantPairV1 | undefined {
+    return this._aggregate.getActiveVariantPair();
+  }
+
+  /**
+   * DSE2: Opens a reversible traversal session over the active direct
+   * compilation, bound to caller-established detail authority.
+   */
+  openDirectTraversal(
+    planElementId: string,
+    phenomenon: GovernedPhenomenonKind,
+    detailAuthority: EstablishedDetailAuthorityV1
+  ): DirectTraversalSession {
+    return this._aggregate.openDirectTraversal(planElementId, phenomenon, detailAuthority);
+  }
+
+  getActiveDirectTraversal(): DirectTraversalSession | undefined {
+    return this._aggregate.getActiveDirectTraversal();
   }
 
   /**
