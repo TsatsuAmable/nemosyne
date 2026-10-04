@@ -18,27 +18,26 @@ Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The his
 
 ## Status snapshot - 4 October 2026
 
-**Integration base:** `main@4f8c6a426d0868326263c5d5888848d3626c9c19` (PR #955, FMA-01–04 immediate authority/compiler containment).
+**Integration base:** `main@ba3ff009b2c8e6a38dcbe380a683523dc4c9df24` (through PR #964).
 
 - Architecture 2027 decisions are integrated: A27-0 and A27-1 accepted; L0 semantic snapshot, L1 committed perspective/context V2 and L2 Forma admission/KB0 contracts landed in PRs #936-#938. These are enabling contracts, not automatic product-capability promotion.
 - **P1-TEC / FM0 remains active**. Governed replay/consumer-policy work is substantially landed; remaining evidence-identity, calibration/qualification and downstream evidence-reference closure must remain fail-closed. See [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md).
 - **UXR0-UXR3 are at bounded software exits. UXR4/UXR5 remain physical-evidence open.** See [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) and [Quest validation operations](roadmap/P1_QV_QUEST_VALIDATION_OPERATIONS.md).
-- **Full Moneta is IMPLEMENTATION PARTIAL.** PR #955 landed the immediate FMA-01–04 authority/compiler containment, removing fabricated grounded analytics and hardening several compiler failures. The [4 October completeness audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md), including its dual-epistemic addendum, remains the repair authority: Full Moneta must preserve RFC 0011's two intended epistemic purposes, grounded/reproducible claim-bearing output and explicitly conjectural exploratory/predictive output. The typed conjectural path and remaining identity/integration/learning work are still open; previous completion labels do not authorize downstream promotion. See [incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) and [architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
-- **Quest Compute Acceleration is active as a bounded parallel performance lane.** QCA0 baseline comes first. See [QCA index](work/quest-compute/README.md).
+- **Full Moneta remains IMPLEMENTATION PARTIAL, but the audit defect queue has materially advanced.** Bounded FMA-01–13 repairs are merged (#955, #957, #958, #960); production context-adoption, static Forma rendering/reverse explanation and V4 replay landed in #961; FM3/4 resolution/composition fidelity landed in #962. Remaining completion work is product/qualification rather than the old defect list: FM1/FM2 user-facing interaction closure, FM5 measured System-1 qualification, FM6 learned-prior qualification, FM7 product search/synthesis integration and integrated human/device evidence. See the [4 October completeness audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md), [incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) and [architecture](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md).
+- **Quest Compute Acceleration is active as a bounded parallel performance lane.** QCA0 baseline-integrity work is in progress; physical Quest evidence remains required. See [QCA index](work/quest-compute/README.md).
+- **Memory Palace authority cleanup is complete:** the duplicate mutable `MemoryPalaceGraph` store was retired under ADR-0012/#964; the product palace remains a deterministic projection of `InvestigationAggregate` state.
 - **scriptc is parked for Quest/WebXR.** It may be reconsidered only for a real native CLI/sidecar/tool deployment with measured benefit. See [scriptc evaluation](roadmap/SCRIPTC_NATIVE_TYPESCRIPT_EVALUATION.md).
 
 Current order:
 
 ```text
-P1-TEC / FM0 evidence closure
-  -> dual-epistemic contract repair DM-0..DM-3 (RFC 0011 / audit addendum)
-  -> L2-FORMA-1 first static Forma vertical slice
-  -> FM3/4 composition + resolution qualification
-  -> FM5 System-1 assistance
-  -> FM6 human refinement / Forma knowledge
-  -> FM7 searching / synthesizing Moneta
-  -> FM8 full Moneta / controlled adaptive representation
-parallel when evidence/collision rules allow: UXR4/5 physical qualification + QCA0-QCA5
+P1-TEC / FM0 finite evidence closure
+  -> FM5 governed System-1 advisory + held-out/target-device qualification [ACTIVE]
+  -> FM6 learned-prior product qualification
+  -> FM7 product search/synthesis integration + qualification
+  -> FM8 integrated product/human/device qualification
+residual before FM8 completion: FM1/FM2 user-facing intent/alternative actions
+parallel when disjoint: UXR4/5 physical qualification + QCA0 Quest baseline
 then: P1-WP -> P1-WQ -> PT9/PT10
 ```
 
@@ -47,14 +46,14 @@ then: P1-WP -> P1-WQ -> PT9/PT10
 | Work | Status | Next action / dependency | Detail |
 | --- | --- | --- | --- |
 | **P1-TEC / FM0 trustworthy evidence** | **ACTIVE** | Finish finite evidence identity/calibration/consumer qualification required by claim-bearing downstream work. | [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md), generated RF table below |
-| **FM1 perspective/context** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | DM-0 first: make epistemic purpose explicit/no-default and complete context identity; then restore immutable history, product consumption and render-time activation checks (FMA-06/08). | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM2 alternative-aware / Road Not Taken** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair atomic branching and coherent graph/context/decision revisit; wire real product interactions (FMA-06/07/08). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM3 Forma first vertical slice / L2-FORMA-1** | **IMPLEMENTATION PARTIAL — immediate FMA-01–04 containment landed in #955** | DM-1..DM-3 next: add typed conjectural proposals and grounded/conjectural Forma bindings on top of the hardened admission/compiler boundary; then deliver real renderer and V4 static restoration (FMA-01–04/09). | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM3/4 composition + resolution adaptation / L2-FORMA-2 + L4-RUNTIME-BUDGET** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair final-content identity, enforced budgets, context authorization and selected-graph fidelity (FMA-05/10). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM5 System-1 assistance** | **IMPLEMENTATION PARTIAL** | Establish governed advisory influence and baseline/model/device evidence; current FM8 proposals do not drive graph selection (FMA-10). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM6 human refinement / Forma knowledge** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Repair attributable knowledge qualification, corpus identity and candidate-bound measured promotion (FMA-11–13). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM7 searching / synthesizing Moneta** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Compile selected bindings/relations and establish real governed product integration (FMA-08/10). | [Full Moneta audit](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM8 full Moneta / controlled adaptive representation** | **IMPLEMENTATION PARTIAL — completion claim withdrawn by audit** | Remove fabricated grounded analytics/evidence **without deleting predictive capability**; route adaptive/search output through ConjecturalProposalV1 + typed Forma admission, then complete integration and durable qualification (FMA-01/08–13; DM-1/DM-5). | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
+| **FM1 perspective/context** | **CORE IMPLEMENTATION LANDED / PRODUCT INTEGRATION OPEN** | Context identity, explicit epistemic purpose, history and production adoption guards are landed (#957/#960/#961). Wire/qualify researcher-facing intent and perspective actions through the real product path before claiming the FM1 exit. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+| **FM2 alternative-aware / Road Not Taken** | **CORE IMPLEMENTATION LANDED / PRODUCT ACTIONS OPEN** | Atomic branch/revisit semantics are landed (#957). Wire REQUEST_ALTERNATIVE/COMPARE/PREFER/REJECT/EXPLAIN through UI/NIL and qualify branch replay; Memory Palace remains an aggregate projection after duplicate-store retirement (#963/#964). | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md), [ADR-0012](architecture/decisions/0012-memory-palace-graph-authority.md) |
+| **FM3 Forma first vertical slice / L2-FORMA-1** | **STATIC PRODUCT SLICE LANDED / SEMANTIC QUALIFICATION OPEN** | Typed grounded/conjectural admission, production adoption guard, 3D Forma rendering, reverse explanation and V4 static replay are landed (#960/#961). Qualify multi-phenomenon semantic comprehension and product usefulness before the full FM3 exit. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+| **FM3/4 composition + resolution adaptation / L2-FORMA-2 + L4-RUNTIME-BUDGET** | **IMPLEMENTATION LANDED / DEVICE QUALIFICATION OPEN** | Final-content identity, budget/generation refusal and selected-graph fidelity are landed (#962). Qualify semantic recoverability and information-loss disclosure across materially different Quest/desktop budgets. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+| **FM5 System-1 assistance** | **ACTIVE — FORWARD TRANCHE** | Governed System-1 advisory influence is in flight. Exit still requires measurable held-out and target-device value over deterministic/reference baselines with explicit ABSTAIN, provenance, replay and hard-gate preservation. | [System-1/System-2 architecture](architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md) |
+| **FM6 human refinement / Forma knowledge** | **AUTHORITY REPAIRS LANDED / QUALIFICATION OPEN** | FMA-11–13 learning authority, corpus identity and promotion guards are repaired (#958). Demonstrate that a promoted prior reproducibly improves held-out objectives and actually influences product decisions under frozen/replayable identity. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+| **FM7 searching / synthesizing Moneta** | **IMPLEMENTATION PARTIAL / PRODUCT INTEGRATION OPEN** | Grammar/Pareto search and selected-graph composition exist and feed FullMonetaEngine. Wire investigator-facing search/adjustment/TechnoCore controls and qualify at least one useful admissible representation outside the fixed catalogue. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
+| **FM8 full Moneta / controlled adaptive representation** | **IMPLEMENTATION PARTIAL / INTEGRATED QUALIFICATION OPEN** | The FMA-01–13 repair set and dual-epistemic core are landed; do not restore completion claims until qualified FM5/FM6/FM7 behavior, residual FM1/FM2 product surfaces and human/device evidence satisfy the integrated V3.1 exit. | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
 
 | **UXR4/UXR5 device qualification** | **EVIDENCE ACQUISITION OPEN** | Capture attributable Quest interaction/render/resource/comfort evidence when hardware is available. | [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) |
 | **P1-WP → P1-WQ** | **BLOCKED BY REQUIRED UXR/ASSURANCE CLOSURE** | Productionize web surfaces, then ordinary-browser investigator qualification. | [Product transition plan](roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md) |
@@ -68,7 +67,7 @@ This replaces scriptc as the immediate Quest-browser optimization experiment. Ru
 
 | ID | Status | Dependency | Task |
 | --- | --- | --- | --- |
-| **QCA0** | **BASELINE CAPTURED / QUALIFICATION RE-RUN OPEN** | corrected exact-head Quest 3S run | [Quest performance baseline](work/quest-compute/QCA0_BASELINE.md) |
+| **QCA0** | **BASELINE CAPTURED / QCA1–QCA4 OPEN** | custody-sealed Quest 3S QCA0 baseline | [Quest performance baseline](work/quest-compute/QCA0_BASELINE.md) |
 | **QCA1** | **READY AFTER QCA0** | QCA0 hotspot evidence | [Rust/WASM SIMD128](work/quest-compute/QCA1_WASM_SIMD.md) |
 | **QCA2** | **READY AFTER QCA0** | QCA0 main-thread evidence | [Worker/main-thread offload audit](work/quest-compute/QCA2_WORKER_OFFLOAD.md) |
 | **QCA3** | **BLOCKED_BY QCA2 MEASUREMENTS** | prove transfer/synchronization cost matters | [Transferable buffers, memory and WASM threads](work/quest-compute/QCA3_TRANSPORT_THREADS.md) |
