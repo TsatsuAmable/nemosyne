@@ -9,6 +9,7 @@ import {
   type FormaReverseTraceV1,
   type SpatialPhenotype,
 } from './FormaSpatialCompiler.js';
+import type { FormaAdmissionOptionsV1 } from './FormaAdmission.js';
 
 export const FORMA_RESOLUTION_BROKER_SCHEMA_VERSION = 1 as const;
 
@@ -111,6 +112,7 @@ export class FormaResolutionBroker {
     budget: DeviceCapabilityBudgetV1,
     obligations: SemanticObligationContractV1,
     requestedGeneration: number,
+    admissionOptions?: FormaAdmissionOptionsV1,
   ): VariantBrokerOutcomeV1 {
     // 1. Validate budget integrity (reject non-positive or missing limits)
     if (
@@ -212,7 +214,7 @@ export class FormaResolutionBroker {
     }
 
     // 5. Compile base spatial slice
-    const compilationOutcome = compileFormaSpatialSlice(snapshot, context, manifest, targetPhenotype);
+    const compilationOutcome = compileFormaSpatialSlice(snapshot, context, manifest, targetPhenotype, admissionOptions);
     if (compilationOutcome.status === 'REFUSED') {
       return {
         status: 'REFUSED',

@@ -4,9 +4,12 @@
 
 import {
   GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION,
+  FORMA_PACKAGE_FORMAT_VERSION,
   LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NEMOSYNE_PACKAGE_FORMAT_VERSION,
   NemosynePackageManager,
+  createHistoricalInspectionCapability,
+  type HistoricalInspectionCapability,
   type NemosynePackageManifest,
   type NemosynePackagePayload,
 } from './NemosynePackage.ts';
@@ -191,6 +194,7 @@ export interface ReplayVerificationResult {
     annotations: number;
   };
   discrepancies: string[];
+  historicalInspectionCapability?: HistoricalInspectionCapability | null;
 }
 
 function stableJson(value: unknown): string {
@@ -490,12 +494,13 @@ export class InvestigationReplayRunner {
     const isLegacyV1 = manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION;
     const isV2 = manifest.formatVersion === NEMOSYNE_PACKAGE_FORMAT_VERSION;
     const isV3 = manifest.formatVersion === GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION;
+    const isV4 = manifest.formatVersion === FORMA_PACKAGE_FORMAT_VERSION;
 
     // RFC 0009 step 1: dispatch on the exact package/digest version before
     // parsing datasets, constructing Atlas, or executing any kernel operation.
     // A package that never declared V3 carries no governed envelope, so its
     // failures attest `absent` rather than `not-established`.
-    if (!isLegacyV1 && !isV2 && !isV3) {
+    if (!isLegacyV1 && !isV2 && !isV3 && !isV4) {
       return this._failedResult(manifest,
         [`Unsupported replay package formatVersion '${String(manifest.formatVersion)}'`],
         { envelope: 'absent' });
@@ -514,32 +519,17 @@ export class InvestigationReplayRunner {
           { envelope: 'absent' });
       }
     } else if (manifest.investigationDigestAlgorithm !== GOVERNED_INVESTIGATION_DIGEST_ALGORITHM) {
-      // A V3 declaration without the V3 digest contract is malformed V3 input.
+      // A V3/V4 declaration without the governed digest contract is malformed input.
       return this._failedResult(manifest,
-        ['Governed format-v3 package requires its investigation digest algorithm'],
+        [`Governed format-v${manifest.formatVersion} package requires its investigation digest algorithm`],
         { envelope: 'present', integrity: 'not-established' });
     } else if (typeof manifest.investigationDigest !== 'string' || manifest.investigationDigest === '') {
-      // ...and it must actually commit to a digest. `pack`/`unpack` require a
-      // 64-hex digest for V3, but the loader does not assume transport ran: a
-      // payload arriving through `replayPayload` with no declared digest skips
-      // the step-4 comparison below and would otherwise reach `success: true`
-      // carrying `not-established` — a V3 archive reporting success while
-      // committing to nothing, which is the fail-open the typed attestation
-      // exists to make impossible.
       return this._failedResult(manifest,
-        ['Governed format-v3 package is missing its investigation digest'],
+        [`Governed format-v${manifest.formatVersion} package is missing its investigation digest`],
         { envelope: 'present', integrity: 'not-established' });
     } else if (!/^[0-9a-f]{64}$/.test(manifest.investigationDigest)) {
-      // ...and a digest that is present must be well-formed. Shape is checked
-      // here, not left to the step-4 comparison, because comparison can only
-      // ever disagree with a malformed digest: `'x'` or a 64-char non-hex string
-      // would be reported as `INVESTIGATION_DIGEST_MISMATCH`, telling an analyst
-      // their investigation was substituted when the manifest simply is not
-      // valid V3 input. `pack` rejects exactly this shape (NemosynePackage), and
-      // the whole point of re-checking here is the payload that never passed
-      // transport — which covers malformed digests, not only absent ones.
       return this._failedResult(manifest,
-        ['Governed format-v3 package requires its investigation digest as a lowercase SHA-256 digest'],
+        [`Governed format-v${manifest.formatVersion} package requires its investigation digest as a lowercase SHA-256 digest`],
         { envelope: 'present', integrity: 'not-established' });
     }
 
@@ -547,20 +537,13 @@ export class InvestigationReplayRunner {
     // closed envelope. `replayPayload` is public and may be handed a payload
     // that never passed through `unpack`, so the loader re-runs this itself
     // instead of assuming transport validation already happened.
-    //
-    // This deliberately restates the checks in `assertEvidenceContract`
-    // (NemosynePackage.ts) rather than calling it. Sharing one helper would make
-    // the loader's check a function of the transport's, so a change made for
-    // transport reasons would silently alter what the loader accepts — the
-    // opposite of the independent re-check the RFC asks for. The cost is that
-    // the two can drift apart; the guard on that is the falsifiers below, which
-    // drive the loader directly with payloads that never passed transport.
     let envelope: PersistedEvidenceReceiptsV1 | null = null;
     let receiptSnapshot: Uint8Array | null = null;
-    if (isV3) {
+    let historicalInspectionCapability: HistoricalInspectionCapability | null = null;
+    if (isV3 || isV4) {
       if (!evidenceReceiptBytes) {
         return this._failedResult(manifest,
-          ['Format-v3 package is missing evidence receipts'],
+          [`Format-v${manifest.formatVersion} package is missing evidence receipts`],
           { envelope: 'present', integrity: 'not-established' });
       }
       // One owned copy of the verbatim bytes: the commitment below is over
@@ -580,6 +563,31 @@ export class InvestigationReplayRunner {
         return this._failedResult(manifest,
           [`Governed evidence integrity failure: ${(e as Error).message}`],
           { envelope: 'present', integrity: 'not-established' });
+      }
+
+      if (isV4) {
+        if (!payload.formaInvestigationBytes) {
+          return this._failedResult(manifest,
+            ['Format-v4 package is missing forma investigation data'],
+            { envelope: 'present', integrity: 'not-established' });
+        }
+        const formaSnapshot = new Uint8Array(payload.formaInvestigationBytes);
+        try {
+          if (sha256Hex(formaSnapshot) !== manifest.formaDigest) {
+            throw new Error('Forma investigation entry digest mismatch');
+          }
+          const formaJson = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(formaSnapshot));
+          const capture = formaJson.staticCapture;
+          const isConjectural = capture?.status === 'CAPTURED' && capture.isConjectural === true;
+          historicalInspectionCapability = createHistoricalInspectionCapability(
+            manifest.formaDigest!,
+            isConjectural
+          );
+        } catch (e) {
+          return this._failedResult(manifest,
+            [`Governed forma integrity failure: ${(e as Error).message}`],
+            { envelope: 'present', integrity: 'not-established' });
+        }
       }
       // RFC 0009 tranche 3: the loader no longer answers this from the envelope's
       // shape. It asks the authority-owned policy, so it is the policy — not a
@@ -1094,6 +1102,7 @@ export class InvestigationReplayRunner {
         annotations: atlas.evidenceLedger.annotations.length,
       },
       discrepancies,
+      historicalInspectionCapability,
     };
   }
 
@@ -1120,6 +1129,7 @@ export class InvestigationReplayRunner {
       investigationDigest: '',
       evidenceCount: { observations: 0, findings: 0, annotations: 0 },
       discrepancies,
+      historicalInspectionCapability: null,
     };
   }
 }

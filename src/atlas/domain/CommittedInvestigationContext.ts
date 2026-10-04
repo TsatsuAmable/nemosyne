@@ -89,8 +89,15 @@ function normalizeNodeId(value: unknown): string {
   return normalized;
 }
 
-function normalizeEpistemicPurpose(value: unknown): EpistemicPurpose {
-  if (value === undefined) return 'CLAIM_BEARING';
+function normalizeEpistemicPurpose(value: unknown, isV2 = false): EpistemicPurpose {
+  if (value === undefined) {
+    if (isV2) {
+      throw new TypeError(
+        'CommittedInvestigationContext V2 requires explicit epistemicPurpose: "CLAIM_BEARING" | "EXPLORATORY_ABDUCTION"'
+      );
+    }
+    return 'CLAIM_BEARING';
+  }
   if (typeof value !== 'string' || !EPISTEMIC_PURPOSES.includes(value as EpistemicPurpose)) {
     throw new TypeError(
       `CommittedInvestigationContext epistemicPurpose must be one of: ${EPISTEMIC_PURPOSES.join(', ')}`
@@ -155,8 +162,9 @@ export function canonicalizeCommittedInvestigationContext(
     );
   }
 
+  const isV2 = version === COMMITTED_INVESTIGATION_CONTEXT_SCHEMA_V2;
   const nodeId = normalizeNodeId(candidate.nodeId);
-  const epistemicPurpose = normalizeEpistemicPurpose(candidate.epistemicPurpose);
+  const epistemicPurpose = normalizeEpistemicPurpose(candidate.epistemicPurpose, isV2);
   const intent = canonicalizeInvestigationIntent(candidate.intent);
 
   const canonical: {
@@ -435,6 +443,10 @@ export class CommittedInvestigationContextLedger {
 
   current(): CommittedContextActivation | undefined {
     return this._activeNodeId === null ? undefined : this.getActivation(this._activeNodeId);
+  }
+
+  getActiveActivation(): CommittedContextActivation | undefined {
+    return this.current();
   }
 
   currentBinding(): ContextBinding | undefined {

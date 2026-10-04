@@ -1,5 +1,8 @@
 import type { DatasetSignature } from '../representation/DatasetSignature.js';
-import type { CommittedInvestigationContextV2 } from '../../atlas/domain/CommittedInvestigationContext.js';
+import {
+  type CommittedInvestigationContextV2,
+  computeCommittedContextIdentity,
+} from '../../atlas/domain/CommittedInvestigationContext.js';
 import type { RepresentationGraph } from '../representation/RepresentationGraph.js';
 import {
   type ObjectivePreference,
@@ -29,6 +32,11 @@ import {
 } from '../forma/FormaMultiElementRuntime.js';
 import type { FormaKnowledgeStore } from '../forma/FormaKnowledgeBase.js';
 import { FormaSystem1Proposer, DEFAULT_SYSTEM1_WEIGHTS } from '../forma/FormaSystem1Proposer.js';
+import {
+  type ConjecturalProposalV1,
+  createConjecturalProposal,
+} from '../forma/ConjecturalProposal.js';
+import type { FormaAdmissionOptionsV1 } from '../forma/FormaAdmission.js';
 
 export interface AdaptationOptions {
   readonly preference?: ObjectivePreference;
@@ -44,6 +52,7 @@ export interface AdaptationOptions {
     readonly envelope: SemanticEmbodimentEnvelopeV1;
     readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
   };
+  readonly admissionOptions?: FormaAdmissionOptionsV1;
 }
 
 export interface AdaptationTransition {
@@ -69,6 +78,7 @@ export interface FullMonetaSynthesisResult {
   readonly composedState: ComposedRepresentationStateV1;
   readonly transition?: AdaptationTransition;
   readonly researchModeFrozen: boolean;
+  readonly conjecturalProposals?: readonly ConjecturalProposalV1[];
   readonly provenance: {
     readonly datasetFingerprint: string;
     readonly timestamp: string;
@@ -92,6 +102,13 @@ export class FullMonetaEngine {
     knowledgeStore?: FormaKnowledgeStore,
     options: AdaptationOptions = {}
   ): FullMonetaSynthesisResult {
+    // 0. Validate committed investigation context (RFC 0011 / DM-0 / DM-5)
+    if (!context || !context.epistemicPurpose) {
+      throw new TypeError(
+        '[FullMonetaEngine] CommittedInvestigationContextV2 with explicit epistemicPurpose is strictly required.'
+      );
+    }
+
     const preference = options.preference ?? 'BALANCED';
     const isResearchMode = options.researchMode ?? false;
 
@@ -100,27 +117,7 @@ export class FullMonetaEngine {
       knowledgeStore.freeze();
     }
 
-    // 2. Multi-objective Pareto search
-    const maxGenerations = isResearchMode ? 2 : (options.maxGenerations ?? 3);
-    const populationSize = isResearchMode ? 8 : (options.populationSize ?? 12);
-
-    const searchResult = RepresentationSearchEngine.search(signature, {
-      preference,
-      maxGenerations,
-      populationSize,
-      context,
-    });
-
-    const topCandidate = searchResult.paretoFrontier[0] ?? searchResult.referenceCandidate;
-    const selectedGraph = topCandidate.graph;
-
-    // 3. Calculate adaptation transition if a previous graph exists
-    let transition: AdaptationTransition | undefined;
-    if (options.currentGraph) {
-      transition = this.computeAdaptationTransition(options.currentGraph, selectedGraph);
-    }
-
-    // 4. Analytical evidence resolution & validation (FMA-01)
+    // 2. Analytical evidence resolution & validation (FMA-01)
     let snapshot: SemanticSnapshotV1 | undefined = options.snapshot;
 
     if (!snapshot && options.analyticalEvidence) {
@@ -150,30 +147,87 @@ export class FullMonetaEngine {
 
     const manifest = createKB0Manifest();
 
-    // 5. Query System-1 proposal and knowledge store precedents
-    const fallbackContext: CommittedInvestigationContextV2 = context ?? {
-      schemaVersion: 2,
-      nodeId: 'node-root',
-      intent: {
-        schemaVersion: 1,
-        researchQuestion: 'Explore dataset structure',
-        currentTask: 'exploratory_analysis',
-      },
-      epistemicPurpose: 'EXPLORATORY_ABDUCTION',
+    // 3. System-1 proposals generated before search to guide candidate exploration (DM-5)
+    const proposer = new FormaSystem1Proposer(DEFAULT_SYSTEM1_WEIGHTS, knowledgeStore);
+    const s1Proposals = proposer.generateProposals(snapshot, context, manifest, budget);
+
+    // 4. Multi-objective Pareto search influenced by System-1 advice
+    const maxGenerations = isResearchMode ? 2 : (options.maxGenerations ?? 3);
+    const populationSize = isResearchMode ? 8 : (options.populationSize ?? 12);
+
+    const searchResult = RepresentationSearchEngine.search(signature, {
+      preference,
+      maxGenerations,
+      populationSize,
+      system1Proposals: s1Proposals,
+      context,
+    });
+
+    const topCandidate = searchResult.paretoFrontier[0] ?? searchResult.referenceCandidate;
+    const selectedGraph = topCandidate.graph;
+
+    // 5. Calculate adaptation transition if a previous graph exists
+    let transition: AdaptationTransition | undefined;
+    if (options.currentGraph) {
+      transition = this.computeAdaptationTransition(options.currentGraph, selectedGraph);
+    }
+
+    // 6. Handle Conjectural Proposals and Admission Options (DM-1, DM-2, DM-5)
+    const conjecturalProposals: ConjecturalProposalV1[] = [
+      ...(options.admissionOptions?.conjecturalProposals ?? []),
+    ];
+    if (context.epistemicPurpose === 'EXPLORATORY_ABDUCTION' && conjecturalProposals.length === 0) {
+      const proposal = createConjecturalProposal({
+        snapshotId: snapshot.snapshotId,
+        contextId: computeCommittedContextIdentity(context),
+        generator: {
+          modelId: 'FormaSystem1Proposer+RepresentationSearchEngine',
+          modelVersion: 'FM8-Adaptive-1.0',
+          executionRegime: isResearchMode ? 'PINNED' : 'ADAPTIVE',
+        },
+        elements: selectedGraph.primitives.map((p) => ({
+          elementId: `conjectural-elem-${p.id}`,
+          kind: p.kind,
+          epistemicStatus: 'HYPOTHESIZED' as const,
+          properties: {
+            primitiveKind: p.kind,
+            parameters: p.parameters,
+          },
+          uncertaintyDisclosure: 'Synthesized via Pareto grammar exploration and System-1 priors',
+        })),
+        relations: selectedGraph.edges.map((e, idx) => ({
+          relationId: `conjectural-rel-${idx}`,
+          sourceElementId: `conjectural-elem-${e.from}`,
+          targetElementId: `conjectural-elem-${e.to}`,
+          kind: e.relation,
+          epistemicStatus: 'HYPOTHESIZED' as const,
+        })),
+        assumptions: [
+          'Underlying data distribution satisfies representation grammar priors',
+          'Candidate discovered outside catalog via exploratory abduction',
+        ],
+        uncertaintyDisclosure: 'Candidate generated under EXPLORATORY_ABDUCTION; properties are not grounded observations',
+        rationale: `Selected candidate rank ${topCandidate.paretoRank} with utility ${topCandidate.utility}`,
+      });
+      conjecturalProposals.push(proposal);
+    }
+
+    const effectiveAdmissionOptions: FormaAdmissionOptionsV1 = {
+      ...options.admissionOptions,
+      conjecturalProposals: conjecturalProposals.length > 0 ? conjecturalProposals : undefined,
     };
 
-    const proposer = new FormaSystem1Proposer(DEFAULT_SYSTEM1_WEIGHTS, knowledgeStore);
-    const s1Proposals = proposer.generateProposals(snapshot, fallbackContext, manifest, budget);
-
+    // 7. Resolution adaptation broker
     const broker = new FormaResolutionBroker();
 
     const brokerOutcome = broker.brokerVariant(
       snapshot,
-      fallbackContext,
+      context,
       manifest,
       budget,
       obligations,
-      1
+      1,
+      effectiveAdmissionOptions
     );
 
     if (brokerOutcome.status !== 'ADMITTED') {
@@ -184,25 +238,36 @@ export class FullMonetaEngine {
 
     const resolutionVariant = brokerOutcome.variant;
 
-    // 6. Multi-element runtime composition
+    // 8. Multi-element runtime composition preserving graph relations (FMA-10c)
     const multiRuntime = new FormaMultiElementRuntime();
-    multiRuntime.registerElement(
-      `element-${selectedGraph.primitives[0]?.id ?? 'root'}`,
-      resolutionVariant.slice,
-      selectedGraph.primitives[0]?.kind ?? 'POINT_IDENTITY'
-    );
+    for (const prim of selectedGraph.primitives) {
+      multiRuntime.registerElement(
+        `element-${prim.id}`,
+        resolutionVariant.slice,
+        prim.kind
+      );
+    }
 
-    if (selectedGraph.primitives.length > 1) {
+    const registeredIds = new Set(selectedGraph.primitives.map((p) => `element-${p.id}`));
+    const validRelations = new Set(['OVERLAY', 'COORDINATES_WITH', 'DETAIL_OF']);
+
+    if (selectedGraph.edges.length > 0) {
+      for (const edge of selectedGraph.edges) {
+        const sourceId = `element-${edge.from}`;
+        const targetId = `element-${edge.to}`;
+        if (registeredIds.has(sourceId) && registeredIds.has(targetId) && sourceId !== targetId) {
+          const relation = validRelations.has(edge.relation)
+            ? (edge.relation as 'OVERLAY' | 'COORDINATES_WITH' | 'DETAIL_OF')
+            : 'COORDINATES_WITH';
+          multiRuntime.addRelationship(sourceId, targetId, relation);
+        }
+      }
+    } else if (selectedGraph.primitives.length > 1) {
+      const rootId = `element-${selectedGraph.primitives[0].id}`;
       for (let i = 1; i < selectedGraph.primitives.length; i++) {
-        const prim = selectedGraph.primitives[i];
-        multiRuntime.registerElement(
-          `element-${prim.id}`,
-          resolutionVariant.slice,
-          prim.kind
-        );
         multiRuntime.addRelationship(
-          `element-${selectedGraph.primitives[0].id}`,
-          `element-${prim.id}`,
+          rootId,
+          `element-${selectedGraph.primitives[i].id}`,
           'COORDINATES_WITH'
         );
       }
@@ -226,6 +291,7 @@ export class FullMonetaEngine {
       composedState,
       transition,
       researchModeFrozen: isResearchMode,
+      conjecturalProposals: conjecturalProposals.length > 0 ? conjecturalProposals : undefined,
       provenance: {
         datasetFingerprint: signature.provenance.datasetFingerprint,
         timestamp: new Date().toISOString(),

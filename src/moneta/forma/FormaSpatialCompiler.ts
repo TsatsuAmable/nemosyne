@@ -8,6 +8,7 @@ import type { CommittedInvestigationContextV2 } from '../../atlas/domain/Committ
 import {
   compileFormaAdmission,
   type FormaRefusalV1,
+  type FormaAdmissionOptionsV1,
 } from './FormaAdmission.js';
 import type { KB0ManifestV1 } from './KB0Manifest.js';
 
@@ -25,7 +26,11 @@ export interface SpatialElementV1 {
     readonly colorHex: string;
     readonly opacity: number;
     readonly shape: 'SPHERE' | 'VOXEL';
+    readonly isConjectural?: boolean;
   };
+  readonly bindingKind?: 'GROUNDED' | 'CONJECTURAL';
+  readonly epistemicStatus?: string;
+  readonly proposalId?: string;
 }
 
 export interface FormaReverseTraceV1 {
@@ -36,6 +41,10 @@ export interface FormaReverseTraceV1 {
   readonly propertyPath: string;
   readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
   readonly rationale: string;
+  readonly bindingKind?: 'GROUNDED' | 'CONJECTURAL';
+  readonly epistemicStatus?: string;
+  readonly proposalId?: string;
+  readonly uncertaintyDisclosure?: string;
 }
 
 export interface FormaCompiledSliceV1 {
@@ -78,9 +87,10 @@ export function compileFormaSpatialSlice(
   context: CommittedInvestigationContextV2,
   manifest: KB0ManifestV1,
   phenotype: SpatialPhenotype = 'SPATIAL_SCATTER_V1',
+  admissionOptions?: FormaAdmissionOptionsV1
 ): FormaSpatialCompilationOutcomeV1 {
   // 1. Admission gate
-  const admissionOutcome = compileFormaAdmission(snapshot, context, 'PRODUCTION');
+  const admissionOutcome = compileFormaAdmission(snapshot, context, admissionOptions ?? 'PRODUCTION');
   if (admissionOutcome.status === 'REFUSED') {
     return {
       status: 'REFUSED',
@@ -281,6 +291,23 @@ export function compileFormaSpatialSlice(
       }
     }
 
+    // Lookup admitted binding: check for conjectural or specific binding for this node/property
+    const admittedBinding =
+      admissionOutcome.result.body.bindings?.find(
+        (b) =>
+          b.kind === 'CONJECTURAL' &&
+          (b.elementId === elementId || b.elementId === node.nodeId || b.propertyPath === node.propertyPath)
+      ) ??
+      admissionOutcome.result.body.bindings?.find(
+        (b) =>
+          b.elementId === elementId ||
+          b.elementId === node.nodeId ||
+          b.propertyPath === node.propertyPath
+      );
+    const bindingKind = admittedBinding?.kind ?? 'GROUNDED';
+    const epistemicStatus = admittedBinding?.status ?? 'OBSERVED';
+    const proposalId = admittedBinding?.kind === 'CONJECTURAL' ? admittedBinding.proposalId : undefined;
+
     elements.push({
       elementId,
       semanticNodeId: node.nodeId,
@@ -289,9 +316,13 @@ export function compileFormaSpatialSlice(
       scale,
       visualEncoding: {
         colorHex,
-        opacity,
+        opacity: bindingKind === 'CONJECTURAL' ? Math.min(opacity, 0.75) : opacity,
         shape,
+        isConjectural: bindingKind === 'CONJECTURAL',
       },
+      bindingKind,
+      epistemicStatus,
+      proposalId,
     });
 
     // Lookup evidence references from corresponding source
@@ -306,6 +337,10 @@ export function compileFormaSpatialSlice(
       propertyPath: node.propertyPath,
       evidenceReferences,
       rationale,
+      bindingKind,
+      epistemicStatus,
+      proposalId,
+      uncertaintyDisclosure: bindingKind === 'CONJECTURAL' ? 'Conjectural exploratory hypothesis' : undefined,
     });
   });
 
