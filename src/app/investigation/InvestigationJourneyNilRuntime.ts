@@ -20,6 +20,10 @@ export function bindInvestigationJourneyNilRuntime(
   reasoning: DiscoveryReasoningService,
 ): () => void {
   const disposeAtlasBindings = bindAtlasNilHandlers(executor, atlas, {
+    // DiscoveryReasoningService owns these verbs in this production composition.
+    // Avoid duplicate registration while retaining Atlas intent bindings for
+    // compositions that do not install the discovery handlers.
+    bindIntentCommands: false,
     beforeRecordFinding: (command, finding) => {
       const discoveryId = stringParameter(command, 'discoveryId');
       if (!discoveryId) return;
