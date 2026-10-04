@@ -72,13 +72,15 @@ outcome rather than fabricating a recommendation.
 
 The dataset-first representation boundary is layered rather than collapsed into one renderer-facing
 specification. The canonical Full-Moneta target architecture is
-[`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). It consolidates the human-grounded Forma knowledge/feedback loop, semantic resolution, perspective, System-1/System-2 roles and machine-addressable build lanes. ERA-ASTRA1's [`ARCHITECTURE_2027_REVIEW.md`](architecture/ARCHITECTURE_2027_REVIEW.md) adjudicates that target against current source topology; its accepted corrections are folded into the target plan and roadmap rather than forming a second architecture.
+[`FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md`](architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md). The detailed proposed ADAPT decision is
+[`MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md): Dataset is the stable semantic subject, governed semantic structures form its body, Moneta proposes their composition, and Forma compiles a bounded intent-dependent working set. A Dataset is not another renderer primitive and a label, shell or row layout is not a dataset body. ERA-ASTRA1's [`ARCHITECTURE_2027_REVIEW.md`](architecture/ARCHITECTURE_2027_REVIEW.md) adjudicates the target against current source topology; its accepted corrections are folded into the target plan and roadmap rather than forming a second architecture.
 
 ```text
 Rust/WASM analytical outputs + governed evidence receipts
-  -> decision-independent semantic snapshot (planned target)
+  -> decision-independent semantic snapshot
        evidence-bound entities/properties/relations + coverage/refusal/limitations
        [SemanticEmbodimentGraphV1 remains a compatibility projection until versioned migration]
+  -> stable Dataset subject + evidence-bearing semantic structures
   + committed Investigation intent/perspective/branch context
   -> Moneta RepresentationGraph + fixed semantic obligations
        compositional representation proposal under pinned policy
@@ -91,7 +93,27 @@ Rust/WASM analytical outputs + governed evidence receipts
   -> context-checked desktop / WebXR adoption
 ```
 
-`SemanticEmbodimentGraphV1` currently carries evidence-bound semantic information but is also decision-coupled. It must **not** be silently reinterpreted as the final upstream truth identity. A27-0 must define the version boundary for a decision-independent semantic snapshot while preserving V1 as a legacy/compatibility projection. New rendering/audio/haptic state must not accrete in either semantic form. `SpatialEmbodimentPlanV1` remains a valid spatial backend rather than the terminal embodiment ontology.
+The stable Dataset subject is a deterministic projection of canonical dataset identity, not a new
+analytical record. The exact public-format placement requires the FM-DSE schema preflight: either a
+small subject reference beside the existing closed snapshot or an honestly versioned future snapshot.
+Existing V1 bytes and identity must not drift. A meaningful dataset body contains at least one
+evidence-bearing semantic structure or an explicit unavailable/refused state; decorative framing alone
+does not qualify.
+
+Default overview complexity is bounded by the admitted semantic working set, not by source row count.
+Point-per-observation geometry is permitted only for explicit observation intent or bounded semantic
+detail. Resource adaptation selects among admitted semantic-resolution variants and must refuse rather
+than remove mandatory meaning or grounded/conjectural disclosure.
+
+Claim-bearing and exploratory-abductive operation share this subject and compiler. Grounded bindings
+reverse-resolve to authoritative evidence; conjectural bindings reverse-resolve to the exact proposal,
+assumptions and generator lineage. Every data-bearing perceptual property must additionally resolve
+through its plan element, Forma binding, representation primitive, semantic property, Dataset subject,
+committed context, limitations and version identities. Human critiques create attributable alternatives
+through Investigation/Road Not Taken; they do not mutate the original representation or automatically
+update a production prior.
+
+`SemanticEmbodimentGraphV1` currently carries evidence-bound semantic information but is also decision-coupled. It must **not** be silently reinterpreted as the final upstream truth identity. Accepted A27-0 and RFC 0010 established the decision-independent snapshot boundary while preserving V1 as a legacy/compatibility projection; any Dataset-subject or multi-dataset schema extension must now version that boundary explicitly rather than mutate it. New rendering/audio/haptic state must not accrete in either semantic form. `SpatialEmbodimentPlanV1` remains a valid spatial backend rather than the terminal embodiment ontology.
 
 `RepresentationGraphAdapter` currently preserves compatibility with the fixed-candidate architecture,
 and `RepresentationGraphRuntimeAdapter` intentionally fails closed unless exactly one primitive is
@@ -101,9 +123,11 @@ graph/semantic/spatial contracts, add the explicit semantic-to-perceptual seam b
 preserve UXR lifecycle/detail authorities, and qualify multi-element composition without allowing any
 perceptual channel to invent analytical meaning.
 
-A future `RepresentationGenome` may encode candidate representation/spatial choices for the separate
-laboratory synthesis/search programme. It is not a runtime or analytical authority. Nemosyne must not
-introduce a duplicate genome contract before the laboratory interface is versioned and promoted.
+A `RepresentationGenome` may encode candidate representation/spatial choices for the separate
+laboratory synthesis/search programme. It is not a runtime or analytical authority. Dataset identity,
+facts, receipts, epistemic status and fixed obligations are not genes. System-1, System-2, bounded search,
+human proposals and external genomes are peer proposal sources; every candidate crosses the same Forma
+admission/explanation/resource boundary.
 
 `src/draco/` is a bounded compatibility re-export barrel (`src/draco/index.ts` only — "Backwards
 compatibility re-export for the legacy `src/draco` path"; the deep mirrors were collapsed in the

@@ -56,6 +56,12 @@
       "owner": "architecture"
     },
     {
+      "path": "docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md",
+      "status": "active",
+      "authority": "proposed-dataset-first-semantic-embodiment-design",
+      "owner": "architecture"
+    },
+    {
       "path": "docs/architecture/ARCHITECTURE_2027_REVIEW.md",
       "status": "active",
       "authority": "architecture-2027-review",
