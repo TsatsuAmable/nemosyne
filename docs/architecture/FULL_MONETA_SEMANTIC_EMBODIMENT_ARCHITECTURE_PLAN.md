@@ -1,5 +1,11 @@
 # Full Moneta Architecture — Human-Grounded Semantic Embodiment
 
+**Proposed scope reduction:** [RFC 0012](../rfcs/0012-minimum-nemosyne-architecture.md) recommends four
+product subsystems and explicit removal, consolidation and externalization of planned mechanisms.
+Its scope decisions are proposed for owner review; existing accepted contracts remain governing.
+The capabilities below are a target catalogue, not a requirement to build every listed service,
+runtime, model or abstraction. RFC 0012 supplies the proposed minimum delivery and conditional gates.
+
 **Status:** canonical Full-Moneta target architecture / implementation map  
 **Date:** 3 October 2026  
 **Governing vision:** [`Nemosyne_Definitive_Vision_and_Roadmap.md`](../Nemosyne_Definitive_Vision_and_Roadmap.md)  
@@ -1025,9 +1031,10 @@ resulting bounded semantic working set as the primary architectural performance 
 detailed contracts, research questions, success criteria, falsifiers and verification matrix are in
 [`MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md).
 
-It is sequenced as:
+Under proposed RFC 0012 its initial sequence is DSE0 -> DSE1 -> DSE2/DSE3, with DSE6
+qualification beginning at DSE1. DSE4/DSE5 are conditional. The retained capability definitions are:
 
-1. **DSE0:** owner decision, subject/multi-dataset schema preflight, production falsifiers and two-dataset fixtures;
+1. **DSE0:** removal/caller inventory, owner decision, necessary subject contract preflight and production falsifiers;
 2. **DSE1:** stable subject plus grounded multi-phenomenon bounded overview and complete reverse explanation;
 3. **DSE2:** reversible semantic refinement and obligation-preserving resource variants;
 4. **DSE3:** dual-mode product loop, typed critique, alternatives and durable feedback lineage;

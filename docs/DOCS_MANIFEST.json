@@ -8,6 +8,12 @@
   ],
   "documents": [
     {
+      "path": "docs/rfcs/0012-minimum-nemosyne-architecture.md",
+      "status": "active",
+      "authority": "proposed-minimum-architecture-rfc",
+      "owner": "architecture"
+    },
+    {
       "path": "docs/Nemosyne_Definitive_Vision_and_Roadmap.md",
       "status": "canonical",
       "authority": "product-research-architecture",

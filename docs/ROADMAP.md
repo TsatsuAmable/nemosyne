@@ -18,7 +18,7 @@ Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The his
 
 ## Status snapshot - 4 October 2026
 
-**Integration base:** `main@e0445257`.
+**Integration base:** `main@22c64025`.
 
 - Architecture 2027 decisions are integrated: A27-0 and A27-1 accepted; L0 semantic snapshot, L1 committed perspective/context V2 and L2 Forma admission/KB0 contracts landed in PRs #936-#938. These are enabling contracts, not automatic product-capability promotion.
 - **P1-TEC / FM0 remains active**. Governed replay/consumer-policy work is substantially landed; remaining evidence-identity, calibration/qualification and downstream evidence-reference closure must remain fail-closed. See [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md).
@@ -33,9 +33,10 @@ Current order:
 ```text
 P1-TEC / FM0 finite evidence closure
   -> applicable grounded-evidence gates for each downstream claim
-owner review of FM-DSE ADAPT design
+owner review of RFC0012 minimum architecture + retained FM-DSE contracts
   -> DSE0 schema/falsifiers -> DSE1 bounded grounded overview -> DSE2/DSE3
-  -> FM8 integrated product/human/device qualification
+  -> smallest complete investigation loop; DSE6 qualification starts at DSE1
+conditional later: DSE4 multi-dataset / DSE5 runtime intelligence -> remaining Full Moneta exits
 residual before FM8 completion: FM1/FM2 user-facing intent/alternative actions
 remaining FM5: measured advisory value and target-device qualification
 parallel when disjoint: UXR4/5 physical qualification + QCA physical attribution/controlled probes
@@ -48,14 +49,14 @@ then: P1-WP -> P1-WQ -> PT9/PT10
 | --- | --- | --- | --- |
 | **P1-TEC / FM0 trustworthy evidence** | **ACTIVE** | Finish finite evidence identity/calibration/consumer qualification required by claim-bearing downstream work. | [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md), generated RF table below |
 | **FM1 perspective/context** | **CORE IMPLEMENTATION LANDED / PRODUCT INTEGRATION OPEN** | Context identity, explicit epistemic purpose, history and production adoption guards are landed (#957/#960/#961). Wire/qualify researcher-facing intent and perspective actions through the real product path before claiming the FM1 exit. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
-| **FM2 alternative-aware / Road Not Taken** | **CORE IMPLEMENTATION LANDED / PRODUCT ACTIONS OPEN** | Atomic branch/revisit semantics are landed (#957). Wire REQUEST_ALTERNATIVE/COMPARE/PREFER/REJECT/EXPLAIN through UI/NIL and qualify branch replay; Memory Palace remains an aggregate projection after duplicate-store retirement (#963/#964). | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md), [ADR-0012](architecture/decisions/0012-memory-palace-graph-authority.md) |
+| **FM2 alternative-aware / Road Not Taken** | **CORE + NIL ACTIONS LANDED / SURFACE QUALIFICATION OPEN** | Atomic branch/revisit (#957) and NIL alternative/intent bindings with replay battery (#988) landed. Qualify investigator-visible surfaces and dataset-body use; Memory Palace remains an aggregate projection (#964). | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md), [ADR-0012](architecture/decisions/0012-memory-palace-graph-authority.md) |
 | **FM3 Forma first vertical slice / L2-FORMA-1** | **STATIC PRODUCT SLICE LANDED / SEMANTIC QUALIFICATION OPEN** | Typed grounded/conjectural admission, production adoption guard, 3D Forma rendering, reverse explanation and V4 static replay are landed (#960/#961). Qualify multi-phenomenon semantic comprehension and product usefulness before the full FM3 exit. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM3/4 composition + resolution adaptation / L2-FORMA-2 + L4-RUNTIME-BUDGET** | **IMPLEMENTATION LANDED / DEVICE QUALIFICATION OPEN** | Final-content identity, budget/generation refusal and selected-graph fidelity are landed (#962). Qualify semantic recoverability and information-loss disclosure across materially different Quest/desktop budgets. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM5 System-1 assistance** | **ADVISORY IMPLEMENTATION / PROBES LANDED; VALUE QUALIFICATION OPEN** | Consumed advice, disclosure, bypass, recorded replay, ABSTAIN and R5/R7/R8 comparison probes are merged. Finite/reproducible deltas alone do not establish benefit; evaluate measured value and target-device cost. | [System-1/System-2 architecture](architecture/MONETA_SYSTEM1_SYSTEM2_ONNX_ARCHITECTURE.md), [evidence inventory](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md#132-existing-qualification-evidence-to-retain-and-extend) |
 | **FM6 human refinement / Forma knowledge** | **QUALIFICATION VERIFIED** | Qualification battery (`FM6-R6`) merged in #980: verified holdout evaluation gate fail-closed behavior, System-1 proposal scoring improvement with knowledge case identity binding, frozen research mode, and clean registry rollback. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM7 searching / synthesizing Moneta** | **QUALIFICATION VERIFIED** | Qualification battery (`FM7-R7`) merged in #983: verified novel admissible representation graph construction outside fixed catalogue, System-1 advisory seeding and bypass, Pareto non-domination, MCR7 genome handoff analytical gates, and Research Mode bitwise digest invariance. | [Incremental plan](roadmap/P1_FULL_MONETA_INCREMENTAL_CAPABILITY_PLAN.md) |
 | **FM8 full Moneta / controlled adaptive representation** | **IMPLEMENTATION PARTIAL / INTEGRATED QUALIFICATION OPEN** | The FMA-01–13 repair set and dual-epistemic core are landed; do not restore completion claims until qualified FM5/FM6/FM7 behavior, residual FM1/FM2 product surfaces and human/device evidence satisfy the integrated V3.1 exit. | [Full Moneta audit + dual-mode addendum](review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md) |
-| **FM-DSE dataset-first dual-mode embodiment** | **ADAPT DESIGN PROPOSED / OWNER REVIEW REQUIRED** | Review the comprehensive design, then run DSE0 schema/RFC preflight and production falsifiers before implementation. Dataset is the stable subject; governed structures form an explainable bounded body; observation marks are explicit detail. | [Proposed architecture](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md), [original critique](work/DATASET_LEVEL_SPATIAL_EMBODIMENT_ARCHITECTURE.md) |
+| **FM-DSE minimum dataset embodiment** | **REMOVAL-FIRST RFC PROPOSED / OWNER REVIEW REQUIRED** | Review four-subsystem minimum; DSE0 inventories removals and necessary contract changes. Initial loop needs no mandatory inference/search or hosted service; learning/synthesis vision exits remain open. | [RFC 0012 disposition register](rfcs/0012-minimum-nemosyne-architecture.md), [retained design](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md) |
 
 | **UXR4/UXR5 device qualification** | **EVIDENCE ACQUISITION OPEN** | Capture attributable Quest interaction/render/resource/comfort evidence when hardware is available. | [UXR programme](roadmap/P1_UXR_SEMANTIC_EFFICIENCY_UX_RUNTIME_AND_VERIFICATION.md) |
 | **P1-WP → P1-WQ** | **BLOCKED BY REQUIRED UXR/ASSURANCE CLOSURE** | Productionize web surfaces, then ordinary-browser investigator qualification. | [Product transition plan](roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md) |
@@ -67,15 +68,17 @@ The default execution model remains **one owner-controlled forward tranche plus 
 
 | Tranche | Gate / outcome |
 | --- | --- |
-| **DSE0 decision + preflight** | Owner accepts/revises ADAPT; freeze subject/multi-dataset schema route, two-dataset fixtures, N/cardinality instrumentation, production raw-row falsifier and evidence plans. |
+| **DSE0 reduction + preflight** | Review RFC0012; inventory callers/archives for deletion, derive subject identity with existing contracts where possible, freeze N/cardinality falsifiers and evidence plans. |
 | **DSE1 grounded bounded overview** | Stable Dataset subject, evidence-bound deterministic composition, two governed structures, bounded cardinality, reverse explanation and attributable critique capture. |
 | **DSE2 semantic resolution** | Reversible dataset -> structure -> subset -> observation traversal; obligation-preserving device variants; lifecycle identity survives evict/rebuild. |
 | **DSE3 dual-mode feedback loop** | Grounded/conjectural purpose enforcement, visible disclosure, TechnoCore critique -> Road Not Taken alternative, attributable feedback and V4 lineage. |
-| **DSE4 multi-dataset comparison** | Two independently admitted dataset worlds compare/refine/replay without fingerprint, evidence or selection collision. |
-| **DSE5 proposal/search/evolution** | Deterministic evidence-bound baseline; System-1/System-2/search/genome candidates cross identical admission; held-out benefit and ABSTAIN. |
-| **DSE6 qualification** | Exact-head Quest comparison against QCA0 plus scoped human semantic-recovery/accessibility studies and STOP/CONTINUE/REVISE disposition. |
+| **DSE4 multi-dataset comparison** | CONDITIONAL under proposed RFC0012: reopen for a named blocking research task; independent identity and evidence remain required. |
+| **DSE5 runtime proposal/search** | CONDITIONAL under proposed RFC0012: offline lab supplies governed artifacts; add resident inference/search only for measured incremental task/resource value. |
+| **DSE6 qualification** | Starts with DSE1; corrected physical controls, semantic-recovery/accessibility studies and STOP/CONTINUE/REVISE. Does not wait for DSE4/5. |
 
 Each implementation tranche requires its own reviewed plan and high-risk evidence. The architecture PR does not authorize code changes or promote performance, comprehension, search or learning claims.
+
+RFC0012 proposes removing world/shared-depth model plans, generic modality scaffolding and new subject/working-set stores; merging product-metaphor state and representation orchestration; and moving training/evolutionary campaigns outside the browser product. Hosted collaboration, live streams and native/alternate compute remain conditional. Existing service/readiness obligations change only through their accepted migration, not by this proposal.
 
 ## Quest Compute Acceleration — individual tasks
 
