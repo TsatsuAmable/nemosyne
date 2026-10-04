@@ -56,6 +56,12 @@ export interface AdaptationOptions {
   readonly admissionOptions?: FormaAdmissionOptionsV1;
   readonly broker?: FormaResolutionBroker;
   readonly contextGeneration?: number;
+  /**
+   * Deterministic fallback: generate and record System-1 advice as usual,
+   * but withhold it from search seeding. The bypass itself is recorded on
+   * the result so baseline comparisons stay auditable.
+   */
+  readonly ignoreSystem1Advice?: boolean;
 }
 
 export interface AdaptationTransition {
@@ -83,6 +89,7 @@ export interface FullMonetaSynthesisResult {
   readonly researchModeFrozen: boolean;
   readonly conjecturalProposals?: readonly ConjecturalProposalV1[];
   readonly system1ProposalSet: FormaProposalSetV1;
+  readonly system1AdviceApplied: boolean;
   readonly provenance: {
     readonly datasetFingerprint: string;
     readonly timestamp: string;
@@ -152,9 +159,13 @@ export class FullMonetaEngine {
 
     const manifest = createKB0Manifest();
 
-    // 3. System-1 proposals generated before search to guide candidate exploration (DM-5)
+    // 3. System-1 proposals generated before search to guide candidate exploration (DM-5).
+    // A caller-requested deterministic fallback withholds the advice from
+    // seeding while still recording exactly what was bypassed.
     const proposer = new FormaSystem1Proposer(DEFAULT_SYSTEM1_WEIGHTS, knowledgeStore);
     const s1Proposals = proposer.generateProposals(snapshot, context, manifest, budget);
+    const system1AdviceApplied =
+      options.ignoreSystem1Advice !== true && s1Proposals.status === 'PROPOSED';
 
     // 4. Multi-objective Pareto search influenced by System-1 advice
     const maxGenerations = isResearchMode ? 2 : (options.maxGenerations ?? 3);
@@ -164,7 +175,7 @@ export class FullMonetaEngine {
       preference,
       maxGenerations,
       populationSize,
-      system1Proposals: s1Proposals,
+      system1Proposals: system1AdviceApplied ? s1Proposals : undefined,
       context,
     });
 
@@ -333,6 +344,7 @@ export class FullMonetaEngine {
       researchModeFrozen: isResearchMode,
       conjecturalProposals: conjecturalProposals.length > 0 ? conjecturalProposals : undefined,
       system1ProposalSet: s1Proposals,
+      system1AdviceApplied,
       provenance: {
         datasetFingerprint: signature.provenance.datasetFingerprint,
         timestamp: new Date().toISOString(),
@@ -418,6 +430,10 @@ export class FullMonetaEngine {
     section += `   - Status: PROPOSED (${advisory.candidates.length} candidate(s)) — advice, not analytical evidence.\n`;
     for (const c of advisory.candidates) {
       section += `   - Advised ${c.candidateId}: template ${c.templateId}, tier ${c.targetResolutionTier}, score ${c.score.toFixed(3)}\n`;
+    }
+    if (!result.system1AdviceApplied) {
+      section += `   - Effect: advice deliberately bypassed by caller request; deterministic/search path ran without it. The bypassed set above is preserved for baseline comparison.\n`;
+      return section;
     }
     const winner = result.paretoFrontier[0] ?? result.candidate;
     const winnerFromAdvice = (winner.lineage.operatorApplied ?? '').startsWith('SYSTEM1_SEED_');
