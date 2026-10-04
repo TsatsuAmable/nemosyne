@@ -125,6 +125,10 @@ These rules constrain every implementation tranche.
 14. **Telemetry is not meaning.** Clicks, dwell time and reuse may inform preference/search cost; they do not establish that the intended semantics were understood.
 15. **Device adaptation may reduce richness, never silently change the scientific story.**
 16. **Missing criteria produce ABSTAIN, simplification or an inspectable alternative, not fabricated certainty.**
+17. **Dataset is the semantic subject, not a renderer primitive.** A dataset body must contain evidence-bearing structure or an explicit unavailable/refused state; a shell, label or row layout does not qualify.
+18. **Overview cost is bounded by semantic working-set complexity, not source row count.** Observation marks require explicit observation intent or bounded refinement.
+19. **Every representation remains inspectable and teachable.** Reverse explanation, typed critique and alternative instantiation are required interfaces, not optional UI decoration.
+20. **Search and evolution optimize only inside admitted meaning.** Dataset identity, analytical facts, evidence, epistemic status and fixed obligations are not genes or tradeable objectives.
 
 ---
 
@@ -144,6 +148,27 @@ Full Moneta preserves the five ontologies in the Definitive Vision. The new arch
 | Runtime | Spatial/desktop/XR runtime | Execute plans; never infer analytical or semantic meaning. |
 
 The **Forma Knowledge Base** introduced below is durable representation knowledge, not an analytical authority. Its entries carry provenance, scope and evidence basis and are always downstream of the evidence gate.
+
+### 3.1 Dataset subject, semantic body and working set
+
+The detailed dataset-first ADAPT design is
+[`MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md).
+It clarifies three terms that the rest of this architecture relies on:
+
+- the **Dataset subject** is stable identity projected from the canonical dataset fingerprint;
+- the **semantic body** is a composition of governed semantic structures beneath that subject;
+- the **semantic working set** is the bounded subset admitted for the current purpose, intent, perspective and device/perceptual budget.
+
+Representation primitives are techniques applied to the Dataset subject; they do not include a
+universal `DATASET` shape. Perceptual geometry is a phenotype. The same subject may therefore support
+multiple grounded perspectives and exploratory conjectural alternatives without changing analytical
+identity. Multi-dataset comparison composes independently admitted subjects/plans and must preserve each
+dataset's fingerprint, evidence, selection, refinement and replay identity.
+
+This separation is also the primary architectural response to QCA0. Renderer-level triangle, batching,
+culling and allocation improvements remain useful, but the default overview must first stop scaling its
+live representation with source N. Physical Quest and attributable human evidence remain required before
+performance or comprehension claims close.
 
 ---
 
@@ -992,6 +1017,34 @@ This is not a global serialization barrier. Parallel work is permitted when prer
 ## 19. Roadmap tranches
 
 These are the implementation-sized units the live roadmap should schedule. This plan owns the ladder definitions; the live `docs/ROADMAP.md` schedules only the current slice, so a rung absent from the roadmap is unscheduled, not retired. ERA-ASTRA1 requires one authority/version decision before durable Forma schemas freeze.
+
+### FM-DSE — dataset-first semantic embodiment programme
+
+FM-DSE applies the landed L0-L6 foundations to the Dataset as a stable semantic subject and uses the
+resulting bounded semantic working set as the primary architectural performance intervention. Its
+detailed contracts, research questions, success criteria, falsifiers and verification matrix are in
+[`MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md).
+
+It is sequenced as:
+
+1. **DSE0:** owner decision, subject/multi-dataset schema preflight, production falsifiers and two-dataset fixtures;
+2. **DSE1:** stable subject plus grounded multi-phenomenon bounded overview and complete reverse explanation;
+3. **DSE2:** reversible semantic refinement and obligation-preserving resource variants;
+4. **DSE3:** dual-mode product loop, typed critique, alternatives and durable feedback lineage;
+5. **DSE4:** independent multi-dataset comparison without fingerprint/evidence collision;
+6. **DSE5:** System-1/System-2/search/genome integration through the same admission boundary;
+7. **DSE6:** exact-head Quest and scoped human qualification.
+
+The tranches deliberately cross-reference rather than replace the FM ladder: DSE0 inherits FM0
+evidence authority; DSE1 applies FM1 and FM3 to the stable Dataset subject; DSE2 applies FM4 semantic
+resolution; DSE3 joins FM1/FM2 actions to FM6-governed critique and learning evidence; DSE5 consumes
+FM5 advice and FM7 synthesis; and DSE6 supplies dataset-first evidence toward the open FM3/FM4/FM8
+human/device exits. The detailed design contains the per-increment FM0-FM8 gap and success map.
+
+No downstream qualification substitutes for an earlier authority gate. In particular, FM5-FM7
+mechanics do not by themselves prove dataset-body usefulness, scientific binding or physical fitness.
+QCA renderer experiments remain subordinate controlled comparisons rather than the definition of the
+product representation.
 
 ### A27-0 — authority/version decision
 

@@ -45,7 +45,7 @@ These documents may describe current implementation but must not override the go
 ## Product and spatial interaction reference
 
 - [`SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md`](SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md) - concise vision clarification: Moneta Forma as a semantic-to-perceptual responsibility, dataset-level embodiment, multimodal encoding and perturbation as sensory interrogation; subordinate to the Definitive Vision and live roadmap.
-- [`architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md) - detailed dataset-first semantic embodiment architecture and authority boundaries.
+- [`architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md) - proposed comprehensive ADAPT design for dataset-first, dual-mode, explainable embodiment: FM0-FM8 integration, bounded semantic working sets, performance, human feedback, search/evolution, research gaps and DSE0-DSE6 delivery.
 - [`NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md`](NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md) - normative UX doctrine for semantic fidelity, semantic level of detail, progressive streaming, bounded resource use, long-session stability, and hardware-scaled headroom; subordinate to the Definitive Vision.
 - [`Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md`](Nemosyne_UX_Flow_and_Spatial_Interface_Design_Spec.md)
 - [`Nemosyne_VR_UI_Design_System_and_Agent_Spec.md`](Nemosyne_VR_UI_Design_System_and_Agent_Spec.md)

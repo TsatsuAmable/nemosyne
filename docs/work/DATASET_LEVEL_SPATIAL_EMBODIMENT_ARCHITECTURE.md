@@ -1,9 +1,11 @@
 # Dataset-Level Spatial Embodiment Architecture Critique
 
-**Status:** ASTRA ARCHITECTURE LANE — ANALYSIS REQUIRED  
+**Status:** CRITIQUE COMPLETE / PROPOSED ADAPT DECISION UNDER OWNER REVIEW
 **Date:** 2026-10-04  
 **Scope:** Full Moneta / Forma representation abstraction boundary + semantic LOD / Quest performance  
 **Owner lane:** Astra architecture
+
+**Proposed resolution:** [`../architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](../architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md). This document remains the intake critique and falsification brief; the linked design owns the proposed solution, research gaps, FM0-FM8 reconciliation and DSE0-DSE6 roadmap.
 
 ## Problem
 
