@@ -224,7 +224,7 @@ describe('PT5C/PT5E XR investigation presentation', () => {
 
     panel.render();
     const rendered = panel.getRenderedSummary();
-    expect(rendered).toContain('Status · Hypothesis supported');
+    expect(rendered).toContain('Status | Hypothesis supported');
     expect(rendered).not.toContain('SUPPORTED');
     expect(rendered).not.toContain('UNDER_INVESTIGATION');
     panel.dispose();

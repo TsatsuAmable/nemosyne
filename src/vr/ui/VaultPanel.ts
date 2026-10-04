@@ -318,7 +318,7 @@ export class VaultPanel extends SpatialPanel {
             date +
             '\nEvents: ' +
             archive.eventCount +
-            ' · Discoveries: ' +
+            ' | Discoveries: ' +
             archive.discoveryCount,
           variant: selected ? 'primary' : 'secondary',
           onClick: () => this.selectArchive(archive.archiveId),

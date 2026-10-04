@@ -233,7 +233,7 @@ describe('P1-UV C2 investigation-state legibility', () => {
     controller.recordAction('COMPARE_DISTRIBUTION', 'Filter anomaly subgraphs');
 
     expect(controller.formatStripText()).toBe(
-      'GRAPH / 18,420 items · MODE: INTERACT · FOCUS: COMMUNITY_7 · ACTION: COMPARE_DISTRIBUTION',
+      'GRAPH / 18,420 items | MODE: INTERACT | FOCUS: COMMUNITY_7 | ACTION: COMPARE_DISTRIBUTION',
     );
     expect(controller.formatInvestigationLines()).toHaveLength(4);
   });

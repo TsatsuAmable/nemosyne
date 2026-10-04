@@ -167,8 +167,8 @@ export class CapabilityGuidePanel extends SpatialPanel {
         lines.push(
           category.label +
             ': ' +
-            visible.join(' · ') +
-            (remainder > 0 ? ' · +' + remainder + ' more' : '')
+            visible.join(' | ') +
+            (remainder > 0 ? ' | +' + remainder + ' more' : '')
         );
       }
       return lines.join('\n');

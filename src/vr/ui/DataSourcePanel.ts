@@ -202,9 +202,9 @@ export class DataSourcePanel extends SpatialPanel {
     const theme = getTheme(this._highContrast);
     this._status.setProperties({
       text:
-        'LIVE DATA · ' +
+        'LIVE DATA | ' +
         (this.liveConnected ? 'CONNECTED' : 'OFFLINE') +
-        '\nApproved library · ' +
+        '\nApproved library | ' +
         this.libraryStatus,
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
@@ -255,11 +255,11 @@ export class DataSourcePanel extends SpatialPanel {
     for (const { entry, tier } of libraryRows.slice(start, start + pageSize)) {
       this._addButton(
         entry.label +
-          ' · v' +
+          ' | v' +
           entry.version +
-          ' · ' +
+          ' | ' +
           tier.label +
-          ' · ' +
+          ' | ' +
           tier.rows.toLocaleString() +
           ' rows',
         'secondary',
@@ -280,7 +280,7 @@ export class DataSourcePanel extends SpatialPanel {
         this._libraryPage === 0 || this._libraryBusy
       );
       this._addButton(
-        'Next library page · ' + (this._libraryPage + 1) + '/' + pageCount,
+        'Next library page | ' + (this._libraryPage + 1) + '/' + pageCount,
         'secondary',
         () => {
           this._libraryPage = Math.min(pageCount - 1, this._libraryPage + 1);

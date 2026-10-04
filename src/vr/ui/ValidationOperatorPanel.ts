@@ -490,16 +490,16 @@ export class ValidationOperatorPanel extends SpatialPanel {
     const lines = [
       'GOVERNED SESSION',
       statusLabel +
-        ' · ' +
+        ' | ' +
         manifest.validationMode +
-        ' · ' +
+        ' | ' +
         (manifest.gates.join(', ') || 'no gate'),
       'Session: ' + manifest.sessionLabel,
-      'Build: ' + manifest.buildId.slice(0, 12) + ' · tree ' + manifest.worktree.toUpperCase(),
+      'Build: ' + manifest.buildId.slice(0, 12) + ' | tree ' + manifest.worktree.toUpperCase(),
       'Profile: ' + (manifest.profile ?? 'none'),
       'Device: ' +
         (device?.model ?? 'UNAVAILABLE') +
-        ' · firmware/build ' +
+        ' | firmware/build ' +
         (device?.buildIncremental ?? manifest.declaredFirmwareVersion ?? 'UNAVAILABLE'),
       'Identity basis: ' + (device?.captureBasis ?? 'investigator-declared/unavailable'),
       '',
@@ -521,7 +521,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
           Math.min(this._progress.renderCompleted, this._progress.target) +
           '/' +
           this._progress.target +
-          ' · boundary ' +
+          ' | boundary ' +
           Math.min(this._progress.boundaryAttempts, this._progress.target) +
           '/' +
           this._progress.target
@@ -535,7 +535,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
     lines.push(
       'Disposition: ' +
         (disposition?.status ?? 'UNADJUDICATED') +
-        (disposition?.reasons?.[0] ? ' · ' + disposition.reasons[0] : ''),
+        (disposition?.reasons?.[0] ? ' | ' + disposition.reasons[0] : ''),
       '',
       'RUN',
       this._runMessage
@@ -549,19 +549,19 @@ export class ValidationOperatorPanel extends SpatialPanel {
       lines.push(
         'Rows ' +
           this._sample.spec.rowCount +
-          ' · ' +
+          ' | ' +
           pct.toFixed(0) +
-          '% · p95 ' +
+          '% | p95 ' +
           this._sample.frames.p95Ms.toFixed(1) +
-          'ms · ' +
+          'ms | ' +
           this._sample.frames.fpsAvg.toFixed(0) +
-          'fps · drop ' +
+          'fps | drop ' +
           this._sample.frames.droppedPct.toFixed(1) +
           '%'
       );
     } else if (this._boundary) {
       lines.push(
-        '10M ' + this._boundary.phase + ' · ' + this._boundary.progressPercent.toFixed(1) + '%'
+        '10M ' + this._boundary.phase + ' | ' + this._boundary.progressPercent.toFixed(1) + '%'
       );
     }
 

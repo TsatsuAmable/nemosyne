@@ -12,6 +12,7 @@ import type { BrowserValidationContext } from '../src/validation/browser-validat
 import type { ValidationServerStatus } from '../src/validation/validation-delivery.ts';
 import type { WorldEventBusLike } from '../src/vr/coordinators/types.ts';
 import type { GuidedUxSubmission } from '../src/validation/guided-ux-validation.ts';
+import { WorldTopics } from '../src/utils/EventBus.ts';
 
 const BUILD = '277c2e73f9206f5b387a856bc8298d8247e39376';
 const SESSION = {
@@ -157,6 +158,23 @@ describe('ValidationOperatorPanel governed semantic dispatch', () => {
 
     expect(panel.dispatchAction('run-performance')).toBe(true);
     expect(callbacks.onStartPerformance).toHaveBeenCalledTimes(1);
+    panel.dispose();
+  });
+
+  it('renders populated QCA0 progress with the supported spatial separator', () => {
+    const { panel, handlers } = panelFor('quest-qca0');
+    panel.setServerStatus(status('quest-qca0'));
+    handlers[WorldTopics.LOADTEST_SAMPLE]?.[0]?.({
+      spec: { durationSec: 15, rowCount: 8_000, label: '8k' },
+      elapsedMs: 7_500,
+      frames: { p95Ms: 20.86, fpsAvg: 64.7, droppedPct: 14.83 },
+    });
+    panel.update();
+
+    const summary = panel.getRenderedSummary();
+    expect(summary).toContain('quest-qca0 | no gate');
+    expect(summary).toContain('Rows 8000 | 50% | p95 20.9ms | 65fps | drop 14.8%');
+    expect(summary).not.toContain('·');
     panel.dispose();
   });
 

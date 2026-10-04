@@ -14,7 +14,7 @@ describe('Cockpit Status & UX Acceptance Gates (Sprints 24.8, 24.9)', () => {
       controller.recordAction('COMPARE_DISTRIBUTION', 'Filter anomaly subgraphs');
 
       const formatted = controller.formatStripText();
-      expect(formatted).toBe('GRAPH / 18,420 items · MODE: INTERACT · FOCUS: COMMUNITY_7 · ACTION: COMPARE_DISTRIBUTION');
+      expect(formatted).toBe('GRAPH / 18,420 items | MODE: INTERACT | FOCUS: COMMUNITY_7 | ACTION: COMPARE_DISTRIBUTION');
       expect(SEMANTIC_PALETTE.analysis).toBeDefined();
       expect(SEMANTIC_PALETTE.accent).toBeDefined();
     });
