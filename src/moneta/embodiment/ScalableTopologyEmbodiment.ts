@@ -12,11 +12,17 @@ import type { SemanticEmbodimentEnvelopeV1 } from '../representation/SemanticEmb
 import { setSemanticEmbodimentPresentationStatus } from './SemanticEmbodimentStatus.ts';
 import { TopologyLayoutEmbodiment } from './TopologyLayoutEmbodiment.ts';
 
+export const ROW_MARKER_RADIUS = 0.052;
+
+export function createRowMarkerGeometry(): THREE.TetrahedronGeometry {
+  return new THREE.TetrahedronGeometry(ROW_MARKER_RADIUS, 0);
+}
+
 function createDefaultPointCloud(
   count: number,
   geometry?: THREE.BufferGeometry
 ): IInstancedPointCloud {
-  const geom = geometry || new THREE.BoxGeometry(0.06, 0.06, 0.06);
+  const geom = geometry || createRowMarkerGeometry();
   const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const mesh = new THREE.InstancedMesh(geom, material, count);
   const object = new THREE.Object3D();
@@ -105,7 +111,7 @@ export class ScalableTopologyEmbodiment {
     });
     const factory =
       options?.pointCloudFactory || this._pointCloudFactory || createDefaultPointCloud;
-    const cloud = factory(items.length, new THREE.BoxGeometry(0.06, 0.06, 0.06));
+    const cloud = factory(items.length, createRowMarkerGeometry());
     cloud.setPoints(items);
     (cloud.mesh as THREE.Mesh).userData = { instancedCloud: cloud };
     group.add(cloud.mesh);

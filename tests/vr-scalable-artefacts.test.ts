@@ -6,6 +6,10 @@ import * as THREE from 'three';
 import { VRTopologyTranslator } from '../src/moneta/VRTopologyTranslator.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 
+function triangleCount(geometry) {
+  return geometry.index ? geometry.index.count / 3 : geometry.getAttribute('position').count / 3;
+}
+
 function makeGridDataset(count, categories = 3) {
   const rows = Array.from({ length: count }, (_, i) => ({
     id: `item-${i}`,
@@ -38,7 +42,11 @@ function aggregateEnvelope(groups) {
     approximation: { mode: 'EXACT', representedRowCount: sourceRowCount },
     informationContract: {
       preserves: ['aggregate-group-magnitude'],
-      loses: ['individual-observation-identity', 'exact-metric-values', 'outlier-boundary-visibility'],
+      loses: [
+        'individual-observation-identity',
+        'exact-metric-values',
+        'outlier-boundary-visibility',
+      ],
     },
     resource: { sourceRowCount, elementCount: groups.length, maxElementCount: 4096 },
     provenance: { kernelVersion: 'test', algorithmVersion: 'aggregate-columnar-v1' },
@@ -78,6 +86,8 @@ describe('VRTopologyTranslator scalable artefacts', () => {
     expect(artifact.nodeMeshes.length).toBe(1);
     expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
     expect(artifact.nodeMeshes[0].count).toBe(50);
+    expect(artifact.nodeMeshes[0].geometry).toBeInstanceOf(THREE.TetrahedronGeometry);
+    expect(triangleCount(artifact.nodeMeshes[0].geometry)).toBe(4);
   });
 
   it('automatically batches legacy CUBE_MATRIX grid embodiments above the governed 500-row scalability threshold', () => {
@@ -158,6 +168,9 @@ describe('VRTopologyTranslator scalable artefacts', () => {
       { pointCloudFactory: factory }
     );
     expect(factory).toHaveBeenCalledTimes(1);
+    const geometry = factory.mock.calls[0][1];
+    expect(geometry).toBeInstanceOf(THREE.TetrahedronGeometry);
+    expect(triangleCount(geometry)).toBe(4);
     expect(setPoints).toHaveBeenCalledTimes(1);
     expect(artifact.nodeMeshes[0]).toBeInstanceOf(THREE.InstancedMesh);
   });
