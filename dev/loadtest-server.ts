@@ -151,7 +151,10 @@ function readSessionManifest(
   return validated.manifest;
 }
 
-function readGateDisposition(validationLogRoot: string, sessionLabel: string): {
+function readGateDisposition(
+  validationLogRoot: string,
+  sessionLabel: string
+): {
   status: string | null;
   reasons: string[];
 } | null {
@@ -179,7 +182,14 @@ export function computeQualificationProgress(
   activeManifest: ValidationManifest | null
 ): QualificationProgress | null {
   const activeFingerprint = activeManifest?.deviceIdentity?.buildFingerprint ?? null;
-  if (!activeManifest || !activeFingerprint) return null;
+  if (
+    !activeManifest ||
+    !activeFingerprint ||
+    (activeManifest.validationMode !== 'quest-perf' &&
+      activeManifest.validationMode !== 'quest-10m')
+  ) {
+    return null;
+  }
   const cohort = scanValidationCohort(validationLogRoot, activeManifest);
   return {
     target: 3,
@@ -196,9 +206,9 @@ function sessionMatches(
 ): activeSession is ValidationSessionIdentity {
   return Boolean(
     activeSession &&
-      requestSession &&
-      activeSession.label === requestSession.label &&
-      activeSession.id === requestSession.id
+    requestSession &&
+    activeSession.label === requestSession.label &&
+    activeSession.id === requestSession.id
   );
 }
 
@@ -296,64 +306,81 @@ export function createLoadTestResultsHandler(
       jsonError(res, 409, 'guided UX evidence requires an active quest-ux manifest');
       return true;
     }
-    return handleBoundedJsonPost<GuidedUxSubmission>(req, res, MAX_BODY_BYTES, (submission, response) => {
-      const errors = validateGuidedUxSubmission(submission);
-      if (errors.length > 0) {
-        jsonError(response, 400, errors[0]);
-        return;
+    return handleBoundedJsonPost<GuidedUxSubmission>(
+      req,
+      res,
+      MAX_BODY_BYTES,
+      (submission, response) => {
+        const errors = validateGuidedUxSubmission(submission);
+        if (errors.length > 0) {
+          jsonError(response, 400, errors[0]);
+          return;
+        }
+        if (
+          submission.sessionId !== activeSession.id ||
+          submission.sessionLabel !== activeSession.label ||
+          submission.buildId !== manifest.buildId ||
+          submission.deviceBuildFingerprint !== (manifest.deviceIdentity?.buildFingerprint ?? null)
+        ) {
+          jsonError(
+            response,
+            409,
+            'guided UX evidence identity does not match the active manifest'
+          );
+          return;
+        }
+        const evidenceDir = path.join(validationLogRoot, activeSession.label);
+        try {
+          fs.mkdirSync(evidenceDir, { recursive: true });
+          fs.writeFileSync(
+            path.join(evidenceDir, 'ux-results.json'),
+            `${JSON.stringify(
+              {
+                schemaVersion: submission.schemaVersion,
+                sessionId: submission.sessionId,
+                sessionLabel: submission.sessionLabel,
+                buildId: submission.buildId,
+                deviceBuildFingerprint: submission.deviceBuildFingerprint,
+                evidenceKind: submission.evidenceKind,
+                results: submission.results,
+                completedAt: submission.completedAt,
+              },
+              null,
+              2
+            )}\n`,
+            'utf8'
+          );
+          fs.writeFileSync(
+            path.join(evidenceDir, 'comfort-observation.json'),
+            `${JSON.stringify(
+              {
+                schemaVersion: submission.schemaVersion,
+                sessionId: submission.sessionId,
+                sessionLabel: submission.sessionLabel,
+                buildId: submission.buildId,
+                deviceBuildFingerprint: submission.deviceBuildFingerprint,
+                ...submission.comfortObservation,
+              },
+              null,
+              2
+            )}\n`,
+            'utf8'
+          );
+        } catch (error) {
+          console.error('[validation-ux] failed to write guided UX evidence:', error);
+          jsonError(response, 500, 'write failed');
+          return;
+        }
+        jsonOk(response, {
+          status: 'ok',
+          receipt: makeReceipt(
+            activeSession,
+            'ux-results.json + comfort-observation.json',
+            computeQualificationProgress(validationLogRoot, manifest)
+          ),
+        });
       }
-      if (
-        submission.sessionId !== activeSession.id ||
-        submission.sessionLabel !== activeSession.label ||
-        submission.buildId !== manifest.buildId ||
-        submission.deviceBuildFingerprint !== (manifest.deviceIdentity?.buildFingerprint ?? null)
-      ) {
-        jsonError(response, 409, 'guided UX evidence identity does not match the active manifest');
-        return;
-      }
-      const evidenceDir = path.join(validationLogRoot, activeSession.label);
-      try {
-        fs.mkdirSync(evidenceDir, { recursive: true });
-        fs.writeFileSync(
-          path.join(evidenceDir, 'ux-results.json'),
-          `${JSON.stringify({
-            schemaVersion: submission.schemaVersion,
-            sessionId: submission.sessionId,
-            sessionLabel: submission.sessionLabel,
-            buildId: submission.buildId,
-            deviceBuildFingerprint: submission.deviceBuildFingerprint,
-            evidenceKind: submission.evidenceKind,
-            results: submission.results,
-            completedAt: submission.completedAt,
-          }, null, 2)}\n`,
-          'utf8'
-        );
-        fs.writeFileSync(
-          path.join(evidenceDir, 'comfort-observation.json'),
-          `${JSON.stringify({
-            schemaVersion: submission.schemaVersion,
-            sessionId: submission.sessionId,
-            sessionLabel: submission.sessionLabel,
-            buildId: submission.buildId,
-            deviceBuildFingerprint: submission.deviceBuildFingerprint,
-            ...submission.comfortObservation,
-          }, null, 2)}\n`,
-          'utf8'
-        );
-      } catch (error) {
-        console.error('[validation-ux] failed to write guided UX evidence:', error);
-        jsonError(response, 500, 'write failed');
-        return;
-      }
-      jsonOk(response, {
-        status: 'ok',
-        receipt: makeReceipt(
-          activeSession,
-          'ux-results.json + comfort-observation.json',
-          computeQualificationProgress(validationLogRoot, manifest)
-        ),
-      });
-    });
+    );
   }
 
   function handleLoadTest(req: IncomingMessage, res: ServerResponse): boolean {

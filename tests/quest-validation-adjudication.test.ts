@@ -27,6 +27,7 @@ import {
   validateQuestBoundaryReport,
   validateQuestPerformanceReport,
 } from '../dev/validation-adjudication.ts';
+import { makeQca0Report, QCA0_TEST_STEPS } from './helpers/qca0Report.ts';
 
 const BUILD = '4d54a76c49ebb57ae8cac5a5166fe8a3dfd7c318';
 const SESSION_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
@@ -109,133 +110,10 @@ function perfReport(
   };
 }
 
-const QCA0_STEPS = [
-  { rowCount: 1_000, durationSec: 10, warmup: true },
-  { rowCount: 1_000, durationSec: 15, warmup: false },
-  { rowCount: 8_000, durationSec: 15, warmup: false },
-  { rowCount: 32_000, durationSec: 15, warmup: false },
-  { rowCount: 65_000, durationSec: 15, warmup: false },
-  { rowCount: 100_000, durationSec: 30, warmup: false },
-] as const;
-
-function fullFrame(grade: 'green' | 'yellow' | 'red') {
-  const compact = frameFor(grade);
-  return {
-    frameCount: 900,
-    dropped: compact.droppedPct * 9,
-    droppedPct: compact.droppedPct,
-    p50Ms: compact.p95Ms - 2,
-    p95Ms: compact.p95Ms,
-    p99Ms: compact.p99Ms,
-    avgMs: compact.p95Ms - 1,
-    minMs: 5,
-    maxMs: compact.p99Ms,
-    fpsAvg: 1000 / (compact.p95Ms - 1),
-    gcSpikes: 0,
-  };
-}
-
-function qca0Report(
-  value: ValidationManifest,
-  grades: Array<'green' | 'yellow' | 'red'> = ['green', 'green', 'green', 'green', 'green']
-) {
-  let gradedIndex = 0;
-  return {
-    version: '2',
-    profileName: 'qca0-row-addressable-knee-v1',
-    xrActive: true,
-    aborted: false,
-    failure: null,
-    thresholds: { ...LOAD_TEST_THRESHOLDS },
-    device: {
-      buildId: value.buildId,
-      declaredDeviceTarget: 'META_QUEST_3S',
-      identityBasis: 'adb-system-property',
-      declaredFirmwareVersion: value.deviceIdentity?.buildIncremental,
-      xr: { active: true },
-    },
-    collection: {
-      rawFrameTraceIncluded: false,
-      datasetRowsIncluded: false,
-      cameraPosesIncluded: false,
-    },
-    steps: QCA0_STEPS.map((policy, index) => {
-      const grade = policy.warmup ? 'green' : (grades[gradedIndex++] ?? 'green');
-      const scale = [1, 1, 1.2, 1.5, 2.5, 3][index];
-      return {
-        spec: { topology: 'TABULAR', ...policy },
-        frames: fullFrame(grade),
-        frameCadence: fullFrame(grade),
-        gpu: {
-          drawCallsMax: 10 * scale,
-          drawCallsAvg: 10 * scale,
-          trianglesMax: 1_000 * scale,
-          trianglesAvg: 1_000 * scale,
-          pointsMax: 0,
-          pointsAvg: 0,
-          linesMax: 0,
-          linesAvg: 0,
-          geometriesMax: 1,
-          texturesMax: 0,
-        },
-        heapDeltaBytes: null,
-        memory: {
-          jsHeapStartBytes: null,
-          jsHeapPeakBytes: null,
-          jsHeapEndBytes: null,
-          jsHeapDeltaBytes: null,
-          wasmStartBytes: null,
-          wasmPeakBytes: null,
-          wasmEndBytes: null,
-          wasmDeltaBytes: null,
-        },
-        representation: {
-          sourceRowCount: policy.rowCount,
-          candidateId: null,
-          renderedNodeCount: policy.rowCount,
-          representedSourceRows: null,
-          renderedFraction: 1,
-          semanticEmbodimentStatus: null,
-          coverageMode: 'ROW_ADDRESSABLE',
-          usefulRepresentation: true,
-          sceneObjectCountStart: 10 * scale,
-          sceneObjectCountEnd: 10 * scale,
-          sceneObjectCountDelta: 0,
-          visibleSceneObjectCountStart: 10 * scale,
-          visibleSceneObjectCountEnd: 10 * scale,
-          visibleSceneObjectCountDelta: 0,
-          geometry: 'INSTANCED_POINT_CLOUD',
-          layout: 'GRID_3D',
-          governorLodScaleMinimum: 1,
-          governorLodScaleFinal: 1,
-          governorThrottleEvents: index,
-        },
-        sustainedPerformance: {
-          supported: false,
-          cpuLevelStart: null,
-          cpuLevelMinimum: null,
-          cpuLevelEnd: null,
-          gpuLevelStart: null,
-          gpuLevelMinimum: null,
-          gpuLevelEnd: null,
-        },
-        loadDurationMs: [100, 100, 120, 1_000, 2_000, 3_000][index],
-        criticalViolations: 0,
-        warnings: 0,
-        errors: 0,
-        specGeometry: 'INSTANCED_POINT_CLOUD',
-        specLayout: 'GRID_3D',
-        grade,
-        reasons: [],
-      };
-    }),
-  };
-}
-
 describe('QCA0 row-addressable scale-knee analysis', () => {
   it('keeps all-green capture valid and excludes warmup from the knee', () => {
     const value = manifest('quest-qca0');
-    const result = analyzeQca0ScaleKneeReport(qca0Report(value), value);
+    const result = analyzeQca0ScaleKneeReport(makeQca0Report(value), value);
 
     expect(result.captureStatus).toBe('VALID_CAPTURE');
     expect(result.validationErrors).toEqual([]);
@@ -251,7 +129,7 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
 
   it('derives deterministic ratios, ranking, and QCA2/QCA4 handoffs at a later red knee', () => {
     const value = manifest('quest-qca0');
-    const report = qca0Report(value, ['green', 'green', 'green', 'red', 'red']);
+    const report = makeQca0Report(value, ['green', 'green', 'green', 'red', 'red']);
     report.steps[3].representation.governorThrottleEvents = 1;
     report.steps[4].representation.governorThrottleEvents = 5;
     const result = analyzeQca0ScaleKneeReport(report, value);
@@ -288,7 +166,7 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
     },
   ])('finds the $name deterministically', ({ grades, knee }) => {
     const value = manifest('quest-qca0');
-    const result = analyzeQca0ScaleKneeReport(qca0Report(value, [...grades]), value);
+    const result = analyzeQca0ScaleKneeReport(makeQca0Report(value, [...grades]), value);
     expect(result.captureStatus).toBe('VALID_CAPTURE');
     expect(result.kneeRowCount).toBe(knee);
     if (knee === 1_000) {
@@ -301,7 +179,7 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
   it.each([
     [
       'semantic candidate',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         const representation = report.steps[2].representation as {
           candidateId: string | null;
           semanticEmbodimentStatus: string | null;
@@ -314,32 +192,32 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
     ],
     [
       'wrong geometry',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         report.steps[2].representation.geometry = 'MESH';
       },
     ],
     [
       'missing rendered cardinality',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         (report.steps[2].representation as { renderedNodeCount: number | null }).renderedNodeCount =
           null;
       },
     ],
     [
       'wrong source cardinality',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         (report.steps[2].representation as { sourceRowCount: number }).sourceRowCount = 7_999;
       },
     ],
     [
       'truncated steps',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         report.steps.pop();
       },
     ],
   ])('invalidates %s without emitting a knee', (_name, mutate) => {
     const value = manifest('quest-qca0');
-    const report = qca0Report(value);
+    const report = makeQca0Report(value);
     mutate(report);
     const result = analyzeQca0ScaleKneeReport(report, value);
     expect(result.captureStatus).toBe('INVALID_RUN');
@@ -350,32 +228,32 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
   it.each([
     [
       'aborted report',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         report.aborted = true;
       },
     ],
     [
       'non-XR report',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         report.xrActive = false;
         report.device.xr.active = false;
       },
     ],
     [
       'foreign build',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         report.device.buildId = 'a'.repeat(40);
       },
     ],
     [
       'wrong profile',
-      (report: ReturnType<typeof qca0Report>) => {
+      (report: ReturnType<typeof makeQca0Report>) => {
         report.profileName = 'quest-3s-qualification';
       },
     ],
   ])('fails closed for a %s', (_name, mutate) => {
     const value = manifest('quest-qca0');
-    const report = qca0Report(value);
+    const report = makeQca0Report(value);
     mutate(report);
     expect(analyzeQca0ScaleKneeReport(report, value)).toMatchObject({
       captureStatus: 'INVALID_RUN',
@@ -385,9 +263,12 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
 
   it('fails closed for a dirty manifest and never accepts duplicate terminal reports as one', () => {
     const dirty = manifest('quest-qca0', 'dirty');
-    expect(analyzeQca0ScaleKneeReport(qca0Report(dirty), dirty).captureStatus).toBe('INVALID_RUN');
+    expect(analyzeQca0ScaleKneeReport(makeQca0Report(dirty), dirty).captureStatus).toBe(
+      'INVALID_RUN'
+    );
     expect(
-      analyzeQca0ScaleKneeReport([qca0Report(dirty), qca0Report(dirty)], dirty).captureStatus
+      analyzeQca0ScaleKneeReport([makeQca0Report(dirty), makeQca0Report(dirty)], dirty)
+        .captureStatus
     ).toBe('INVALID_RUN');
   });
 
@@ -398,7 +279,7 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
         durationSec: step.durationSec,
         warmup: step.warmup === true,
       }))
-    ).toEqual(QCA0_STEPS);
+    ).toEqual(QCA0_TEST_STEPS);
   });
 });
 

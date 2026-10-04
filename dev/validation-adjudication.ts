@@ -58,6 +58,8 @@ export interface ValidationAdjudicationResult {
   validationMode: ValidationManifest['validationMode'];
   evidenceClass: ValidationManifest['evidenceClass'];
   analyzerValid: boolean;
+  captureStatus: Qca0CaptureStatus;
+  qca0Analysis: Qca0ScaleKneeAnalysis | null;
   validationErrors: string[];
   cohort: ValidationAdjudicationCohort;
   gateResults: GateAdjudication[];
@@ -973,9 +975,29 @@ export function adjudicateValidationEvidence(
   const cohort = emptyCohort(input.cohort);
   const validationErrors: string[] = [];
   let gateResults: GateAdjudication[] = [];
+  let captureStatus: Qca0CaptureStatus = 'PENDING';
+  let qca0Analysis: Qca0ScaleKneeAnalysis | null = null;
 
   const manifestInvalidations = blockingManifestInvalidations(manifest);
-  if (manifestInvalidations.length > 0) {
+  if (manifest.validationMode === 'quest-qca0') {
+    const reports = input.loadTestReports;
+    if (reports.length === 0 && manifestInvalidations.length === 0) {
+      captureStatus = 'PENDING';
+    } else {
+      const candidate: unknown = reports.length === 1 ? reports[0] : reports;
+      qca0Analysis = analyzeQca0ScaleKneeReport(candidate, manifest);
+      captureStatus = qca0Analysis.captureStatus;
+      validationErrors.push(...qca0Analysis.validationErrors);
+      if (reports.length !== 1 && qca0Analysis.validationErrors.length === 0) {
+        validationErrors.push(
+          `QCA0 session contains ${reports.length} terminal reports; governed runs require exactly one report per session`
+        );
+        captureStatus = 'INVALID_RUN';
+      }
+    }
+    gateResults = [];
+  } else if (manifestInvalidations.length > 0) {
+    captureStatus = 'INVALID_RUN';
     gateResults = manifest.gates.map((gateId) =>
       gate(gateId, 'INVALID_RUN', manifestInvalidations)
     );
@@ -1116,6 +1138,8 @@ export function adjudicateValidationEvidence(
     validationMode: manifest.validationMode,
     evidenceClass: manifest.evidenceClass,
     analyzerValid: validationErrors.length === 0,
+    captureStatus,
+    qca0Analysis,
     validationErrors: validationErrors.slice(0, 64),
     cohort,
     gateResults,

@@ -33,12 +33,14 @@ import { LOAD_TEST_THRESHOLDS } from '../src/vr/scalability/LoadTestThresholds.t
 import {
   QUEST_PERFORMANCE_PROFILE_POLICIES,
   QUEST_PERF_STEP_POLICY,
+  adjudicateValidationEvidence,
 } from '../dev/validation-adjudication.ts';
 import {
   computeQualificationProgress,
   createLoadTestResultsHandler,
 } from '../dev/loadtest-server.ts';
 import { finalizeValidationSession } from '../dev/validation-finalizer.ts';
+import { makeQca0Report } from './helpers/qca0Report.ts';
 
 const BUILD = '277c2e73f9206f5b387a856bc8298d8247e39376';
 const SESSION: ValidationSessionIdentity = {
@@ -286,6 +288,55 @@ function validUxSubmission(value: ValidationManifest): GuidedUxSubmission {
   };
 }
 
+describe('QCA0 capture validity projection', () => {
+  it('keeps an empty QCA0 session pending without inventing a gate', () => {
+    const value = manifest(SESSION, 'quest-qca0');
+    expect(
+      adjudicateValidationEvidence({
+        manifest: value,
+        loadTestReports: [],
+        guidedUxSubmission: null,
+      })
+    ).toMatchObject({
+      captureStatus: 'PENDING',
+      qca0Analysis: null,
+      gateResults: [],
+      aggregateStatus: 'PARTIAL',
+    });
+  });
+
+  it('projects one exact QCA0 report as a valid no-gate diagnostic', () => {
+    const value = manifest(SESSION, 'quest-qca0');
+    const result = adjudicateValidationEvidence({
+      manifest: value,
+      loadTestReports: [makeQca0Report(value, ['green', 'green', 'green', 'red', 'red'])],
+      guidedUxSubmission: null,
+    });
+    expect(result.captureStatus).toBe('VALID_CAPTURE');
+    expect(result.qca0Analysis?.kneeRowCount).toBe(65_000);
+    expect(result.gateResults).toEqual([]);
+    expect(result.aggregateStatus).toBe('PARTIAL');
+    expect(result.cohort.perfCompletedRunCount).toBe(0);
+    expect(result.cohort.perfPassingRunCount).toBe(0);
+  });
+
+  it('invalidates duplicate and representation-mismatched QCA0 evidence without a knee', () => {
+    const value = manifest(SESSION, 'quest-qca0');
+    const mismatched = makeQca0Report(value);
+    mismatched.steps[2].representation.coverageMode = 'SEMANTIC_SUMMARY';
+    for (const reports of [[makeQca0Report(value), makeQca0Report(value)], [mismatched], [7]]) {
+      const result = adjudicateValidationEvidence({
+        manifest: value,
+        loadTestReports: reports,
+        guidedUxSubmission: null,
+      });
+      expect(result.captureStatus).toBe('INVALID_RUN');
+      expect(result.qca0Analysis?.kneeRowCount ?? null).toBeNull();
+      expect(result.gateResults).toEqual([]);
+    }
+  });
+});
+
 describe('browser validation projection', () => {
   it('projects launcher session/build/ADB facts without treating them as sink-confirmed', () => {
     const ctx = readBrowserValidationContext({
@@ -344,6 +395,13 @@ describe('browser validation projection', () => {
 });
 
 describe('sink-owned qualification progress', () => {
+  it('does not project PERF qualification progress for the QCA0 diagnostic lane', () => {
+    const logDir = tempRoot();
+    const active = manifest(SESSION, 'quest-qca0');
+    writeSession(logDir, active, [makeQca0Report(active)]);
+    expect(computeQualificationProgress(join(logDir, 'validation'), active)).toBeNull();
+  });
+
   it('projects only QV4-valid active evidence and custody-verified prior sessions for the same build/device', () => {
     const logDir = tempRoot();
     const active = manifest();
@@ -398,6 +456,29 @@ describe('sink-owned qualification progress', () => {
 });
 
 describe('governed delivery receipt and status', () => {
+  it('durably receipts QCA0 evidence without attaching PERF qualification progress', () => {
+    const logDir = tempRoot();
+    const active = manifest(SESSION, 'quest-qca0');
+    writeSession(logDir, active);
+    const handler = createLoadTestResultsHandler({ logDir, activeSession: SESSION });
+    const res = request(
+      handler,
+      'POST',
+      '/__loadtest-results',
+      headers(SESSION, true),
+      makeQca0Report(active)
+    );
+    const payload = JSON.parse(res.end.mock.calls.at(-1)?.[0] as string);
+    expect(payload.receipt).toMatchObject({
+      status: 'captured',
+      artifact: 'loadtest-results.jsonl',
+      progress: null,
+    });
+    expect(
+      readFileSync(join(logDir, 'validation', SESSION.label, 'loadtest-results.jsonl'), 'utf8')
+    ).toContain('qca0-row-addressable-knee-v1');
+  });
+
   it('returns an attributable receipt only when the client opts into receipt v1', () => {
     const logDir = tempRoot();
     const active = manifest();

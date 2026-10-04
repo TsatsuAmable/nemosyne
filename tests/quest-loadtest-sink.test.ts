@@ -362,6 +362,13 @@ describe('QV3 evidence files and disposition', () => {
     expect(deriveLaunchDisposition(manifest)).toEqual({ status: null, reasons: [] });
   });
 
+  it('leaves an attributable QCA0 diagnostic pending without inventing a gate', () => {
+    const manifest = context('quest-qca0');
+    expect(validateValidationManifest(manifest).ok).toBe(true);
+    expect(manifest.gates).toEqual([]);
+    expect(deriveLaunchDisposition(manifest)).toEqual({ status: null, reasons: [] });
+  });
+
   it('classifies broken source or device attribution as INVALID_RUN with reasons', () => {
     const dirty = buildValidationContext({
       mode: 'quest-perf',
