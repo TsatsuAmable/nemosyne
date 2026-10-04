@@ -30,6 +30,14 @@ describe('GestureConfidenceHUD UXR1 UIKit migration', () => {
     expect(hud.getConfidence('swipeLeft')?.confidence).toBe(0);
   });
 
+  it('formats the confidence bars without the unsupported light-shade glyph', () => {
+    const hud = new GestureConfidenceHUD(new THREE.Group());
+    hud.recordConfidence('pinchTogether', 0.4, 123);
+
+    expect(hud.getRenderedSummary()).toContain('████......  40%');
+    expect(hud.getRenderedSummary()).not.toContain('░');
+  });
+
   it('returns defensive confidence snapshots', () => {
     const hud = new GestureConfidenceHUD(new THREE.Group());
     hud.recordConfidence('custom', 0.75, 10);

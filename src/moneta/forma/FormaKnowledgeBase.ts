@@ -88,9 +88,22 @@ export class FormaKnowledgeStore {
       throw new Error('[FormaKnowledgeStore] Candidate requires valid templateId and bindingId');
     }
 
-    const confirmedCritiques = (candidate.critiques ?? []).filter((c) => c.confirmed);
-    const confirmedJudgments = (candidate.meaningJudgments ?? []).filter((j) => j.confirmed);
+    // Each attributable record counts once: resubmitting the same record must not
+    // inflate the evidence basis (FMA-11 residual).
+    const confirmedCritiques = dedupeById(
+      (candidate.critiques ?? []).filter((c) => c.confirmed),
+      (c) => c.critiqueId
+    );
+    const confirmedJudgments = dedupeById(
+      (candidate.meaningJudgments ?? []).filter((j) => j.confirmed),
+      (j) => j.judgmentId
+    );
     const discoveryOutcomeCount = candidate.discoveryOutcomeCount ?? 0;
+    if (!Number.isInteger(discoveryOutcomeCount) || discoveryOutcomeCount < 0) {
+      throw new Error(
+        `[FormaKnowledgeStore] discoveryOutcomeCount must be a non-negative integer (received ${String(discoveryOutcomeCount)})`
+      );
+    }
 
     const confirmedHumanEvidence = confirmedCritiques.length + confirmedJudgments.length;
     if (confirmedHumanEvidence === 0) {
@@ -99,10 +112,11 @@ export class FormaKnowledgeStore {
       );
     }
 
-    const totalEvidenceCount = confirmedHumanEvidence + discoveryOutcomeCount;
-    if (totalEvidenceCount < 2) {
+    // discoveryOutcomeCount is a derived summary, not permission: it is recorded in
+    // the evidence basis but never contributes to the qualification threshold.
+    if (confirmedHumanEvidence < 2) {
       throw new Error(
-        `[FormaKnowledgeStore] Insufficient confirmed evidence to promote case (${totalEvidenceCount} items, minimum 2 required)`
+        `[FormaKnowledgeStore] Insufficient confirmed evidence to promote case (${confirmedHumanEvidence} distinct confirmed human evidence records, minimum 2 required; discovery outcome counts cannot substitute)`
       );
     }
 
@@ -145,6 +159,9 @@ export class FormaKnowledgeStore {
       scope,
       evidenceBasis,
       status,
+      // Case identity binds the exact attributable records, not just their counts.
+      critiqueIds: confirmedCritiques.map((c) => c.critiqueId).sort(),
+      judgmentIds: confirmedJudgments.map((j) => j.judgmentId).sort(),
     });
 
     const caseId = `case-v1:${provenanceDigest.slice(0, 16)}`;
@@ -227,4 +244,16 @@ export class FormaKnowledgeStore {
       cases: Object.freeze(cases),
     };
   }
+}
+
+function dedupeById<T>(records: readonly T[], idOf: (record: T) => string): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const record of records) {
+    const id = idOf(record);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    unique.push(record);
+  }
+  return unique;
 }

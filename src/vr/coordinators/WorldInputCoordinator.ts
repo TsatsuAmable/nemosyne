@@ -154,7 +154,7 @@ export class WorldInputCoordinator {
    */
   onGesture(name: string, ctx: GestureContext = {}): void {
     if (this._inputPaused && name !== 'pauseResume') {
-      this.callbacks.onLog?.('Input paused — gesture ignored');
+      this.callbacks.onLog?.('Input paused - gesture ignored');
       return;
     }
 

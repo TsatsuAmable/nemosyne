@@ -208,12 +208,12 @@ export class RecommendationPanel extends SpatialPanel {
       const previewed = this._previewedRemediationId === action.id;
       const decision = previewed ? this._getPreviewDecision?.() ?? null : null;
       if (!previewed) {
-        this._addButton('Preview · ' + action.label,'secondary',() => this.dispatchAction('remedi-preview-' + action.id));
+        this._addButton('Preview | ' + action.label,'secondary',() => this.dispatchAction('remedi-preview-' + action.id));
       } else if (decision) {
-        this._addButton('Apply · ' + action.label,'primary',() => this.dispatchAction('remedi-commit-' + action.id));
+        this._addButton('Apply | ' + action.label,'primary',() => this.dispatchAction('remedi-commit-' + action.id));
         this._addButton('Revert preview','danger',() => this.dispatchAction('remedi-cancel-' + action.id));
       } else {
-        this._addButton('Re-preview · ' + action.label,'secondary',() => this.dispatchAction('remedi-preview-' + action.id));
+        this._addButton('Re-preview | ' + action.label,'secondary',() => this.dispatchAction('remedi-preview-' + action.id));
         this._addButton('Revert preview','danger',() => this.dispatchAction('remedi-cancel-' + action.id));
       }
     }
@@ -238,7 +238,7 @@ export class RecommendationPanel extends SpatialPanel {
     const lines = [
       'RECOMMENDATION', 'Action: ' + (ACTION_LABELS[rec.action] ?? rec.action),
       'Decision: ' + rec.decision, '', 'RATIONALE', rec.rationale, '', 'EVIDENCE', ...evidence, '',
-      'HEURISTIC RANK · ' + (rec.heuristicScore * 100).toFixed(0) + '%', HEURISTIC_RANK_DISCLAIMER,
+      'HEURISTIC RANK | ' + (rec.heuristicScore * 100).toFixed(0) + '%', HEURISTIC_RANK_DISCLAIMER,
     ];
     if (rec.limitations) lines.push('Limitations: ' + rec.limitations);
     if (rec.suggestedEmbodiment) lines.push('Embodiment: ' + rec.suggestedEmbodiment);
@@ -250,7 +250,7 @@ export class RecommendationPanel extends SpatialPanel {
     const items = this._getOutcome?.()?.nearMisses ?? [];
     if (!items.length) return 'VIABLE ALTERNATIVES / NEAR MISSES\nNo alternatives found.';
     return ['VIABLE ALTERNATIVES / NEAR MISSES', ...items.map((m) =>
-      (m.candidateId ?? m.family) + ' · ' + m.layout + ' · utility ' + (m.score ?? 0).toFixed(3) +
+      (m.candidateId ?? m.family) + ' | ' + m.layout + ' | utility ' + (m.score ?? 0).toFixed(3) +
       '\n' + (m.disqualificationReason ?? 'Close runner up'))].join('\n\n');
   }
 
@@ -275,11 +275,11 @@ export class RecommendationPanel extends SpatialPanel {
         if (d) {
           const candidate = d.chosenCandidateId ?? d.representationFamily;
           const layout = d.chosenLayout ?? d.embodiment.primaryLayout;
-          // Truthfulness contract: source remains explicit about PREVIEW: \${candidate} · \${layout}.
-          lines.push('PREVIEW: ' + candidate + ' · ' + layout,
-            'Utility ' + d.utilityScore.toFixed(3) + ' · ' + (d.decisionStatus ?? 'DECISIVE'));
+          // Truthfulness contract: source remains explicit about PREVIEW: \${candidate} | \${layout}.
+          lines.push('PREVIEW: ' + candidate + ' | ' + layout,
+            'Utility ' + d.utilityScore.toFixed(3) + ' | ' + (d.decisionStatus ?? 'DECISIVE'));
         } else {
-          lines.push('PREVIEW STALE — run preview again');
+          lines.push('PREVIEW STALE - run preview again');
         }
       }
     }

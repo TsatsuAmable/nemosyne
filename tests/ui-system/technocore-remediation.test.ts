@@ -131,7 +131,7 @@ describe('P1-U5 RecommendationPanel Diagnostic Views', () => {
     expect(panel.getRenderedSummary()).not.toContain('PREVIEW:');
 
     panel.setActiveTab('remediation');
-    expect(panel.getRenderedSummary()).toContain('PREVIEW: RELATIONSHIP_GRAPH · FORCE_3D');
+    expect(panel.getRenderedSummary()).toContain('PREVIEW: RELATIONSHIP_GRAPH | FORCE_3D');
 
     expect(panel.dispatchAction('remedi-commit-remedi-adjust-hardware-limit')).toBe(true);
     expect(onCommitRemediation).toHaveBeenCalledWith(mockRemediation);

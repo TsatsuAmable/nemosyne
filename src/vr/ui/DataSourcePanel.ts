@@ -138,7 +138,7 @@ export class DataSourcePanel extends SpatialPanel {
   async refreshDatasetLibrary(): Promise<void> {
     if (this._libraryBusy) return;
     this._libraryBusy = true;
-    this.libraryStatus = 'Refreshing dataset library…';
+    this.libraryStatus = 'Refreshing dataset library...';
     this.render();
     try {
       this.libraryEntries = await xrDatasetLibraryBridge.listDatasets();
@@ -161,7 +161,7 @@ export class DataSourcePanel extends SpatialPanel {
   async openLibraryDataset(datasetId: string, tierId: string): Promise<void> {
     if (this._libraryBusy) return;
     this._libraryBusy = true;
-    this.libraryStatus = 'Checking and opening dataset…';
+    this.libraryStatus = 'Checking and opening dataset...';
     this.render();
     try {
       await xrDatasetLibraryBridge.openDataset(datasetId, tierId);
@@ -202,9 +202,9 @@ export class DataSourcePanel extends SpatialPanel {
     const theme = getTheme(this._highContrast);
     this._status.setProperties({
       text:
-        'LIVE DATA · ' +
+        'LIVE DATA | ' +
         (this.liveConnected ? 'CONNECTED' : 'OFFLINE') +
-        '\nApproved library · ' +
+        '\nApproved library | ' +
         this.libraryStatus,
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
@@ -237,7 +237,7 @@ export class DataSourcePanel extends SpatialPanel {
 
     this._addHeading('Approved dataset library');
     this._addButton(
-      this._libraryBusy ? 'Refreshing…' : 'Refresh approved datasets',
+      this._libraryBusy ? 'Refreshing...' : 'Refresh approved datasets',
       'primary',
       () => {
         void this.refreshDatasetLibrary();
@@ -255,11 +255,11 @@ export class DataSourcePanel extends SpatialPanel {
     for (const { entry, tier } of libraryRows.slice(start, start + pageSize)) {
       this._addButton(
         entry.label +
-          ' · v' +
+          ' | v' +
           entry.version +
-          ' · ' +
+          ' | ' +
           tier.label +
-          ' · ' +
+          ' | ' +
           tier.rows.toLocaleString() +
           ' rows',
         'secondary',
@@ -280,7 +280,7 @@ export class DataSourcePanel extends SpatialPanel {
         this._libraryPage === 0 || this._libraryBusy
       );
       this._addButton(
-        'Next library page · ' + (this._libraryPage + 1) + '/' + pageCount,
+        'Next library page | ' + (this._libraryPage + 1) + '/' + pageCount,
         'secondary',
         () => {
           this._libraryPage = Math.min(pageCount - 1, this._libraryPage + 1);

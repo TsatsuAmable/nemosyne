@@ -112,7 +112,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
   private _dirty = true;
   private _sample: LoadTestSample | null = null;
   private _boundary: BoundaryProgress | null = null;
-  private _runMessage = 'Confirming validation session with evidence sink…';
+  private _runMessage = 'Confirming validation session with evidence sink...';
   private _delivery: ValidationDeliveryUiState = {
     status: 'idle',
     message: 'No evidence delivered yet.',
@@ -189,7 +189,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
       }),
       options.eventBus.on(WorldTopics.LOADTEST_COMPLETE, () => {
         this._sample = null;
-        this._runMessage = 'Performance run complete; delivering evidence…';
+        this._runMessage = 'Performance run complete; delivering evidence...';
         this._dirty = true;
       }),
       options.eventBus.on(WorldTopics.QUEST_BOUNDARY_PROGRESS, (payload) => {
@@ -199,7 +199,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
       }),
       options.eventBus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, () => {
         this._boundary = null;
-        this._runMessage = '10M boundary complete; delivering evidence…';
+        this._runMessage = '10M boundary complete; delivering evidence...';
         this._dirty = true;
       })
     );
@@ -233,7 +233,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
     super.dispose();
   }
 
-  setDeliverySending(message = 'Delivering evidence…'): void {
+  setDeliverySending(message = 'Delivering evidence...'): void {
     this._delivery = { status: 'sending', message };
     this._dirty = true;
   }
@@ -490,16 +490,16 @@ export class ValidationOperatorPanel extends SpatialPanel {
     const lines = [
       'GOVERNED SESSION',
       statusLabel +
-        ' · ' +
+        ' | ' +
         manifest.validationMode +
-        ' · ' +
+        ' | ' +
         (manifest.gates.join(', ') || 'no gate'),
       'Session: ' + manifest.sessionLabel,
-      'Build: ' + manifest.buildId.slice(0, 12) + ' · tree ' + manifest.worktree.toUpperCase(),
+      'Build: ' + manifest.buildId.slice(0, 12) + ' | tree ' + manifest.worktree.toUpperCase(),
       'Profile: ' + (manifest.profile ?? 'none'),
       'Device: ' +
         (device?.model ?? 'UNAVAILABLE') +
-        ' · firmware/build ' +
+        ' | firmware/build ' +
         (device?.buildIncremental ?? manifest.declaredFirmwareVersion ?? 'UNAVAILABLE'),
       'Identity basis: ' + (device?.captureBasis ?? 'investigator-declared/unavailable'),
       '',
@@ -521,7 +521,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
           Math.min(this._progress.renderCompleted, this._progress.target) +
           '/' +
           this._progress.target +
-          ' · boundary ' +
+          ' | boundary ' +
           Math.min(this._progress.boundaryAttempts, this._progress.target) +
           '/' +
           this._progress.target
@@ -535,7 +535,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
     lines.push(
       'Disposition: ' +
         (disposition?.status ?? 'UNADJUDICATED') +
-        (disposition?.reasons?.[0] ? ' · ' + disposition.reasons[0] : ''),
+        (disposition?.reasons?.[0] ? ' | ' + disposition.reasons[0] : ''),
       '',
       'RUN',
       this._runMessage
@@ -549,19 +549,19 @@ export class ValidationOperatorPanel extends SpatialPanel {
       lines.push(
         'Rows ' +
           this._sample.spec.rowCount +
-          ' · ' +
+          ' | ' +
           pct.toFixed(0) +
-          '% · p95 ' +
+          '% | p95 ' +
           this._sample.frames.p95Ms.toFixed(1) +
-          'ms · ' +
+          'ms | ' +
           this._sample.frames.fpsAvg.toFixed(0) +
-          'fps · drop ' +
+          'fps | drop ' +
           this._sample.frames.droppedPct.toFixed(1) +
           '%'
       );
     } else if (this._boundary) {
       lines.push(
-        '10M ' + this._boundary.phase + ' · ' + this._boundary.progressPercent.toFixed(1) + '%'
+        '10M ' + this._boundary.phase + ' | ' + this._boundary.progressPercent.toFixed(1) + '%'
       );
     }
 
@@ -680,7 +680,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
       completedAt: now,
     };
 
-    this.setDeliverySending('Delivering guided UX evidence…');
+    this.setDeliverySending('Delivering guided UX evidence...');
     try {
       await this._onSubmitUx(submission);
       this._uxSubmitted = true;

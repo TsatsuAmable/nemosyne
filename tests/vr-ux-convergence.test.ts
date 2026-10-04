@@ -308,7 +308,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
       coordinator.setInteractionMode('OBSERVE');
       coordinator.onGesture('bothPinched');
       expect(coordinator.getInteractionMode()).toBe('INTERACT');
-      expect(callbacks.onLog).toHaveBeenCalledWith(['▶ Resume Interaction']);
+      expect(callbacks.onLog).toHaveBeenCalledWith(['> Resume Interaction']);
     });
 
     it('records executed actions on standard gestures', () => {

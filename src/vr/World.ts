@@ -2484,7 +2484,7 @@ export class World {
     this._updateOperationLog();
     this._updateNarrativeStrip();
     this.uiManager.vrConsole?.log?.('log', [
-      `Reset transforms → ${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
+      `Reset transforms -> ${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
     ]);
     this._logInteraction('Reset', {
       result: `${this.dataOperationController.transformedDataset?.rowCount ?? 0} rows`,
@@ -2600,7 +2600,7 @@ export class World {
     this.analyticalRuntime.markUnavailable(error);
     this._setAnalyticalAvailabilityState(
       'UNAVAILABLE',
-      'Analytical kernel unavailable — analytical actions are disabled until recovery.'
+      'Analytical kernel unavailable - analytical actions are disabled until recovery.'
     );
     this.uiManager.statusStrip.recordAction(
       'Analytical kernel unavailable',
@@ -2608,7 +2608,7 @@ export class World {
     );
     console.error('[World] analytical kernel unavailable:', error);
     this.uiManager.vrConsole?.log?.('error', [
-      'Analytical kernel unavailable — data ops disabled. Run npm run wasm:dev.',
+      'Analytical kernel unavailable - data ops disabled. Run npm run wasm:dev.',
     ]);
   }
 
@@ -2621,7 +2621,7 @@ export class World {
     if (!this.lifecycle.isCurrentKernelAttempt(generation)) return;
     if (!ready.wasAlreadyReady) {
       this.uiManager.vrConsole?.log?.('log', [
-        `WASM ready — capabilities ${ready.capabilities.toString(2)}`,
+        `WASM ready - capabilities ${ready.capabilities.toString(2)}`,
       ]);
     }
   }

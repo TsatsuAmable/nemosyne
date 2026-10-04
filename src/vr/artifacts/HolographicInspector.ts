@@ -372,7 +372,7 @@ export class HolographicInspector extends SpatialPanel {
       );
       row.add(
         new Text({
-          text: `v${entry.datasetVersion} · ${new Date(entry.timestamp).toISOString()}`,
+          text: `v${entry.datasetVersion} | ${new Date(entry.timestamp).toISOString()}`,
           color: COLOR_TOKENS.text.muted,
           fontSize: 12,
         }),
