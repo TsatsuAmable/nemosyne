@@ -138,7 +138,7 @@ export class DataSourcePanel extends SpatialPanel {
   async refreshDatasetLibrary(): Promise<void> {
     if (this._libraryBusy) return;
     this._libraryBusy = true;
-    this.libraryStatus = 'Refreshing dataset library…';
+    this.libraryStatus = 'Refreshing dataset library...';
     this.render();
     try {
       this.libraryEntries = await xrDatasetLibraryBridge.listDatasets();
@@ -161,7 +161,7 @@ export class DataSourcePanel extends SpatialPanel {
   async openLibraryDataset(datasetId: string, tierId: string): Promise<void> {
     if (this._libraryBusy) return;
     this._libraryBusy = true;
-    this.libraryStatus = 'Checking and opening dataset…';
+    this.libraryStatus = 'Checking and opening dataset...';
     this.render();
     try {
       await xrDatasetLibraryBridge.openDataset(datasetId, tierId);
@@ -237,7 +237,7 @@ export class DataSourcePanel extends SpatialPanel {
 
     this._addHeading('Approved dataset library');
     this._addButton(
-      this._libraryBusy ? 'Refreshing…' : 'Refresh approved datasets',
+      this._libraryBusy ? 'Refreshing...' : 'Refresh approved datasets',
       'primary',
       () => {
         void this.refreshDatasetLibrary();

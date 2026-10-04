@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Replace device-observed unsupported UIKit glyphs only under `src/vr/**`; desktop copy remains unchanged.
+- Replace device-observed unsupported UIKit glyphs under `src/vr/**` plus the two `src/app/devEvidence.ts` delivery messages passed directly into the operator panel; desktop-only copy remains unchanged.
 - Use supported ASCII equivalents and preserve all surrounding wording, values, line breaks, actions and state.
 - Do not suppress console output, modify UIKit, add a font asset, disable remote diagnostics, change the QCA0 profile, or change evidence/custody semantics.
 - The governed comparison remains `quest-qca0` / `qca0-row-addressable-knee-v1` on ADB-attributed `META_QUEST_3S` with `ROW_ADDRESSABLE` coverage.
@@ -87,7 +87,7 @@ Run: `git add src/vr tests/validation-operator-panel.test.ts tests/load-test-pan
 
 - [ ] **Step 0: Treat a live-device missing-glyph finding as a falsifier**
 
-The first exact-head probe after Task 1 showed zero U+00B7 warnings but 776 warnings from U+2212, U+2591, U+2026, U+2014, U+25B6, U+25C0 and U+2192. Add behavior coverage for the hot UIKit outputs, observe RED, substitute supported ASCII at the corresponding runtime strings, and repeat focused verification before launching the terminal capture. Do not arm the benchmark while any missing-glyph storm remains.
+The first exact-head probe after Task 1 showed zero U+00B7 warnings but 776 warnings from U+2212, U+2591, U+2026, U+2014, U+25B6, U+25C0 and U+2192. Add behavior coverage for the hot UIKit outputs, observe RED, substitute supported ASCII at the corresponding runtime strings (including application-orchestration messages passed into UIKit), and repeat focused verification before launching the terminal capture. Do not arm the benchmark while any missing-glyph storm remains.
 
 - [ ] **Step 1: Run repository verification**
 

@@ -155,7 +155,7 @@ export class PerformancePanel extends SpatialPanel {
         'Avg frame: ' + tel.frames.averageMs.toFixed(1) + ' ms'
       );
     } else {
-      lines.push('Telemetry is disabled. Enable it in Settings → Telemetry Opt-in.');
+      lines.push('Telemetry is disabled. Enable it in Settings -> Telemetry Opt-in.');
     }
 
     lines.push(

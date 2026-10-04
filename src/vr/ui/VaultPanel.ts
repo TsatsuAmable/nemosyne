@@ -123,8 +123,8 @@ export class VaultPanel extends SpatialPanel {
       flexDirection: 'row',
       gap: SPACING_TOKENS.grid.x4,
     });
-    this._prevButton = new Button({ label: '◀ PREV', onClick: () => this.previousPage() });
-    this._nextButton = new Button({ label: 'NEXT ▶', onClick: () => this.nextPage() });
+    this._prevButton = new Button({ label: '< PREV', onClick: () => this.previousPage() });
+    this._nextButton = new Button({ label: 'NEXT >', onClick: () => this.nextPage() });
     pagination.add(this._prevButton, this._nextButton);
     left.add(this._summary, this._archiveList, this._pageText, pagination);
 

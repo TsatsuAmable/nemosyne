@@ -123,6 +123,15 @@ describe('governed Quest performance profile dispatch', () => {
 describe('ValidationOperatorPanel governed semantic dispatch', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('renders the pre-confirmation state with only supported spatial punctuation', () => {
+    const { panel } = panelFor('quest-qca0');
+    expect(panel.getRenderedSummary()).toContain(
+      'Confirming validation session with evidence sink...'
+    );
+    expect(panel.getRenderedSummary()).not.toMatch(/[—−…→▶◀░]/u);
+    panel.dispose();
+  });
+
   it('uses SpatialPanel/UIKit and keeps performance start disabled until sink confirmation', () => {
     const { panel, callbacks } = panelFor('quest-perf');
     expect(panel).toBeInstanceOf(SpatialPanel);

@@ -179,7 +179,7 @@ function buildProjection(source: MemoryPalaceProjectionSource): ProjectedEpistem
       id,
       kind: 'branch_point',
       title: 'Branch point',
-      description: `Recorded branch ${edge.source} → ${edge.target}`,
+      description: `Recorded branch ${edge.source} -> ${edge.target}`,
       sourceKind: 'investigation-branch',
     });
     branchIndex += 1;

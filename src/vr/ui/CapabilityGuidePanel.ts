@@ -152,7 +152,7 @@ export class CapabilityGuidePanel extends SpatialPanel {
         lines.push(
           (availability.available ? '✓ ' : '– ') +
             task.label +
-            ' — ' +
+            ' - ' +
             (availability.available ? task.description : (availability.reason ?? 'Unavailable'))
         );
       }
@@ -187,15 +187,15 @@ export class CapabilityGuidePanel extends SpatialPanel {
       .find((category) => category.id === 'DATA')
       ?.items.find((item) => item.id === 'data-sources');
     const nextStep = nextTask
-      ? `${nextTask.label} — ${nextTask.description}`
+      ? `${nextTask.label} - ${nextTask.description}`
       : !hasDataset
         ? dataSources
-          ? `${dataSources.label} — load a dataset to begin an investigation`
+          ? `${dataSources.label} - load a dataset to begin an investigation`
           : 'Open DATA to load a dataset and begin an investigation'
         : hasRepresentation
-          ? 'Select a structure — choose a visible dataset structure to inspect or challenge'
+          ? 'Select a structure - choose a visible dataset structure to inspect or challenge'
           : contextTask
-            ? `${contextTask.label} — ${contextTask.description}`
+            ? `${contextTask.label} - ${contextTask.description}`
             : 'Review representation constraints and current investigation context';
 
     return [
@@ -205,7 +205,7 @@ export class CapabilityGuidePanel extends SpatialPanel {
       'Nemosyne turns governed analytical structure into spatial representations you can inspect, challenge, and trace to evidence.',
       '',
       'MENTAL MODEL',
-      'dataset → representation → structure → question → investigation → evidence',
+      'dataset -> representation -> structure -> question -> investigation -> evidence',
       'A representation is a governed view of the dataset, not the dataset itself.',
       '',
       'CONTEXT',

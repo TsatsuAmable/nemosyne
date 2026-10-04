@@ -112,7 +112,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
   private _dirty = true;
   private _sample: LoadTestSample | null = null;
   private _boundary: BoundaryProgress | null = null;
-  private _runMessage = 'Confirming validation session with evidence sink…';
+  private _runMessage = 'Confirming validation session with evidence sink...';
   private _delivery: ValidationDeliveryUiState = {
     status: 'idle',
     message: 'No evidence delivered yet.',
@@ -189,7 +189,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
       }),
       options.eventBus.on(WorldTopics.LOADTEST_COMPLETE, () => {
         this._sample = null;
-        this._runMessage = 'Performance run complete; delivering evidence…';
+        this._runMessage = 'Performance run complete; delivering evidence...';
         this._dirty = true;
       }),
       options.eventBus.on(WorldTopics.QUEST_BOUNDARY_PROGRESS, (payload) => {
@@ -199,7 +199,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
       }),
       options.eventBus.on(WorldTopics.QUEST_BOUNDARY_COMPLETE, () => {
         this._boundary = null;
-        this._runMessage = '10M boundary complete; delivering evidence…';
+        this._runMessage = '10M boundary complete; delivering evidence...';
         this._dirty = true;
       })
     );
@@ -233,7 +233,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
     super.dispose();
   }
 
-  setDeliverySending(message = 'Delivering evidence…'): void {
+  setDeliverySending(message = 'Delivering evidence...'): void {
     this._delivery = { status: 'sending', message };
     this._dirty = true;
   }
@@ -680,7 +680,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
       completedAt: now,
     };
 
-    this.setDeliverySending('Delivering guided UX evidence…');
+    this.setDeliverySending('Delivering guided UX evidence...');
     try {
       await this._onSubmitUx(submission);
       this._uxSubmitted = true;

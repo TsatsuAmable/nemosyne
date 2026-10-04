@@ -161,6 +161,17 @@ describe('WheelMenuBuilder', () => {
     }
   });
 
+  it('uses supported ASCII for dashboard navigation labels', () => {
+    const { world } = makeStubWorld();
+    const labels = buildWheelMenuCategories(world)
+      .flatMap((category) => category.items)
+      .map((item) => item.label);
+
+    expect(labels).toContain('< Dash');
+    expect(labels).toContain('Dash >');
+    expect(labels.join('\n')).not.toMatch(/[▶◀]/u);
+  });
+
   it('templates category has one item per AnalysisTemplate, each wired to loadTemplate', () => {
     const { world, spy } = makeStubWorld();
     const cats = buildWheelMenuCategories(world);

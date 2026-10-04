@@ -279,7 +279,7 @@ export class RecommendationPanel extends SpatialPanel {
           lines.push('PREVIEW: ' + candidate + ' | ' + layout,
             'Utility ' + d.utilityScore.toFixed(3) + ' | ' + (d.decisionStatus ?? 'DECISIVE'));
         } else {
-          lines.push('PREVIEW STALE — run preview again');
+          lines.push('PREVIEW STALE - run preview again');
         }
       }
     }

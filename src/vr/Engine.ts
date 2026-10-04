@@ -459,7 +459,7 @@ export class Engine {
     this._resumeAfterContextRestore = this.state === 'running';
     this.state = 'context_lost';
     console.warn('[Engine] WebGL context lost');
-    this._reportSessionStatus('GPU context lost — pausing render', '#ffaa00');
+    this._reportSessionStatus('GPU context lost - pausing render', '#ffaa00');
     this.renderer.setAnimationLoop(null);
   }
 

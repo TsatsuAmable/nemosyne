@@ -106,6 +106,10 @@ export class GestureConfidenceHUD extends SpatialPanel {
     return entry ? { ...entry } : null;
   }
 
+  getRenderedSummary(): string {
+    return this._formatEntries();
+  }
+
   applyAccessibility(options: AccessibilityOptions): void {
     this._textScale = options.textScale;
     this._highContrast = options.highContrast;
@@ -142,7 +146,7 @@ export class GestureConfidenceHUD extends SpatialPanel {
     for (const entry of this._confidenceMap.values()) {
       const pct = Math.round(entry.confidence * 100);
       const filled = Math.round(entry.confidence * 10);
-      const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+      const bar = '█'.repeat(filled) + '.'.repeat(10 - filled);
       lines.push(
         entry.gestureName.toUpperCase().padEnd(28) +
           bar +

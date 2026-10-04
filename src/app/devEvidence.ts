@@ -316,7 +316,7 @@ export function installDevEvidence({
   };
 
   const reportDelivery = async (summary: unknown, label: string): Promise<void> => {
-    if (validationPanel) validationPanel.setDeliverySending(`Delivering ${label} evidence…`);
+    if (validationPanel) validationPanel.setDeliverySending(`Delivering ${label} evidence...`);
     try {
       const receipt = await postSummary(summary);
       if (receipt && validationPanel) validationPanel.setDeliveryReceipt(receipt);
@@ -441,7 +441,7 @@ export function installDevEvidence({
       onDownload: downloadLastEvidence,
       onRefreshStatus: refreshValidationStatus,
       onSubmitUx: async (submission) => {
-        validationPanel?.setDeliverySending('Delivering guided UX evidence…');
+        validationPanel?.setDeliverySending('Delivering guided UX evidence...');
         const receipt = await postGuidedUx(submission);
         validationPanel?.setDeliveryReceipt(receipt);
         await refreshValidationStatus();

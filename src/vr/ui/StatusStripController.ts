@@ -111,7 +111,7 @@ function clampCount(value: number): number {
 function compactId(value: string | null, max = 24): string {
   if (!value) return 'ROOT';
   if (value.length <= max) return value;
-  return `${value.slice(0, max - 1)}…`;
+  return `${value.slice(0, max - 3)}...`;
 }
 
 export class StatusStripController {

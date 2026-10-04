@@ -28,6 +28,8 @@ In scope:
 
 - replace device-observed unsupported punctuation and indicators in UIKit text
   rendered by `src/vr/**` with semantically equivalent supported ASCII;
+- replace the two `src/app/devEvidence.ts` delivery messages that are passed
+  directly into the governed UIKit operator panel;
 - preserve wording, ordering, values, state, interaction and semantic meaning;
 - test the live QCA operator and load-test summary formatters;
 - run the same custody-governed QCA0 profile on Quest 3S as the controlled
@@ -91,7 +93,8 @@ or warning suppression:
 - warning suppression would conceal the defect while retaining glyph lookup
   and layout work.
 
-The substitution applies to UIKit-facing runtime strings under `src/vr/**`.
+The substitution applies to UIKit-facing runtime strings under `src/vr/**` and
+to the governed delivery messages passed into that UI from `devEvidence.ts`.
 Comments, internal transition-map keys and canvas text are not rendered by
 UIKit and remain out of scope. Existing wording and investigator data remain
 otherwise untouched.
