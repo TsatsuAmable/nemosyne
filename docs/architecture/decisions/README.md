@@ -32,3 +32,4 @@ Each ADR contains:
 
 - [ADR-0008: Explicit receipt-bearing package and investigation digest](0008-receipt-bearing-package-and-digest.md) — bounded RFC 0009 package/digest infrastructure; the format grants no replay authority.
 - [ADR-0009: AP-INV Architecture Preflight for FM1 Question-Aware Moneta](0009-ap-inv-fm1-question-aware-investigation.md) — defines investigation graph boundaries and versioned intent.
+- [ADR-0010: AP-SEARCH Architecture Preflight for FM7 Representation Search and Synthesis](0010-ap-search-representation-search-and-synthesis.md) — defines grammar authority, objective model, Pareto search, deterministic baseline, and MCR7 genome handoff.
