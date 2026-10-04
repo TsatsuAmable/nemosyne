@@ -71,6 +71,14 @@ export interface RepresentationSearchResult {
   };
 }
 
+/**
+ * Minimum System-1 proposal score that seeds search (strictly above).
+ * Shared with FullMonetaEngine so `system1AdviceApplied` means at least one
+ * candidate actually entered the search population — never a PROPOSED set
+ * that seeded nothing.
+ */
+export const SYSTEM1_SEED_MIN_SCORE = 0.5;
+
 export class RepresentationSearchEngine {
   /**
    * Executes multi-objective search and returns Pareto-optimal candidates.
@@ -120,7 +128,7 @@ export class RepresentationSearchEngine {
     // Seed from System-1 proposals if available
     if (options.system1Proposals && options.system1Proposals.status === 'PROPOSED') {
       for (const prop of options.system1Proposals.candidates) {
-        if (prop.score > 0.5) {
+        if (prop.score > SYSTEM1_SEED_MIN_SCORE) {
           const s1Graph = RepresentationGraphGrammar.cloneGraph(refGraph);
           s1Graph.graphId = `s1-seeded-${prop.candidateId}`;
           // Add proposed primitive kind

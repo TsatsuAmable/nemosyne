@@ -246,6 +246,26 @@ export function compileDirectEmbodimentPlan(
 
   // 4. Budget & Cardinality Bounding (FAL-DSE0-3)
   const budget = request.budget ?? DESKTOP_EXPANSIVE_BUDGET;
+  // Fail closed on non-finite or non-positive budget numerics: NaN slips past
+  // every downstream `<=` comparison and collapses the plan to zero elements
+  // while still reporting success, so refuse here instead of admitting it.
+  for (const [name, value] of [
+    ['maxElements', budget.maxElements],
+    ['maxMemoryBytes', budget.maxMemoryBytes],
+    ['maxChannels', budget.maxChannels],
+  ] as const) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(
+        `[DirectEmbodimentCompiler] Refused: device budget '${name}' must be a finite positive number (received ${String(value)})`
+      );
+    }
+  }
+  const elementsOverride = request.maxElementsOverride;
+  if (elementsOverride !== undefined && (!Number.isFinite(elementsOverride) || elementsOverride <= 0)) {
+    throw new Error(
+      `[DirectEmbodimentCompiler] Refused: maxElementsOverride must be a finite positive number (received ${String(elementsOverride)})`
+    );
+  }
   const maxBudgetElements = Math.min(
     budget.maxElements,
     SPATIAL_EMBODIMENT_PLAN_MAX_ELEMENTS,

@@ -129,7 +129,9 @@ export function computeSnapshotId(body: SemanticSnapshotBodyV1): string {
 
 /**
  * Validates a SemanticSnapshotV1 according to A27-0 §4.2 specifications:
- * Rejects non-finite numbers, sparse arrays, un-sorted declared sets, or decision metadata leakage.
+ * Rejects un-sorted declared sets, snapshot-ID mismatch, and incomplete
+ * evidence tuples. Non-finite node values are NOT checked here; they are
+ * refused downstream at Forma compilation (which requires finite numerics).
  */
 export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
   if (snapshot.schemaVersion !== 1) {

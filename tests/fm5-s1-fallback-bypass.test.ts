@@ -123,7 +123,7 @@ describe('FM5-R3: governed deterministic fallback bypasses System-1 advice', () 
     expect(state?.system1AdviceApplied).toBe(false);
 
     const report = atlas.explainFullMonetaDecision(result, 'BALANCED');
-    expect(report).toContain('deliberately bypassed by caller request');
+    expect(report).toContain('withheld by caller request');
   });
 
   test('default path applies PROPOSED advice and discloses no bypass', () => {
@@ -140,6 +140,6 @@ describe('FM5-R3: governed deterministic fallback bypasses System-1 advice', () 
     expect(result.system1AdviceApplied).toBe(true);
 
     const report = atlas.explainFullMonetaDecision(result, 'BALANCED');
-    expect(report).not.toContain('deliberately bypassed');
+    expect(report).not.toContain('withheld by caller request');
   });
 });

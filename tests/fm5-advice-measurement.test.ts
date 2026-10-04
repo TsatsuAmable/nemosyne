@@ -14,10 +14,12 @@ import type { SemanticEmbodimentEnvelopeV1 } from '../src/moneta/representation/
  * FM5-R5: baseline-vs-advice measurement battery (fixture-relative only).
  *
  * Compares advice-applied vs bypassed synthesis over governed fixtures and
- * reports utility deltas. Assertions are structural: both arms complete,
- * advice is recorded on both, influence flags are correct, and measurements
- * reproduce. NOTHING here asserts advice wins — a negative delta is a valid
- * measurement, and held-out/device qualification remains open.
+ * reports utility deltas. Assertions are structural: both arms complete with
+ * finite utilities and measurements reproduce. Seeding and provenance binding
+ * are measured and logged per row but not asserted here (see R6/R7 for the
+ * asserted recording and influence-flag evidence). NOTHING here asserts
+ * advice wins — a negative delta is a valid measurement, and held-out/device
+ * qualification remains open.
  */
 
 const SCHEMA = [

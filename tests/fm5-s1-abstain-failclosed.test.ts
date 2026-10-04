@@ -19,10 +19,13 @@ import type { SemanticEmbodimentEnvelopeV1 } from '../src/moneta/representation/
 /**
  * FM5-R6: System-1 ABSTAIN/OOD fail-closed on the production path.
  *
- * R4 proved recorded-ABSTAIN replay at the engine level. This battery proves
- * the same property through the real production entry
- * (AtlasCore.adaptRepresentation), plus disclosure, no-seed, determinism and
- * threshold-OOD falsifiers. It makes no held-out value claim: a negative
+ * R4 proved recorded-ABSTAIN replay at the engine level. The first, second
+ * and fourth tests below prove the same property through the real production
+ * entry (AtlasCore.adaptRepresentation): disclosure, no-seed, replay and
+ * determinism. The threshold-OOD test calls the proposer directly because
+ * the engine pins the default threshold and never forwards one — it proves
+ * the proposer abstains rather than fabricating certainty, not production
+ * threshold plumbing. It makes no held-out value claim: a negative
  * advice-vs-baseline delta remains valid measurement (see R5).
  */
 
@@ -249,6 +252,39 @@ describe('FM5-R6: ABSTAIN fail-closed on the production path', () => {
         recordedSystem1Proposals: stale,
       })
     ).toThrowError(/snapshot identity mismatch/);
+  });
+
+  test('recorded below-seed-floor advice is recorded but not applied on the production path', () => {
+    const atlas = setupAtlas('node-fm5-r6-floor');
+    const { envelope, evidenceReferences } = makeNonEmptyEnvelope(atlas.datasetFingerprint!);
+    const baseOpts = {
+      preference: 'BALANCED' as const,
+      budget: DESKTOP_EXPANSIVE_BUDGET,
+      maxGenerations: 1,
+      populationSize: 4,
+      analyticalEvidence: { envelope, evidenceReferences },
+    };
+    const first = atlas.adaptRepresentation(baseOpts);
+    expect(first.system1ProposalSet.status).toBe('PROPOSED');
+    expect(first.system1AdviceApplied).toBe(true);
+    if (first.system1ProposalSet.status !== 'PROPOSED') {
+      throw new Error('precondition: expected PROPOSED advice on the fresh arm');
+    }
+    // Floor every recorded score to exactly the seed floor: the set stays
+    // PROPOSED, but nothing may enter search seeding.
+    const floored: FormaProposalSetV1 = {
+      ...first.system1ProposalSet,
+      candidates: first.system1ProposalSet.candidates.map((c) => ({ ...c, score: 0.5 })),
+    };
+    const replayed = atlas.adaptRepresentation({ ...baseOpts, recordedSystem1Proposals: floored });
+    expect(replayed.system1ProposalSource).toBe('RECORDED');
+    expect(replayed.system1ProposalSet).toEqual(floored);
+    expect(replayed.system1AdviceApplied).toBe(false);
+    for (const c of replayed.paretoFrontier) {
+      expect(c.lineage.operatorApplied ?? '').not.toMatch(/^SYSTEM1_SEED_/);
+    }
+    const report = atlas.explainFullMonetaDecision(replayed, 'BALANCED');
+    expect(report).toContain('below the search seeding floor');
   });
 
   test('impossible threshold abstains rather than fabricating low-confidence advice', () => {
