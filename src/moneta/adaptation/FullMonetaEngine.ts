@@ -9,6 +9,7 @@ import {
 } from '../search/RepresentationObjectiveModel.js';
 import {
   RepresentationSearchEngine,
+  SYSTEM1_SEED_MIN_SCORE,
   type SynthesizedCandidate,
 } from '../search/RepresentationSearchEngine.js';
 import {
@@ -195,8 +196,13 @@ export class FullMonetaEngine {
       s1Proposals = proposer.generateProposals(snapshot, context, manifest, budget);
       system1ProposalSource = 'GENERATED';
     }
+    // Applied means at least one candidate actually entered search seeding
+    // (same strict floor the search engine enforces): a PROPOSED set whose
+    // every score sits at or below the floor is recorded but not applied.
     const system1AdviceApplied =
-      options.ignoreSystem1Advice !== true && s1Proposals.status === 'PROPOSED';
+      options.ignoreSystem1Advice !== true &&
+      s1Proposals.status === 'PROPOSED' &&
+      s1Proposals.candidates.some((c) => c.score > SYSTEM1_SEED_MIN_SCORE);
 
     // 4. Multi-objective Pareto search influenced by System-1 advice
     const maxGenerations = isResearchMode ? 2 : (options.maxGenerations ?? 3);
@@ -467,7 +473,7 @@ export class FullMonetaEngine {
       section += `   - Advised ${c.candidateId}: template ${c.templateId}, tier ${c.targetResolutionTier}, score ${c.score.toFixed(3)}\n`;
     }
     if (!result.system1AdviceApplied) {
-      section += `   - Effect: advice deliberately bypassed by caller request; deterministic/search path ran without it. The bypassed set above is preserved for baseline comparison.\n`;
+      section += `   - Effect: advice not applied (withheld by caller request or below the search seeding floor); deterministic/search path ran without it. The recorded set above is preserved for baseline comparison.\n`;
       return section;
     }
     const winner = result.paretoFrontier[0] ?? result.candidate;

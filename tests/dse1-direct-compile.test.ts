@@ -511,4 +511,43 @@ describe('DSE1: Direct Deterministic Embodiment Compilation Loop', () => {
     expect(atlas.getActiveDirectCompileResult()).toBe(directResult);
     expect(atlas.getActiveFormaSlice()?.sliceId).toBe(directResult.slice.sliceId);
   });
+
+  it('FAL-DSE0-3b: non-finite or non-positive budgets refuse instead of admitting an empty plan', () => {
+    const snapshot = createGovernedDistributionSnapshot(datasetFingerprint, 1200);
+    const context = createGroundedContext();
+
+    const badBudgets: [string, DeviceCapabilityBudgetV1][] = [
+      ['NaN maxElements', { ...DESKTOP_EXPANSIVE_BUDGET, maxElements: NaN }],
+      ['negative maxElements', { ...DESKTOP_EXPANSIVE_BUDGET, maxElements: -5 }],
+      ['zero maxElements', { ...DESKTOP_EXPANSIVE_BUDGET, maxElements: 0 }],
+      ['Infinity maxElements', { ...DESKTOP_EXPANSIVE_BUDGET, maxElements: Infinity }],
+      ['NaN maxMemoryBytes', { ...DESKTOP_EXPANSIVE_BUDGET, maxMemoryBytes: NaN }],
+      ['NaN maxChannels', { ...DESKTOP_EXPANSIVE_BUDGET, maxChannels: NaN }],
+    ];
+    for (const [label, budget] of badBudgets) {
+      expect(
+        () => compileDirectEmbodimentPlan({ datasetFingerprint, snapshot, context, budget }),
+        label
+      ).toThrowError(/finite positive number/);
+    }
+
+    const badOverrides: [string, number][] = [
+      ['NaN override', NaN],
+      ['negative override', -3],
+      ['zero override', 0],
+    ];
+    for (const [label, maxElementsOverride] of badOverrides) {
+      expect(
+        () =>
+          compileDirectEmbodimentPlan({
+            datasetFingerprint,
+            snapshot,
+            context,
+            budget: DESKTOP_EXPANSIVE_BUDGET,
+            maxElementsOverride,
+          }),
+        label
+      ).toThrowError(/finite positive number/);
+    }
+  });
 });
