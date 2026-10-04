@@ -127,6 +127,15 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
     expect(result.steps[1].memory.wasmStartBytes).toBeNull();
   });
 
+  it('accepts signed scene-cardinality deltas when the absolute counts remain valid', () => {
+    const value = manifest('quest-qca0');
+    const report = makeQca0Report(value);
+    report.steps[4].representation.sceneObjectCountDelta = -1;
+    report.steps[4].representation.visibleSceneObjectCountDelta = -1;
+
+    expect(analyzeQca0ScaleKneeReport(report, value).captureStatus).toBe('VALID_CAPTURE');
+  });
+
   it('derives deterministic ratios, ranking, and QCA2/QCA4 handoffs at a later red knee', () => {
     const value = manifest('quest-qca0');
     const report = makeQca0Report(value, ['green', 'green', 'green', 'red', 'red']);
@@ -242,6 +251,19 @@ describe('QCA0 row-addressable scale-knee analysis', () => {
       (report: ReturnType<typeof makeQca0Report>) => {
         report.steps[4].frames.frameCount = 0;
         report.steps[4].frameCadence.frameCount = 0;
+      },
+    ],
+    [
+      'inconsistent dropped percentage',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].frameCadence.dropped = report.steps[4].frameCadence.frameCount;
+        report.steps[4].frameCadence.droppedPct = 0;
+      },
+    ],
+    [
+      'more GC spikes than measured frames',
+      (report: ReturnType<typeof makeQca0Report>) => {
+        report.steps[4].frameCadence.gcSpikes = report.steps[4].frameCadence.frameCount + 1;
       },
     ],
     [

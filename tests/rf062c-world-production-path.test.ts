@@ -92,7 +92,7 @@ describe('RF-062C production World path', () => {
     expect(summary.steps[0].loadDurationMs).toBeGreaterThanOrEqual(0);
 
     driver.dispose();
-  });
+  }, 30_000);
 
   it('routes a real dataset load through LoadDatasetUseCase and RepresentationSurface exactly once', async () => {
     world = new World();

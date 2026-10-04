@@ -294,6 +294,22 @@ function validateQca0FrameStats(
   if (finiteNumber(value.droppedPct) && (value.droppedPct < 0 || value.droppedPct > 100)) {
     errors.push(`${path}.droppedPct must be within 0..100`);
   }
+  if (
+    finiteNumber(value.frameCount) &&
+    value.frameCount > 0 &&
+    finiteNumber(value.dropped) &&
+    finiteNumber(value.droppedPct) &&
+    Math.abs(value.droppedPct - (value.dropped / value.frameCount) * 100) > 1e-6
+  ) {
+    errors.push(`${path}.droppedPct must match dropped/frameCount`);
+  }
+  if (
+    finiteNumber(value.gcSpikes) &&
+    finiteNumber(value.frameCount) &&
+    value.gcSpikes > value.frameCount
+  ) {
+    errors.push(`${path}.gcSpikes cannot exceed frameCount`);
+  }
   for (const field of ['frameCount', 'dropped', 'gcSpikes'] as const) {
     if (finiteNumber(value[field]) && !Number.isInteger(value[field])) {
       errors.push(`${path}.${field} must be an integer`);
@@ -562,10 +578,8 @@ export function analyzeQca0ScaleKneeReport(
       for (const field of [
         'sceneObjectCountStart',
         'sceneObjectCountEnd',
-        'sceneObjectCountDelta',
         'visibleSceneObjectCountStart',
         'visibleSceneObjectCountEnd',
-        'visibleSceneObjectCountDelta',
         'governorLodScaleMinimum',
         'governorLodScaleFinal',
       ] as const) {
@@ -573,6 +587,11 @@ export function analyzeQca0ScaleKneeReport(
           !nullableFinite(representation[field]) ||
           (finiteNumber(representation[field]) && representation[field] < 0)
         ) {
+          errors.push(`step ${index + 1} representation.${field} must be finite or null`);
+        }
+      }
+      for (const field of ['sceneObjectCountDelta', 'visibleSceneObjectCountDelta'] as const) {
+        if (!nullableFinite(representation[field])) {
           errors.push(`step ${index + 1} representation.${field} must be finite or null`);
         }
       }
