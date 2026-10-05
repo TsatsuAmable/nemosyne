@@ -258,48 +258,47 @@ export function checkContextCompatibility(
       reason: `Stale activation epoch: captured ${captured.activationEpoch}, active ${active.activationEpoch}.`,
     };
   }
-  if (
-    captured.datasetFingerprint !== undefined &&
-    active.datasetFingerprint !== undefined &&
-    captured.datasetFingerprint !== active.datasetFingerprint
-  ) {
+  // Fail closed on every identity dimension: a value present on only one
+  // side is a conflicting identity claim, not a wildcard. Absent on both
+  // sides stays legal for legacy contexts whose content digest binds the rest.
+  if (captured.datasetFingerprint !== active.datasetFingerprint) {
     return {
       ok: false,
       code: CONTEXT_INCOMPATIBLE,
-      reason: `Dataset fingerprint mismatch: captured ${captured.datasetFingerprint}, active ${active.datasetFingerprint}.`,
+      reason:
+        captured.datasetFingerprint === undefined || active.datasetFingerprint === undefined
+          ? `Dataset identity incomplete: value present on only one side (captured ${captured.datasetFingerprint}, active ${active.datasetFingerprint}); omission must not widen adoption.`
+          : `Dataset fingerprint mismatch: captured ${captured.datasetFingerprint}, active ${active.datasetFingerprint}.`,
     };
   }
-  if (
-    captured.investigationId !== undefined &&
-    active.investigationId !== undefined &&
-    captured.investigationId !== active.investigationId
-  ) {
+  if (captured.investigationId !== active.investigationId) {
     return {
       ok: false,
       code: CONTEXT_INCOMPATIBLE,
-      reason: `Investigation mismatch: captured ${captured.investigationId}, active ${active.investigationId}.`,
+      reason:
+        captured.investigationId === undefined || active.investigationId === undefined
+          ? `Investigation identity incomplete: value present on only one side (captured ${captured.investigationId}, active ${active.investigationId}); omission must not widen adoption.`
+          : `Investigation mismatch: captured ${captured.investigationId}, active ${active.investigationId}.`,
     };
   }
-  if (
-    captured.scopeId !== undefined &&
-    active.scopeId !== undefined &&
-    captured.scopeId !== active.scopeId
-  ) {
+  if (captured.scopeId !== active.scopeId) {
     return {
       ok: false,
       code: CONTEXT_INCOMPATIBLE,
-      reason: `Scope mismatch: captured ${captured.scopeId}, active ${active.scopeId}.`,
+      reason:
+        captured.scopeId === undefined || active.scopeId === undefined
+          ? `Scope identity incomplete: value present on only one side (captured ${captured.scopeId}, active ${active.scopeId}); omission must not widen adoption.`
+          : `Scope mismatch: captured ${captured.scopeId}, active ${active.scopeId}.`,
     };
   }
-  if (
-    captured.runtimeGeneration !== undefined &&
-    active.runtimeGeneration !== undefined &&
-    captured.runtimeGeneration !== active.runtimeGeneration
-  ) {
+  if (captured.runtimeGeneration !== active.runtimeGeneration) {
     return {
       ok: false,
       code: CONTEXT_INCOMPATIBLE,
-      reason: `Runtime generation mismatch: captured ${captured.runtimeGeneration}, active ${active.runtimeGeneration}.`,
+      reason:
+        captured.runtimeGeneration === undefined || active.runtimeGeneration === undefined
+          ? `Runtime generation identity incomplete: value present on only one side (captured ${captured.runtimeGeneration}, active ${active.runtimeGeneration}); omission must not widen adoption.`
+          : `Runtime generation mismatch: captured ${captured.runtimeGeneration}, active ${active.runtimeGeneration}.`,
     };
   }
 
