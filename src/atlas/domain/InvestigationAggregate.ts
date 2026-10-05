@@ -81,6 +81,8 @@ import type { System1ProposalSource } from '../../moneta/forma/FormaSystem1Propo
 import {
   compileDirectEmbodimentPlan,
   compileObligationPreservingVariants,
+  recordInvestigatorCritique,
+  type CritiqueKind,
   type DirectEmbodimentCompileResult,
   type AttributableCritiqueV1,
   type GovernedPhenomenonKind,
@@ -1189,6 +1191,71 @@ export class InvestigationAggregate {
 
   getActiveDirectTraversal(): DirectTraversalSession | undefined {
     return this._activeDirectTraversal;
+  }
+
+  /**
+   * FM1/FM2 product integration: records an attributable investigator critique
+   * against an element of the active direct compilation and recompiles so the
+   * critique lands in the compilation ledger that
+   * `resolveDirectAlternativeFromCritique` resolves from. The recompile carries
+   * the same snapshot and a caller-selected budget (default desktop expansive).
+   */
+  recordDirectLedgerCritique(input: {
+    readonly investigatorId: string;
+    readonly targetElementId: string;
+    readonly targetPhenomenon: GovernedPhenomenonKind;
+    readonly critiqueKind: CritiqueKind;
+    readonly note: string;
+    readonly budget?: DeviceCapabilityBudgetV1;
+  }): {
+    readonly critique: AttributableCritiqueV1;
+    readonly compilation: DirectEmbodimentCompileResult;
+  } {
+    const compilation = this._activeDirectCompileResult;
+    if (!compilation) {
+      throw new Error(
+        '[InvestigationAggregate] Direct critique refused: no active direct compilation'
+      );
+    }
+    const snapshot = this._activeDirectSnapshot;
+    if (!snapshot) {
+      throw new Error(
+        '[InvestigationAggregate] Direct critique refused: active compilation snapshot is unavailable'
+      );
+    }
+    const context = this.getActiveContext();
+    if (!context) {
+      throw new Error(
+        '[InvestigationAggregate] Direct critique refused: committed investigation context is strictly required'
+      );
+    }
+    const target = compilation.plan.elements.find((e) => e.id === input.targetElementId);
+    if (!target) {
+      throw new Error(
+        `[InvestigationAggregate] Direct critique refused: target '${input.targetElementId}' is not an element of the active compilation`
+      );
+    }
+
+    const ds = this.analytical.current;
+    const critique = recordInvestigatorCritique({
+      investigatorId: input.investigatorId,
+      targetElementId: input.targetElementId,
+      targetPhenomenon: input.targetPhenomenon,
+      critiqueKind: input.critiqueKind,
+      note: input.note,
+      contextId: context.nodeId,
+    });
+    const recompiled = compileDirectEmbodimentPlan({
+      datasetFingerprint: ds.fingerprint,
+      snapshot,
+      context,
+      budget: input.budget,
+      critiqueFeedback: [...compilation.critiqueLedger, critique],
+      researchMode: this.researchMode,
+    });
+    this._activeDirectCompileResult = recompiled;
+    this._activeDirectTraversal = undefined;
+    return { critique, compilation: recompiled };
   }
 
   /**

@@ -10,6 +10,22 @@ import type {
   EmbodimentCritiqueRecordV1,
 } from '../../moneta/forma/FormaHumanFeedback.ts';
 import type { CommittedInvestigationContextV2 } from '../../atlas/domain/CommittedInvestigationContext.ts';
+import type {
+  AttributableCritiqueV1,
+  CritiqueKind,
+  DirectEmbodimentCompileResult,
+  GovernedPhenomenonKind,
+} from '../../moneta/representation/DirectEmbodimentCompiler.ts';
+import type {
+  AlternativeFeedbackBindingV1,
+  CritiqueAlternativeLinkV1,
+  DirectAlternativeAdjustmentV1,
+} from '../../moneta/representation/DirectFeedbackLoop.ts';
+import type { DeviceCapabilityBudgetV1 } from '../../moneta/forma/FormaResolutionBroker.ts';
+import {
+  DESKTOP_EXPANSIVE_BUDGET,
+  QUEST_CONSTRAINED_BUDGET,
+} from '../../moneta/forma/FormaResolutionBroker.ts';
 import type { NilCommand, NilParameterValue } from './NemosyneInteractionLanguage.ts';
 import { NilExecutor } from './NilExecutor.ts';
 
@@ -20,14 +36,14 @@ export interface AtlasNilTarget {
       | (Omit<Observation, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'> & {
           datasetFingerprint?: string;
           datasetVersion?: number;
-        }),
+        })
   ): Observation;
   recordAnnotation(annotation: Omit<Annotation, 'id' | 'timestamp'>): Annotation;
   recordFinding(
     finding: Omit<Finding, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'> & {
       datasetFingerprint?: string;
       datasetVersion?: number;
-    },
+    }
   ): Finding;
 
   // FM1 & FM2 alternative & context capabilities
@@ -43,6 +59,31 @@ export interface AtlasNilTarget {
     sharedAnchors: readonly string[];
   };
   branchToAlternative?(candidateId: string, intentOverride?: unknown): InvestigationNode;
+  recordDirectLedgerCritique?(input: {
+    readonly investigatorId: string;
+    readonly targetElementId: string;
+    readonly targetPhenomenon: GovernedPhenomenonKind;
+    readonly critiqueKind: CritiqueKind;
+    readonly note: string;
+    readonly budget?: DeviceCapabilityBudgetV1;
+  }): {
+    readonly critique: AttributableCritiqueV1;
+    readonly compilation: DirectEmbodimentCompileResult;
+  };
+  resolveDirectAlternativeFromCritique?(
+    critiqueId: string,
+    adjustment?: DirectAlternativeAdjustmentV1
+  ): {
+    readonly alternative: DirectEmbodimentCompileResult;
+    readonly link: CritiqueAlternativeLinkV1;
+  };
+  recordDirectAlternativeFeedback?(
+    linkId: string,
+    feedback: EmbodimentCritiqueInputV1
+  ): {
+    readonly record: EmbodimentCritiqueRecordV1;
+    readonly binding: AlternativeFeedbackBindingV1;
+  };
   explainDecision?(preference?: string): string;
   recordEmbodimentCritique?(input: EmbodimentCritiqueInputV1): EmbodimentCritiqueRecordV1;
   commitInvestigationContext?(nodeId: string, context: unknown): unknown;
@@ -57,14 +98,14 @@ export interface AtlasNilBindingOptions {
   /** Validate cross-domain constraints before Atlas mutates finding state. */
   beforeRecordFinding?: (
     command: NilCommand,
-    finding: Omit<Finding, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'>,
+    finding: Omit<Finding, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'>
   ) => void;
   /** Project a successfully recorded Finding into another existing authority. */
   onFindingRecorded?: (command: NilCommand, finding: Finding) => void;
 
   onAlternativesRequested?: (
     command: NilCommand,
-    alternatives: readonly AlternativeCandidate[],
+    alternatives: readonly AlternativeCandidate[]
   ) => void;
   onAlternativeCompared?: (
     command: NilCommand,
@@ -72,24 +113,26 @@ export interface AtlasNilBindingOptions {
       current: RepresentationDecision;
       alternative: AlternativeCandidate;
       sharedAnchors: readonly string[];
-    },
+    }
   ) => void;
-  onAlternativeBranched?: (
+  onAlternativeBranched?: (command: NilCommand, childNode: InvestigationNode) => void;
+  onAlternativeRejected?: (command: NilCommand, critique: EmbodimentCritiqueRecordV1) => void;
+  onDirectCritiqueRecorded?: (
     command: NilCommand,
-    childNode: InvestigationNode,
+    recorded: {
+      readonly critique: AttributableCritiqueV1;
+      readonly compilation: DirectEmbodimentCompileResult;
+    }
   ) => void;
-  onAlternativeRejected?: (
+  onDirectAlternativeResolved?: (
     command: NilCommand,
-    critique: EmbodimentCritiqueRecordV1,
+    resolved: {
+      readonly alternative: DirectEmbodimentCompileResult;
+      readonly link: CritiqueAlternativeLinkV1;
+    }
   ) => void;
-  onDecisionExplained?: (
-    command: NilCommand,
-    explanation: string,
-  ) => void;
-  onContextCommitted?: (
-    command: NilCommand,
-    context: CommittedInvestigationContextV2,
-  ) => void;
+  onDecisionExplained?: (command: NilCommand, explanation: string) => void;
+  onContextCommitted?: (command: NilCommand, context: CommittedInvestigationContextV2) => void;
 }
 
 function requiredString(command: NilCommand, key: string): string {
@@ -131,7 +174,7 @@ function findingConfidence(command: NilCommand): Finding['confidence'] {
   const value = requiredString(command, 'confidence');
   if (value !== 'preliminary' && value !== 'validated' && value !== 'definitive') {
     throw new Error(
-      `NIL CONCLUDE confidence must be one of preliminary, validated, definitive; received '${value}'`,
+      `NIL CONCLUDE confidence must be one of preliminary, validated, definitive; received '${value}'`
     );
   }
   return value;
@@ -148,7 +191,7 @@ function findingConfidence(command: NilCommand): Finding['confidence'] {
 export function bindAtlasNilHandlers(
   executor: NilExecutor,
   atlas: AtlasNilTarget,
-  options: AtlasNilBindingOptions = {},
+  options: AtlasNilBindingOptions = {}
 ): () => void {
   const unregister: Array<() => void> = [];
 
@@ -159,7 +202,7 @@ export function bindAtlasNilHandlers(
         targetIds: [...command.targetIds],
         tags: optionalStringArray(command.parameters.tags, 'tags'),
       });
-    }),
+    })
   );
 
   unregister.push(
@@ -173,7 +216,7 @@ export function bindAtlasNilHandlers(
         ],
         targetId: command.targetIds[0],
       });
-    }),
+    })
   );
 
   unregister.push(
@@ -188,7 +231,7 @@ export function bindAtlasNilHandlers(
       options.beforeRecordFinding?.(command, findingInput);
       const finding = atlas.recordFinding(findingInput);
       options.onFindingRecorded?.(command, finding);
-    }),
+    })
   );
 
   // FM2: REQUEST_ALTERNATIVE
@@ -204,14 +247,14 @@ export function bindAtlasNilHandlers(
           typeof command.parameters.candidateId === 'string' &&
           command.parameters.candidateId.trim().length > 0
             ? command.parameters.candidateId.trim()
-            : (command.targetIds.length > 0 && command.targetIds[0].trim().length > 0
-                ? command.targetIds[0].trim()
-                : undefined);
+            : command.targetIds.length > 0 && command.targetIds[0].trim().length > 0
+              ? command.targetIds[0].trim()
+              : undefined;
         if (candidateId && atlas.previewAlternative) {
           atlas.previewAlternative(candidateId);
         }
         options.onAlternativesRequested?.(command, alternatives);
-      }),
+      })
     );
   }
 
@@ -222,14 +265,58 @@ export function bindAtlasNilHandlers(
         const candidateId = targetOrParameterString(command, 'candidateId');
         const comparison = atlas.compareAlternative!(candidateId);
         options.onAlternativeCompared?.(command, comparison);
-      }),
+      })
     );
   }
 
+  const DIRECT_CRITIQUE_KINDS: readonly CritiqueKind[] = [
+    'SPATIAL_SCALE',
+    'DENSITY_RESOLUTION',
+    'CLUSTER_SEPARATION',
+    'OCCLUSION',
+    'CUSTOM',
+  ];
+  const DIRECT_PHENOMENA: readonly GovernedPhenomenonKind[] = [
+    'DISTRIBUTION',
+    'TOPOLOGICAL_CLUSTERING',
+  ];
+
+  function directBudgetForProfile(command: NilCommand): DeviceCapabilityBudgetV1 {
+    const profile = requiredString(command, 'budgetProfile');
+    if (profile === DESKTOP_EXPANSIVE_BUDGET.profileName) return DESKTOP_EXPANSIVE_BUDGET;
+    if (profile === QUEST_CONSTRAINED_BUDGET.profileName) return QUEST_CONSTRAINED_BUDGET;
+    throw new Error(
+      `NIL ${command.verb} direct route requires budgetProfile 'DESKTOP_EXPANSIVE' | 'QUEST_CONSTRAINED'; received '${profile}'`
+    );
+  }
+
+  function directParam(command: NilCommand, key: string): string | undefined {
+    const value = command.parameters[key];
+    return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+  }
+
   // FM2: PREFER (branches to alternative via Road Not Taken)
-  if (atlas.branchToAlternative) {
+  // FM1/FM2 direct loop: an explicit directCritiqueId routes to the
+  // critique->alternative link on the active direct compilation instead.
+  if (atlas.branchToAlternative || atlas.resolveDirectAlternativeFromCritique) {
     unregister.push(
       executor.register('PREFER', (command) => {
+        const directCritiqueId = directParam(command, 'directCritiqueId');
+        if (directCritiqueId !== undefined) {
+          if (!atlas.resolveDirectAlternativeFromCritique) {
+            throw new Error(
+              'NIL PREFER direct route requires an Atlas target with resolveDirectAlternativeFromCritique'
+            );
+          }
+          const resolved = atlas.resolveDirectAlternativeFromCritique(directCritiqueId, {
+            budget: directBudgetForProfile(command),
+          });
+          options.onDirectAlternativeResolved?.(command, resolved);
+          return;
+        }
+        if (!atlas.branchToAlternative) {
+          throw new Error('NIL PREFER requires an Atlas target with branchToAlternative');
+        }
         const candidateId = targetOrParameterString(command, 'candidateId');
         let intentOverride: unknown = undefined;
         if (typeof command.parameters.researchQuestion === 'string') {
@@ -246,28 +333,68 @@ export function bindAtlasNilHandlers(
         }
         const childNode = atlas.branchToAlternative!(candidateId, intentOverride);
         options.onAlternativeBranched?.(command, childNode);
-      }),
+      })
     );
   }
 
   // FM2: REJECT (records attributable embodiment critique)
-  if (atlas.recordEmbodimentCritique) {
+  // FM1/FM2 direct loop: an explicit directTarget routes to the direct
+  // critique ledger (record + recompile) instead of the loose FM6 record.
+  if (atlas.recordEmbodimentCritique || atlas.recordDirectLedgerCritique) {
     unregister.push(
       executor.register('REJECT', (command) => {
+        const directTarget = directParam(command, 'directTarget');
+        if (directTarget !== undefined) {
+          if (!atlas.recordDirectLedgerCritique) {
+            throw new Error(
+              'NIL REJECT direct route requires an Atlas target with recordDirectLedgerCritique'
+            );
+          }
+          const kind = requiredString(command, 'critiqueKind');
+          if (!DIRECT_CRITIQUE_KINDS.includes(kind as CritiqueKind)) {
+            throw new Error(
+              `NIL REJECT direct route requires critiqueKind one of ${DIRECT_CRITIQUE_KINDS.join(', ')}; received '${kind}'`
+            );
+          }
+          const phenomenon = requiredString(command, 'phenomenon');
+          if (!DIRECT_PHENOMENA.includes(phenomenon as GovernedPhenomenonKind)) {
+            throw new Error(
+              `NIL REJECT direct route requires phenomenon one of ${DIRECT_PHENOMENA.join(', ')}; received '${phenomenon}'`
+            );
+          }
+          const note =
+            directParam(command, 'note') ??
+            directParam(command, 'rationale') ??
+            directParam(command, 'reason');
+          if (note === undefined) {
+            throw new Error(
+              "NIL REJECT direct route requires a non-empty 'note' (or 'rationale'/'reason') parameter"
+            );
+          }
+          const recorded = atlas.recordDirectLedgerCritique({
+            investigatorId: command.actor,
+            targetElementId: directTarget,
+            targetPhenomenon: phenomenon as GovernedPhenomenonKind,
+            critiqueKind: kind as CritiqueKind,
+            note,
+          });
+          options.onDirectCritiqueRecorded?.(command, recorded);
+          return;
+        }
+        if (!atlas.recordEmbodimentCritique) {
+          throw new Error('NIL REJECT requires an Atlas target with recordEmbodimentCritique');
+        }
         const candidateId = targetOrParameterString(command, 'candidateId');
         const rationale =
           typeof command.parameters.rationale === 'string' &&
           command.parameters.rationale.trim().length > 0
             ? command.parameters.rationale.trim()
-            : (typeof command.parameters.reason === 'string' &&
-               command.parameters.reason.trim().length > 0
-                ? command.parameters.reason.trim()
-                : `Rejected alternative ${candidateId} via NIL`);
+            : typeof command.parameters.reason === 'string' &&
+                command.parameters.reason.trim().length > 0
+              ? command.parameters.reason.trim()
+              : `Rejected alternative ${candidateId} via NIL`;
         const activeContext = atlas.getActiveInvestigationContext?.();
-        const activeNodeId =
-          activeContext?.nodeId ??
-          atlas.getActiveNodeId?.() ??
-          'node-root';
+        const activeNodeId = activeContext?.nodeId ?? atlas.getActiveNodeId?.() ?? 'node-root';
         const critique = atlas.recordEmbodimentCritique!({
           planId: candidateId,
           sliceId: `slice-${candidateId}`,
@@ -280,7 +407,7 @@ export function bindAtlasNilHandlers(
           scope: {},
         });
         options.onAlternativeRejected?.(command, critique);
-      }),
+      })
     );
   }
 
@@ -294,7 +421,7 @@ export function bindAtlasNilHandlers(
             : undefined;
         const explanation = atlas.explainDecision!(preference);
         options.onDecisionExplained?.(command, explanation);
-      }),
+      })
     );
   }
 
@@ -319,9 +446,7 @@ export function bindAtlasNilHandlers(
             researchQuestion: question,
             variablesOfInterest: optionalStringArray(command.parameters.variables, 'variables'),
             currentTask:
-              typeof command.parameters.task === 'string'
-                ? command.parameters.task
-                : undefined,
+              typeof command.parameters.task === 'string' ? command.parameters.task : undefined,
             hypothesis: activeContext?.intent.hypothesis,
           },
           epistemicPurpose: activeContext?.epistemicPurpose ?? 'EXPLORATORY_ABDUCTION',
@@ -329,7 +454,7 @@ export function bindAtlasNilHandlers(
         };
         atlas.commitInvestigationContext!(activeNodeId, newContext);
         options.onContextCommitted?.(command, newContext);
-      }),
+      })
     );
   }
 
@@ -352,8 +477,7 @@ export function bindAtlasNilHandlers(
           intent: {
             schemaVersion: 1,
             researchQuestion:
-              activeContext?.intent.researchQuestion ??
-              'Investigation hypothesis testing',
+              activeContext?.intent.researchQuestion ?? 'Investigation hypothesis testing',
             hypothesis,
             variablesOfInterest: activeContext?.intent.variablesOfInterest,
             currentTask: activeContext?.intent.currentTask,
@@ -363,7 +487,7 @@ export function bindAtlasNilHandlers(
         };
         atlas.commitInvestigationContext!(activeNodeId, newContext);
         options.onContextCommitted?.(command, newContext);
-      }),
+      })
     );
   }
 
