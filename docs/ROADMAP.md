@@ -18,7 +18,7 @@ Generic engineering/authority rules remain in [AGENTS.md](../AGENTS.md). The his
 
 ## Status snapshot - 5 October 2026
 
-**Integration base:** `main@d6bbeb7b`.
+**Integration base:** `main@08fb4934`.
 
 - Architecture 2027 decisions are integrated: A27-0 and A27-1 accepted; L0 semantic snapshot, L1 committed perspective/context V2 and L2 Forma admission/KB0 contracts landed in PRs #936-#938. These are enabling contracts, not automatic product-capability promotion.
 - **P1-TEC / FM0 remains active**. Governed replay/consumer-policy work is substantially landed; remaining evidence-identity, calibration/qualification and downstream evidence-reference closure must remain fail-closed. See [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md).
