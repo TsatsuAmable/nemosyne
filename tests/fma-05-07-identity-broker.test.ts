@@ -17,6 +17,7 @@ import {
   checkContextCompatibility,
   canonicalizeCommittedInvestigationContext,
   CommittedInvestigationContextV2,
+  CONTEXT_INCOMPATIBLE,
 } from '../src/atlas/domain/CommittedInvestigationContext.js';
 import {
   FormaResolutionBroker,
@@ -192,6 +193,7 @@ describe('FMA-06: Context Lineage and Active Node Restoration', () => {
       activationEpoch: activation.activationEpoch,
       investigationId: 'inv_base',
       datasetFingerprint: 'fp_base',
+      runtimeGeneration: 1,
     };
 
     const mismatchFpBinding = {
@@ -204,6 +206,84 @@ describe('FMA-06: Context Lineage and Active Node Restoration', () => {
 
     const resultMatch = checkContextCompatibility(capturedBinding, activation);
     expect(resultMatch.ok).toBe(true);
+  });
+
+  it('checkContextCompatibility refuses identity dimensions present on only one side', () => {
+    const ledger = new CommittedInvestigationContextLedger();
+    const fullContext: CommittedInvestigationContextV2 = {
+      schemaVersion: 2,
+      nodeId: 'node_dim',
+      investigationId: 'inv_dim',
+      datasetFingerprint: 'fp_dim',
+      scopeId: 'scope_dim',
+      committedRevision: 1,
+      runtimeGeneration: 7,
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Dimension asymmetry probe',
+        variablesOfInterest: ['x'],
+      },
+    };
+    const activation = ledger.commit('node_dim', fullContext);
+    const ids = {
+      contextId: activation.contextId,
+      nodeId: activation.nodeId,
+      activationEpoch: activation.activationEpoch,
+    };
+
+    // Each dimension omitted from the captured binding while present on the
+    // active context must refuse: omission is not a wildcard.
+    const omitCases = [
+      { name: 'investigationId', binding: { ...ids, datasetFingerprint: 'fp_dim', scopeId: 'scope_dim', runtimeGeneration: 7 } },
+      { name: 'datasetFingerprint', binding: { ...ids, investigationId: 'inv_dim', scopeId: 'scope_dim', runtimeGeneration: 7 } },
+      { name: 'scopeId', binding: { ...ids, investigationId: 'inv_dim', datasetFingerprint: 'fp_dim', runtimeGeneration: 7 } },
+      { name: 'runtimeGeneration', binding: { ...ids, investigationId: 'inv_dim', datasetFingerprint: 'fp_dim', scopeId: 'scope_dim' } },
+    ];
+    for (const { name, binding } of omitCases) {
+      const result = checkContextCompatibility(binding, activation);
+      expect(`${name}: ${result.ok}`).toBe(`${name}: false`);
+      if (!result.ok) {
+        expect(result.code).toBe(CONTEXT_INCOMPATIBLE);
+        expect(result.reason).toMatch(/present on only one side/);
+      }
+    }
+
+    // Each dimension smuggled into the captured binding while absent from the
+    // active context must refuse as well.
+    const minimalLedger = new CommittedInvestigationContextLedger();
+    const minimalActivation = minimalLedger.commit('node_min', {
+      schemaVersion: 2,
+      nodeId: 'node_min',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Minimal legacy context',
+        variablesOfInterest: ['x'],
+      },
+    });
+    const minimalIds = {
+      contextId: minimalActivation.contextId,
+      nodeId: minimalActivation.nodeId,
+      activationEpoch: minimalActivation.activationEpoch,
+    };
+    const extraCases = [
+      { name: 'investigationId', binding: { ...minimalIds, investigationId: 'inv_dim' } },
+      { name: 'datasetFingerprint', binding: { ...minimalIds, datasetFingerprint: 'fp_dim' } },
+      { name: 'scopeId', binding: { ...minimalIds, scopeId: 'scope_dim' } },
+      { name: 'runtimeGeneration', binding: { ...minimalIds, runtimeGeneration: 7 } },
+    ];
+    for (const { name, binding } of extraCases) {
+      const result = checkContextCompatibility(binding, minimalActivation);
+      expect(`${name}: ${result.ok}`).toBe(`${name}: false`);
+      if (!result.ok) {
+        expect(result.code).toBe(CONTEXT_INCOMPATIBLE);
+        expect(result.reason).toMatch(/present on only one side/);
+      }
+    }
+
+    // Absent on both sides stays adoptable for legacy contexts.
+    expect(checkContextCompatibility({ ...minimalIds }, minimalActivation).ok).toBe(true);
   });
 });
 
