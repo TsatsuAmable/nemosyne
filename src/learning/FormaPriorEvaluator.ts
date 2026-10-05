@@ -38,6 +38,15 @@ export const BASELINE_FORMA_PRIOR_WEIGHTS: CandidateFormaPriorWeights = {
   caseBasedBonusWeight: 0.0,
 };
 
+/**
+ * A safety/admissibility rate is admissible evidence only when it is a finite
+ * measurement inside the declared [0, 1] domain. Bare type presence (which
+ * admits NaN and Infinity) must never satisfy a promotion gate.
+ */
+function isFiniteUnitRate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
 export class FormaPriorEvaluator {
   private readonly baselineWeights: CandidateFormaPriorWeights;
   private readonly minHoldoutCount: number;
@@ -81,15 +90,29 @@ export class FormaPriorEvaluator {
     const holdoutCount = holdoutExamples.length;
     const refusalReasons: string[] = [];
 
-    if (metadata.knownAnswerPassRate === undefined || typeof metadata.knownAnswerPassRate !== 'number') {
-      refusalReasons.push('Missing required evaluation: knownAnswerPassRate must be explicitly measured');
+    const rawKnownAnswerPassRate = metadata.knownAnswerPassRate;
+    const rawAbstentionComplianceRate = metadata.abstentionComplianceRate;
+    const knownAnswerPassRateValid = isFiniteUnitRate(rawKnownAnswerPassRate);
+    const abstentionComplianceRateValid = isFiniteUnitRate(rawAbstentionComplianceRate);
+    if (!knownAnswerPassRateValid) {
+      refusalReasons.push(
+        rawKnownAnswerPassRate === undefined || typeof rawKnownAnswerPassRate !== 'number'
+          ? 'Missing required evaluation: knownAnswerPassRate must be explicitly measured'
+          : 'Invalid required evaluation: knownAnswerPassRate must be a finite rate in [0, 1]'
+      );
     }
-    if (metadata.abstentionComplianceRate === undefined || typeof metadata.abstentionComplianceRate !== 'number') {
-      refusalReasons.push('Missing required evaluation: abstentionComplianceRate must be explicitly measured');
+    if (!abstentionComplianceRateValid) {
+      refusalReasons.push(
+        rawAbstentionComplianceRate === undefined || typeof rawAbstentionComplianceRate !== 'number'
+          ? 'Missing required evaluation: abstentionComplianceRate must be explicitly measured'
+          : 'Invalid required evaluation: abstentionComplianceRate must be a finite rate in [0, 1]'
+      );
     }
 
-    const knownAnswerPassRate = metadata.knownAnswerPassRate ?? 0.0;
-    const abstentionComplianceRate = metadata.abstentionComplianceRate ?? 0.0;
+    // Fail closed: only a finite in-domain measurement is stored; anything else
+    // normalizes to 0.0 so an invalid value can never read as a legitimate observation.
+    const knownAnswerPassRate = knownAnswerPassRateValid ? rawKnownAnswerPassRate : 0.0;
+    const abstentionComplianceRate = abstentionComplianceRateValid ? rawAbstentionComplianceRate : 0.0;
 
     if (holdoutCount < this.minHoldoutCount) {
       refusalReasons.push(
@@ -122,13 +145,13 @@ export class FormaPriorEvaluator {
       );
     }
 
-    if (knownAnswerPassRate < 1.0) {
+    if (knownAnswerPassRateValid && knownAnswerPassRate < 1.0) {
       refusalReasons.push(
         `Known-answer regression: pass rate ${knownAnswerPassRate.toFixed(3)} is below mandatory 1.0`
       );
     }
 
-    if (abstentionComplianceRate < 1.0) {
+    if (abstentionComplianceRateValid && abstentionComplianceRate < 1.0) {
       refusalReasons.push(
         `Abstention constraint violation: compliance rate ${abstentionComplianceRate.toFixed(3)} is below mandatory 1.0`
       );

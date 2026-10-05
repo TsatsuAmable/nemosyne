@@ -283,6 +283,43 @@ describe('FMA-11 to FMA-13: Learning Authority & Knowledge Governance', () => {
         )
       ).toThrow(/Training dataset hash \(substituted-corpus-hash-999\) does not match evaluated corpus/);
     });
+
+    test('refuses non-finite and out-of-domain safety rates as invalid measurements', () => {
+      const evaluator = new FormaPriorEvaluator(BASELINE_FORMA_PRIOR_WEIGHTS, 1);
+      const corpus = buildMockCorpus();
+
+      const candidate = {
+        intentRelevanceWeight: 0.6,
+        budgetFitnessWeight: 0.2,
+        templateParityWeight: 0.2,
+      };
+
+      for (const rates of [
+        { knownAnswerPassRate: NaN, abstentionComplianceRate: NaN },
+        { knownAnswerPassRate: Infinity, abstentionComplianceRate: Infinity },
+        { knownAnswerPassRate: 1.5, abstentionComplianceRate: 1.5 },
+        { knownAnswerPassRate: -0.1, abstentionComplianceRate: 0.5 },
+        { knownAnswerPassRate: 1.0, abstentionComplianceRate: 2.0 },
+      ]) {
+        const result = evaluator.evaluate(candidate, corpus, {
+          modelId: 'cand-rate-domain',
+          modelVersion: '1.0.0',
+          ...rates,
+        });
+
+        expect(result.passedGate).toBe(false);
+        expect(
+          result.refusalReasons.some((reason) => reason.startsWith('Invalid required evaluation'))
+        ).toBe(true);
+        expect(Number.isFinite(result.knownAnswerPassRate)).toBe(true);
+        expect(Number.isFinite(result.abstentionComplianceRate)).toBe(true);
+
+        const registry = new FitnessModelRegistry();
+        expect(() =>
+          evaluator.promoteToRegistry(candidate, result, registry, corpus.corpusId, 'policy-hash-001')
+        ).toThrow(/failed evaluation gate/);
+      }
+    });
   });
 
   // FMA-13
