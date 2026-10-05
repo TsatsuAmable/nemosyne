@@ -8,6 +8,32 @@ import type * as THREE from 'three';
  * - On Desktop PC browsers: Displays "EXPLORE IN 3D" or "VR NOT SUPPORTED".
  * - WebXR Security Requirement: WebXR APIs require a Secure Context (HTTPS or localhost/127.0.0.1).
  */
+/**
+ * Translate a failed `requestSession` into actionable guidance.
+ *
+ * The browser only reports a DOMException name; it cannot tell us which tab
+ * holds a conflicting session or whether Guardian is suspended. Messages
+ * below name the most likely cause as guidance ("often means"), never as a
+ * diagnosis, and every failure leaves the button retryable.
+ */
+export function interpretSessionRequestError(err: unknown): string {
+  const name = (err as DOMException)?.name;
+  const raw = err instanceof Error && err.message ? err.message : 'Request failed';
+  if (name === 'InvalidStateError') {
+    return (
+      'VR BLOCKED: another immersive session is already active, possibly in another tab. ' +
+      'End it or close other Nemosyne tabs, then tap to retry.'
+    );
+  }
+  if (name === 'NotSupportedError') {
+    return (
+      'VR BLOCKED: the headset rejected the VR setup. Floor tracking (Guardian) is often ' +
+      'unavailable or suspended when this happens: set up Guardian on the headset, then tap to retry.'
+    );
+  }
+  return `VR BLOCKED: ${raw}. Tap to retry.`;
+}
+
 export class NemosyneVRButton {
   static createButton(renderer: THREE.WebGLRenderer): HTMLButtonElement {
     const button = document.createElement('button');
@@ -99,12 +125,14 @@ export class NemosyneVRButton {
             });
           } catch (setupErr) {
             console.error('[NemosyneVRButton] XR setup failed:', setupErr);
-            button.textContent = `VR SETUP ERROR: ${(setupErr as Error).message}`;
+            button.textContent = `VR SETUP ERROR: ${(setupErr as Error).message}. Tap to retry.`;
+            button.disabled = false;
           }
         })
         .catch((err) => {
           console.error('[NemosyneVRButton] session request failed:', err);
-          button.textContent = `VR ERROR: ${(err as Error).message || 'Request Failed'}`;
+          button.textContent = interpretSessionRequestError(err);
+          button.disabled = false;
         });
     };
 
