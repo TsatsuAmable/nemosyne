@@ -41,8 +41,24 @@ import type {
 
 const PANEL_WIDTH = 560;
 const PANEL_HEIGHT = 720;
-/** Approximate world-space width in metres; height derives from the aspect ratio. */
-const PANEL_WORLD_WIDTH = 0.9;
+/**
+ * Approximate world-space width in metres; height derives from the aspect ratio.
+ * Sized so body labels (~15-25mm at 0.9m) stay legible at 2m+ headset
+ * distances: at 1.3m the caps subtend ~1 deg at 2m.
+ */
+const PANEL_WORLD_WIDTH = 1.3;
+/**
+ * uikit pixelSize in world units per design pixel. Must match the
+ * `@pmndrs/uikit` default (`properties/defaults.js`); the app does not
+ * override it. The panel's instanced content spans
+ * `PANEL_WIDTH * UIKIT_PIXEL_SIZE` uikit units, so the root scale must map
+ * that span (not the raw design pixels) to PANEL_WORLD_WIDTH metres.
+ * Dividing by the raw design pixels collapses the card to millimetres and
+ * it is effectively invisible in the headset; dividing by the uikit-unit
+ * span renders the intended 1.3m card. Verified with desktop screenshots
+ * (illegible fragment before, full readable card after).
+ */
+const UIKIT_PIXEL_SIZE = 0.01;
 
 export interface SettingsPanelOptions {
   torsoAnchor: THREE.Object3D;
@@ -72,6 +88,12 @@ export interface SettingsPanelOptions {
    * each caller to mediate coexistence.
    */
   panelBudgetController?: PanelBudgetController;
+  /**
+   * Viewer the panel faces each frame (usually the XR camera). Without it
+   * the panel falls back to facing the world origin, which turns a
+   * body-locked panel away from the wearer after any locomotion.
+   */
+  viewer?: THREE.Object3D | null;
 }
 
 type SettingType = 'toggle' | 'stepper' | 'choice';
@@ -266,6 +288,8 @@ export class SettingsPanel extends SpatialPanel {
   private _exitButton: Button | null = null;
   private _privacyToggle: Toggle | null = null;
   private _budgetController: PanelBudgetController | null;
+  private _viewer: THREE.Object3D | null = null;
+  private readonly _viewerPos = new THREE.Vector3();
   private _disposed = false;
 
   constructor(options: SettingsPanelOptions) {
@@ -287,7 +311,7 @@ export class SettingsPanel extends SpatialPanel {
     );
     this.name = 'settings-panel';
 
-    this.scale.setScalar(PANEL_WORLD_WIDTH / PANEL_WIDTH);
+    this.scale.setScalar(PANEL_WORLD_WIDTH / (PANEL_WIDTH * UIKIT_PIXEL_SIZE));
 
     this.onChange = options.onChange ?? (() => {});
     this._onExitVR = options.onExitVR ?? null;
@@ -306,6 +330,7 @@ export class SettingsPanel extends SpatialPanel {
     this._highContrast = options.highContrast ?? this.settings.highContrast;
     this._colorblindMode = options.colorblindMode ?? this.settings.colorblindMode;
     this._budgetController = options.panelBudgetController ?? null;
+    this._viewer = options.viewer ?? null;
 
     const pos = options.position ?? [0.65, 1.55, -1.1];
     this.defaultPosition = new THREE.Vector3(pos[0], pos[1], pos[2]);
@@ -424,8 +449,27 @@ export class SettingsPanel extends SpatialPanel {
   show(): void {
     this._budgetController?.open(this, 'primary');
     this.visible = true;
+    this._orderGlyphsAbovePanels();
     this.position.copy(this.defaultPosition);
     this.updateMatrixWorld();
+  }
+
+  /**
+   * Draw the panel's text after its background quads. Both instanced meshes
+   * are transparent, coplanar, and default to renderOrder 0, so the
+   * three.js stable sort leaves the background (older material id) on top
+   * and every label disappears under it. Verified with desktop screenshots:
+   * controls without a single label before, full labelled panel after.
+   * Applied on every show because uikit builds glyph groups lazily.
+   */
+  private _orderGlyphsAbovePanels(): void {
+    try {
+      this.traverse((node) => {
+        if (node.constructor?.name === 'InstancedGlyphMesh') node.renderOrder = 1;
+      });
+    } catch {
+      // Ordering must never break the panel.
+    }
   }
 
   hide(): void {
@@ -440,8 +484,23 @@ export class SettingsPanel extends SpatialPanel {
 
   update(delta?: number): void {
     if (!this.visible) return;
+    // Glyph groups are built lazily (after async font load), so re-assert
+    // text-over-background ordering every frame while open. Cheap (~200
+    // nodes) and idempotent; show() alone races group creation.
+    this._orderGlyphsAbovePanels();
+    // Match sibling panels: forward the engine delta unchanged. uikit's
+    // on-frame handlers ignore delta units for layout and visibility.
     super.update(delta ?? 0);
-    this.lookAt(0, 0, 0);
+    // This panel is body-locked to the moving camera rig: face the viewer,
+    // never a fixed world point. Facing the world origin turns the panel
+    // away from the wearer after any locomotion, making it invisible from
+    // inside the headset while near-plane metrics still report "reachable".
+    if (this._viewer) {
+      this._viewer.getWorldPosition(this._viewerPos);
+      this.lookAt(this._viewerPos);
+    } else {
+      this.lookAt(0, 0, 0);
+    }
     this.rotation.x = -0.22;
   }
 
@@ -496,6 +555,10 @@ export class SettingsPanel extends SpatialPanel {
         this._contentContainer.add(sectionHeader);
       }
 
+      // Rows must never compress below their tallest control: the
+      // scrollport otherwise shrinks them to ~2px while 19px labels still
+      // paint, stacking every line onto its neighbours ("squished" text in
+      // the headset). Tallest row content is the 36px toggle.
       const row = new Container({
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -503,6 +566,8 @@ export class SettingsPanel extends SpatialPanel {
         width: '100%',
         gap: SPACING_TOKENS.grid.x12,
         paddingX: SPACING_TOKENS.grid.x4,
+        flexShrink: 0,
+        minHeight: 36,
       });
 
       const label = new Text({
@@ -567,6 +632,8 @@ export class SettingsPanel extends SpatialPanel {
       alignItems: 'center',
       width: '100%',
       gap: SPACING_TOKENS.grid.x12,
+      flexShrink: 0,
+      minHeight: 36,
     });
     const privacyLabel = new Text({
       text: `Bundle: ${this._exportPrivacyLevel}`,
@@ -597,6 +664,8 @@ export class SettingsPanel extends SpatialPanel {
       alignItems: 'center',
       width: '100%',
       gap: SPACING_TOKENS.grid.x12,
+      flexShrink: 0,
+      minHeight: 36,
     });
     const traceLabel = new Text({
       text: 'Trace: local-only export',

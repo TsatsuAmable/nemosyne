@@ -372,6 +372,7 @@ export class WorldUIManager {
       traceExporter: callbacks.traceExporter ?? null,
       datasetTopology: '-',
       panelBudgetController: this.panelBudgetController,
+      viewer: engine.camera,
     });
     this.engine.addUpdatable(this.settingsPanel);
     applyPanelLayout(this.settingsPanel, PANEL_LAYOUT.settingsPanel);

@@ -145,11 +145,12 @@ export class ControllerGestureMapper implements ControllerGestureMapperLike {
     const buttons = source.gamepad!.buttons;
     const isRight = controller.handedness === 'right';
 
-    // Standard Quest controller face-button layout: lower button is A/X,
-    // upper button is B/Y. Menu is only on the left controller and is ignored
+    // Quest (oculus-touch-v3 profile) face-button layout: index 3 is the
+    // thumbstick press, index 4 is the lower button (A/X), index 5 is the
+    // upper button (B/Y). Menu is only on the left controller and is ignored
     // here to avoid collisions with system gestures.
-    const primaryPressed = !!buttons[3]?.pressed;
-    const secondaryPressed = !!buttons[4]?.pressed;
+    const primaryPressed = !!buttons[4]?.pressed;
+    const secondaryPressed = !!buttons[5]?.pressed;
 
     const prev = this._buttonPrev.get(controller) ?? { primary: false, secondary: false };
 

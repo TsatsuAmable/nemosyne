@@ -103,7 +103,7 @@ export const GESTURE_MAP: Record<string, GestureMeta> = {
   okSign: {
     label: 'OK Sign',
     hand: 'Dominant hand pinch, non-dominant hand open.',
-    controller: 'Press the right Y button.',
+    controller: 'Press the left Y button.',
     action: 'Toggle Settings Panel',
     icon: '👌',
   },
