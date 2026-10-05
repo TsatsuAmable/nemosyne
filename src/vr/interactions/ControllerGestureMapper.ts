@@ -95,6 +95,12 @@ export class ControllerGestureMapper implements ControllerGestureMapperLike {
 
     if (rightSource) this._updateThumbstick(rightController, rightSource, time);
     if (rightSource) this._updateButtons(rightController, rightSource, time);
+    // The left controller has its own button bindings (e.g. Y → okSign) and
+    // must be processed independently. Relying on the rightController fallback
+    // above silently drops all left input in real two-controller sessions.
+    if (leftSource && leftSource !== rightSource) {
+      this._updateButtons(leftController, leftSource, time);
+    }
 
     if (rightSource && leftSource) {
       this._updateTwoHandMotion(
