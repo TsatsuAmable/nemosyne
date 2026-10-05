@@ -475,9 +475,14 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         reject(error);
       }
     });
-    promise.finally(() => {
-      this._registrationPromises.delete(key);
-    });
+    // Attach cleanup directly to both outcomes without creating a derived
+    // rejected promise. A discarded Promise.prototype.finally() result would
+    // mirror registration failures as unhandled rejections even when the
+    // caller correctly observes the original promise.
+    promise.then(
+      () => this._registrationPromises.delete(key),
+      () => this._registrationPromises.delete(key)
+    );
 
     this._registrationPromises.set(key, promise);
     return promise;
