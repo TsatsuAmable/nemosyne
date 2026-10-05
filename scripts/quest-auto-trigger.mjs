@@ -46,7 +46,7 @@ function boundedText(value, max = 1024) {
 }
 
 function utcStamp(date = new Date()) {
-  return date.toISOString().replace(/[:.]/g, '').replace('T', 'T').replace('Z', 'Z');
+  return date.toISOString().replace(/[:.]/g, '');
 }
 
 export function parseArgs(argv = process.argv) {
