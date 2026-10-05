@@ -29,6 +29,7 @@
     "dev:quest:ux": "node scripts/quest-validation.mjs quest-ux",
     "dev:quest:10m": "node scripts/quest-validation.mjs quest-10m",
     "dev:quest:validate": "node scripts/quest-validation.mjs quest-validate",
+    "dev:quest:auto": "node scripts/quest-auto-trigger.mjs",
     "dev:quest:device": "node scripts/quest-device-declaration.mjs",
     "dev:quest:prerequisite": "node scripts/quest-validation-prerequisite.mjs",
     "start:signalling": "node src/network/SignallingServer.mjs",
