@@ -34,4 +34,5 @@ export * from './ComposedRepresentationValidation.ts';
 export * from './DirectEmbodimentCompiler.ts';
 export * from './DirectTraversalSession.ts';
 export * from './DirectFeedbackLoop.ts';
+export * from './DirectLoopViewModels.ts';
 export * from './DSE6LoopQualification.ts';

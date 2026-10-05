@@ -125,6 +125,7 @@ import {
 import type {
   DirectEmbodimentCompileResult,
   AttributableCritiqueV1,
+  CritiqueKind,
   GovernedPhenomenonKind,
   ObligationPreservingVariantPairV1,
 } from '../moneta/representation/DirectEmbodimentCompiler.ts';
@@ -1943,6 +1944,24 @@ export class AtlasCore {
 
   getActiveDirectTraversal(): DirectTraversalSession | undefined {
     return this._aggregate.getActiveDirectTraversal();
+  }
+
+  /**
+   * FM1/FM2 product integration: records an attributable investigator critique
+   * on the active direct compilation and recompiles it into the ledger.
+   */
+  recordDirectLedgerCritique(input: {
+    readonly investigatorId: string;
+    readonly targetElementId: string;
+    readonly targetPhenomenon: GovernedPhenomenonKind;
+    readonly critiqueKind: CritiqueKind;
+    readonly note: string;
+    readonly budget?: DeviceCapabilityBudgetV1;
+  }): {
+    readonly critique: AttributableCritiqueV1;
+    readonly compilation: DirectEmbodimentCompileResult;
+  } {
+    return this._aggregate.recordDirectLedgerCritique(input);
   }
 
   /**
