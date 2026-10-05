@@ -6,10 +6,8 @@ import {
 } from '../src/moneta/representation/DSE6LoopQualification.ts';
 import {
   compileDirectEmbodimentPlan,
-  compileObligationPreservingVariants,
 } from '../src/moneta/representation/DirectEmbodimentCompiler.ts';
 import {
-  DESKTOP_EXPANSIVE_BUDGET,
   QUEST_CONSTRAINED_BUDGET,
 } from '../src/moneta/forma/FormaResolutionBroker.js';
 import {
@@ -116,7 +114,8 @@ describe('DSE6 Qualification Battery: Complete Dataset-First Direct Loop', () =>
             maxElements: NaN,
             maxMemoryBytes: 1024,
             maxChannels: 3,
-            maxDrawCalls: 10,
+            allowedShapes: ['SPHERE'],
+            allowSecondaryEncodings: false,
           },
         });
       }).toThrow(/Refused: device budget 'maxElements' must be a finite positive number/);
