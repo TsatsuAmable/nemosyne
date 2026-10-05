@@ -407,28 +407,23 @@ export class Locomotion {
       triggerPressed = triggerPressed || !!gp.buttons[0]?.pressed;
 
       if (gp.axes.length >= 2) {
+        const stick = this._thumbstickAxes(gp.axes);
         if (isLeft) {
-          moveX += this._applyDeadZone(gp.axes[0]);
-          moveY += this._applyDeadZone(gp.axes[1]);
+          moveX += this._applyDeadZone(stick.x);
+          moveY += this._applyDeadZone(stick.y);
         } else if (isRight) {
-          if (gp.axes.length >= 4) {
-            turnX += this._applyDeadZone(gp.axes[2]);
-            aimX = this._applyDeadZone(gp.axes[2]);
-            aimY = this._applyDeadZone(gp.axes[3]);
-          } else {
-            turnX += this._applyDeadZone(gp.axes[0]);
-            aimX = this._applyDeadZone(gp.axes[0]);
-            aimY = this._applyDeadZone(gp.axes[1]);
-          }
+          turnX += this._applyDeadZone(stick.x);
+          aimX = this._applyDeadZone(stick.x);
+          aimY = this._applyDeadZone(stick.y);
         } else {
           const idx = sources.indexOf(source);
           if (idx === 0) {
-            moveX += this._applyDeadZone(gp.axes[0]);
-            moveY += this._applyDeadZone(gp.axes[1]);
+            moveX += this._applyDeadZone(stick.x);
+            moveY += this._applyDeadZone(stick.y);
           } else if (idx === 1) {
-            turnX += this._applyDeadZone(gp.axes[0]);
-            aimX = this._applyDeadZone(gp.axes[0]);
-            aimY = this._applyDeadZone(gp.axes[1]);
+            turnX += this._applyDeadZone(stick.x);
+            aimX = this._applyDeadZone(stick.x);
+            aimY = this._applyDeadZone(stick.y);
           }
         }
       }
@@ -714,6 +709,19 @@ export class Locomotion {
   _applyDeadZone(value: number): number {
     if (Math.abs(value) < this.deadZone) return 0;
     return (value - Math.sign(value) * this.deadZone) / (1 - this.deadZone);
+  }
+
+  /**
+   * Resolve the live thumbstick axes for a WebXR gamepad.
+   *
+   * Real Quest controllers report four axes — two dead touchpad slots followed
+   * by the live thumbstick — while compact gamepads (desktop emulators, some
+   * browsers) report only the stick pair. Reading slots 0/1 unconditionally
+   * strands movement on dead input on real hardware.
+   */
+  _thumbstickAxes(axes: readonly number[]): { x: number; y: number } {
+    if (axes.length >= 4) return { x: axes[2], y: axes[3] };
+    return { x: axes[0], y: axes[1] };
   }
 
   _applyMovement(x: number, z: number, delta: number, vertical = 0): void {

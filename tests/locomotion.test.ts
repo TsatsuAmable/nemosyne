@@ -233,4 +233,35 @@ describe('Locomotion', () => {
     locomotion.update(0.016, 0);
     expect(engine.cameraGroup.position.y).toBeLessThan(0);
   });
+
+  it('reads the left thumbstick from axes 2/3 on full 4-axis Quest gamepads', () => {
+    // Real Quest controllers report [touchpad-x, touchpad-y, stick-x, stick-y]:
+    // slots 0/1 are dead, the live thumbstick is at 2/3.
+    engine.renderer.xr.getSession.mockReturnValue({
+      inputSources: [
+        { handedness: 'left', gamepad: { axes: [0, 0, 0.8, 0], buttons: [] } },
+      ],
+    });
+    const before = engine.cameraGroup.position.clone();
+    locomotion.update(0.016, 1000);
+    expect(engine.cameraGroup.position.distanceTo(before)).toBeGreaterThan(0);
+  });
+
+  it('ignores dead touchpad slots 0/1 on 4-axis gamepads', () => {
+    engine.renderer.xr.getSession.mockReturnValue({
+      inputSources: [{ handedness: 'left', gamepad: { axes: [0.9, 0.9, 0, 0], buttons: [] } }],
+    });
+    const before = engine.cameraGroup.position.clone();
+    locomotion.update(0.016, 1000);
+    expect(engine.cameraGroup.position.distanceTo(before)).toBe(0);
+  });
+
+  it('still reads compact 2-axis gamepads from axes 0/1', () => {
+    engine.renderer.xr.getSession.mockReturnValue({
+      inputSources: [{ handedness: 'left', gamepad: { axes: [0.8, 0], buttons: [] } }],
+    });
+    const before = engine.cameraGroup.position.clone();
+    locomotion.update(0.016, 1000);
+    expect(engine.cameraGroup.position.distanceTo(before)).toBeGreaterThan(0);
+  });
 });
