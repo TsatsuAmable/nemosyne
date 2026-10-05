@@ -140,4 +140,89 @@ describe('SettingsPanel (UIKit substrate)', () => {
     const stored = JSON.parse(localStorage.getItem(SettingsPanel.STORAGE_KEY) ?? '{}');
     expect(stored.highContrast).toBe(true);
   });
+
+  it('update() faces the viewer, not the world origin', () => {
+    // Regression: the panel is body-locked to the moving camera rig. Facing
+    // a fixed world point turns it away from the wearer after locomotion.
+    const anchor = new THREE.Group();
+    anchor.position.set(5, 0, 3);
+    const viewer = new THREE.Object3D();
+    viewer.position.set(5, 1.6, 4);
+    const scene = new THREE.Scene();
+    scene.add(anchor, viewer);
+    panel = new SettingsPanel({
+      torsoAnchor: anchor,
+      worldScene: scene,
+      viewer,
+    });
+    panel.show();
+    scene.updateMatrixWorld(true);
+    panel.update(0.016);
+    scene.updateMatrixWorld(true);
+
+    const panelPos = new THREE.Vector3();
+    const viewerPos = new THREE.Vector3();
+    const facing = new THREE.Vector3();
+    panel.getWorldPosition(panelPos);
+    viewer.getWorldPosition(viewerPos);
+    panel.getWorldDirection(facing);
+    const toViewer = viewerPos.sub(panelPos).normalize();
+    // Facing the origin here would point away from the viewer (dot < 0).
+    expect(facing.dot(toViewer)).toBeGreaterThan(0.9);
+  });
+
+  it('settings rows cannot compress below label height (squished-text regression)', () => {
+    // Live defect: the scrollport shrank rows to ~2px while 19px labels
+    // still painted, stacking every line onto its neighbours in the
+    // headset. Rows must refuse to shrink below their tallest control.
+    panel = makePanel();
+    // Panel-level rows only (depth <= 2): settings rows, section headers,
+    // footer rows. Control internals (e.g. segmented options) lay out along
+    // a different axis and are out of scope for this regression.
+    const rows: Array<{ inputProperties?: Record<string, unknown> }> = [];
+    const visit = (node: { children?: unknown[] }, depth: number): void => {
+      for (const child of node.children ?? []) {
+        const c = child as {
+          children?: unknown[];
+          constructor?: { name?: string };
+          inputProperties?: Record<string, unknown>;
+        };
+        const kind = c.constructor?.name ?? '';
+        if (depth <= 2 && (kind === 'Container' || kind === 'SectionHeader')) {
+          const kids = (c.children ?? []).map(
+            (k) => (k as { constructor?: { name?: string } }).constructor?.name ?? '',
+          );
+          if (kids.includes('Text')) rows.push(c);
+        }
+        visit(c, depth + 1);
+      }
+    };
+    visit(panel as unknown as { children?: unknown[] }, 0);
+    expect(rows.length).toBeGreaterThan(20);
+    for (const row of rows) {
+      expect(row.inputProperties?.flexShrink).toBe(0);
+      expect(row.inputProperties?.minHeight).toBeGreaterThanOrEqual(24);
+    }
+  });
+
+  it('update() keeps the legacy origin facing when no viewer is supplied', () => {
+    const anchor = new THREE.Group();
+    const scene = new THREE.Scene();
+    scene.add(anchor);
+    panel = new SettingsPanel({ torsoAnchor: anchor, worldScene: scene });
+    panel.show();
+    scene.updateMatrixWorld(true);
+    panel.update(0.016);
+    scene.updateMatrixWorld(true);
+
+    const panelPos = new THREE.Vector3();
+    const facing = new THREE.Vector3();
+    panel.getWorldPosition(panelPos);
+    panel.getWorldDirection(facing);
+    // The legacy path keeps a level pitch (rotation.x override), so compare
+    // yaw on the ground plane: the panel must still turn toward the origin.
+    facing.y = 0;
+    const toOrigin = panelPos.clone().setY(0).negate().normalize();
+    expect(facing.normalize().dot(toOrigin)).toBeGreaterThan(0.9);
+  });
 });

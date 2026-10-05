@@ -45,10 +45,11 @@ describe('ControllerGestureMapper', () => {
     });
   });
 
-  it('maps right A button to rotateCCW (undo)', () => {
+  it('maps right A button (index 4) to rotateCCW (undo)', () => {
     const right = new MockControllerPointer('right');
     right.gamepad = {
       buttons: [
+        { pressed: false },
         { pressed: false },
         { pressed: false },
         { pressed: false },
@@ -64,10 +65,11 @@ describe('ControllerGestureMapper', () => {
     expect(gestures[0].name).toBe('rotateCCW');
   });
 
-  it('maps right B button to rotateCW (redo)', () => {
+  it('maps right B button (index 5) to rotateCW (redo)', () => {
     const right = new MockControllerPointer('right');
     right.gamepad = {
       buttons: [
+        { pressed: false },
         { pressed: false },
         { pressed: false },
         { pressed: false },
@@ -83,10 +85,11 @@ describe('ControllerGestureMapper', () => {
     expect(gestures[0].name).toBe('rotateCW');
   });
 
-  it('maps left Y button to okSign', () => {
+  it('maps left Y button (index 5) to okSign', () => {
     const left = new MockControllerPointer('left');
     left.gamepad = {
       buttons: [
+        { pressed: false },
         { pressed: false },
         { pressed: false },
         { pressed: false },
@@ -100,6 +103,51 @@ describe('ControllerGestureMapper', () => {
 
     expect(gestures.length).toBe(1);
     expect(gestures[0].name).toBe('okSign');
+  });
+
+  it('ignores thumbstick press (index 3): no face-button gesture fires', () => {
+    // Regression: index 3 is the thumbstick press on Quest, not a face
+    // button. It must never masquerade as A/X or B/Y.
+    for (const handedness of ['right', 'left']) {
+      gestures.length = 0;
+      const controller = new MockControllerPointer(handedness);
+      controller.gamepad = {
+        buttons: [
+          { pressed: false },
+          { pressed: false },
+          { pressed: false },
+          { pressed: true },
+          { pressed: false },
+          { pressed: false },
+        ],
+        axes: [0, 0, 0, 0],
+      };
+      const other =
+        handedness === 'right'
+          ? new MockControllerPointer('left')
+          : new MockControllerPointer('right');
+      other.gamepad = {
+        buttons: [
+          { pressed: false },
+          { pressed: false },
+          { pressed: false },
+          { pressed: false },
+          { pressed: false },
+          { pressed: false },
+        ],
+        axes: [0, 0, 0, 0],
+      };
+      const session = {
+        inputSources: [
+          { handedness: controller.handedness, gamepad: controller.gamepad },
+          { handedness: other.handedness, gamepad: other.gamepad },
+        ],
+      };
+      mapper.update([controller, other], session, 0);
+      expect(gestures.map((g) => g.name)).not.toContain('rotateCCW');
+      expect(gestures.map((g) => g.name)).not.toContain('rotateCW');
+      expect(gestures.map((g) => g.name)).not.toContain('okSign');
+    }
   });
 
   it('fires okSign for left Y even when both controllers are present', () => {
@@ -121,6 +169,7 @@ describe('ControllerGestureMapper', () => {
     const left = new MockControllerPointer('left');
     left.gamepad = {
       buttons: [
+        { pressed: false },
         { pressed: false },
         { pressed: false },
         { pressed: false },

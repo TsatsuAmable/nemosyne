@@ -19,6 +19,11 @@ export class SectionHeader extends Container {
       paddingY: SPACING_TOKENS.grid.x4,
       marginTop: SPACING_TOKENS.grid.x16,
       marginBottom: SPACING_TOKENS.grid.x4,
+      // Never compress below the 16px header text: sibling rows in a fixed
+      // scrollport collapse to a few px while labels still paint, stacking
+      // lines onto each other.
+      flexShrink: 0,
+      minHeight: 28,
     });
 
     this._text = new Text({
