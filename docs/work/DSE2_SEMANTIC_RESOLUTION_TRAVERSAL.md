@@ -1,6 +1,6 @@
 # DSE2 — Semantic resolution and reversible traversal
 
-**Status:** ACTIVE. **Base:** `main@f5a25f41`. **Branch:** `feat/dse2-semantic-resolution`.
+**Status:** LANDED via #992 (`main@9e1a0b5e`); completion evidence in section 6 below.
 **Roadmap row:** FM-DSE `DSE1 IMPLEMENTED / DSE2 READY` → this tranche.
 **Risk tier:** high-risk (representation semantics, dataset identity, cross-budget authority).
 
