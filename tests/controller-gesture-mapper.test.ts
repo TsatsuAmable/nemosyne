@@ -102,6 +102,45 @@ describe('ControllerGestureMapper', () => {
     expect(gestures[0].name).toBe('okSign');
   });
 
+  it('fires okSign for left Y even when both controllers are present', () => {
+    // Regression: with a lone left controller the update() fallback routes it
+    // through the right-controller path, so single-controller tests pass while
+    // a real two-controller session never reads left buttons at all.
+    const idle = {
+      buttons: [
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+      ],
+      axes: [0, 0, 0, 0],
+    };
+    const right = new MockControllerPointer('right');
+    right.gamepad = idle;
+    const left = new MockControllerPointer('left');
+    left.gamepad = {
+      buttons: [
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: false },
+        { pressed: true },
+      ],
+      axes: [0, 0, 0, 0],
+    };
+    const session = {
+      inputSources: [
+        { handedness: 'right', gamepad: right.gamepad },
+        { handedness: 'left', gamepad: left.gamepad },
+      ],
+    };
+
+    mapper.update([right, left], session, 0);
+
+    expect(gestures.map((g) => g.name)).toContain('okSign');
+  });
+
   it('maps right thumbstick right flick to swipeRight', () => {
     const right = new MockControllerPointer('right');
     right.gamepad = { buttons: [{ pressed: false }, { pressed: false }], axes: [0, 0, 0, 0] };
