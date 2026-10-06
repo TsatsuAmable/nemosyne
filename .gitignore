@@ -2,6 +2,7 @@
 opencode.json
 .agents/*
 !.agents/skills/
+!.agents/memory/
 .ai/
 node_modules/
 coverage/
