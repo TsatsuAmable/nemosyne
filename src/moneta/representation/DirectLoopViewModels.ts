@@ -131,3 +131,60 @@ export function buildVariantPairView(pair: ObligationPreservingVariantPairV1): V
     mandatoryChannels: [...pair.preservedObligations.mandatoryChannels],
   };
 }
+
+export interface InspectorDirectLoopViewV1 {
+  readonly disclosures: DisclosureCardsV1 | null;
+  readonly purpose: PurposeBadgeV1 | null;
+  readonly alternatives: readonly AlternativeEntryV1[];
+}
+
+export interface HistoryDirectLoopViewV1 {
+  readonly alternatives: readonly AlternativeEntryV1[];
+  readonly bindings: readonly AlternativeFeedbackBindingV1[];
+}
+
+export interface AlternativeDirectLoopViewV1 {
+  readonly pair: VariantPairViewV1 | null;
+  readonly alternatives: readonly AlternativeEntryV1[];
+}
+
+export interface DirectLoopSurfaceViewsV1 {
+  readonly schemaVersion: '1.0.0';
+  readonly inspector: InspectorDirectLoopViewV1;
+  readonly history: HistoryDirectLoopViewV1;
+  readonly alternative: AlternativeDirectLoopViewV1;
+}
+
+/**
+ * FM1/FM2 surface qualification: assembles inspector, history, and
+ * alternative surface views from live direct-loop aggregate state. Callers
+ * pass the aggregate getters straight through (getDirectFeedbackLinks,
+ * getDirectAlternativeFeedbackBindings, getActiveVariantPair projections);
+ * absent inputs project to null/empty rather than throwing. Pure and
+ * deterministic; introduces no state authority and performs no analysis.
+ */
+export function buildDirectLoopSurfaceViews(input: {
+  readonly disclosures?: ConjecturalDisclosureResultV1;
+  readonly traversalBinding?: DirectTraversalBindingV1;
+  readonly links: readonly CritiqueAlternativeLinkV1[];
+  readonly bindings?: readonly AlternativeFeedbackBindingV1[];
+  readonly variantPair?: ObligationPreservingVariantPairV1;
+}): DirectLoopSurfaceViewsV1 {
+  const alternatives = buildAlternativeEntries(input.links, input.bindings ?? []);
+  return {
+    schemaVersion: '1.0.0',
+    inspector: {
+      disclosures: input.disclosures ? buildDisclosureCards(input.disclosures) : null,
+      purpose: input.traversalBinding ? buildPurposeBadge(input.traversalBinding) : null,
+      alternatives,
+    },
+    history: {
+      alternatives,
+      bindings: [...(input.bindings ?? [])],
+    },
+    alternative: {
+      pair: input.variantPair ? buildVariantPairView(input.variantPair) : null,
+      alternatives,
+    },
+  };
+}
