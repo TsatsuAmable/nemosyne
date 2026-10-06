@@ -1,6 +1,6 @@
 # DSE3 — Dual-mode feedback loop
 
-**Status:** ACTIVE. **Base:** `main@9e1a0b5e`. **Branch:** `feat/dse3-dual-mode-feedback`.
+**Status:** LANDED via #993 (`main@7068b588`); completion evidence in section 6 below.
 **Roadmap row:** FM-DSE `DSE2 IMPLEMENTED / DSE3 READY` → this tranche.
 **Risk tier:** high-risk (epistemic typing, investigation identity, feedback attribution).
 
