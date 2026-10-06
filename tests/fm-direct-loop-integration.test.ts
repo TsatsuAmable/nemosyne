@@ -439,3 +439,71 @@ describe('FM1/FM2: headless direct-loop view models', () => {
     expect(buildDisclosureCards(disclosures)).toEqual(cards);
   });
 });
+
+describe('FM1/FM2: V4 packaging captures direct-loop lineage', () => {
+  async function atlasWithOneLink(): Promise<{ atlas: AtlasCore; critiqueId: string }> {
+    const atlas = buildAtlas('CLAIM_BEARING');
+    const { elementId } = compileForAtlas(atlas);
+    const executor = new NilExecutor();
+    bindAtlasNilHandlers(executor, atlas);
+
+    await executor.execute(
+      nilCommand(0, 'REJECT', {
+        directTarget: elementId,
+        critiqueKind: 'SPATIAL_SCALE',
+        phenomenon: 'DISTRIBUTION',
+        note: 'overview too coarse; resolve constrained alternative',
+      })
+    );
+    const critiqueId = atlas.getActiveDirectCompileResult()?.critiqueLedger[0]?.critiqueId ?? '';
+    expect(critiqueId.length).toBeGreaterThan(0);
+
+    await executor.execute(
+      nilCommand(1, 'PREFER', { directCritiqueId: critiqueId, budgetProfile: 'QUEST_CONSTRAINED' })
+    );
+    expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
+    return { atlas, critiqueId };
+  }
+
+  it('direct-only flows export V4 bytes carrying critique->alternative links', async () => {
+    const { atlas, critiqueId } = await atlasWithOneLink();
+
+    const bytes = atlas.exportFormaInvestigationBytes();
+    expect(bytes).toBeDefined();
+    const parsed = JSON.parse(new TextDecoder().decode(bytes!));
+    expect(parsed.directFeedbackLinks).toHaveLength(1);
+    expect(parsed.directFeedbackLinks[0]?.critiqueId).toBe(critiqueId);
+    expect(parsed.directFeedbackLinks[0]?.linkId).toBe(
+      atlas.getDirectFeedbackLinks()[0]?.linkId
+    );
+    expect(parsed.directAlternativeFeedbackBindings).toEqual([]);
+  });
+
+  it('restored investigations serve packaged links through the live getters', async () => {
+    const { atlas, critiqueId } = await atlasWithOneLink();
+    const bytes = atlas.exportFormaInvestigationBytes();
+    expect(bytes).toBeDefined();
+    const parsed = JSON.parse(new TextDecoder().decode(bytes!));
+
+    const restored = buildAtlas('CLAIM_BEARING');
+    expect(restored.getDirectFeedbackLinks()).toHaveLength(0);
+    restored.setFormaState(parsed);
+    expect(restored.getDirectFeedbackLinks()).toHaveLength(1);
+    expect(restored.getDirectFeedbackLinks()[0]?.critiqueId).toBe(critiqueId);
+    expect(restored.getDirectAlternativeFeedbackBindings()).toEqual([]);
+  });
+
+  it('legacy snapshots without lineage fields restore to empty without throwing', async () => {
+    const { atlas } = await atlasWithOneLink();
+    const bytes = atlas.exportFormaInvestigationBytes();
+    expect(bytes).toBeDefined();
+    const parsed = JSON.parse(new TextDecoder().decode(bytes!));
+    delete parsed.directFeedbackLinks;
+    delete parsed.directAlternativeFeedbackBindings;
+
+    const restored = buildAtlas('CLAIM_BEARING');
+    expect(() => restored.setFormaState(parsed)).not.toThrow();
+    expect(restored.getDirectFeedbackLinks()).toHaveLength(0);
+    expect(restored.getDirectAlternativeFeedbackBindings()).toHaveLength(0);
+  });
+});
