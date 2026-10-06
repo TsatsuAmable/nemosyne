@@ -1,0 +1,159 @@
+name: Reviewer loop
+
+# Read-only autonomous reviewer: architecture, static bug-catchers, duplication.
+# Report-only by design — jobs stay green and publish findings to the run
+# summary plus artifacts. Nothing commits, files issues, or merges.
+
+on:
+  schedule:
+    - cron: '0 6,18 * * *'
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: 'Review theme'
+        required: false
+        default: 'all'
+        type: choice
+        options: [all, architecture, bugs, duplication]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reviewer-loop
+  cancel-in-progress: true
+
+jobs:
+  architecture:
+    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'architecture'
+    name: Review architecture boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run architecture checks
+        run: |
+          npm run architecture:check > review-architecture.txt 2>&1
+          code=$?
+          {
+            echo "## Architecture review"
+            echo ""
+            echo "exit code: ${code} (informational — this loop never reds)"
+            echo ""
+            echo "<details><summary>output tail</summary>"
+            echo ""
+            echo '```'
+            tail -n 60 review-architecture.txt
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload review output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: review-architecture
+          path: review-architecture.txt
+
+  bugs:
+    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'bugs'
+    name: Review static bug-catchers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run typecheck and lint
+        run: |
+          {
+            echo "## Static bug-catcher review"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          npm run typecheck > review-bugs.txt 2>&1
+          echo "typecheck exit: $?" >> review-bugs.txt
+          npm run lint >> review-bugs.txt 2>&1
+          echo "lint exit: $?" >> review-bugs.txt
+          {
+            echo "exit codes recorded above (informational — this loop never reds)"
+            echo ""
+            echo "<details><summary>output tail</summary>"
+            echo ""
+            echo '```'
+            tail -n 60 review-bugs.txt
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload review output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: review-bugs
+          path: review-bugs.txt
+
+  duplication:
+    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'duplication'
+    name: Review code duplication
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run duplication scan
+        run: |
+          npm run review:duplication > review-duplication-console.txt 2>&1
+          {
+            echo "## Duplication review"
+            echo ""
+            echo "(informational — this loop never reds; full report in artifacts)"
+            echo ""
+            tail -n 5 review-duplication-console.txt
+            echo ""
+            echo "<details><summary>report head</summary>"
+            echo ""
+            head -n 40 reports/duplication/jscpd-report.md
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload duplication report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: review-duplication
+          path: |
+            reports/duplication/
+            review-duplication-console.txt

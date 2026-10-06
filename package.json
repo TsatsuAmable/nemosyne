@@ -79,7 +79,8 @@
     "governance:promotion:preflight": "node scripts/preflight-promotion-evidence.mjs",
     "governance:pr:create": "node scripts/create-promotable-pr.mjs",
     "governance:findings:write": "node scripts/render-review-findings.mjs --write",
-    "rfl:loop": "node scripts/rfl-loop.mjs"
+    "rfl:loop": "node scripts/rfl-loop.mjs",
+    "review:duplication": "jscpd --min-tokens 50 --min-lines 10 --reporters markdown,console --output reports/duplication src tests"
   },
   "devDependencies": {
     "@ast-grep/cli": "0.45.3",
@@ -99,6 +100,7 @@
     "globals": "^17.11.0",
     "iwer": "^2.3.0",
     "jsdom": "30.0.1",
+    "jscpd": "5.4.0",
     "prettier": "^3.5.0",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
