@@ -3,7 +3,7 @@
 **Status:** accepted / implemented / independently verified  
 **Accepted by:** project-owner direction to proceed with the railed P1-R2D plan after #585  
 **Implementation programme:** `docs/roadmap/P1_R2D_CLUSTER_REGIONS.md`  
-**Independent verification:** `docs/review/P1_R2D_C5_STOP_REVIEW_2026-08-31.md`
+**Independent verification:** `docs/archive/review/P1_R2D_C5_STOP_REVIEW_2026-08-31.md`
 
 ## Context
 

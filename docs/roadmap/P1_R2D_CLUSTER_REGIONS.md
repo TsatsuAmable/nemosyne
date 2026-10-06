@@ -4,7 +4,7 @@
 **Entry base:** `main@c9a089564284466d249d181e9408f5822f4ac196` (#584 merged)  
 **Verified fresh-main base:** `main@5eb9b7617d4d657569ccb0bdf5fbb374b3405d1f` (#595 merged)  
 **Parent programme:** `P1_R_SEMANTIC_EMBODIMENT_CONVERGENCE.md` R2D  
-**Independent STOP review:** `docs/review/P1_R2D_C5_STOP_REVIEW_2026-08-31.md`  
+**Independent STOP review:** `docs/archive/review/P1_R2D_C5_STOP_REVIEW_2026-08-31.md`  
 **Scientific decision:** `docs/rfcs/0001-source-partition-cluster-authority.md`
 
 ## Finite outcome
