@@ -27,7 +27,7 @@ on:
       - 'docs/study/UI_TREATMENT.md'
       - 'docs/roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md'
       - 'docs/review-plans/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_PRE_REVIEW_2026-09-01.md'
-      - 'docs/review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md'
+      - 'docs/archive/review/P1_UV_C2_INVESTIGATION_STATE_LEGIBILITY_POST_REVIEW_2026-09-01.md'
   workflow_dispatch:
 
 permissions:
