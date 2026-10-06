@@ -6,3 +6,4 @@ Durable facts Muse Code should know without re-deriving. One line per topic; the
 - [wasm-build](wasm-build.md) — Rust/WASM build commands and toolchain facts.
 - [windows-host](windows-host.md) — Windows sandbox setup state, workarounds, and constraints.
 - [execution-rules](execution-rules.md) — tranche model, branch/PR discipline, worktree exclusivity.
+- [machine-setup](machine-setup.md) — per-machine steps for a new host: trust, skill enablement, verification.
