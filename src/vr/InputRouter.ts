@@ -16,7 +16,21 @@ import {
   type XRInputProvider,
 } from './input/XRInputProvider.ts';
 import { FocusContextController, type FocusLevel } from './interactions/FocusContextController.ts';
-import { NearFieldInteractor } from './interactions/near/NearFieldInteractor.ts';
+import {
+  NearFieldInteractor,
+  type PointerTouchState,
+} from './interactions/near/NearFieldInteractor.ts';
+
+/**
+ * Whether the near field owns the press. NEAR_HOVER (proximity without
+ * contact) must NOT suppress far-ray presses: suppressing on mere proximity
+ * creates a dead band (contact range..55cm) where trigger/pinch presses are
+ * swallowed while near-touch cannot engage either, and controls go totally
+ * silent. Only contact-or-deeper phases own the press.
+ */
+function nearOwnsPress(touchState: PointerTouchState | undefined): boolean {
+  return !!touchState && touchState.phase !== 'FAR' && touchState.phase !== 'NEAR_HOVER';
+}
 import type {
   ControllerGestureMapperLike,
   EngineLike,
@@ -444,8 +458,7 @@ export class InputRouter {
 
       if (normalized.available) {
         const touchState = this.nearInteractor.getTouchState(controller);
-        const isNear = touchState && touchState.phase !== 'FAR';
-        if (normalized.down && !isNear) this.machine.press(controller);
+        if (normalized.down && !nearOwnsPress(touchState)) this.machine.press(controller);
         if (normalized.up) this.machine.release(controller);
         this.pointers.controllerTriggerPressed.set(controller, normalized.pressed);
         continue;
@@ -461,8 +474,7 @@ export class InputRouter {
 
       const triggerPressed = !!source.gamepad.buttons[0]?.pressed;
       const touchState = this.nearInteractor.getTouchState(controller);
-      const isNear = touchState && touchState.phase !== 'FAR';
-      if (triggerPressed && !wasTriggerPressed && !isNear) {
+      if (triggerPressed && !wasTriggerPressed && !nearOwnsPress(touchState)) {
         this.machine.press(controller);
       } else if (!triggerPressed && wasTriggerPressed) {
         this.machine.release(controller);
@@ -500,10 +512,9 @@ export class InputRouter {
       }
 
       const touchState = this.nearInteractor.getTouchState(hand);
-      const isNear = touchState && touchState.phase !== 'FAR';
       if (started) {
         this.onHandPinchEdge?.(hand, 'start', this._classifyPinchStart(hand, suppressSelection));
-        if (!isNear) this.machine.press(hand);
+        if (!nearOwnsPress(touchState)) this.machine.press(hand);
       } else if (ended && this.machine.downPointer === hand) {
         this.onHandPinchEdge?.(hand, 'end', 'select-release');
         this.machine.release(hand);

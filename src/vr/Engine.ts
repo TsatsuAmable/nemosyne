@@ -119,6 +119,11 @@ export class Engine {
       alpha: false,
       powerPreference: 'high-performance',
     });
+    // Required for @pmndrs/uikit scroll clipping: uikit assigns world-space
+    // clipping planes to scrolled content, which three.js ignores unless
+    // local clipping is enabled. Without this, scrolled rows paint past the
+    // card borders (seen live as settings text spilling past the bottom).
+    this.renderer.localClippingEnabled = true;
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.xr.enabled = true;

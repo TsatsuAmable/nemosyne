@@ -12,6 +12,17 @@ export interface SpatialPanelGrabConfig {
   onRepositioned?: (position: THREE.Vector3, quaternion: THREE.Quaternion) => void;
 }
 
+/**
+ * Module-scope traverse visitor (no per-frame closure allocation): draws a
+ * panel's text after its background quads. The instanced glyph and panel
+ * meshes are transparent, coplanar, and default to renderOrder 0, so the
+ * three.js stable sort can leave the background (older material id) on top
+ * and every label disappears under it.
+ */
+function assertGlyphOrder(node: THREE.Object3D): void {
+  if (node.constructor?.name === 'InstancedGlyphMesh') node.renderOrder = 1;
+}
+
 export class SpatialPanel extends Container {
   private _referenceFrame: SpatialPanelReferenceFrame = 'BODY_LOCKED';
   private _torsoAnchor: THREE.Object3D | null = null;
@@ -143,6 +154,30 @@ export class SpatialPanel extends Container {
     this._targetPosition.copy(pos);
     this._targetQuaternion.copy(rot);
     this._isLerping = true;
+  }
+
+  /**
+   * Per-frame hook for engine-ticked panels. Asserts glyph-over-background
+   * draw order, then runs the uikit frame update. Glyph groups are built
+   * lazily (after async font load), so ordering cannot be done once at
+   * construction or show time.
+   */
+  update(deltaSeconds: number): void {
+    super.update(deltaSeconds);
+    if (this.visible) this.orderGlyphsAbovePanels();
+  }
+
+  /**
+   * Draw the panel's text after its background quads. Idempotent; safe to
+   * run every frame while open. Glyph groups are built lazily (after async
+   * font load), so ordering cannot be done once at construction or show.
+   */
+  orderGlyphsAbovePanels(): void {
+    try {
+      this.traverse(assertGlyphOrder);
+    } catch {
+      // Ordering must never break the panel.
+    }
   }
 
   updateTransition(deltaSeconds: number): void {
