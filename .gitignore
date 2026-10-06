@@ -1,6 +1,7 @@
 .codex/
 opencode.json
-.agents/
+.agents/*
+!.agents/skills/
 .ai/
 node_modules/
 coverage/

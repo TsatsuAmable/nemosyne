@@ -156,4 +156,4 @@ Use the status vocabulary defined in `docs/ROADMAP.md`. `VERIFIED COMPLETE` requ
 
 ## Local-only agent configuration
 
-Local `.agents/`, `.claude/`, and `.ai/` directories may contain harness/model-routing details and are not repository authority. They must not override this contract, the governing vision, the live roadmap, or executable configuration.
+Local `.agents/`, `.claude/`, and `.ai/` directories may contain harness/model-routing details and are not repository authority. They must not override this contract, the governing vision, the live roadmap, or executable configuration. The sole exception is `.agents/skills/`: shared, versioned agent skills that remain subordinate to this contract and load only after workspace trust.
