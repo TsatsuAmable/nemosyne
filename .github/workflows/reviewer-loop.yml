@@ -6,7 +6,7 @@ name: Reviewer loop
 
 on:
   schedule:
-    - cron: "0 6,18 * * *"
+    - cron: '0 6,18 * * *'
   push:
     branches: [ci/reviewer-loop] # TEMPORARY: proves the jobs end-to-end; removed before PR
   workflow_dispatch:
@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   architecture:
-    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'architecture'
+    if: github.event_name == 'schedule' || github.event_name == 'push' || inputs.theme == 'all' || inputs.theme == 'architecture'
     name: Review architecture boundaries
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -70,7 +70,7 @@ jobs:
           path: review-architecture.txt
 
   bugs:
-    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'bugs'
+    if: github.event_name == 'schedule' || github.event_name == 'push' || inputs.theme == 'all' || inputs.theme == 'bugs'
     name: Review static bug-catchers
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -117,7 +117,7 @@ jobs:
           path: review-bugs.txt
 
   duplication:
-    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'duplication'
+    if: github.event_name == 'schedule' || github.event_name == 'push' || inputs.theme == 'all' || inputs.theme == 'duplication'
     name: Review code duplication
     runs-on: ubuntu-latest
     timeout-minutes: 20
