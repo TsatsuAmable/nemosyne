@@ -21,6 +21,11 @@ import type { ProductAnalyticsDeploymentManifestV1 } from './ProductAnalyticsRun
 const HEALTH_PATH = '/healthz';
 const READY_PATH = '/readyz';
 const SHUTDOWN_TIMEOUT_MS = 5_000;
+// Drain grace before the shutdown path destroys connections that are still
+// open (for example an upload stalled mid-body). Keeps stop() bounded well
+// under the forced-shutdown envelope while giving healthy in-flight work a
+// brief drain window. RFL-0002.
+const SHUTDOWN_DRAIN_GRACE_MS = 1_000;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 8788;
 const ROUTING_BASE_URL = 'http://governance.local';
@@ -278,15 +283,26 @@ export async function runGovernanceService(
     stopping = true;
     const forced = setTimeout(() => {
       console.error(`[GovernanceService] forced shutdown after ${SHUTDOWN_TIMEOUT_MS}ms`);
+      server.closeAllConnections();
       process.exitCode = 1;
     }, SHUTDOWN_TIMEOUT_MS);
     forced.unref?.();
+    // server.close waits for open connections, so idle keep-alive sockets drop
+    // immediately and anything still open after the grace is destroyed; the
+    // close callback then fires instead of hanging on stalled uploads.
+    server.closeIdleConnections();
+    const destroyStalled = setTimeout(() => {
+      server.closeAllConnections();
+    }, SHUTDOWN_DRAIN_GRACE_MS);
+    destroyStalled.unref?.();
     try {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
       await composition.closeStorage();
+      clearTimeout(destroyStalled);
       clearTimeout(forced);
       console.warn(`[GovernanceService] stopped after ${signal}`);
     } catch (error) {
+      clearTimeout(destroyStalled);
       clearTimeout(forced);
       console.error('[GovernanceService] shutdown failed:', error);
       process.exitCode = 1;

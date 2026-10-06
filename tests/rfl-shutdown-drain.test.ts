@@ -196,11 +196,11 @@ function delay(ms: number): Promise<void> {
 }
 
 describe('RFL cycle 6: service stop with stalled uploads in flight', () => {
-  // Skipped while RFL-0002 is an open candidate finding: stop() does not
-  // resolve boundedly with uploads stalled mid-body (observed hung past a 4s
-  // bound twice; the 5s forced path sets exitCode without releasing
-  // connections). Unskip to re-verify after the shutdown-drain fix lands.
-  it.skip('stop() resolves boundedly while uploads are stalled mid-body', async () => {
+  // RFL-0002 shutdown drain: stop() drops idle connections at once and
+  // destroys anything still open after a brief grace, so server.close
+  // resolves instead of hanging on uploads stalled mid-body. This test
+  // guards the bounded-stop contract.
+  it('stop() resolves boundedly while uploads are stalled mid-body', async () => {
     const service = await runGovernanceService(testEnv(), {
       poolForTest: new ShutdownPoolFake(),
       oidcJwksAuthorityForTest: new OidcJwksAuthority({ issuer: ISSUER, fetcher: jwksFetcher }),
