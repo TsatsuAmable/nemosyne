@@ -8,6 +8,12 @@
   ],
   "documents": [
     {
+      "path": "docs/rfcs/0013-fm8-composition-evidence-binding.md",
+      "status": "active",
+      "authority": "proposed-fm8-evidence-binding-rfc",
+      "owner": "architecture"
+    },
+    {
       "path": "docs/rfcs/0012-minimum-nemosyne-architecture.md",
       "status": "active",
       "authority": "proposed-minimum-architecture-rfc",
