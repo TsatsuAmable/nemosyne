@@ -406,15 +406,60 @@ class GovernanceTransportError extends Error {
 }
 
 async function readIncomingBody(request: IncomingMessage, maxBytes = MAX_JSON_BODY_BYTES): Promise<Uint8Array> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of request) {
-    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += bytes.byteLength;
-    if (total > maxBytes) throw new TypeError('request body size refused');
-    chunks.push(bytes);
-  }
-  return Buffer.concat(chunks);
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let settled = false;
+    // Explicit handlers instead of async iteration: breaking out of for-await
+    // destroys the request stream, which kills the socket while the client is
+    // still transmitting and surfaces as ECONNRESET instead of the governed
+    // refusal (RFL-0001). Pausing keeps the socket alive so the refusal path
+    // request.resume() drain delivers the governed response and leaves the
+    // pooled connection reusable.
+    const cleanup = (): void => {
+      request.removeListener('data', onData);
+      request.removeListener('end', onEnd);
+      request.removeListener('error', onError);
+      request.removeListener('close', onClose);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      if (settled) return;
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += bytes.byteLength;
+      if (total > maxBytes) {
+        settled = true;
+        cleanup();
+        request.pause();
+        reject(new TypeError('request body size refused'));
+        return;
+      }
+      chunks.push(bytes);
+    };
+    const onEnd = (): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(Buffer.concat(chunks));
+    };
+    const onError = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onClose = (): void => {
+      // Client went away before the body completed: resolve what arrived,
+      // matching the previous async-iteration behavior on early close.
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(Buffer.concat(chunks));
+    };
+    request.on('data', onData);
+    request.on('end', onEnd);
+    request.on('error', onError);
+    request.on('close', onClose);
+  });
 }
 
 function authorizationValues(request: IncomingMessage): string[] {

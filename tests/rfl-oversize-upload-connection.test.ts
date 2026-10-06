@@ -159,11 +159,11 @@ function env(): typeof process.env {
 }
 
 describe('RFL-0001 reproducer: refused oversized uploads lose their governed response', () => {
-  // Skipped while RFL-0001 is an open candidate finding: the refused upload
-  // intermittently receives a transport error instead of the governed 413
-  // (observed 2-4 transport failures per 5-10 refused oversized uploads).
-  // Unskip to re-verify after the transport fix lands.
-  it.skip('every refused oversized upload receives the governed 413 (currently fails: transport errors)', async () => {
+  // RFL-0001 transport framing: body reads use explicit handlers instead of
+  // async iteration so a size refusal pauses (never destroys) the request
+  // stream; the refusal-path resume() drain then delivers the governed 413
+  // and leaves the pooled connection reusable. This test guards that contract.
+  it('every refused oversized upload receives the governed 413', async () => {
     const service = await runGovernanceService(env(), {
       poolForTest: new ReproPoolFake(),
       oidcJwksAuthorityForTest: new OidcJwksAuthority({ issuer: ISSUER, fetcher: jwksFetcher }),
