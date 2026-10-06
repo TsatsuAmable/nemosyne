@@ -123,6 +123,8 @@ export interface FormaInvestigationStateV1 {
   readonly system1ProposalSource?: System1ProposalSource;
   readonly admission?: unknown;
   readonly context?: CommittedInvestigationContextV2;
+  readonly directFeedbackLinks?: readonly CritiqueAlternativeLinkV1[];
+  readonly directAlternativeFeedbackBindings?: readonly AlternativeFeedbackBindingV1[];
 }
 
 export interface InvestigationDigestIdentityOptions {
@@ -1025,8 +1027,8 @@ export class InvestigationAggregate {
   private _activeDirectSnapshot?: SemanticSnapshotV1;
   private _activeVariantPair?: ObligationPreservingVariantPairV1;
   private _activeDirectTraversal?: DirectTraversalSession;
-  private readonly _directFeedbackLinks: CritiqueAlternativeLinkV1[] = [];
-  private readonly _directFeedbackBindings: AlternativeFeedbackBindingV1[] = [];
+  private _directFeedbackLinks: CritiqueAlternativeLinkV1[] = [];
+  private _directFeedbackBindings: AlternativeFeedbackBindingV1[] = [];
   private _formaState?: FormaInvestigationStateV1;
 
   /**
@@ -1385,6 +1387,15 @@ export class InvestigationAggregate {
 
   setFormaState(state: FormaInvestigationStateV1): void {
     this._formaState = state;
+    // Rehydrate direct-loop lineage so restored investigations serve their
+    // critique->alternative links through the live getters. Non-array input
+    // (legacy snapshots) restores to empty rather than throwing.
+    this._directFeedbackLinks = Array.isArray(state.directFeedbackLinks)
+      ? [...state.directFeedbackLinks]
+      : [];
+    this._directFeedbackBindings = Array.isArray(state.directAlternativeFeedbackBindings)
+      ? [...state.directAlternativeFeedbackBindings]
+      : [];
   }
 
   getFormaState(): FormaInvestigationStateV1 | undefined {
@@ -1399,6 +1410,17 @@ export class InvestigationAggregate {
         system1ProposalSource: this._activeFormaResult.system1ProposalSource,
         admission: this._activeFormaResult.resolutionVariant,
         context: this.getActiveContext(),
+        directFeedbackLinks: [...this._directFeedbackLinks],
+        directAlternativeFeedbackBindings: [...this._directFeedbackBindings],
+      };
+    }
+    if (this._activeDirectCompileResult) {
+      return {
+        schemaVersion: 1,
+        slice: this._activeDirectCompileResult.slice,
+        context: this.getActiveContext(),
+        directFeedbackLinks: [...this._directFeedbackLinks],
+        directAlternativeFeedbackBindings: [...this._directFeedbackBindings],
       };
     }
     return undefined;
