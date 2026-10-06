@@ -35,3 +35,5 @@ Thumbs.db
 # Portable experiment outputs
 experiments/xr-architecture/artifacts/
 experiments/xr-architecture/experiment.json
+# Local reviewer-loop reports (uploaded as CI artifacts, never commit)
+reports/
