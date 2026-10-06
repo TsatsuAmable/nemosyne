@@ -345,8 +345,12 @@ export class SettingsPanel extends SpatialPanel {
     this.add(header);
     this._headerText = header;
 
+    // Fixed scroll budget: card 720 minus outer padding (48), header +
+    // column gaps (~50), and footer (~123) leaves ~500 for scroll content.
+    // If content + footer exceed the card, the footer paints past the
+    // card's bottom border (seen live as text bleeding past the bottom).
     this._contentContainer = new ScrollContainer({
-      scrollHeight: PANEL_HEIGHT - 120,
+      scrollHeight: PANEL_HEIGHT - 220,
       flexGrow: 1,
     });
     this.add(this._contentContainer);
@@ -449,27 +453,11 @@ export class SettingsPanel extends SpatialPanel {
   show(): void {
     this._budgetController?.open(this, 'primary');
     this.visible = true;
-    this._orderGlyphsAbovePanels();
+    // Immediate ordering for groups that already exist; lazily built groups
+    // are picked up every frame by SpatialPanel.update.
+    this.orderGlyphsAbovePanels();
     this.position.copy(this.defaultPosition);
     this.updateMatrixWorld();
-  }
-
-  /**
-   * Draw the panel's text after its background quads. Both instanced meshes
-   * are transparent, coplanar, and default to renderOrder 0, so the
-   * three.js stable sort leaves the background (older material id) on top
-   * and every label disappears under it. Verified with desktop screenshots:
-   * controls without a single label before, full labelled panel after.
-   * Applied on every show because uikit builds glyph groups lazily.
-   */
-  private _orderGlyphsAbovePanels(): void {
-    try {
-      this.traverse((node) => {
-        if (node.constructor?.name === 'InstancedGlyphMesh') node.renderOrder = 1;
-      });
-    } catch {
-      // Ordering must never break the panel.
-    }
   }
 
   hide(): void {
@@ -484,12 +472,9 @@ export class SettingsPanel extends SpatialPanel {
 
   update(delta?: number): void {
     if (!this.visible) return;
-    // Glyph groups are built lazily (after async font load), so re-assert
-    // text-over-background ordering every frame while open. Cheap (~200
-    // nodes) and idempotent; show() alone races group creation.
-    this._orderGlyphsAbovePanels();
     // Match sibling panels: forward the engine delta unchanged. uikit's
     // on-frame handlers ignore delta units for layout and visibility.
+    // Per-frame glyph ordering happens in SpatialPanel.update.
     super.update(delta ?? 0);
     // This panel is body-locked to the moving camera rig: face the viewer,
     // never a fixed world point. Facing the world origin turns the panel

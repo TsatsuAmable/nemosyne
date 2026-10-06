@@ -373,3 +373,56 @@ describe('InputRouter event-path pinch tracing', () => {
     ]);
   });
 });
+
+describe('InputRouter near-hover press eligibility', () => {
+  // Regression: NEAR_HOVER (proximity without contact) suppressed far-ray
+  // trigger presses while near-touch could not engage either, leaving
+  // panel controls totally silent in the 2cm..55cm band.
+  function setup() {
+    const engine = new MockEngine();
+    const router = new InputRouter(engine);
+    const controller = new MockController('right');
+    router.addController(controller);
+    const onDown = vi.fn(() => 'direct-touch');
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    mesh.position.set(0, 0, 50);
+    mesh.visible = true;
+    router.registry.addPanel({ mesh, handlePointerDown: onDown });
+    engine.session = {
+      inputSources: [
+        { handedness: 'right', gamepad: { buttons: [{ pressed: true }] } },
+      ],
+    };
+    return { engine, router, onDown };
+  }
+
+  it('routes trigger presses to panels in NEAR_HOVER (no dead band)', () => {
+    const { engine, router, onDown } = setup();
+    vi.spyOn(router.nearInteractor, 'getTouchState').mockReturnValue({
+      phase: 'NEAR_HOVER',
+      distance: 0.4,
+    });
+    router.update(null, null, engine.session, 0);
+    expect(onDown).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes trigger presses to panels at FAR', () => {
+    const { engine, router, onDown } = setup();
+    vi.spyOn(router.nearInteractor, 'getTouchState').mockReturnValue({
+      phase: 'FAR',
+      distance: Infinity,
+    });
+    router.update(null, null, engine.session, 0);
+    expect(onDown).toHaveBeenCalledTimes(1);
+  });
+
+  it('still suppresses trigger presses in CONTACT (near owns the press)', () => {
+    const { engine, router, onDown } = setup();
+    vi.spyOn(router.nearInteractor, 'getTouchState').mockReturnValue({
+      phase: 'CONTACT',
+      distance: 0.01,
+    });
+    router.update(null, null, engine.session, 0);
+    expect(onDown).not.toHaveBeenCalled();
+  });
+});
