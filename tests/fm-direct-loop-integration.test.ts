@@ -11,6 +11,7 @@ import {
 import { compileDirectEmbodimentPlan } from '../src/moneta/representation/DirectEmbodimentCompiler.ts';
 import {
   buildAlternativeEntries,
+  buildDirectLoopSurfaceViews,
   buildDisclosureCards,
   buildPurposeBadge,
   buildVariantPairView,
@@ -505,5 +506,135 @@ describe('FM1/FM2: V4 packaging captures direct-loop lineage', () => {
     expect(() => restored.setFormaState(parsed)).not.toThrow();
     expect(restored.getDirectFeedbackLinks()).toHaveLength(0);
     expect(restored.getDirectAlternativeFeedbackBindings()).toHaveLength(0);
+  });
+});
+
+describe('FM1/FM2: headless surface projection over direct-loop state', () => {
+  it('projects inspector/history/alternative views from live aggregate getters', async () => {
+    const atlas = buildAtlas('EXPLORATORY_ABDUCTION');
+    const fingerprint = atlas.dataset.fingerprint;
+    const snapshot = createDistributionSnapshot(fingerprint);
+    const pair = atlas.compileObligationPreservingVariants({ snapshot });
+    const proposal = createConjecturalProposal({
+      snapshotId: snapshot.snapshotId,
+      contextId: computeCommittedContextIdentity(createContext('EXPLORATORY_ABDUCTION')),
+      generator: {
+        modelId: 'AbductiveHypothesisModel',
+        modelVersion: '1.0.0',
+        executionRegime: 'ADAPTIVE',
+      },
+      elements: [
+        {
+          elementId: 'node-density-bin-00',
+          kind: 'SPECULATIVE_SURFACE',
+          epistemicStatus: 'HYPOTHESIZED',
+          properties: {},
+          uncertaintyDisclosure: 'Unverified abductive hypothesis',
+        },
+      ],
+      relations: [],
+      assumptions: ['Smooth prior over bins'],
+      uncertaintyDisclosure: 'Explicitly labeled conjectural exploration',
+      rationale: 'Abductive hypothesis generation',
+    });
+    const compilation = atlas.compileDirectEmbodiment({
+      snapshot,
+      admissionOptions: {
+        conjecturalProposals: [proposal],
+        bindings: [
+          {
+            kind: 'CONJECTURAL',
+            proposalId: proposal.proposalId,
+            elementId: 'node-density-bin-00',
+            propertyPath: 'bins.0.density',
+            status: 'HYPOTHESIZED',
+          },
+        ],
+      },
+    });
+    const elementId = compilation.plan.elements[0]?.id ?? '';
+    const session = atlas.openDirectTraversal(elementId, 'DISTRIBUTION', {
+      datasetFingerprint: fingerprint,
+      representationFamily: 'DISTRIBUTION',
+      decisionId: 'decision-fm-surface',
+      generation: 7,
+      datasetVersion: 3,
+    });
+    const disclosures = discloseConjecturalElements(compilation, [proposal], 'EXPLORATORY_ABDUCTION');
+
+    const executor = new NilExecutor();
+    bindAtlasNilHandlers(executor, atlas);
+    await executor.execute(
+      nilCommand(0, 'REJECT', {
+        directTarget: elementId,
+        critiqueKind: 'SPATIAL_SCALE',
+        phenomenon: 'DISTRIBUTION',
+        note: 'overview too coarse; resolve constrained alternative',
+      })
+    );
+    const critiqueId = atlas.getActiveDirectCompileResult()?.critiqueLedger[0]?.critiqueId ?? '';
+    expect(critiqueId.length).toBeGreaterThan(0);
+    await executor.execute(
+      nilCommand(1, 'PREFER', { directCritiqueId: critiqueId, budgetProfile: 'QUEST_CONSTRAINED' })
+    );
+
+    const views = buildDirectLoopSurfaceViews({
+      disclosures,
+      traversalBinding: session.binding,
+      links: atlas.getDirectFeedbackLinks(),
+      bindings: atlas.getDirectAlternativeFeedbackBindings(),
+      variantPair: pair,
+    });
+
+    expect(views.schemaVersion).toBe('1.0.0');
+    expect(views.inspector.disclosures?.conjecturalElementCount).toBeGreaterThan(0);
+    expect(views.inspector.disclosures?.cards[0]?.admittedUnder).toBe('EXPLORATORY_ABDUCTION');
+    expect(views.inspector.purpose?.traversalId).toBe(session.binding.traversalId);
+    expect(views.inspector.alternatives).toHaveLength(1);
+    expect(views.inspector.alternatives[0]?.critiqueId).toBe(critiqueId);
+    expect(views.history.alternatives).toHaveLength(1);
+    expect(views.history.alternatives[0]?.linkId).toBe(
+      atlas.getDirectFeedbackLinks()[0]?.linkId
+    );
+    expect(views.history.bindings).toEqual([]);
+    expect(views.alternative.pair?.traversalRootId).toBe(pair.traversalRootId);
+    expect(views.alternative.pair?.variants).toHaveLength(2);
+    expect(views.alternative.alternatives).toHaveLength(1);
+  });
+
+  it('projects empty views without throwing when no direct-loop state exists', () => {
+    const views = buildDirectLoopSurfaceViews({ links: [] });
+    expect(views.schemaVersion).toBe('1.0.0');
+    expect(views.inspector.disclosures).toBeNull();
+    expect(views.inspector.purpose).toBeNull();
+    expect(views.inspector.alternatives).toEqual([]);
+    expect(views.history.alternatives).toEqual([]);
+    expect(views.history.bindings).toEqual([]);
+    expect(views.alternative.pair).toBeNull();
+    expect(views.alternative.alternatives).toEqual([]);
+  });
+
+  it('joins feedback records onto alternative entries by link identity', () => {
+    const views = buildDirectLoopSurfaceViews({
+      links: [
+        {
+          linkId: 'link-join-1',
+          critiqueId: 'critique-join-1',
+          priorCompilationId: 'comp-prior',
+          priorDecisionId: 'decision-prior',
+          alternativeCompilationId: 'comp-alt',
+          alternativeDecisionId: 'decision-alt',
+          targetElementId: 'node-density-bin-00',
+          contextPurpose: 'CLAIM_BEARING',
+        },
+      ],
+      bindings: [
+        { bindingId: 'binding-join-1', linkId: 'link-join-1', critiqueRecordId: 'record-join-1' },
+      ],
+    });
+    expect(views.history.alternatives).toHaveLength(1);
+    expect(views.history.alternatives[0]?.feedbackRecordId).toBe('record-join-1');
+    expect(views.history.bindings).toHaveLength(1);
+    expect(views.inspector.alternatives[0]?.feedbackRecordId).toBe('record-join-1');
   });
 });
