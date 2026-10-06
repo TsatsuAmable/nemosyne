@@ -87,6 +87,12 @@ async function putValue(db: IDBDatabase, storeName: string, key: IDBValidKey, va
   await transactionDone(tx);
 }
 
+async function deleteValue(db: IDBDatabase, storeName: string, key: IDBValidKey): Promise<void> {
+  const tx = db.transaction(storeName, 'readwrite');
+  tx.objectStore(storeName).delete(key);
+  await transactionDone(tx);
+}
+
 async function readAllLegacy(idb: IDBMigrationFactoryLike, dbName: string, storeName: string): Promise<Array<{ key: IDBValidKey; value: unknown }>> {
   return new Promise((resolve) => {
     let request: IDBOpenDBRequest;
@@ -226,7 +232,16 @@ export function installClientPersistenceStorageBridge(storage: Storage = globalT
 
   storage.removeItem = ((key: string): void => {
     if (key === SETTINGS_KEY || key === TELEMETRY_KEY) {
-      bootstrapCache.delete(key === SETTINGS_KEY ? 'settings:vr' : 'telemetry:consent');
+      const namespace = key === SETTINGS_KEY ? 'settings' : 'telemetry';
+      const recordKey = key === SETTINGS_KEY ? 'vr' : 'consent';
+      bootstrapCache.delete(`${namespace}:${recordKey}`);
+      // Removal must travel the same durable path as writes: mirror-only
+      // removal lets the surviving IndexedDB row resurrect the value on the
+      // next re-bootstrap (RFL-0006).
+      const storeName = namespace === 'settings' ? CLIENT_STORES.settings : CLIENT_STORES.telemetry;
+      void openClientDatabase()
+        .then((db) => deleteValue(db, storeName, recordKey))
+        .catch(() => undefined);
       return;
     }
     originalRemoveItem(key);

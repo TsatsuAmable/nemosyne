@@ -174,11 +174,10 @@ describe('RFL cycle 10: persistence-bridge removal durability', () => {
     expect(readBootstrappedValue('settings', 'vr')).toEqual({ textScale: 1.5 });
   });
 
-  // Skipped while RFL-0006 is an open candidate finding: removeItem on a
-  // governed key clears only the memory mirror, so the surviving IndexedDB
-  // row resurrects the "deleted" value on the next re-bootstrap. Unskip to
-  // re-verify after removal durability (delete/tombstone) lands.
-  it.skip('a removed key stays absent across re-bootstrap', async () => {
+  // RFL-0006 removal durability: the bridge removeItem travels the same
+  // durable path as writes, so the deleted row cannot resurrect on the next
+  // re-bootstrap. This test guards the durable removal contract.
+  it('a removed key stays absent across re-bootstrap', async () => {
     originalIndexedDB = (globalThis as any).indexedDB;
     (globalThis as any).indexedDB = createFakeClientIdb();
     const storage = memoryStorage();
