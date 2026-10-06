@@ -1,6 +1,6 @@
 ---
 name: nemosyne-runtime-review
-description: Use when reviewing Nemosyne for correctness bugs, Worker/WASM lifecycle failures, memory growth, repeated computation, dataset-copy overhead, or replay tests that pass without proving success.
+description: Use when adversarially reviewing a Nemosyne diff or implementation for correctness bugs, Worker/WASM lifecycle failures, memory growth, repeated computation, dataset-copy overhead, or replay tests that pass without proving success.
 ---
 
 # Nemosyne runtime review
