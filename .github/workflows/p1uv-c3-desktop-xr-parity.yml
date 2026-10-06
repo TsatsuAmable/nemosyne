@@ -17,7 +17,7 @@ on:
       - 'docs/ROADMAP.md'
       - 'docs/roadmap/P1_UV_VISIBLE_PRODUCT_CONVERGENCE.md'
       - 'docs/review-plans/P1_UV_C3_DESKTOP_XR_PARITY_PRE_REVIEW_2026-09-01.md'
-      - 'docs/review/P1_UV_C3_DESKTOP_XR_PARITY_POST_REVIEW_2026-09-01.md'
+      - 'docs/archive/review/P1_UV_C3_DESKTOP_XR_PARITY_POST_REVIEW_2026-09-01.md'
   workflow_dispatch:
 
 permissions:

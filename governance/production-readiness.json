@@ -160,7 +160,7 @@
       "serviceRef": "learning-plane-jobs",
       "kind": "MANUAL",
       "state": "GREEN",
-      "evidence": ["docs/review-plans/P1_PT7_RUNTIME_MODEL_REGISTRY_2026-09-05.md", "docs/review/P1_PT7_RUNTIME_MODEL_REGISTRY_POST_REVIEW_2026-09-05.md"],
+      "evidence": ["docs/review-plans/P1_PT7_RUNTIME_MODEL_REGISTRY_2026-09-05.md", "docs/archive/review/P1_PT7_RUNTIME_MODEL_REGISTRY_POST_REVIEW_2026-09-05.md"],
       "closure": "Keep the staged shadow/canary/production/rollback review contract explicit: model-specific held-out evidence, known-answer/failure/stability evidence, abstention/coverage where applicable, and signed human promotion authority remain prerequisites rather than an automatic scalar gate."
     },
     {
@@ -176,7 +176,7 @@
       "serviceRef": "learning-plane-jobs",
       "kind": "MANUAL",
       "state": "GREEN",
-      "evidence": ["docs/review-plans/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_2026-09-05.md", "docs/review/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_POST_REVIEW_2026-09-05.md"],
+      "evidence": ["docs/review-plans/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_2026-09-05.md", "docs/archive/review/P1_PT8_GESTURE_MODEL_UPDATE_LOOP_POST_REVIEW_2026-09-05.md"],
       "closure": "Keep PT8 model-specific qualification scientifically honest: derived metrics are evidence rather than automatic authority, frozen/Research treatments cannot adapt, and repository shadow/canary contracts are not promoted into live-cohort or physical human-performance claims."
     }
   ]

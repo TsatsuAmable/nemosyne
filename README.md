@@ -28,22 +28,23 @@ The project is trying to make the path from **data → structure → investigati
 
 The [Definitive Vision and Roadmap](./docs/Nemosyne_Definitive_Vision_and_Roadmap.md) defines what Nemosyne is trying to become. The [live Roadmap](./docs/ROADMAP.md) is the canonical implementation-status and execution authority. The [GitHub Wiki](https://github.com/TsatsuAmable/nemosyne/wiki) is generated from those version-controlled authorities and is a convenient navigation surface, not a second source of truth.
 
-At the **16 September 2026** roadmap snapshot:
+At the **6 October 2026** roadmap snapshot:
 
 ```text
 Stream A progressive disclosure                         VERIFIED COMPLETE / STOP
 Stream B Relationship Graph V1                         VERIFIED COMPLETE / STOP
 Stream C bounded visible-product C1-C4                 LANDED
 P1-PT PT0-PT8                                          LANDED at bounded exits
-P1-UXR UXR0-UXR1                                       bounded software landed
-P1-UXR UXR2 resource lifecycle + UXR3 working set      current engineering frontier
+P1-UXR UXR0-UXR3                                       bounded software exits; UXR4/UXR5 physical-evidence open
+FM-DSE minimum dataset embodiment                      COMPLETED (DSE6 qualified)
+Review findings RF-037 through RF-043                  VERIFIED COMPLETE
+Full Moneta                                            IMPLEMENTATION PARTIAL
 Physical human/Quest qualification                     open where claims require it
 PT9 Moneta learning-evidence pipeline                  downstream
 PT10 private-preview product/discovery learning        downstream of PT9
-Full compositional Moneta                              post-PT9
 ```
 
-In particular, UXR1 has migrated the canonical panel/navigation path to UIKit and landed purpose/comprehension guidance, but software and simulator evidence do **not** substitute for fresh physical human-comprehension, comfort or sustained-device evidence. UXR2/UXR3 therefore advance independently while those physical gates are collected when claim-relevant.
+The FM1/FM2 direct critique-to-alternative loop, V4 lineage capture and headless projections are landed; investigator-visible surface qualification, measured FM5 value and the FM8 evidence-binding decision (proposed RFC 0013) remain open. Software and simulator evidence do **not** substitute for fresh physical human-comprehension, comfort or sustained-device evidence.
 
 The [P1 Product Transition, Platform & Learning Plan](./docs/roadmap/P1_PRODUCT_TRANSITION_PLATFORM_AND_LEARNING_PLAN.md) specifies the active strategic tranche structure. The [Evolutionary Improvement Cadence](./docs/roadmap/P1_E_EVOLUTIONARY_IMPROVEMENT_CADENCE.md) is the rolling execution cadence beneath the live roadmap, not a competing status authority.
 

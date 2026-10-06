@@ -82,7 +82,7 @@ If information in the Wiki conflicts with repository documentation or executable
 
 ## Historical archive
 
-The documentation lifecycle review of 21 September 2026 demoted `IMPLEMENTATION_PLAN_V3.md`, `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`, and `STREAM_C_SECURITY_ASSURANCE.md` from active authority. They remain repository history/reference until physically moved under `docs/archive/`; they must not be used as live sequencing, concurrency, or finding-status authority.
+The documentation lifecycle review of 21 September 2026 demoted `IMPLEMENTATION_PLAN_V3.md`, `STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md`, and `STREAM_C_SECURITY_ASSURANCE.md` from active authority. They now live under `docs/archive/` as repository history/reference; they must not be used as live sequencing, concurrency, or finding-status authority. Point-in-time stream reviews were consolidated under `docs/archive/review/` on 2026-10-06.
 
 
 - [`archive/README.md`](archive/README.md) - archive index.

@@ -44,7 +44,7 @@ describe('P1-R2E B4 relationship graph evidence trigger coverage', () => {
     for (const path of [
       'docs/roadmap/P1_R2E_RELATIONSHIP_GRAPH.md',
       'docs/ROADMAP.md',
-      'docs/review/P1_R2E_B4_STOP_REVIEW_2026-09-01.md',
+      'docs/archive/review/P1_R2E_B4_STOP_REVIEW_2026-09-01.md',
     ]) {
       expect(workflow, `missing B4 closure trigger for ${path}`).toContain(`- '${path}'`);
     }

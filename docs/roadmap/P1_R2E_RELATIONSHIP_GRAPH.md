@@ -1,11 +1,11 @@
 # P1-R2E Relationship Graph — Stream B first structural slice
 
-**Status:** B2 MERGED VIA #610 (`main@008165e`) — B3 IMPLEMENTED ON `stream-b/b3-production-cutover`, INDEPENDENT ADVERSARIAL REVIEW CLOSED (no BLOCKER; 2 MAJOR adjudicated/resolved + 7 MINOR resolved on this branch, see `review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`) — PENDING EXACT-HEAD GATES + MERGE  
+**Status:** B2 MERGED VIA #610 (`main@008165e`) — B3 IMPLEMENTED ON `stream-b/b3-production-cutover`, INDEPENDENT ADVERSARIAL REVIEW CLOSED (no BLOCKER; 2 MAJOR adjudicated/resolved + 7 MINOR resolved on this branch, see `../archive/review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`) — PENDING EXACT-HEAD GATES + MERGE  
 **Stream:** B — Source-Authoritative Structural Representations  
 **Scientific authority:** `docs/rfcs/0002-source-relationship-graph-authority.md`  
-**B1 closure review:** `review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`  
-**B2 closure review:** `review/P1_R2E_B2_POST_REVIEW_2026-08-31.md`  
-**B3 closure review:** `review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`  
+**B1 closure review:** `../archive/review/P1_R2E_B1_POST_REVIEW_2026-08-31.md`  
+**B2 closure review:** `../archive/review/P1_R2E_B2_POST_REVIEW_2026-08-31.md`  
+**B3 closure review:** `../archive/review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`  
 **Integration base at start:** `main@1d597e157ed70bb75e15caa4ade1f1e47348249b` (#597 merged)  
 **B1 promotion review base:** `main@1ea2920` (#606 merged); promotion finalized on #607's unchanged exact head passing all required gates and merging as `main@84a4b77`
 
@@ -57,7 +57,7 @@ Required:
 
 ## B2 — resident Rust/WASM graph payload
 
-**Status:** IMPLEMENTED ON `stream-b/b2-graph-payload` (BASE `main@84a4b77`) — INDEPENDENT ADVERSARIAL REVIEW CLOSED (no BLOCKER/MAJOR; four MINOR findings fixed forward on this branch, see `review/P1_R2E_B2_POST_REVIEW_2026-08-31.md`) — PENDING EXACT-HEAD GATES + MERGE
+**Status:** IMPLEMENTED ON `stream-b/b2-graph-payload` (BASE `main@84a4b77`) — INDEPENDENT ADVERSARIAL REVIEW CLOSED (no BLOCKER/MAJOR; four MINOR findings fixed forward on this branch, see `../archive/review/P1_R2E_B2_POST_REVIEW_2026-08-31.md`) — PENDING EXACT-HEAD GATES + MERGE
 
 Required design/execution:
 
@@ -88,7 +88,7 @@ B2 additionally owns the residual B1 review obligations:
 
 ## B3 — production cutover + thin graph adapter
 
-**Status:** IMPLEMENTED ON `stream-b/b3-production-cutover` (BASE `main@008165e`) — INDEPENDENT ADVERSARIAL REVIEW CLOSED (see `review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`; no BLOCKER, 2 MAJOR + 7 MINOR findings resolved/adjudicated and fixed forward on this branch) — PENDING EXACT-HEAD GATES + MERGE
+**Status:** IMPLEMENTED ON `stream-b/b3-production-cutover` (BASE `main@008165e`) — INDEPENDENT ADVERSARIAL REVIEW CLOSED (see `../archive/review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`; no BLOCKER, 2 MAJOR + 7 MINOR findings resolved/adjudicated and fixed forward on this branch) — PENDING EXACT-HEAD GATES + MERGE
 
 Required design/execution:
 
@@ -101,7 +101,7 @@ Required design/execution:
 - [x] fail closed for pending/refused/invalid/stale payloads (PENDING/REFUSED/INVALID render a status plane and no topology; the adapter re-validates payload structure, envelope counts and the dataset fingerprint, and `appendRows` deletes the retained envelope so re-synthesis renders PENDING, never stale topology);
 - [x] consume Stream A's generic semantic detail/selection contract rather than inventing graph-specific drill-down APIs (`detailEmbodimentRequest` reconstructs the exact B1 authority; the Rust drill-down re-runs the exact `graph_from_dataset` builder for membership so drill-down can never diverge from embodied topology — node target → 1 row, edge target → 2 endpoint rows, self-loop → 1, unknown/malformed/refused → refusals);
 - [x] close the B2-deferred arbitration-binding extension: the source-binding fixture extends through `Dataset -> buildDatasetSignature -> MonetaHypothesisEngine.arbitrate` (binding the same durable row IDs/counts as the resident payload) and, in a separate falsifier, through the full `LoadDatasetUseCase` production arm — so endpoint identity and source topology provably cannot diverge after arbitration (the two halves are covered piecewise; no single test chains every stage in one body).
-- [x] post-implementation adversarial review closure with no remaining B3 blocker (`review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`; all findings resolved or explicitly adjudicated on this branch).
+- [x] post-implementation adversarial review closure with no remaining B3 blocker (`../archive/review/P1_R2E_B3_POST_REVIEW_2026-09-01.md`; all findings resolved or explicitly adjudicated on this branch).
 
 **Live-trigger scope (B3/B4 boundary, stated explicitly):** no shipped UI surface sets `requirements.graphAuthority` in B3. The live producer is the B4 browser evidence workflow (the R2D C4 precedent: `clusterEvidenceDiagnostics.ts` is likewise the only live `clusterAuthority` producer, driven from `bootstrap.ts` diagnostics mode), so governed `RELATIONSHIP_GRAPH` is reachable live only through that workflow and through tests until B4 lands. This is deliberate staging, not an oversight: B3 owns the wiring and fences; B4 owns product/scale/perceptual evidence and the live trigger.
 

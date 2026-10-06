@@ -16,6 +16,8 @@ implementation status, product direction, study protocol, or operational procedu
 
 ## Other archived groups
 
+- `review/` - point-in-time PRE/POST/STOP adversarial reviews (August-September 2026) for completed streams, consolidated here on 2026-10-06. Older citations of the form `docs/review/<name>.md` resolve to `docs/archive/review/<name>.md`.
+
 - `MONETA_MIGRATION_COMPLETION_SPRINT_2026-08-24.md` - completed P0 migration exit ledger.
 - `DEPENDENCY_MODERNIZATION_BACKLOG_COMPLETED_2026-08-24.md` - completed dependency-wave plan superseded by PR #358.
 - `AUDIT_RECOMMENDATION_2026-08-14.md` - historical built-vs-wired snapshot.

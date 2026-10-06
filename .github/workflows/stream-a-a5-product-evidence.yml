@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/stream-a-a5-product-evidence.yml'
       - 'docs/ROADMAP.md'
-      - 'docs/review/P1_R5_A5_STOP_REVIEW_2026-08-31.md'
+      - 'docs/archive/review/P1_R5_A5_STOP_REVIEW_2026-08-31.md'
       - 'src/app/a5ProductEvidenceDiagnostics.ts'
       - 'src/app/aggregateEvidenceDiagnostics.ts'
       - 'src/app/distributionEvidenceDiagnostics.ts'
