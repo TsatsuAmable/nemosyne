@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import {
   allSampleDatasets,
   getDefaultEncodings,
@@ -201,11 +202,12 @@ export class DataSourcePanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._status.setProperties({
-      text:
+      text: applyGlyphFallback(
         'LIVE DATA | ' +
-        (this.liveConnected ? 'CONNECTED' : 'OFFLINE') +
-        '\nApproved library | ' +
-        this.libraryStatus,
+          (this.liveConnected ? 'CONNECTED' : 'OFFLINE') +
+          '\nApproved library | ' +
+          this.libraryStatus,
+      ),
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
     });
@@ -293,7 +295,7 @@ export class DataSourcePanel extends SpatialPanel {
 
   private _addHeading(label: string): void {
     const heading = new Text({
-      text: label,
+      text: applyGlyphFallback(label),
       fontSize: 18 * this._textScale,
       fontWeight: 'bold',
     });

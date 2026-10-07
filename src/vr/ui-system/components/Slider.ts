@@ -1,5 +1,6 @@
 import { Container, Text } from '@pmndrs/uikit';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface SliderProperties {
   value: number;
@@ -112,7 +113,7 @@ export class Slider extends Container {
 
     // Value label.
     this._valueLabel = new Text({
-      text: this._formatValue(this._value),
+      text: applyGlyphFallback(this._formatValue(this._value)),
       fontSize: 14,
       color: this._disabled ? COLOR_TOKENS.text.muted : COLOR_TOKENS.text.secondary,
     });
@@ -123,7 +124,7 @@ export class Slider extends Container {
     // enabled sliders. Bare `Text` whose glyph raycast is already no-op'd by
     // uikit, so it cannot intercept the production pointer hit.
     this._reasonText = new Text({
-      text: properties.disabledReason ?? '',
+      text: applyGlyphFallback(properties.disabledReason ?? ''),
       fontSize: 12,
       color: COLOR_TOKENS.epistemic.uncertain,
     });
@@ -225,7 +226,7 @@ export class Slider extends Container {
       width: this._trackWidth * fraction,
     });
     this._valueLabel.setProperties({
-      text: this._formatValue(this._value),
+      text: applyGlyphFallback(this._formatValue(this._value)),
     });
   }
 }

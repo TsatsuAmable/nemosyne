@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import { Toggle } from '../ui-system/components/Toggle.ts';
@@ -556,7 +557,7 @@ export class SettingsPanel extends SpatialPanel {
       });
 
       const label = new Text({
-        text: desc.label,
+        text: applyGlyphFallback(desc.label),
         fontSize: 16 * this._textScale,
         color: palette.text,
       });
@@ -621,7 +622,7 @@ export class SettingsPanel extends SpatialPanel {
       minHeight: 36,
     });
     const privacyLabel = new Text({
-      text: `Bundle: ${this._exportPrivacyLevel}`,
+      text: applyGlyphFallback(`Bundle: ${this._exportPrivacyLevel}`),
       fontSize: 14 * this._textScale,
       color: palette.textMuted,
     });
@@ -630,7 +631,7 @@ export class SettingsPanel extends SpatialPanel {
       value: this._exportPrivacyLevel === 'full-session',
       onChange: (v) => {
         this._exportPrivacyLevel = v ? 'full-session' : 'metadata';
-        privacyLabel.setProperties({ text: `Bundle: ${this._exportPrivacyLevel}` });
+        privacyLabel.setProperties({ text: applyGlyphFallback(`Bundle: ${this._exportPrivacyLevel}`) });
       },
     });
     this._exportButton = new Button({

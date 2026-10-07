@@ -1,5 +1,6 @@
 import { Container, Text } from '@pmndrs/uikit';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface SegmentedControlProperties {
   options: string[];
@@ -59,7 +60,7 @@ export class SegmentedControl extends Container {
       });
 
       const label = new Text({
-        text: this._formatLabel(option),
+        text: applyGlyphFallback(this._formatLabel(option)),
         fontSize: 13,
         color: isActive ? COLOR_TOKENS.surface.base : COLOR_TOKENS.text.secondary,
         fontWeight: isActive ? 'bold' : 'normal',
@@ -87,7 +88,7 @@ export class SegmentedControl extends Container {
     // by `overflow: 'hidden'`. Bare `Text` whose glyph raycast is already
     // no-op'd by uikit.
     this._reasonText = new Text({
-      text: properties.disabledReason ?? '',
+      text: applyGlyphFallback(properties.disabledReason ?? ''),
       fontSize: 12,
       color: COLOR_TOKENS.epistemic.uncertain,
     });

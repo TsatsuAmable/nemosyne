@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
 import { SegmentedControl } from '../ui-system/components/SegmentedControl.ts';
@@ -198,7 +199,7 @@ export class HolographicInspector extends SpatialPanel {
     this._contentContainer.clear();
     this._contentContainer.add(
       new Text({
-        text: message,
+        text: applyGlyphFallback(message),
         fontSize: 16,
         color: COLOR_TOKENS.epistemic.uncertain,
       }),
@@ -234,7 +235,7 @@ export class HolographicInspector extends SpatialPanel {
 
     this._chrome.title = title;
     const category = data?.category ?? data?.type ?? '';
-    this._categoryText.setProperties({ text: String(category) });
+    this._categoryText.setProperties({ text: applyGlyphFallback(String(category)) });
 
     if (nodeMesh) {
       const pos = new THREE.Vector3();
@@ -295,8 +296,20 @@ export class HolographicInspector extends SpatialPanel {
     for (const [key, value] of entries) {
       if (key === 'category' || key === 'type') continue;
       const row = new Container({ flexDirection: 'row', justifyContent: 'space-between', width: '100%' });
-      row.add(new Text({ text: key, color: COLOR_TOKENS.interaction.focus, fontSize: 16 }));
-      row.add(new Text({ text: String(value).slice(0, 40), color: COLOR_TOKENS.text.primary, fontSize: 16 }));
+      row.add(
+        new Text({
+          text: applyGlyphFallback(key),
+          color: COLOR_TOKENS.interaction.focus,
+          fontSize: 16,
+        }),
+      );
+      row.add(
+        new Text({
+          text: applyGlyphFallback(String(value).slice(0, 40)),
+          color: COLOR_TOKENS.text.primary,
+          fontSize: 16,
+        }),
+      );
       this._contentContainer.add(row);
     }
   }
@@ -325,7 +338,7 @@ export class HolographicInspector extends SpatialPanel {
       const row = new Container({ flexDirection: 'column', gap: 2, width: '100%' });
       row.add(
         new Text({
-          text: `[${entry.kind.toUpperCase()}] ${entry.title}`,
+          text: applyGlyphFallback(`[${entry.kind.toUpperCase()}] ${entry.title}`),
           color: COLOR_TOKENS.text.primary,
           fontSize: 16,
         }),
@@ -365,7 +378,7 @@ export class HolographicInspector extends SpatialPanel {
       const row = new Container({ flexDirection: 'column', gap: 2, width: '100%' });
       row.add(
         new Text({
-          text: entry.operation,
+          text: applyGlyphFallback(entry.operation),
           color: COLOR_TOKENS.text.primary,
           fontSize: 16,
         }),

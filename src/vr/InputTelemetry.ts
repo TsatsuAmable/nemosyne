@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Group } from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from './ui-system/glyphFallback.ts';
 import { SpatialPanel } from './ui-system/SpatialPanel.ts';
 import { getTheme } from './ui-system/theme.ts';
 import type { AccessibilityOptions, EngineLike, HandLike, PointerLike } from './coordinators/types.ts';
@@ -321,7 +322,7 @@ export class InputTelemetry extends SpatialPanel {
   render(): void {
     const theme = getTheme(this.highContrast);
     this._content.setProperties({
-      text: this.lines.join('\n'),
+      text: applyGlyphFallback(this.lines.join('\n')),
       fontSize: 20 * this.textScale,
       color: Number(theme.textPrimary),
     });

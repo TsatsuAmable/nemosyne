@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -116,7 +117,9 @@ export class MonetaExplainerPanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._content.setProperties({
-      text: ['ANALYTICAL REPRESENTATION SOLVER RATIONALE', '', ...this._generateRationale()].join('\n'),
+      text: applyGlyphFallback(
+        ['ANALYTICAL REPRESENTATION SOLVER RATIONALE', '', ...this._generateRationale()].join('\n'),
+      ),
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
     });

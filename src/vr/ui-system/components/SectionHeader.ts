@@ -1,5 +1,6 @@
 import { Container, Text } from '@pmndrs/uikit';
 import { COLOR_TOKENS, TYPOGRAPHY_TOKENS, SPACING_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface SectionHeaderProperties {
   title: string;
@@ -27,7 +28,7 @@ export class SectionHeader extends Container {
     });
 
     this._text = new Text({
-      text: `// ${properties.title}`,
+      text: applyGlyphFallback(`// ${properties.title}`),
       fontSize: TYPOGRAPHY_TOKENS.scale.label,
       color: properties.color ?? COLOR_TOKENS.interaction.focus,
       fontWeight: 'bold',
@@ -37,7 +38,7 @@ export class SectionHeader extends Container {
   }
 
   set title(value: string) {
-    this._text.setProperties({ text: `// ${value}` });
+    this._text.setProperties({ text: applyGlyphFallback(`// ${value}`) });
   }
 
   set color(value: number) {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -113,7 +114,7 @@ export class OperationLogPanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._content.setProperties({
-      text: this._formatEntries(),
+      text: applyGlyphFallback(this._formatEntries()),
       fontSize: BASE_FONT_SIZE * this._textScale,
       color: Number(theme.textPrimary),
     });

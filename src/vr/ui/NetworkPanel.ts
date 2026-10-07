@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -161,7 +162,7 @@ export class NetworkPanel extends SpatialPanel {
         : Number(COLOR_TOKENS.danger.destructive);
 
     this._roomText.setProperties({
-      text: 'Room: ' + this.status.roomId,
+      text: applyGlyphFallback('Room: ' + this.status.roomId),
       fontSize: BASE_FONT_SIZE * this._textScale,
       color: focus,
     });
@@ -183,12 +184,12 @@ export class NetworkPanel extends SpatialPanel {
             )
             .join('\n');
     this._peersText.setProperties({
-      text: peers,
+      text: applyGlyphFallback(peers),
       fontSize: 18 * this._textScale,
       color: primary,
     });
     this._lastEventText.setProperties({
-      text: this.status.lastEvent ? 'Last: ' + this.status.lastEvent : '',
+      text: applyGlyphFallback(this.status.lastEvent ? 'Last: ' + this.status.lastEvent : ''),
       fontSize: 16 * this._textScale,
       color: muted,
     });

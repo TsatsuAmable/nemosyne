@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import type { DiscoveryEpisode } from '../../investigation/DiscoveryEpisode.ts';
 import type {
   DiscoveryReasoningSnapshot,
@@ -531,7 +532,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._summary.setProperties({
-      text: this._formatSummary(),
+      text: applyGlyphFallback(this._formatSummary()),
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
     });

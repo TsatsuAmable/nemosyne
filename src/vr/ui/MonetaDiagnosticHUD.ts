@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
@@ -113,20 +114,21 @@ export class MonetaDiagnosticHUD extends SpatialPanel {
       this._lastCost = currentCost;
     }
 
+    const summaryText: string = result?.spec
+      ? [
+          'LAYOUT: [ ' + result.spec.layout + ' ]',
+          'GEOM: [ ' + result.spec.geometry + ' ]',
+          'BEHAV: [ ' + result.spec.behavior + ' ]',
+          'COST: ' + (result.cost ?? 0).toFixed(1) + ' | LOWER IS BETTER',
+          this._costDelta !== 0
+            ? 'DELTA: ' + (this._costDelta > 0 ? '+' : '') + this._costDelta.toFixed(1)
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : 'No Moneta solver result available.';
     this._summary.setProperties({
-      text: result?.spec
-        ? [
-            'LAYOUT: [ ' + result.spec.layout + ' ]',
-            'GEOM: [ ' + result.spec.geometry + ' ]',
-            'BEHAV: [ ' + result.spec.behavior + ' ]',
-            'COST: ' + (result.cost ?? 0).toFixed(1) + ' | LOWER IS BETTER',
-            this._costDelta !== 0
-              ? 'DELTA: ' + (this._costDelta > 0 ? '+' : '') + this._costDelta.toFixed(1)
-              : '',
-          ]
-            .filter(Boolean)
-            .join('\n')
-        : 'No Moneta solver result available.',
+      text: applyGlyphFallback(summaryText),
     });
 
     for (const child of [...this._constraints.children]) {
@@ -146,14 +148,15 @@ export class MonetaDiagnosticHUD extends SpatialPanel {
         alignItems: 'center',
       });
       const label = new Text({
-        text:
+        text: applyGlyphFallback(
           String(index + 1) +
-          '. ' +
-          constraint.name.toUpperCase() +
-          ' | weight=' +
-          constraint.weight +
-          ' | penalty=' +
-          penalty.toFixed(1),
+            '. ' +
+            constraint.name.toUpperCase() +
+            ' | weight=' +
+            constraint.weight +
+            ' | penalty=' +
+            penalty.toFixed(1),
+        ),
         fontSize: 15,
         flexGrow: 1,
       });
