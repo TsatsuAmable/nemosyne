@@ -47,6 +47,8 @@ These documents may describe current implementation but must not override the go
 
 ## Product and spatial interaction reference
 
+- [`rfcs/0014-stationary-workspace-and-explicit-home.md`](rfcs/0014-stationary-workspace-and-explicit-home.md) - owner-approved target policy: stationary work panels, explicit bring/follow, distinct Home and Resume; detailed specification awaiting review, runtime and physical qualification not complete.
+
 - [`SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md`](SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md) - concise vision clarification: Moneta Forma as a semantic-to-perceptual responsibility, dataset-level embodiment, multimodal encoding and perturbation as sensory interrogation; subordinate to the Definitive Vision and live roadmap.
 - [`architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md`](architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md) - detailed dataset-first dual-mode contracts, FM0-FM8 evidence, performance and research gaps; RFC 0012 narrows initial delivery and makes advanced extensions conditional.
 - [`NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md`](NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md) - normative UX doctrine for semantic fidelity, semantic level of detail, progressive streaming, bounded resource use, long-session stability, and hardware-scaled headroom; subordinate to the Definitive Vision.

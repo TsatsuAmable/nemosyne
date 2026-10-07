@@ -8,6 +8,12 @@
   ],
   "documents": [
     {
+      "path": "docs/rfcs/0014-stationary-workspace-and-explicit-home.md",
+      "status": "active",
+      "authority": "stationary-workspace-target-policy",
+      "owner": "product-design"
+    },
+    {
       "path": "docs/rfcs/0013-fm8-composition-evidence-binding.md",
       "status": "active",
       "authority": "fm8-composition-evidence-binding-rfc",

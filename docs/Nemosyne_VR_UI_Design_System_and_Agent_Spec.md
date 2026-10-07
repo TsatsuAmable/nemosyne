@@ -8,6 +8,8 @@
 **Technology baseline:** Three.js + WebXR + Rust/WASM analytical authority  
 **Normative vocabulary:** **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are requirements levels for implementation and review.
 
+**7 October 2026 target-policy amendment:** [RFC 0014](rfcs/0014-stationary-workspace-and-explicit-home.md) adopts stationary work panels and explicit Home/Resume. This is a target requirement, not a runtime completion claim. Revision-5 code and frozen study treatment remain unchanged until separately versioned implementation and qualification.
+
 ---
 
 ## Executive directive
@@ -90,7 +92,7 @@ Apple recommends windows for familiar, UI-centric tasks and ornaments for contro
 
 MRTK recommends only a few quick-action buttons on hand menus and warns that complex hand-attached UI increases fatigue [R12]. Apple advises avoiding head-anchored content because it can feel confining and interfere with accessibility mechanisms [R10]. Meta warns against head-locked content in central/lower field of view when it can obscure hazards [R6].
 
-**Nemosyne consequence:** persistent analytical UI MUST NOT be head locked. Hand attached is for summons, micro-controls, or very short interactions. Persistent panels remain body locked or user-pinned world locked.
+**Nemosyne consequence:** persistent analytical UI MUST NOT be head locked. Hand attached is for summons, micro-controls, or very short interactions. Persistent panels default to world locked; body following is an explicit option.
 
 ### 2.7 Peripheral motion and camera motion deserve stricter controls than desktop UI
 
@@ -325,26 +327,26 @@ Every UI component MUST declare one reference frame.
 
 | Frame | Meaning | Use |
 |---|---|---|
-| `WORLD_LOCKED` | Stable in the investigation/world | Dataset, TechnoCore landmark, pinned panels, portals |
+| `WORLD_LOCKED` | Stable in the investigation/world | Dataset, TechnoCore landmark, persistent work panels, portals |
 | `INVESTIGATION_FRAME` | Stable relative to investigation topology | Memory Palace graph, findings, reasoning threads |
-| `BODY_LOCKED` | Follows torso orientation with damping | Persistent personal work panels, command surface anchor |
+| `BODY_LOCKED` | Follows accepted body heading with damping | Explicit optional Follow mode, not the persistent-panel default |
 | `HAND_ATTACHED` | Attached to a hand | brief summons, micro-controls, tooltips, expert accelerators |
 | `OBJECT_ATTACHED` | Attached to semantic object | contextual handles, beacons, local task surface |
 | `HEAD_LOCKED_TRANSIENT` | Guaranteed visibility only | critical comfort/system alert, never routine analytical UI |
 
-Persistent analytical panels MUST use `BODY_LOCKED` by default and MAY become `WORLD_LOCKED` when grabbed/pinned. This agrees with the current Nemosyne panel-layout decision that consolidated persistent panels into the damped torso anchor.
+Persistent analytical panels MUST use `WORLD_LOCKED` by default, placed once near the opening viewpoint and stable during gaze, lean, turns and locomotion. `BODY_LOCKED` is an explicit optional Follow mode. This target supersedes revision 5's default for future implementation, not for frozen studies. See [RFC 0014](rfcs/0014-stationary-workspace-and-explicit-home.md).
 
-Reference-frame transitions MUST animate with continuity. A panel may tear away from the body anchor into world space only if the user can visually follow its motion.
+Reference-frame switches MUST preserve world pose and scale. Explicit repositioning MUST maintain visual continuity without moving the camera; direct manipulation MUST NOT introduce pursuit lag.
 
 ## 6. Comfortable spatial zones
 
-Nemosyne uses zones based on reach, visual angle, fatigue research, and the project’s existing body-locked layout.
+Nemosyne uses zones based on reach, visual angle and fatigue research. Existing distances are qualification candidates, not a requirement to follow the user continuously.
 
 | Zone | Approx. distance | Purpose | Rules |
 |---|---:|---|---|
 | Micro / hand | 0.25-0.45 m | brief hand summons, tooltips | seconds, not minutes |
 | Near touch | 0.45-0.70 m | direct-touch controls, compact inspector | primary poke/touch zone |
-| Primary work | 0.70-1.20 m | reading, settings, evidence panels | body locked or pinned; ray + touch near edge |
+| Primary work | 0.70-1.20 m | reading, settings, evidence panels | stationary by default; ray + touch near edge |
 | Reference | 1.20-1.80 m | secondary status, occasional comparison | ray-first; subordinate contrast |
 | Data field | ~2-8 m, representation dependent | dataset structures and analytical spatial context | no generic panels embedded here |
 
@@ -628,7 +630,8 @@ Novice top level:
 Rules:
 
 - hidden when not invoked;
-- body locked, not rigidly wrist locked;
+- placed on summons near the current working view, stable during selection, not rigidly wrist locked;
+- dismiss after successful selection; explain unavailable actions;
 - reachable in a lowered comfortable posture;
 - 6 primary nodes maximum;
 - direct touch supported when near;
@@ -690,7 +693,7 @@ Portals represent **travel/context change**, not ordinary commands. A portal mus
 
 ### 15.14 System status strip
 
-Quiet body-locked status with only essential global facts:
+Quiet workspace-stationary status (optional explicit Follow) with only essential global facts:
 
 - dataset/investigation identity;
 - branch;
@@ -745,17 +748,19 @@ Opening a fourth surface SHOULD either replace/consolidate a lower-priority surf
 
 ### 16.2 Panel placement
 
-Default persistent panels are body locked to the damped analyst/torso anchor. When grabbed and released, they become world locked until the user chooses Follow/Return.
+Default persistent panels are world locked. Opening places a new panel once near the current working view; reopening preserves its existing pose. Optional Follow is visibly indicated and off by default. A grab commits a stationary placement.
 
 Panels SHOULD open near the user’s current central working region, not at a fixed world origin. Placement must avoid overlapping the focused dataset feature.
 
+`Bring workspace here` explicitly relocates open personal tools without moving data or annotations. `Go Home` returns to a safe investigation-relative overview without resetting the workspace. Existing investigations offer `Resume workspace` and `Start at Home`; new investigations start at Home. Tracking recenter is not either action. Session restoration must validate the current XR mapping and disclose safe recovery rather than fabricate physical-room continuity.
+
 ### 16.3 Panel chrome
 
-Chrome is minimal and appears on hover/proximity:
+Chrome is minimal, but Close and Move MUST remain visibly discoverable without hover or gesture knowledge:
 
-- grab rail centered below or on a side edge;
-- pin/follow;
-- close/back;
+- visible Move control and grab rail centered below or on a side edge;
+- explicit Follow with visible state;
+- visible Close; Back where navigation applies;
 - resize only where content genuinely benefits from resizing.
 
 This borrows the ergonomic principle of Meta’s window controls and Apple ornaments without visually cloning either platform.

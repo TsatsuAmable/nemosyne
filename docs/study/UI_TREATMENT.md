@@ -1,5 +1,7 @@
 # Participant-Facing UI Treatment Declaration
 
+**Pending target change:** [RFC 0014](../rfcs/0014-stationary-workspace-and-explicit-home.md) adopts stationary work panels and explicit Home/Resume. This documentation-only adoption does not change the treatment identity below. Runtime rollout requires a new identity, matching declaration and research review; frozen conditions must not inherit the new defaults silently.
+
 **Treatment identity (`uiTreatmentVersion`):** `panel-layout/5+intent-wheel/3+frames/body-stable`
 **Declared:** 16 September 2026 · **Authority:** decision records
 `docs/decisions/VR_PANEL_SPATIAL_LAYOUT.md` revisions 1–4 plus
