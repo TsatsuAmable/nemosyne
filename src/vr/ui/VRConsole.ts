@@ -2,6 +2,7 @@
    to mirror browser output into a world-space diagnostic surface. */
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -153,7 +154,7 @@ export class VRConsole extends SpatialPanel {
     try {
       const theme = getTheme(this._highContrast);
       this._content.setProperties({
-        text: this.lines.map((line) => line.text).join('\n'),
+        text: applyGlyphFallback(this.lines.map((line) => line.text).join('\n')),
         fontSize: 16 * this._textScale,
         color: Number(theme.textPrimary),
       });

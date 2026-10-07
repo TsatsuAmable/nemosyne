@@ -1,6 +1,7 @@
 import { Container, Text } from '@pmndrs/uikit';
 import { Button } from './Button.ts';
 import { COLOR_TOKENS, SPACING_TOKENS, TYPOGRAPHY_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface PanelChromeProperties {
   title: string;
@@ -59,7 +60,7 @@ export class PanelChrome extends Container {
     this._onPinToggle = properties.onPinToggle;
 
     this._titleText = new Text({
-      text: `// ${properties.title}`,
+      text: applyGlyphFallback(`// ${properties.title}`),
       fontSize: TYPOGRAPHY_TOKENS.scale.heading,
       color: properties.color ?? COLOR_TOKENS.interaction.focus,
       fontWeight: 'bold',
@@ -99,6 +100,6 @@ export class PanelChrome extends Container {
   }
 
   set title(value: string) {
-    this._titleText.setProperties({ text: `// ${value}` });
+    this._titleText.setProperties({ text: applyGlyphFallback(`// ${value}`) });
   }
 }

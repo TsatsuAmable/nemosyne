@@ -1,5 +1,6 @@
 import { Container, Text, type ContainerProperties } from '@pmndrs/uikit';
 import { COLOR_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface ButtonProperties extends ContainerProperties {
   label: string;
@@ -81,7 +82,7 @@ export class Button extends Container {
     this._activeBg = activeBg;
 
     this._text = new Text({
-      text: label,
+      text: applyGlyphFallback(label),
       fontSize: 14,
       color: disabled ? COLOR_TOKENS.text.secondary : textColor,
     });
@@ -92,7 +93,7 @@ export class Button extends Container {
     // space on enabled buttons. Bare `Text` whose glyph raycast is already
     // no-op'd by uikit, so it cannot intercept the production pointer hit.
     this._reasonText = new Text({
-      text: disabledReason ?? '',
+      text: applyGlyphFallback(disabledReason ?? ''),
       fontSize: 12,
       color: COLOR_TOKENS.epistemic.uncertain,
     });
@@ -161,7 +162,7 @@ export class Button extends Container {
   }
 
   set label(value: string) {
-    this._text.setProperties({ text: value });
+    this._text.setProperties({ text: applyGlyphFallback(value) });
   }
 
   set disabled(value: boolean) {
@@ -178,7 +179,7 @@ export class Button extends Container {
 
   set disabledReason(value: string | undefined) {
     this._disabledReason = value;
-    this._reasonText.setProperties({ text: value ?? '' });
+    this._reasonText.setProperties({ text: applyGlyphFallback(value ?? '') });
     this._syncReasonPresence();
   }
 

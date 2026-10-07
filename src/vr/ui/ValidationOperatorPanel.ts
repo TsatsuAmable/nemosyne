@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
@@ -362,7 +363,7 @@ export class ValidationOperatorPanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._summary.setProperties({
-      text: this._formatSummary(),
+      text: applyGlyphFallback(this._formatSummary()),
       fontSize: 15 * this._textScale,
       color: Number(theme.textPrimary),
     });

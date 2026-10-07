@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -152,7 +153,7 @@ export class InteractionCoach extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._content.setProperties({
-      text: this._formatContent(),
+      text: applyGlyphFallback(this._formatContent()),
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
     });

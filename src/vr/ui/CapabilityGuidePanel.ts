@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS, SPACING_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
@@ -228,7 +229,7 @@ export class CapabilityGuidePanel extends SpatialPanel {
 
   refresh(): void {
     this._renderedSummary = this._formatSummary();
-    this._summary.setProperties({ text: this._renderedSummary });
+    this._summary.setProperties({ text: applyGlyphFallback(this._renderedSummary) });
     this._rebuildButtons();
     this._lastContextSignature = this._contextSignature();
   }

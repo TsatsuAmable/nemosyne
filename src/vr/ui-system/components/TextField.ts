@@ -1,5 +1,6 @@
 import { Container, Text, Input } from '@pmndrs/uikit';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface TextFieldProperties {
   /** Initial/controlled value. */
@@ -62,7 +63,7 @@ export class TextField extends Container {
     this._disabledReason = properties.disabledReason;
 
     this._label = new Text({
-      text: properties.label ?? '',
+      text: applyGlyphFallback(properties.label ?? ''),
       fontSize: 14,
       color: this._disabled ? COLOR_TOKENS.text.muted : COLOR_TOKENS.text.secondary,
       display: properties.label ? 'flex' : 'none',
@@ -102,7 +103,7 @@ export class TextField extends Container {
     // while disabled with a reason so it does not reserve layout space on
     // enabled fields.
     this._reasonText = new Text({
-      text: properties.disabledReason ?? '',
+      text: applyGlyphFallback(properties.disabledReason ?? ''),
       fontSize: 12,
       color: COLOR_TOKENS.epistemic.uncertain,
     });
@@ -134,7 +135,7 @@ export class TextField extends Container {
   }
 
   set disabledReason(value: string | undefined) {
-    this._reasonText.setProperties({ text: value ?? '' });
+    this._reasonText.setProperties({ text: applyGlyphFallback(value ?? '') });
     this._syncReasonPresence();
   }
 

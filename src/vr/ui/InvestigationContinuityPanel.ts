@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import type { InvestigationContinuityController } from '../../app/investigation/InvestigationContinuityController.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
@@ -244,7 +245,9 @@ export class InvestigationContinuityPanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._statusText.setProperties({
-      text: 'INVESTIGATION CONTINUITY\nSave, checkpoint, carry or recover your work\n\n' + this.status,
+      text: applyGlyphFallback(
+        'INVESTIGATION CONTINUITY\nSave, checkpoint, carry or recover your work\n\n' + this.status,
+      ),
       fontSize: 16 * this._textScale,
       color: Number(theme.textPrimary),
     });

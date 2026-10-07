@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
@@ -259,7 +260,9 @@ export class ContextualTaskSurface extends SpatialPanel {
     this._openInspectorBudgetSlot();
 
     const identity = data?.name ?? data?.label ?? data?.id ?? nodeMesh?.name ?? 'Selected object';
-    this._selectionText.setProperties({ text: `Selected | ${String(identity).slice(0, 38)}` });
+    this._selectionText.setProperties({
+      text: applyGlyphFallback(`Selected | ${String(identity).slice(0, 38)}`),
+    });
 
     this._updateAnchorTransform();
     this._updateButtonStates();

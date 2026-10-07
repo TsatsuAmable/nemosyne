@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
@@ -159,7 +160,7 @@ export class TelemetryPanel extends SpatialPanel {
   render(): void {
     const theme = getTheme(this._highContrast);
     this._content.setProperties({
-      text: this._formatReport(this.telemetry?.getReport() ?? null),
+      text: applyGlyphFallback(this._formatReport(this.telemetry?.getReport() ?? null)),
       fontSize: BASE_FONT_SIZE * this._textScale,
       color: Number(theme.textPrimary),
     });

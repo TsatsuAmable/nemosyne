@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
 import { ScrollContainer } from '../ui-system/components/ScrollContainer.ts';
@@ -179,7 +180,7 @@ export class SchemaMappingPanel extends SpatialPanel {
       });
 
       const nameLabel = new Text({
-        text: col.name,
+        text: applyGlyphFallback(col.name),
         fontSize: TYPOGRAPHY_TOKENS.scale.body,
         color: COLOR_TOKENS.text.primary,
         flexGrow: 1,

@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { Custom, Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -85,7 +86,7 @@ export class ChartPlanePanel extends SpatialPanel {
     const chartTitle = options.title ?? 'CHART';
     this.title = chartTitle;
     this._titleText = new Text({
-      text: chartTitle,
+      text: applyGlyphFallback(chartTitle),
       fontSize: 22 * this._textScale,
       fontWeight: 'bold',
       color: Number(theme.textPrimary),

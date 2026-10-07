@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
+import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { StatusStripController } from './StatusStripController.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../ui-system/tokens.ts';
@@ -127,7 +128,7 @@ export class StatusStripPanel extends SpatialPanel {
     for (let index = 0; index < this._lineTexts.length; index++) {
       const text = lines[index] ?? '';
       if (force || this._lastLines[index] !== text) {
-        this._lineTexts[index].setProperties({ text });
+        this._lineTexts[index].setProperties({ text: applyGlyphFallback(text) });
       }
     }
     this._lastLines = [...lines];

@@ -1,5 +1,6 @@
 import { Container, Text } from '@pmndrs/uikit';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../tokens.ts';
+import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface ToggleProperties {
   value: boolean;
@@ -84,7 +85,7 @@ export class Toggle extends Container {
     // Optional label
     if (properties.label) {
       this._label = new Text({
-        text: properties.label,
+        text: applyGlyphFallback(properties.label),
         fontSize: 16,
         color: this._disabled ? COLOR_TOKENS.text.muted : COLOR_TOKENS.text.primary,
       });
@@ -96,7 +97,7 @@ export class Toggle extends Container {
     // enabled toggles. Bare `Text` whose glyph raycast is already no-op'd by
     // uikit, so it cannot intercept the production pointer hit.
     this._reasonText = new Text({
-      text: properties.disabledReason ?? '',
+      text: applyGlyphFallback(properties.disabledReason ?? ''),
       fontSize: 12,
       color: COLOR_TOKENS.epistemic.uncertain,
     });
