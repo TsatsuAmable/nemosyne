@@ -105,31 +105,68 @@ export interface AdviceBatteryRow {
   readonly advisedSeeded: boolean;
 }
 
-export function runAdviceCase(
-  caseId: string,
-  rowCount: number,
-  budget: DeviceCapabilityBudgetV1
-): AdviceBatteryRow {
+export interface AdviceCaseSpec {
+  readonly caseId: string;
+  readonly rowCount: number;
+  readonly wide?: boolean;
+  readonly intent?: {
+    readonly researchQuestion: string;
+    readonly currentTask: string;
+    readonly variablesOfInterest: string[];
+  };
+  readonly budget: DeviceCapabilityBudgetV1;
+  readonly maxGenerations: number;
+  readonly populationSize: number;
+}
+
+export function makeWideAdviceDataset(rowCount: number): Dataset {
+  const rows = [];
+  for (let i = 0; i < rowCount; i++) {
+    rows.push({
+      dim1: i * 2.0,
+      dim2: (i % 6) * 1.5,
+      dim3: ((i * 7) % 11) * 1.1,
+      category: i % 2 === 0 ? 'TypeA' : 'TypeB',
+    });
+  }
+  return new Dataset(
+    'fm5-measure-wide-ds',
+    [
+      { name: 'dim1', type: ColumnType.NUMERIC },
+      { name: 'dim2', type: ColumnType.NUMERIC },
+      { name: 'dim3', type: ColumnType.NUMERIC },
+      { name: 'category', type: ColumnType.CATEGORICAL },
+    ],
+    rows
+  );
+}
+
+export function runAdviceCaseFull(spec: AdviceCaseSpec): AdviceBatteryRow {
+  const intent = spec.intent ?? {
+    researchQuestion: 'How do points cluster?',
+    currentTask: 'cluster_analysis',
+    variablesOfInterest: ['dim1', 'dim2'],
+  };
   const runArm = (ignoreSystem1Advice?: boolean) => {
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() });
-    atlas.loadDataset(makeAdviceDataset(rowCount));
-    atlas.commitInvestigationContext(`node-${caseId}`, {
+    atlas.loadDataset(
+      spec.wide === true ? makeWideAdviceDataset(spec.rowCount) : makeAdviceDataset(spec.rowCount)
+    );
+    atlas.commitInvestigationContext(`node-${spec.caseId}`, {
       schemaVersion: 2,
-      nodeId: `node-${caseId}`,
+      nodeId: `node-${spec.caseId}`,
       intent: {
         schemaVersion: 1,
-        researchQuestion: 'How do points cluster?',
-        variablesOfInterest: ['dim1', 'dim2'],
-        currentTask: 'cluster_analysis',
+        ...intent,
       },
       epistemicPurpose: 'CLAIM_BEARING',
     });
-    const evidence = makeAdviceEvidence(atlas.datasetFingerprint!, rowCount);
+    const evidence = makeAdviceEvidence(atlas.datasetFingerprint!, spec.rowCount);
     return atlas.adaptRepresentation({
       preference: 'BALANCED',
-      budget,
-      maxGenerations: 1,
-      populationSize: 4,
+      budget: spec.budget,
+      maxGenerations: spec.maxGenerations,
+      populationSize: spec.populationSize,
       analyticalEvidence: evidence,
       ...(ignoreSystem1Advice === true ? { ignoreSystem1Advice: true as const } : {}),
     });
@@ -143,13 +180,22 @@ export function runAdviceCase(
   );
 
   return {
-    caseId,
+    caseId: spec.caseId,
     adviceStatus: advised.system1ProposalSet.status,
     advisedUtility: advised.candidate.utility,
     bypassedUtility: bypassed.candidate.utility,
     utilityDelta: advised.candidate.utility - bypassed.candidate.utility,
     advisedSeeded,
   };
+}
+
+export function runAdviceCase(
+  caseId: string,
+  rowCount: number,
+  budget: DeviceCapabilityBudgetV1
+): AdviceBatteryRow {
+  // Frozen 1x4 shape: delegates so the pinned gate can never drift from this helper.
+  return runAdviceCaseFull({ caseId, rowCount, budget, maxGenerations: 1, populationSize: 4 });
 }
 
 export const ADVICE_BATTERY_CASES = [
