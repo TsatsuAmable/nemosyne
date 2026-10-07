@@ -13,90 +13,52 @@ import { SpatialPanel } from '../../src/vr/ui-system/SpatialPanel.ts';
 import { Toggle } from '../../src/vr/ui-system/components/Toggle.ts';
 import { Slider } from '../../src/vr/ui-system/components/Slider.ts';
 
-interface FakeHit {
-  object: Container;
-  uv: THREE.Vector2;
-  point: THREE.Vector3;
-}
-
-function makeRaycaster() {
-  // State the test mutates between pointerdown / pointermove to model the ray
-  // grazing different components over time.
-  const singleByObj = new Map<Container, FakeHit[]>();
-  let panelWide: FakeHit[] = [];
-  return {
-    ray: new THREE.Ray(),
-    _setPanelWide(hits: FakeHit[]): void {
-      panelWide = hits;
-    },
-    _setSingle(obj: Container, hits: FakeHit[]): void {
-      singleByObj.set(obj, hits);
-    },
-    intersectObject(obj: Container, recursive: boolean): FakeHit[] {
-      if (recursive && obj === (this as unknown as { _panel: Container })._panel) return panelWide;
-      if (!recursive) return singleByObj.get(obj) ?? [];
-      return [];
-    },
-  } as unknown as THREE.Raycaster & {
-    _setPanelWide(hits: FakeHit[]): void;
-    _setSingle(obj: Container, hits: FakeHit[]): void;
-    _panel: Container;
-  };
-}
-
 describe('SpatialPanel production pointer dispatch', () => {
   it('keeps a captured drag anchored to the capturing component (no foreign-uv jump)', () => {
+    // Real geometry: a Slider drag whose ray drifts onto a neighbouring
+    // component must hold its value (the captured track is re-raycast
+    // alone; a miss carries no uv) rather than jumping to the foreign
+    // component's fraction — and a full miss must hold as well.
+    const scene = new THREE.Scene();
     const anchor = new THREE.Group();
-    const scene = new THREE.Group();
-    const panel = new SpatialPanel({}, anchor, scene);
-
-    const track = new Container({ width: 160, height: 8 });
-    const foreign = new Container({ width: 160, height: 8 });
-    panel.add(track);
+    scene.add(anchor);
+    const panel = new SpatialPanel({ width: 560, height: 400 }, anchor, scene);
+    panel.position.set(0, 1.6, -1.2);
+    const slider = new Slider({ value: 0, min: 0, max: 100, width: 160 });
+    const foreign = new Container({ width: 160, height: 40 });
+    panel.add(slider);
     panel.add(foreign);
+    for (let i = 0; i < 12; i++) SpatialPanel.prototype.update.call(panel, 0.016);
+    scene.updateMatrixWorld(true);
 
-    const trackHit: FakeHit = {
-      object: track,
-      uv: new THREE.Vector2(0.4, 0.5),
-      point: new THREE.Vector3(),
+    const track = slider._trackBg;
+    const origin = new THREE.Vector3(0, 1.6, 0);
+    const raycaster = new THREE.Raycaster();
+    const aim = (point: THREE.Vector3) => {
+      raycaster.set(origin, point.clone().sub(origin).normalize());
     };
-    const foreignHit: FakeHit = {
-      object: foreign,
-      uv: new THREE.Vector2(0.9, 0.5),
-      point: new THREE.Vector3(),
-    };
-
-    const received: { uv?: THREE.Vector2 }[] = [];
-    track.addEventListener('pointermove', (e: { uv?: THREE.Vector2 }) => {
-      received.push({ uv: e.uv });
-    });
-
-    const raycaster = makeRaycaster();
-    raycaster._panel = panel;
     const pointer = { index: 0 };
+    // Quad units: ±0.5 spans the laid-out size.
+    const trackPoint = (fraction: number) =>
+      track.localToWorld(new THREE.Vector3(-0.5 + fraction, 0, 0));
 
-    // pointerdown lands on the track → track is captured.
-    raycaster._setPanelWide([trackHit]);
+    // Press at 25% of the track, drag along it to 75%: the value follows.
+    aim(trackPoint(0.25));
     panel.handlePointerDown(raycaster, pointer as never);
-
-    // pointermove: the panel-wide ray now grazes a foreign component, but the
-    // captured track must receive a track-local uv (0.4), not the foreign 0.9.
-    raycaster._setPanelWide([foreignHit]);
-    raycaster._setSingle(track, [trackHit]);
+    expect(slider.value).toBeCloseTo(25, 0);
+    aim(trackPoint(0.75));
     panel.handlePointerMove(raycaster, pointer as never);
+    expect(slider.value).toBeCloseTo(75, 0);
 
-    expect(received).toHaveLength(1);
-    expect(received[0].uv).toBeDefined();
-    expect(received[0].uv!.x).toBeCloseTo(0.4, 5);
-
-    // When the pointer leaves the captured component entirely (single-ray
-    // miss), the move event carries no uv so the control's guard leaves the
-    // value unchanged rather than jumping to a foreign component.
-    received.length = 0;
-    raycaster._setSingle(track, []);
+    // Drift onto the foreign neighbour: the value must hold, not jump.
+    aim(foreign.getWorldPosition(new THREE.Vector3()));
     panel.handlePointerMove(raycaster, pointer as never);
-    expect(received).toHaveLength(1);
-    expect(received[0].uv).toBeUndefined();
+    expect(slider.value).toBeCloseTo(75, 0);
+
+    // Leave all geometry: the value must still hold.
+    raycaster.set(origin, new THREE.Vector3(0, 1, 0));
+    panel.handlePointerMove(raycaster, pointer as never);
+    expect(slider.value).toBeCloseTo(75, 0);
   });
 
   it('targets the Toggle panel mesh, not its non-bubbling track/thumb children', () => {

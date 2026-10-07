@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import type { AccessibilityOptions } from '../coordinators/types.ts';
@@ -79,7 +80,7 @@ export class VRConsole extends SpatialPanel {
     this._textScale = textScale;
     this._highContrast = highContrast;
 
-    this.scale.setScalar(1.2 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(1.2, PANEL_WIDTH));
     this.position.copy(this.defaultPosition);
 
     this._content = new Text({

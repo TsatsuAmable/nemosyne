@@ -3,6 +3,7 @@ import { Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { StatusStripController } from './StatusStripController.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { COLOR_TOKENS, SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { remapColor } from '../../utils/Accessibility.ts';
@@ -69,7 +70,7 @@ export class StatusStripPanel extends SpatialPanel {
     this._colorblindMode = colorblindMode;
 
     const worldWidth = options.worldSize?.[0] ?? DEFAULT_WORLD_WIDTH;
-    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(worldWidth, PANEL_WIDTH));
     const position = options.position ?? [0, 1.8, -1.2];
     this.defaultPosition = new THREE.Vector3(...position);
     this.position.copy(this.defaultPosition);

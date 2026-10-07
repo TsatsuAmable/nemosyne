@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { getGestureMeta } from '../../utils/GestureMapping.ts';
@@ -70,7 +71,7 @@ export class InteractionCoach extends SpatialPanel {
     this._highContrast = highContrast;
 
     const worldWidth = options.worldSize?.[0] ?? 0.8;
-    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(worldWidth, PANEL_WIDTH));
     this.defaultPosition = new THREE.Vector3(...(options.position ?? [0.75, 1.45, -1.0]));
     this.position.copy(this.defaultPosition);
 

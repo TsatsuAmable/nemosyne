@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import type { AccessibilityOptions } from '../coordinators/types.ts';
@@ -67,7 +68,7 @@ export class GestureConfidenceHUD extends SpatialPanel {
     );
 
     this.name = 'gesture-confidence-hud';
-    this.scale.setScalar(0.85 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(0.85, PANEL_WIDTH));
     this.defaultPosition = new THREE.Vector3(...position);
     this.position.copy(this.defaultPosition);
 

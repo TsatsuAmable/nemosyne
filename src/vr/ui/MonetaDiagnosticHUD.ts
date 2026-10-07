@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -53,7 +54,7 @@ export class MonetaDiagnosticHUD extends SpatialPanel {
 
     this.name = 'moneta-diagnostic-hud';
     this.monetaNode = monetaNode;
-    this.scale.setScalar(1.3 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(1.3, PANEL_WIDTH));
     this.defaultPosition = new THREE.Vector3(...position);
     this.position.copy(this.defaultPosition);
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
 import { SegmentedControl } from '../ui-system/components/SegmentedControl.ts';
 import { Button } from '../ui-system/components/Button.ts';
@@ -106,7 +107,7 @@ export class HolographicInspector extends SpatialPanel {
     this.visible = false;
 
     // Default world size to [0.6, 0.45] roughly
-    const scale = options.worldSize ? options.worldSize[0] / 512 : 0.6 / 512;
+    const scale = options.worldSize ? panelWorldScale(options.worldSize[0], 512) : panelWorldScale(0.6, 512);
     this.scale.setScalar(scale);
 
     // --- Chrome (standardised title + pin + close, P1-U3 / P1-U8) ---

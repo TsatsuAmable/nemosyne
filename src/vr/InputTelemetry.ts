@@ -3,6 +3,7 @@ import { Group } from 'three';
 import { Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from './ui-system/glyphFallback.ts';
 import { SpatialPanel } from './ui-system/SpatialPanel.ts';
+import { panelWorldScale } from './ui-system/uikitScale.ts';
 import { getTheme } from './ui-system/theme.ts';
 import type { AccessibilityOptions, EngineLike, HandLike, PointerLike } from './coordinators/types.ts';
 import { WorldSpatialContext } from './trace/WorldSpatialContext.ts';
@@ -57,7 +58,7 @@ export class InputTelemetry extends SpatialPanel {
     this.lines = [];
     this._worldContext = new WorldSpatialContext();
 
-    this.scale.setScalar(1.1 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(1.1, PANEL_WIDTH));
     this.position.copy(this.defaultPosition);
 
     this._content = new Text({

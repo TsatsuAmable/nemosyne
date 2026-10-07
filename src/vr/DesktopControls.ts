@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Engine } from './Engine.ts';
+import { intersectPanelMesh } from './ui-system/raycastUIKit.ts';
 
 /**
  * Desktop fallback controls: mouse look + pointer interaction.
@@ -231,14 +232,19 @@ export class DesktopControls {
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
     // Hit-test panels and scene interactables to place the cursor and set
-    // ray length for the router's laser visuals.
+    // ray length for the router's laser visuals. UIKit panels use the shared
+    // component traversal (live components, child controls included) so the
+    // desktop cursor agrees with the XR press path; legacy non-UIKit panel
+    // meshes keep their direct hit-test.
     const panelMeshes = this.engine.input.panels.map(
       (p: { mesh?: THREE.Object3D | null }) => p.mesh
     );
-    const panelHits = this.raycaster.intersectObjects(
-      panelMeshes.filter((mesh): mesh is THREE.Object3D => !!mesh),
-      false
-    );
+    const panelHits: THREE.Intersection[] = [];
+    for (const mesh of panelMeshes) {
+      if (!mesh) continue;
+      panelHits.push(...intersectPanelMesh(mesh, this.raycaster));
+    }
+    panelHits.sort((a, b) => a.distance - b.distance);
     const sceneHit = this.engine.input.raycastScene(this.raycaster);
     const panelDistance = panelHits[0]?.distance ?? Number.POSITIVE_INFINITY;
     const sceneDistance = sceneHit?.distance ?? Number.POSITIVE_INFINITY;

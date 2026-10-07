@@ -11,6 +11,7 @@ import { canonicalSha256Hex } from '../../security/CryptoHash.ts';
 import type { HandLike, PanelLike } from '../coordinators/types.ts';
 import type { SelectionDispatchInfo } from '../input/SelectionDispatcher.ts';
 import type { SystemGestureTraceInfo } from '../input/SystemGestureDetector.ts';
+import { intersectPanelMesh } from '../ui-system/raycastUIKit.ts';
 import {
   WorldSpatialContext,
   type WorldLandmarkTarget,
@@ -812,8 +813,8 @@ export class UXTraceRecorder {
     let best: TargetInfo = { target: null, kind: null, dist: null };
 
     for (const panel of this._engine.input.panels ?? []) {
-      if (!panel.mesh?.visible) continue;
-      const hits = this._raycaster.intersectObject(panel.mesh, false);
+      if (!panel.mesh) continue;
+      const hits = intersectPanelMesh(panel.mesh, this._raycaster);
       if (hits.length > 0 && (best.dist === null || hits[0].distance < best.dist)) {
         best = {
           target: panel.title ?? this._describeMesh(panel.mesh, undefined) ?? 'panel',

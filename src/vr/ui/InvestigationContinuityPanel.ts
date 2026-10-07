@@ -3,6 +3,7 @@ import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import type { InvestigationContinuityController } from '../../app/investigation/InvestigationContinuityController.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -95,7 +96,7 @@ export class InvestigationContinuityPanel extends SpatialPanel {
 
     this.name = 'investigation-continuity-panel';
     this.continuity = continuity;
-    this.scale.setScalar(0.86 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(0.86, PANEL_WIDTH));
     this.position.copy(this.defaultPosition);
 
     this._statusText = new Text({

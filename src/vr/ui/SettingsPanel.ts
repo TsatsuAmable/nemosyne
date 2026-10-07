@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import { Toggle } from '../ui-system/components/Toggle.ts';
 import { Slider } from '../ui-system/components/Slider.ts';
@@ -48,18 +49,10 @@ const PANEL_HEIGHT = 720;
  * distances: at 1.3m the caps subtend ~1 deg at 2m.
  */
 const PANEL_WORLD_WIDTH = 1.3;
-/**
- * uikit pixelSize in world units per design pixel. Must match the
- * `@pmndrs/uikit` default (`properties/defaults.js`); the app does not
- * override it. The panel's instanced content spans
- * `PANEL_WIDTH * UIKIT_PIXEL_SIZE` uikit units, so the root scale must map
- * that span (not the raw design pixels) to PANEL_WORLD_WIDTH metres.
- * Dividing by the raw design pixels collapses the card to millimetres and
- * it is effectively invisible in the headset; dividing by the uikit-unit
- * span renders the intended 1.3m card. Verified with desktop screenshots
- * (illegible fragment before, full readable card after).
- */
-const UIKIT_PIXEL_SIZE = 0.01;
+// World scale derives from the shared `panelWorldScale` helper (uikit design
+// pixels map to local units at 0.01): dividing by the raw design pixels
+// collapses the card to millimetres. Verified with desktop screenshots
+// (illegible fragment before, full readable card after).
 
 export interface SettingsPanelOptions {
   torsoAnchor: THREE.Object3D;
@@ -312,7 +305,7 @@ export class SettingsPanel extends SpatialPanel {
     );
     this.name = 'settings-panel';
 
-    this.scale.setScalar(PANEL_WORLD_WIDTH / (PANEL_WIDTH * UIKIT_PIXEL_SIZE));
+    this.scale.setScalar(panelWorldScale(PANEL_WORLD_WIDTH, PANEL_WIDTH));
 
     this.onChange = options.onChange ?? (() => {});
     this._onExitVR = options.onExitVR ?? null;

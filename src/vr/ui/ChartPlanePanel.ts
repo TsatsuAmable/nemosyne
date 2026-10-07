@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { Custom, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { ChartPlane, ChartType, type ChartKind } from '../artifacts/ChartPlane.ts';
@@ -78,7 +79,7 @@ export class ChartPlanePanel extends SpatialPanel {
     this._textScale = options.textScale ?? 1;
     this._highContrast = highContrast;
 
-    this.scale.setScalar(worldSize[0] / width);
+    this.scale.setScalar(panelWorldScale(worldSize[0], width));
     this.defaultPosition = new THREE.Vector3(...(options.position ?? [0, 1.6, 1.5]));
     this.position.copy(this.defaultPosition);
     this.userData.panelPixelSize = [width, height];

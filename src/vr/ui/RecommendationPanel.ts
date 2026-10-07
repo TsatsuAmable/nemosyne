@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -87,7 +88,7 @@ export class RecommendationPanel extends SpatialPanel {
     this._textScale = options.textScale ?? 1;
     this._highContrast = highContrast;
     const worldWidth = options.worldSize?.[0] ?? 0.72;
-    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(worldWidth, PANEL_WIDTH));
     this.defaultPosition = new THREE.Vector3(...(options.position ?? [0.8, 1.55, -1.1]));
     this.position.copy(this.defaultPosition);
 

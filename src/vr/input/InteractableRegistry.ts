@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import type { ObjectBVH } from 'three-mesh-bvh';
 import type { FeedbackLike, PanelLike } from '../coordinators/types.ts';
+import { intersectPanelMesh } from '../ui-system/raycastUIKit.ts';
 import {
   BVHSpatialAccelerator,
   MAX_EXPANDED_OBJECT_BVH_INSTANCES,
@@ -248,12 +249,17 @@ export class InteractableRegistry {
 
   /**
    * Raycast against visible panels and return the nearest { panel, distance }.
+   *
+   * UIKit roots use the shared component traversal (live components,
+   * `pointerEvents` respected, child controls included) so
+   * hover/panel-vs-scene ordering agrees with the press path; legacy
+   * non-UIKit panel meshes keep their direct hit-test.
    */
   raycastPanels(): PanelHit | null {
     let nearest: PanelHit | null = null;
     for (const panel of this.panels) {
-      if (!panel.mesh?.visible) continue;
-      const hits = this.raycaster.intersectObject(panel.mesh, false);
+      if (!panel.mesh) continue;
+      const hits = intersectPanelMesh(panel.mesh, this.raycaster);
       if (hits.length > 0) {
         if (!nearest || hits[0].distance < nearest.distance) {
           nearest = { panel, distance: hits[0].distance };

@@ -11,6 +11,7 @@ import type {
   RecordUnderstandingInput,
 } from '../../app/investigation/InvestigationJourneyController.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -140,7 +141,7 @@ export class InvestigationJourneyPanel extends SpatialPanel {
     this.name = 'investigation-journey-panel';
     this.journey = journey;
     this.snapshotValue = journey.snapshot();
-    this.scale.setScalar(0.9 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(0.9, PANEL_WIDTH));
     this.position.copy(this.defaultPosition);
 
     this._summary = new Text({
