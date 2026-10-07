@@ -17,6 +17,8 @@ export interface PanelChromeProperties {
   onClose?: () => void;
   /** Accent colour for the title. */
   color?: number;
+  /** Optional sizing for small-world-scale diagnostic panels. */
+  textScale?: number;
 }
 
 /**
@@ -86,6 +88,17 @@ export class PanelChrome extends Container {
         onClick: () => properties.onClose?.(),
       });
       this.add(this._closeButton);
+    }
+    if (properties.textScale != null) this.textScale = properties.textScale;
+  }
+
+  set textScale(value: number) {
+    this._titleText.setProperties({ fontSize: TYPOGRAPHY_TOKENS.scale.heading * value });
+    this.setProperties({ flexShrink: 0 });
+    for (const button of [this._pinButton, this._closeButton]) {
+      if (!button) continue;
+      button.labelFontSize = 14 * value;
+      button.setProperties({ minHeight: 32 * value, minWidth: 80 * value, flexShrink: 0 });
     }
   }
 

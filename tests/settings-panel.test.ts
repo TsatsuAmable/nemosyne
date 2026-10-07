@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { SettingsPanel } from '../src/vr/ui/SettingsPanel.ts';
+import { setBodyFrameViewerTargetLocal } from '../src/vr/spatial/BodyFrameState.ts';
 
 type Dispatchable = { dispatchEvent: (e: { type: string }) => void };
 
@@ -40,7 +41,7 @@ describe('SettingsPanel (UIKit substrate)', () => {
   it('loads persisted settings merged onto defaults', () => {
     localStorage.setItem(
       SettingsPanel.STORAGE_KEY,
-      JSON.stringify({ lensTDA: false, feedbackAudio: false, userMode: 'expert' }),
+      JSON.stringify({ lensTDA: false, feedbackAudio: false, userMode: 'expert' })
     );
     panel = makePanel();
     expect(panel.getSetting('lensTDA')).toBe(false);
@@ -71,9 +72,9 @@ describe('SettingsPanel (UIKit substrate)', () => {
   it('keeps the bound control in sync when a setting is set externally', () => {
     panel = makePanel();
     panel.setSetting('collabEnabled', true);
-    const control = (panel as unknown as { _controls: Map<string, { value: unknown }> })._controls.get(
-      'collabEnabled',
-    );
+    const control = (
+      panel as unknown as { _controls: Map<string, { value: unknown }> }
+    )._controls.get('collabEnabled');
     expect(control?.value).toBe(true);
   });
 
@@ -89,7 +90,7 @@ describe('SettingsPanel (UIKit substrate)', () => {
     panel = makePanel();
     const spy = vi.spyOn(
       panel as unknown as { _exportReviewBundle: () => void },
-      '_exportReviewBundle',
+      '_exportReviewBundle'
     );
     const exportButton = (panel as unknown as { _exportButton: Dispatchable })._exportButton;
     exportButton.dispatchEvent({ type: 'click' });
@@ -120,7 +121,11 @@ describe('SettingsPanel (UIKit substrate)', () => {
   it('applyAccessibility updates accessibility state and re-themes without throwing', () => {
     panel = makePanel();
     expect(() =>
-      panel.applyAccessibility({ textScale: 1.5, highContrast: true, colorblindMode: 'deuteranopia' }),
+      panel.applyAccessibility({
+        textScale: 1.5,
+        highContrast: true,
+        colorblindMode: 'deuteranopia',
+      })
     ).not.toThrow();
     const state = panel as unknown as {
       _textScale: number;
@@ -141,9 +146,12 @@ describe('SettingsPanel (UIKit substrate)', () => {
     expect(stored.highContrast).toBe(true);
   });
 
-  it('update() faces the viewer, not the world origin', () => {
-    // Regression: the panel is body-locked to the moving camera rig. Facing
-    // a fixed world point turns it away from the wearer after locomotion.
+  it('update() faces the BodyFrameState target after locomotion, not the live viewer', () => {
+    // Revision-5 replacement: this test formerly pinned per-frame
+    // lookAt(viewer), which Chromium-verified evidence shows rotates the
+    // panel 8.17deg on a 25cm lean. The body-locked panel must instead face
+    // the anchor-local BodyFrameState target — never the live HMD pose,
+    // never a fixed world point — so locomotion keeps it readable.
     const anchor = new THREE.Group();
     anchor.position.set(5, 0, 3);
     const viewer = new THREE.Object3D();
@@ -155,20 +163,23 @@ describe('SettingsPanel (UIKit substrate)', () => {
       worldScene: scene,
       viewer,
     });
+    setBodyFrameViewerTargetLocal(anchor, new THREE.Vector3(0, 0, 1.4));
     panel.show();
     scene.updateMatrixWorld(true);
     panel.update(0.016);
     scene.updateMatrixWorld(true);
 
     const panelPos = new THREE.Vector3();
-    const viewerPos = new THREE.Vector3();
     const facing = new THREE.Vector3();
     panel.getWorldPosition(panelPos);
-    viewer.getWorldPosition(viewerPos);
     panel.getWorldDirection(facing);
-    const toViewer = viewerPos.sub(panelPos).normalize();
-    // Facing the origin here would point away from the viewer (dot < 0).
-    expect(facing.dot(toViewer)).toBeGreaterThan(0.9);
+    facing.y = 0;
+    facing.normalize();
+    const targetWorld = anchor.localToWorld(new THREE.Vector3(0, 0, 1.4));
+    const toTarget = targetWorld.sub(panelPos);
+    toTarget.y = 0;
+    toTarget.normalize();
+    expect(facing.dot(toTarget)).toBeGreaterThan(0.99);
   });
 
   it('settings rows cannot compress below label height (squished-text regression)', () => {
@@ -190,7 +201,7 @@ describe('SettingsPanel (UIKit substrate)', () => {
         const kind = c.constructor?.name ?? '';
         if (depth <= 2 && (kind === 'Container' || kind === 'SectionHeader')) {
           const kids = (c.children ?? []).map(
-            (k) => (k as { constructor?: { name?: string } }).constructor?.name ?? '',
+            (k) => (k as { constructor?: { name?: string } }).constructor?.name ?? ''
           );
           if (kids.includes('Text')) rows.push(c);
         }
@@ -205,7 +216,83 @@ describe('SettingsPanel (UIKit substrate)', () => {
     }
   });
 
-  it('update() keeps the legacy origin facing when no viewer is supplied', () => {
+  it('update() holds parent-local facing when the viewer leans (revision 5)', () => {
+    // Live defect (Chromium-verified): per-frame head billboard rotated the
+    // panel 8.17deg on a 25cm lean with a stationary parent. Revision 5
+    // (panelLayout.ts header) mandates local facing: lean/gaze must not
+    // rotate the panel within its parent frame.
+    const anchor = new THREE.Group();
+    const viewer = new THREE.Object3D();
+    viewer.position.set(0, 1.6, 0);
+    const scene = new THREE.Scene();
+    scene.add(anchor, viewer);
+    panel = new SettingsPanel({
+      torsoAnchor: anchor,
+      worldScene: scene,
+      viewer,
+    });
+    panel.show();
+    scene.updateMatrixWorld(true);
+    panel.update(0.016);
+    const before = panel.quaternion.clone();
+    viewer.position.x += 0.25;
+    scene.updateMatrixWorld(true);
+    panel.update(0.016);
+    expect(panel.quaternion.angleTo(before)).toBeLessThan(1e-3);
+  });
+
+  it('update() faces the anchor-local BodyFrameState target, not the viewer', () => {
+    const anchor = new THREE.Group();
+    const viewer = new THREE.Object3D();
+    viewer.position.set(2, 1.6, 2);
+    const scene = new THREE.Scene();
+    scene.add(anchor, viewer);
+    panel = new SettingsPanel({
+      torsoAnchor: anchor,
+      worldScene: scene,
+      viewer,
+    });
+    setBodyFrameViewerTargetLocal(anchor, new THREE.Vector3(0, 0, 1.4));
+    panel.show();
+    scene.updateMatrixWorld(true);
+    panel.update(0.016);
+    scene.updateMatrixWorld(true);
+    // Parent-local yaw toward (0,0,1.4) from the panel slot; the viewer at
+    // (2,1.6,2) must not influence it.
+    const toTarget = new THREE.Vector3(0, 0, 1.4).sub(panel.position);
+    toTarget.y = 0;
+    toTarget.normalize();
+    const facing = new THREE.Vector3();
+    panel.getWorldDirection(facing);
+    facing.y = 0;
+    facing.normalize();
+    expect(facing.dot(toTarget)).toBeGreaterThan(0.99);
+  });
+
+  it('update() does not overwrite the orientation of a world-locked panel', () => {
+    panel = makePanel();
+    panel.setReferenceFrame('WORLD_LOCKED', false);
+    panel.show();
+    panel.position.set(0.3, 1.4, -1);
+    panel.rotation.set(0.1, 0.4, 0.2);
+    const placed = panel.quaternion.clone();
+    panel.update(0.016);
+    expect(panel.quaternion.angleTo(placed)).toBeLessThan(1e-6);
+  });
+
+  it('show() preserves a user-placed position instead of resetting to default', () => {
+    // Live defect: show() reset a dragged [.3,.2,-.8] placement to default.
+    panel = makePanel();
+    panel.position.set(0.3, 0.2, -0.8);
+    panel.hide();
+    panel.show();
+    expect(panel.position.toArray()).toEqual([0.3, 0.2, -0.8]);
+  });
+
+  it('update() faces the anchor-local target when no viewer is supplied', () => {
+    // Revision-5 replacement: the legacy lookAt(world-origin) fallback is
+    // removed with head billboarding. Without a viewer the panel still
+    // faces the anchor-local BodyFrameState target (default local origin).
     const anchor = new THREE.Group();
     const scene = new THREE.Scene();
     scene.add(anchor);
@@ -215,14 +302,13 @@ describe('SettingsPanel (UIKit substrate)', () => {
     panel.update(0.016);
     scene.updateMatrixWorld(true);
 
-    const panelPos = new THREE.Vector3();
     const facing = new THREE.Vector3();
-    panel.getWorldPosition(panelPos);
     panel.getWorldDirection(facing);
-    // The legacy path keeps a level pitch (rotation.x override), so compare
-    // yaw on the ground plane: the panel must still turn toward the origin.
     facing.y = 0;
-    const toOrigin = panelPos.clone().setY(0).negate().normalize();
-    expect(facing.normalize().dot(toOrigin)).toBeGreaterThan(0.9);
+    facing.normalize();
+    // Default BodyFrameState target is the anchor-local origin; the anchor
+    // is identity here, so expected yaw points from the slot at the origin.
+    const toTarget = panel.position.clone().setY(0).negate().normalize();
+    expect(facing.dot(toTarget)).toBeGreaterThan(0.99);
   });
 });

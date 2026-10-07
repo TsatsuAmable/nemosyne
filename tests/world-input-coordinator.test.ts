@@ -4,6 +4,42 @@ import * as THREE from 'three';
 import { WorldInputCoordinator } from '../src/vr/coordinators/WorldInputCoordinator.ts';
 import { WorldEventBus, WorldTopics } from '../src/utils/EventBus.ts';
 import { Engine } from '../src/vr/Engine.ts';
+import { ControllerGestureMapper } from '../src/vr/interactions/ControllerGestureMapper.ts';
+
+class YPathControllerPointer {
+  constructor(handedness) {
+    this.handedness = handedness;
+    this.position = new THREE.Vector3();
+    this.gamepad = null;
+  }
+
+  getRay(targetRay) {
+    targetRay.origin.copy(this.position);
+    targetRay.direction.set(0, 0, -1);
+    return targetRay;
+  }
+}
+
+function pressYThroughMapper(
+  coordinator,
+  { pressed = [false, false, false, false, false, true] } = {}
+) {
+  const right = new YPathControllerPointer('right');
+  right.gamepad = { buttons: pressed.map(() => ({ pressed: false })), axes: [0, 0, 0, 0] };
+  const left = new YPathControllerPointer('left');
+  left.gamepad = { buttons: pressed.map((p) => ({ pressed: p })), axes: [0, 0, 0, 0] };
+  const session = {
+    inputSources: [
+      { handedness: 'right', gamepad: right.gamepad },
+      { handedness: 'left', gamepad: left.gamepad },
+    ],
+  };
+  const mapper = new ControllerGestureMapper({
+    onGesture: (name, ctx) => coordinator.onGesture(name, ctx),
+    cooldown: 0,
+  });
+  mapper.update([right, left], session, 1);
+}
 
 describe('WorldInputCoordinator', () => {
   let engine;
@@ -221,6 +257,75 @@ describe('WorldInputCoordinator', () => {
     localCoordinator._updateInputContext();
 
     expect(localCoordinator.handNearWheelMenu).toBe(true);
+  });
+
+  function yPathCoordinator({ wheelOpen = false, pointers = [], capturedPanel = null } = {}) {
+    // Structural engine: the coordinator reads input.pointers as an array
+    // of {isNear} plus machine.capturedPanel; the real mapper and the real
+    // coordinator stay in the path.
+    const stubEngine = {
+      addUpdatable: () => {},
+      input: {
+        pointers,
+        machine: { capturedPanel },
+        feedback: { playGestureTone: () => {}, playHaptic: () => {} },
+      },
+      telemetry: { recordGestureConfidence: () => {} },
+    };
+    const localCallbacks = { ...callbacks, onToggleSettingsPanel: vi.fn() };
+    const localCoordinator = new WorldInputCoordinator(stubEngine, bus, {
+      getSetting: () => undefined,
+      getDracoGroup: () => null,
+      getArtifact: () => null,
+      getHandWheelMenu: wheelOpen ? () => ({ isVisible: () => true }) : () => null,
+      callbacks: localCallbacks,
+    });
+    return { localCoordinator, localCallbacks };
+  }
+
+  it('routes explicit controller Y with wheel open and near pointer', () => {
+    // Live defect: direct-interaction suppression treated the explicit Y
+    // button as an inferred hand gesture. The button press must reach the
+    // settings toggle even with the wheel open and a near pointer.
+    const { localCoordinator, localCallbacks } = yPathCoordinator({
+      wheelOpen: true,
+      pointers: [{ isNear: true }],
+    });
+    pressYThroughMapper(localCoordinator);
+    expect(localCallbacks.onToggleSettingsPanel).toHaveBeenCalledTimes(1);
+  });
+
+  it('still suppresses hand okSign with wheel open', () => {
+    const { localCoordinator, localCallbacks } = yPathCoordinator({ wheelOpen: true });
+    localCoordinator.onGesture('okSign', {});
+    expect(localCallbacks.onToggleSettingsPanel).not.toHaveBeenCalled();
+  });
+
+  it('still suppresses hand okSign with near pointer', () => {
+    const { localCoordinator, localCallbacks } = yPathCoordinator({
+      pointers: [{ isNear: true }],
+    });
+    localCoordinator.onGesture('okSign', {});
+    expect(localCallbacks.onToggleSettingsPanel).not.toHaveBeenCalled();
+  });
+
+  it('still suppresses controller Y while a panel capture is active', () => {
+    // Toggling must not orphan a captured control's pressed state.
+    const { localCoordinator, localCallbacks } = yPathCoordinator({
+      wheelOpen: true,
+      pointers: [{ isNear: true }],
+      capturedPanel: {},
+    });
+    pressYThroughMapper(localCoordinator);
+    expect(localCallbacks.onToggleSettingsPanel).not.toHaveBeenCalled();
+  });
+
+  it('still suppresses controller Y while input is paused', () => {
+    const { localCoordinator, localCallbacks } = yPathCoordinator({ wheelOpen: true });
+    localCoordinator.onGesture('pauseResume');
+    expect(localCoordinator.inputPaused).toBe(true);
+    pressYThroughMapper(localCoordinator);
+    expect(localCallbacks.onToggleSettingsPanel).not.toHaveBeenCalled();
   });
 
   it('suppresses scene selection when hand is near wheel menu', () => {

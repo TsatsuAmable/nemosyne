@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
@@ -121,7 +122,7 @@ export class ContextualTaskSurface extends SpatialPanel {
     this.visible = false;
 
     // Compact object ornament, roughly 0.52 m wide in world space.
-    this.scale.setScalar(0.52 / 420);
+    this.scale.setScalar(panelWorldScale(0.52, 420));
     this.setGrabEnabled(false);
     this.setGrabRailVisible(false);
 

@@ -1,5 +1,16 @@
 import * as THREE from 'three';
 import { Fullscreen, Component, type FullscreenProperties } from '@pmndrs/uikit';
+import {
+  bubbleScrollAwareDown,
+  bubbleToScrollableAncestors,
+  dispatchScrollAwareDown,
+  intersectUIKitComponents,
+  isPanelRootVisible,
+  isScrollableContainer,
+  resolveActionableHit,
+  syntheticNativeEvent,
+  syntheticPointerEvent,
+} from './raycastUIKit.ts';
 
 /**
  * SpatialUIRoot wraps pmndrs/uikit Fullscreen to serve as the root container
@@ -22,21 +33,17 @@ export class SpatialUIRoot extends Fullscreen {
    * Routes InputRouter pointer interaction down event.
    */
   handlePointerDown(raycaster: THREE.Raycaster, pointerId: number): Component | null {
-    const hits = raycaster.intersectObject(this, true);
+    if (!isPanelRootVisible(this)) return null;
+    const hits = intersectUIKitComponents(this, raycaster);
     if (hits.length === 0) return null;
 
-    // Find the closest component that is not a helper mesh
-    const hit = hits.find(h => h.object instanceof Component);
-    if (!hit) return null;
-
+    const hit = resolveActionableHit(this, raycaster, hits[0]);
     const component = hit.object as Component;
-    
+
     // Dispatch pointerdown
-    component.dispatchEvent({
-      type: 'pointerdown',
-      pointerId,
-      ...hit,
-    } as unknown as Parameters<Component['dispatchEvent']>[0]);
+    const event = syntheticPointerEvent('pointerdown', pointerId, hit);
+    dispatchScrollAwareDown(component, event, pointerId);
+    bubbleScrollAwareDown(component, event, pointerId);
 
     // Click event is also dispatched on down/up sequences
     this._capturedPointers.set(pointerId, component);
@@ -49,9 +56,26 @@ export class SpatialUIRoot extends Fullscreen {
   handlePointerMove(raycaster: THREE.Raycaster, pointerId: number): Component | null {
     // If pointer is captured, route move directly to it
     const captured = this._capturedPointers.get(pointerId);
-    
-    const hits = raycaster.intersectObject(this, true);
-    const hit = hits.find(h => h.object instanceof Component);
+
+    if (!isPanelRootVisible(this)) {
+      if (this._lastHoveredComponent) {
+        this._lastHoveredComponent.dispatchEvent({
+          type: 'pointerout',
+          pointerId,
+          nativeEvent: syntheticNativeEvent(),
+        } as unknown as Parameters<Component['dispatchEvent']>[0]);
+        this._lastHoveredComponent.dispatchEvent({
+          type: 'pointerleave',
+          pointerId,
+          nativeEvent: syntheticNativeEvent(),
+        } as unknown as Parameters<Component['dispatchEvent']>[0]);
+        this._lastHoveredComponent = null;
+      }
+      return null;
+    }
+
+    const hits = intersectUIKitComponents(this, raycaster);
+    const hit = hits.length > 0 ? resolveActionableHit(this, raycaster, hits[0]) : null;
     const current = hit ? (hit.object as Component) : null;
 
     if (captured) {
@@ -60,13 +84,24 @@ export class SpatialUIRoot extends Fullscreen {
       // foreign component the ray is now grazing (the pointer drifted off the
       // captured control during a drag); spreading that hit's `uv` would make a
       // Slider thumb jump to a foreign coordinate. Mirrors SpatialPanel's fix.
+      // A miss on a scrollable container dispatches nothing: UIKit's scroll
+      // move handler requires `event.point`, which a miss cannot provide.
       const capturedHits = raycaster.intersectObject(captured, false);
       const capturedHit = capturedHits.length > 0 ? capturedHits[0] : null;
-      captured.dispatchEvent({
-        type: 'pointermove',
-        pointerId,
-        ...(capturedHit || {}),
-      } as unknown as Parameters<Component['dispatchEvent']>[0]);
+      if (capturedHit || !isScrollableContainer(captured)) {
+        const event = syntheticPointerEvent('pointermove', pointerId, capturedHit || {});
+        captured.dispatchEvent(
+          event as unknown as Parameters<Component['dispatchEvent']>[0]
+        );
+        if (capturedHit) bubbleToScrollableAncestors(captured, event);
+      }
+      if (!capturedHit && hit && current) {
+        // The ray left the captured control but still hits live geometry:
+        // scroll ancestors of the current hit keep a drag alive with the
+        // real current point while the captured control holds.
+        const currentEvent = syntheticPointerEvent('pointermove', pointerId, hit);
+        bubbleToScrollableAncestors(current, currentEvent);
+      }
     }
 
     // Handle hover enter/leave (pointerover/pointerout)
@@ -75,21 +110,25 @@ export class SpatialUIRoot extends Fullscreen {
         this._lastHoveredComponent.dispatchEvent({
           type: 'pointerout',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
         this._lastHoveredComponent.dispatchEvent({
           type: 'pointerleave',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
       }
       if (current) {
         current.dispatchEvent({
           type: 'pointerover',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
           ...(hit || {}),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
         current.dispatchEvent({
           type: 'pointerenter',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
           ...(hit || {}),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
       }
@@ -98,6 +137,7 @@ export class SpatialUIRoot extends Fullscreen {
       current.dispatchEvent({
         type: 'pointermove',
         pointerId,
+        nativeEvent: syntheticNativeEvent(),
         ...hit,
       } as unknown as Parameters<Component['dispatchEvent']>[0]);
     }
@@ -112,23 +152,24 @@ export class SpatialUIRoot extends Fullscreen {
     const captured = this._capturedPointers.get(pointerId);
     this._capturedPointers.delete(pointerId);
 
-    const hits = raycaster.intersectObject(this, true);
-    const hit = hits.find(h => h.object instanceof Component);
+    const hits = isPanelRootVisible(this) ? intersectUIKitComponents(this, raycaster) : [];
+    const hit = hits.length > 0 ? resolveActionableHit(this, raycaster, hits[0]) : null;
     const current = hit ? (hit.object as Component) : null;
 
     const target = captured || current;
     if (target) {
-      target.dispatchEvent({
-        type: 'pointerup',
-        pointerId,
-        ...(hit || {}),
-      } as unknown as Parameters<Component['dispatchEvent']>[0]);
+      const event = syntheticPointerEvent('pointerup', pointerId, hit || {});
+      target.dispatchEvent(
+        event as unknown as Parameters<Component['dispatchEvent']>[0]
+      );
+      bubbleToScrollableAncestors(target, event);
 
       // If released on the same target that was pressed, trigger click
       if (captured === current && current) {
         current.dispatchEvent({
           type: 'click',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
           ...(hit || {}),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
       }
@@ -144,10 +185,11 @@ export class SpatialUIRoot extends Fullscreen {
     const captured = this._capturedPointers.get(pointerId);
     if (captured) {
       this._capturedPointers.delete(pointerId);
-      captured.dispatchEvent({
-        type: 'pointercancel',
-        pointerId,
-      } as unknown as Parameters<Component['dispatchEvent']>[0]);
+      const event = syntheticPointerEvent('pointercancel', pointerId, {});
+      captured.dispatchEvent(
+        event as unknown as Parameters<Component['dispatchEvent']>[0]
+      );
+      bubbleToScrollableAncestors(captured, event);
     }
   }
 

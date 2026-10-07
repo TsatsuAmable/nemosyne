@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { COLOR_TOKENS, SPACING_TOKENS, TYPOGRAPHY_TOKENS } from '../ui-system/tokens.ts';
 import type { WheelMenuCategory } from '../coordinators/types.ts';
@@ -65,7 +66,7 @@ export class CapabilityGuidePanel extends SpatialPanel {
     this._taskSurface = options.contextualTaskSurface;
     this._hasDataset = options.hasDataset ?? (() => false);
     this._hasRepresentation = options.hasRepresentation ?? (() => false);
-    this.scale.setScalar(0.82 / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(0.82, PANEL_WIDTH));
     this.position.copy(this.defaultPosition);
 
     this._summary = new Text({

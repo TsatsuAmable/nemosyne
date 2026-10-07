@@ -12,6 +12,7 @@ import {
   type XRDatasetLibraryEntry,
 } from '../../data/catalog/XRDatasetLibraryBridge.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
@@ -96,7 +97,7 @@ export class DataSourcePanel extends SpatialPanel {
     this._highContrast = highContrast;
 
     const worldWidth = options.worldSize?.[0] ?? 0.95;
-    this.scale.setScalar(worldWidth / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(worldWidth, PANEL_WIDTH));
     this.defaultPosition = new THREE.Vector3(...(options.position ?? [0.9, 1.5, -1.1]));
     this.position.copy(this.defaultPosition);
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
+import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
 import { ScrollContainer } from '../ui-system/components/ScrollContainer.ts';
 import { SegmentedControl } from '../ui-system/components/SegmentedControl.ts';
@@ -56,7 +57,7 @@ export class SchemaMappingPanel extends SpatialPanel {
       options.worldScene,
     );
     this.name = 'schema-mapping-panel';
-    this.scale.setScalar(PANEL_WORLD_WIDTH / PANEL_WIDTH);
+    this.scale.setScalar(panelWorldScale(PANEL_WORLD_WIDTH, PANEL_WIDTH));
 
     this.dataset = options.dataset;
     this.workingColumns = options.dataset.columns.map((c) => ({ ...c }));

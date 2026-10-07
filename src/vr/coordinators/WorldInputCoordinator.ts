@@ -158,15 +158,25 @@ export class WorldInputCoordinator {
       return;
     }
 
-    const router = this.engine.input as {
-      pointers?: { isNear?: boolean }[];
-      machine?: { capturedPanel?: unknown };
-    } | null | undefined;
+    const router = this.engine.input as
+      | {
+          pointers?: { isNear?: boolean }[];
+          machine?: { capturedPanel?: unknown };
+        }
+      | null
+      | undefined;
     const isPointerNear = Array.isArray(router?.pointers) && router.pointers.some((p) => p.isNear);
     const isPanelCaptured = router?.machine?.capturedPanel != null;
     const isWheelOpen = this.getHandWheelMenu()?.isVisible?.() ?? false;
 
-    if ((isPointerNear || isPanelCaptured || isWheelOpen) && name !== 'pauseResume') {
+    // An explicit controller button press (Y → okSign) is distinguishable
+    // from an inferred hand gesture: it stays available while the wheel is
+    // open or a pointer is near. Pause (above) and an active panel capture
+    // still suppress everything so a toggle cannot orphan a pressed control,
+    // and hand-originated okSign keeps the full suppression below.
+    const isExplicitControllerToggle = name === 'okSign' && ctx.source === 'controller';
+    const blockedByProximity = (isPointerNear || isWheelOpen) && !isExplicitControllerToggle;
+    if ((isPanelCaptured || blockedByProximity) && name !== 'pauseResume') {
       this.callbacks.onLog?.(`Gesture '${name}' suppressed: active direct interaction`);
       return;
     }

@@ -4,6 +4,8 @@ import { applyGlyphFallback } from '../glyphFallback.ts';
 
 export interface ButtonProperties extends ContainerProperties {
   label: string;
+  /** Explicit label size for panels with different design-pixel/world scales. */
+  labelFontSize?: number;
   variant?: 'primary' | 'secondary' | 'danger';
   onClick?: () => void;
   /**
@@ -33,6 +35,7 @@ export class Button extends Container {
     // don't leak `label`/`variant`/`disabled*` into the Container schema.
     const {
       label,
+      labelFontSize = 14,
       variant: variantProp,
       onClick,
       disabled = false,
@@ -83,7 +86,7 @@ export class Button extends Container {
 
     this._text = new Text({
       text: applyGlyphFallback(label),
-      fontSize: 14,
+      fontSize: labelFontSize,
       color: disabled ? COLOR_TOKENS.text.secondary : textColor,
     });
     this.add(this._text);
@@ -163,6 +166,10 @@ export class Button extends Container {
 
   set label(value: string) {
     this._text.setProperties({ text: applyGlyphFallback(value) });
+  }
+
+  set labelFontSize(value: number) {
+    this._text.setProperties({ fontSize: value });
   }
 
   set disabled(value: boolean) {

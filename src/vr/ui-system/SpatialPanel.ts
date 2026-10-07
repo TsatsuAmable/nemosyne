@@ -1,6 +1,18 @@
 import * as THREE from 'three';
 import { Container, Component, type ContainerProperties } from '@pmndrs/uikit';
 import { SpatialUIRoot } from './SpatialUIRoot.ts';
+import {
+  bubbleScrollAwareDown,
+  bubbleToScrollableAncestors,
+  dispatchScrollAwareDown,
+  intersectUIKitComponents,
+  isPanelRootVisible,
+  isScrollableContainer,
+  isWorldVisible,
+  resolveActionableHit,
+  syntheticNativeEvent,
+  syntheticPointerEvent,
+} from './raycastUIKit.ts';
 import type { PointerLike } from '../coordinators/types.ts';
 
 export type SpatialPanelReferenceFrame = 'BODY_LOCKED' | 'WORLD_LOCKED';
@@ -310,7 +322,7 @@ export class SpatialPanel extends Container {
   /** Check if a pointer event is over the grab rail. */
   isPointerOverGrabRail(raycaster: THREE.Raycaster): boolean {
     const grabRail = this._grabRailMesh;
-    if (!grabRail) return false;
+    if (!grabRail || !isWorldVisible(grabRail)) return false;
     const hits = raycaster.intersectObject(grabRail, false);
     return hits.length > 0;
   }
@@ -332,10 +344,11 @@ export class SpatialPanel extends Container {
   }
 
   handlePointerDown(raycaster: THREE.Raycaster, pointer: PointerLike): string | null {
+    if (!isPanelRootVisible(this)) return null;
     const root = this._findUIRoot();
     if (root) {
-      root.handlePointerDown(raycaster, pointer.index ?? 0);
-      return 'direct-touch';
+      const consumed = root.handlePointerDown(raycaster, pointer.index ?? 0);
+      return consumed ? 'direct-touch' : null;
     }
 
     // Check for grab rail interaction first (P1-U3)
@@ -346,19 +359,15 @@ export class SpatialPanel extends Container {
       }
     }
 
-    const hits = raycaster.intersectObject(this, true);
+    const hits = intersectUIKitComponents(this, raycaster);
     if (hits.length === 0) return null;
 
-    const hit = hits.find(h => h.object instanceof Component);
-    if (!hit) return null;
-
+    const hit = resolveActionableHit(this, raycaster, hits[0]);
     const component = hit.object as Component;
 
-    component.dispatchEvent({
-      type: 'pointerdown',
-      pointerId,
-      ...hit,
-    } as unknown as Parameters<Component['dispatchEvent']>[0]);
+    const event = syntheticPointerEvent('pointerdown', pointerId, hit);
+    dispatchScrollAwareDown(component, event, pointerId);
+    bubbleScrollAwareDown(component, event, pointerId);
 
     this._capturedPointers.set(pointerId, component);
     return 'direct-touch';
@@ -379,10 +388,27 @@ export class SpatialPanel extends Container {
       return;
     }
 
+    if (!isPanelRootVisible(this)) {
+      if (this._lastHoveredComponent) {
+        this._lastHoveredComponent.dispatchEvent({
+          type: 'pointerout',
+          pointerId,
+          nativeEvent: syntheticNativeEvent(),
+        } as unknown as Parameters<Component['dispatchEvent']>[0]);
+        this._lastHoveredComponent.dispatchEvent({
+          type: 'pointerleave',
+          pointerId,
+          nativeEvent: syntheticNativeEvent(),
+        } as unknown as Parameters<Component['dispatchEvent']>[0]);
+        this._lastHoveredComponent = null;
+      }
+      return;
+    }
+
     const captured = this._capturedPointers.get(pointerId);
-    
-    const hits = raycaster.intersectObject(this, true);
-    const hit = hits.find(h => h.object instanceof Component);
+
+    const hits = intersectUIKitComponents(this, raycaster);
+    const hit = hits.length > 0 ? resolveActionableHit(this, raycaster, hits[0]) : null;
     const current = hit ? (hit.object as Component) : null;
 
     if (captured) {
@@ -394,13 +420,28 @@ export class SpatialPanel extends Container {
       // adjacent row would jump to that row's local fraction. When the pointer
       // leaves the captured component entirely, the miss yields no uv and the
       // control's own guard leaves the value unchanged (no jump, value holds).
+      // A miss on a scrollable container dispatches nothing: UIKit's scroll
+      // move handler requires `event.point`, which a miss cannot provide, and
+      // skipping leaves the scroll offset unchanged (hold, same as controls).
       const capturedHits = raycaster.intersectObject(captured, false);
       const capturedHit = capturedHits.length > 0 ? capturedHits[0] : null;
-      captured.dispatchEvent({
-        type: 'pointermove',
-        pointerId,
-        ...(capturedHit || {}),
-      } as unknown as Parameters<Component['dispatchEvent']>[0]);
+      if (capturedHit || !isScrollableContainer(captured)) {
+        const event = syntheticPointerEvent('pointermove', pointerId, capturedHit || {});
+        captured.dispatchEvent(
+          event as unknown as Parameters<Component['dispatchEvent']>[0]
+        );
+        // Scroll ancestors only get moves with a real point; a miss carries
+        // none and every scroll offset holds instead of jumping.
+        if (capturedHit) bubbleToScrollableAncestors(captured, event);
+      }
+      if (!capturedHit && hit && current) {
+        // The ray left the captured control but still hits live geometry
+        // (e.g. an adjacent row mid scroll-drag): scroll ancestors of the
+        // current hit keep the drag alive with the real current point,
+        // while the captured control itself holds (no foreign uv).
+        const currentEvent = syntheticPointerEvent('pointermove', pointerId, hit);
+        bubbleToScrollableAncestors(current, currentEvent);
+      }
     }
 
     if (current !== this._lastHoveredComponent) {
@@ -408,21 +449,25 @@ export class SpatialPanel extends Container {
         this._lastHoveredComponent.dispatchEvent({
           type: 'pointerout',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
         this._lastHoveredComponent.dispatchEvent({
           type: 'pointerleave',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
       }
       if (current) {
         current.dispatchEvent({
           type: 'pointerover',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
           ...(hit || {}),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
         current.dispatchEvent({
           type: 'pointerenter',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
           ...(hit || {}),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
       }
@@ -431,6 +476,7 @@ export class SpatialPanel extends Container {
       current.dispatchEvent({
         type: 'pointermove',
         pointerId,
+        nativeEvent: syntheticNativeEvent(),
         ...hit,
       } as unknown as Parameters<Component['dispatchEvent']>[0]);
     }
@@ -454,22 +500,28 @@ export class SpatialPanel extends Container {
     const captured = this._capturedPointers.get(pointerId);
     this._capturedPointers.delete(pointerId);
 
-    const hits = raycaster.intersectObject(this, true);
-    const hit = hits.find(h => h.object instanceof Component);
+    // Capture always clears and the captured control always gets its
+    // pointerup (so drags reset) even if the panel hid mid-press; only the
+    // release hit-test — and therefore click — requires visibility.
+    const hits = isPanelRootVisible(this) ? intersectUIKitComponents(this, raycaster) : [];
+    const hit = hits.length > 0 ? resolveActionableHit(this, raycaster, hits[0]) : null;
     const current = hit ? (hit.object as Component) : null;
 
     const target = captured || current;
     if (target) {
-      target.dispatchEvent({
-        type: 'pointerup',
-        pointerId,
-        ...(hit || {}),
-      } as unknown as Parameters<Component['dispatchEvent']>[0]);
+      const event = syntheticPointerEvent('pointerup', pointerId, hit || {});
+      target.dispatchEvent(
+        event as unknown as Parameters<Component['dispatchEvent']>[0]
+      );
+      // The finish path needs no point, so scroll ancestors always clear —
+      // including release-outside, where there is no current hit.
+      bubbleToScrollableAncestors(target, event);
 
       if (captured === current && current) {
         current.dispatchEvent({
           type: 'click',
           pointerId,
+          nativeEvent: syntheticNativeEvent(),
           ...(hit || {}),
         } as unknown as Parameters<Component['dispatchEvent']>[0]);
       }
