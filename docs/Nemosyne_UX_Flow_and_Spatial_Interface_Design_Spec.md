@@ -6,6 +6,8 @@
 **Primary target:** Meta Quest 3S-class standalone VR, with desktop parity through shared NIL semantics  
 **Related governing document:** `docs/Nemosyne_Definitive_Vision_and_Roadmap.md`
 
+**7 October 2026 target-policy amendment:** [RFC 0014](rfcs/0014-stationary-workspace-and-explicit-home.md) governs stationary work panels, explicit bring/follow, and distinct world origin/Home/session entry. It is not yet runtime-implemented or physically qualified; existing study treatments remain frozen.
+
 ---
 
 ## 0. Purpose
@@ -448,10 +450,10 @@ Every component must declare its reference frame.
 | Dataset representation | WORLD_LOCKED / INVESTIGATION_FRAME | Stable spatial memory |
 | Datum Plane | WORLD_LOCKED | Orientation |
 | TechnoCore landmark | WORLD_LOCKED | Persistent landmark |
-| TechnoCore summoned interface | BODY_LOCKED transitioning to WORLD_LOCKED | Comfortable near interaction |
+| TechnoCore summoned interface | WORLD_LOCKED after one-time summons | Comfortable stable interaction |
 | Holographic Inspector | HAND_ATTACHED or BODY_LOCKED | Brief local detail |
-| Quick command surface | HAND_ATTACHED / BODY_LOCKED | Fast access |
-| Precision panels | BODY_LOCKED, optionally WORLD_LOCKED | Longer reading/manipulation |
+| Quick command surface | Placed on demand, stable during selection | Fast access, dismiss on successful selection |
+| Precision panels | WORLD_LOCKED, optional explicit Follow | Longer reading/manipulation |
 | Observation beacon | OBJECT_ATTACHED / INVESTIGATION_FRAME | Meaning tied to evidence |
 | Memory Palace graph | INVESTIGATION_FRAME | Stable reasoning topology |
 | Collaborator presence | WORLD_LOCKED to their frame | Shared spatial reference |
@@ -1083,7 +1085,7 @@ Teach enough to investigate without a front-loaded tutorial.
 
 ### Step 1 — Arrival
 
-User appears at the investigation origin.
+For a new investigation, the user arrives at Home: a safe overview viewpoint relative to the investigation, not necessarily its coordinate origin. Existing work offers `Resume workspace` or `Start at Home`; neither silently discards the saved arrangement. Validate restored viewpoints against the current session's tracking space and disclose a Home fallback when restoration is unsafe or unavailable.
 
 Visible:
 

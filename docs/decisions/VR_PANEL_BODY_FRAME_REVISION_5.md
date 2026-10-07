@@ -5,6 +5,8 @@
 **Treatment:** `panel-layout/5+intent-wheel/1+frames/body-stable`  
 **Classification:** CONTROLLED-TREATMENT MODIFICATION
 
+**Target-policy notice (7 October 2026):** [RFC 0014](../rfcs/0014-stationary-workspace-and-explicit-home.md) adopts stationary panels as the future default, retaining body-follow as an explicit option. This decision continues to describe revision-5 runtime/study semantics; its evidence is not relabelled and the new target is not yet implemented.
+
 ## Problem
 
 The revision-3 BODY_LOCKED policy was correct in intent but not in runtime semantics.

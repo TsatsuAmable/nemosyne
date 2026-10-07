@@ -28,6 +28,7 @@ const pageByAuthority = new Map([
   ['dual-epistemic-architecture-reassessment', 'A27-1-Dual-Epistemic-Reassessment'],
   ['dual-epistemic-preservation-rfc', 'Dual-Epistemic-Preservation-RFC'],
   ['fm8-composition-evidence-binding-rfc', 'FM8-Composition-Evidence-Binding-RFC'],
+  ['stationary-workspace-target-policy', 'Stationary-Workspace-and-Explicit-Home-RFC'],
   ['a27-0-authority-version-decision', 'A27-0-Authority-Version-Decision'],
   ['semantic-snapshot-forma-admission-rfc', 'Semantic-Snapshot-Forma-Admission-RFC'],
   ['product-ux-design-doctrine', 'User-Experience-Design-Doctrine'],
