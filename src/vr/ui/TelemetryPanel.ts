@@ -4,6 +4,8 @@ import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { panelWorldScale } from '../ui-system/uikitScale.ts';
 import { Button } from '../ui-system/components/Button.ts';
+import { PanelChrome } from '../ui-system/components/PanelChrome.ts';
+import { ScrollContainer } from '../ui-system/components/ScrollContainer.ts';
 import { SPACING_TOKENS } from '../ui-system/tokens.ts';
 import { getTheme } from '../ui-system/theme.ts';
 import { buildReviewBundle, formatReviewBundle } from '../../utils/ReviewBundle.ts';
@@ -34,7 +36,7 @@ export interface TelemetryPanelOptions {
 
 const PANEL_WIDTH = 900;
 const PANEL_HEIGHT = 720;
-const BASE_FONT_SIZE = 16;
+const BASE_FONT_SIZE = 28;
 
 /**
  * Local-only telemetry and review-export surface.
@@ -64,6 +66,8 @@ export class TelemetryPanel extends SpatialPanel {
 
   private _lastReport: TelemetryReport | null = null;
   private readonly _content: Text;
+  private readonly _chrome: PanelChrome;
+  private readonly _scrollContent: ScrollContainer;
   private readonly _privacyButton: Button;
   private readonly _exportButton: Button;
   private _textScale: number;
@@ -109,21 +113,44 @@ export class TelemetryPanel extends SpatialPanel {
       text: '',
       fontSize: BASE_FONT_SIZE * this._textScale,
       color: Number(theme.textPrimary),
+      flexShrink: 0,
+      minHeight: BASE_FONT_SIZE * this._textScale,
+      whiteSpace: 'pre-line',
     });
+    this._scrollContent = new ScrollContainer({
+      scrollHeight: 480,
+      flexGrow: 1,
+      flexShrink: 1,
+      minHeight: 0,
+    });
+    this._scrollContent.add(this._content);
     this._privacyButton = new Button({
       label: this._privacyLabel(),
       variant: 'secondary',
+      labelFontSize: 24 * this._textScale,
+      minHeight: 56,
+      flexShrink: 0,
       onClick: () => this.togglePrivacyLevel(),
     });
     this._exportButton = new Button({
       label: 'EXPORT REVIEW BUNDLE',
       variant: 'primary',
+      labelFontSize: 24 * this._textScale,
+      minHeight: 56,
+      flexShrink: 0,
       onClick: () => this._exportReviewBundle(),
       disabled: !this.telemetry || !this.budget,
-      disabledReason: !this.telemetry || !this.budget ? 'Telemetry and budget are required' : undefined,
+      disabledReason:
+        !this.telemetry || !this.budget ? 'Telemetry and budget are required' : undefined,
     });
 
-    this.add(this._content, this._privacyButton, this._exportButton);
+    this._chrome = new PanelChrome({
+      title: this.title,
+      showPin: false,
+      textScale: 1.75 * this._textScale,
+      onClose: () => this.hide(),
+    });
+    this.add(this._chrome, this._scrollContent, this._privacyButton, this._exportButton);
     this.render();
   }
 
@@ -139,6 +166,9 @@ export class TelemetryPanel extends SpatialPanel {
   applyAccessibility(options: AccessibilityOptions): void {
     this._textScale = options.textScale;
     this._highContrast = options.highContrast;
+    this._chrome.textScale = 1.75 * this._textScale;
+    this._privacyButton.labelFontSize = 24 * this._textScale;
+    this._exportButton.labelFontSize = 24 * this._textScale;
     const theme = getTheme(this._highContrast);
     this.setProperties({
       backgroundColor: Number(theme.backgroundColor),
@@ -163,6 +193,7 @@ export class TelemetryPanel extends SpatialPanel {
     this._content.setProperties({
       text: applyGlyphFallback(this._formatReport(this.telemetry?.getReport() ?? null)),
       fontSize: BASE_FONT_SIZE * this._textScale,
+      minHeight: BASE_FONT_SIZE * this._textScale,
       color: Number(theme.textPrimary),
     });
     this._privacyButton.label = this._privacyLabel();
@@ -254,9 +285,11 @@ export class TelemetryPanel extends SpatialPanel {
       sessionDurationSeconds: this.sessionDurationSeconds,
       userNotes: this.userNotes,
     });
-    downloadText(formatReviewBundle(bundle), 'nemosyne-review-bundle.json', 'application/json').catch(
-      () => {}
-    );
+    downloadText(
+      formatReviewBundle(bundle),
+      'nemosyne-review-bundle.json',
+      'application/json'
+    ).catch(() => {});
   }
 }
 

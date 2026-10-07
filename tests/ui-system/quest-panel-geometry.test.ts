@@ -136,10 +136,7 @@ function componentBounds(panel: THREE.Object3D): THREE.Box3 {
   return box;
 }
 
-function pressRelease(
-  machine: PointerEventMachine,
-  pointer: ReturnType<typeof makePointer>
-): void {
+function pressRelease(machine: PointerEventMachine, pointer: ReturnType<typeof makePointer>): void {
   machine.press(pointer);
   machine.release(pointer);
 }
@@ -177,10 +174,7 @@ describe('Quest panel real-geometry pointer traversal', () => {
   it('hits the occluding control, not the panel background', () => {
     const rig = clickRig();
     const target = rig.button.getWorldPosition(new THREE.Vector3());
-    const raycaster = new THREE.Raycaster(
-      rig.origin,
-      aimAt(rig.origin, target)
-    );
+    const raycaster = new THREE.Raycaster(rig.origin, aimAt(rig.origin, target));
     const hits = intersectUIKitComponents(rig.panel, raycaster);
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].object).toBe(rig.button);
@@ -257,7 +251,11 @@ describe('Quest panel rendered world bounds', () => {
 
   const WORLD = 2.0;
   worldSizeCase('TelemetryPanel', (a) => new TelemetryPanel(a, { worldSize: [WORLD, 1] }), WORLD);
-  worldSizeCase('PerformancePanel', (a) => new PerformancePanel(a, { worldSize: [WORLD, 1] }), WORLD);
+  worldSizeCase(
+    'PerformancePanel',
+    (a) => new PerformancePanel(a, { worldSize: [WORLD, 1] }),
+    WORLD
+  );
   worldSizeCase('NetworkPanel', (a) => new NetworkPanel(a, { worldSize: [WORLD, 1] }), WORLD);
   worldSizeCase('DataSourcePanel', (a) => new DataSourcePanel(a, { worldSize: [WORLD, 1] }), WORLD);
   worldSizeCase('VaultPanel', (a) => new VaultPanel(a, { worldSize: [WORLD, 1] }), WORLD);
@@ -267,7 +265,11 @@ describe('Quest panel rendered world bounds', () => {
     (a) => new LoadTestPanel(a, { worldSize: [WORLD, 1], eventBus: stubBus }),
     WORLD
   );
-  worldSizeCase('InteractionCoach', (a) => new InteractionCoach(a, { worldSize: [WORLD, 1] }), WORLD);
+  worldSizeCase(
+    'InteractionCoach',
+    (a) => new InteractionCoach(a, { worldSize: [WORLD, 1] }),
+    WORLD
+  );
   worldSizeCase(
     'RecommendationPanel',
     (a) => new RecommendationPanel(a, { worldSize: [WORLD, 1], getRecommendation: () => null }),
@@ -372,11 +374,15 @@ describe('Quest panel rendered world bounds', () => {
       }),
     0.82
   );
-  worldSizeCase('ContextualTaskSurface', (a) => {
-    const panel = new ContextualTaskSurface({});
-    a.add(panel);
-    return panel;
-  }, 0.52);
+  worldSizeCase(
+    'ContextualTaskSurface',
+    (a) => {
+      const panel = new ContextualTaskSurface({});
+      a.add(panel);
+      return panel;
+    },
+    0.52
+  );
   worldSizeCase(
     'SchemaMappingPanel',
     (a) =>
@@ -490,9 +496,7 @@ describe('Quest scrollbar real-ray drag', () => {
     // Drag the thumb downward in steps: the offset must increase and stay
     // clamped to the valid range (thumb drags never rubber-band).
     for (let step = 1; step <= 5; step++) {
-      const probe = scroller.localToWorld(
-        new THREE.Vector3(gutterX, 0.45 - (0.9 * step) / 5, 0)
-      );
+      const probe = scroller.localToWorld(new THREE.Vector3(gutterX, 0.45 - (0.9 * step) / 5, 0));
       pointer.aimAtPoint(origin, probe);
       machine.move(pointer);
     }
@@ -568,13 +572,54 @@ describe('Quest panel detection preserves generic meshes', () => {
     layout(panel, scene);
     const registry = new InteractableRegistry();
     registry.panels = [panel];
-    registry.raycaster.set(
-      new THREE.Vector3(0, 1.6, 0),
-      new THREE.Vector3(0, 0, -1)
-    );
+    registry.raycaster.set(new THREE.Vector3(0, 1.6, 0), new THREE.Vector3(0, 0, -1));
     panel.visible = false;
     expect(registry.raycastPanels()).toBeNull();
   });
+});
+
+describe('Quest visible panel dismissal', () => {
+  for (const kind of ['settings', 'telemetry']) {
+    it(`${kind} closes through its visible CLOSE button and the real pointer path`, () => {
+      const scene = new THREE.Scene();
+      const anchor = new THREE.Group();
+      scene.add(anchor);
+      const panel =
+        kind === 'settings'
+          ? new SettingsPanel({ torsoAnchor: anchor, worldScene: scene })
+          : new TelemetryPanel(anchor);
+      disposables.push(panel);
+      panel.position.set(0, 0, -1.2);
+      panel.show();
+      layout(panel, scene);
+      const onHide = vi.fn();
+      panel.onHide = onHide;
+      let close;
+      panel.traverse((node) => {
+        if (node instanceof Button && node._text.inputProperties.text === 'CLOSE') close = node;
+      });
+      expect(close, 'visible dismissal must exist').toBeDefined();
+      if (kind === 'telemetry') {
+        // The diagnostic panel maps one design pixel to 1 mm. A tiny
+        // default button is not a usable controller target at its distance.
+        expect(close.size.peek()[1]).toBeGreaterThanOrEqual(56);
+        expect(panel._content.size.peek()[1]).toBeGreaterThanOrEqual(28);
+      }
+      const origin = new THREE.Vector3();
+      const registry = new InteractableRegistry();
+      registry.panels = [panel];
+      const machine = new PointerEventMachine(registry);
+      const pointer = makePointer(
+        origin,
+        aimAt(origin, close.getWorldPosition(new THREE.Vector3()))
+      );
+      machine.press(pointer);
+      machine.release(pointer);
+      expect(panel.visible).toBe(false);
+      expect(machine.capturedPanel).toBeNull();
+      expect(onHide).toHaveBeenCalledTimes(1);
+    });
+  }
 });
 
 describe('Quest SettingsPanel real controls through PointerEventMachine', () => {
@@ -615,11 +660,12 @@ describe('Quest SettingsPanel real controls through PointerEventMachine', () => 
     expect(scroller.scrollable.value[1]).toBe(true);
     const before = scroller.scrollPosition.value[1];
     const origin = new THREE.Vector3(0.65, 1.55, 0);
-    const target = scroller.getWorldPosition(new THREE.Vector3());
+    // Aim at the thumb, not the content centre (which may contain a slider).
+    const target = new THREE.Vector3(0.485, 0.46, 0).applyMatrix4(scroller.matrixWorld);
     const pointer = makeLivePointer(origin, aimAt(origin, target));
     expect(rig.machine.press(pointer)).toBe(true);
     expect(scroller.downPointerMap.size).toBe(1);
-    const moved = new THREE.Vector3(target.x, target.y + 0.08, target.z);
+    const moved = new THREE.Vector3(0.485, 0.3, 0).applyMatrix4(scroller.matrixWorld);
     pointer.aimAtPoint(origin, moved);
     expect(() => rig.machine.move(pointer)).not.toThrow();
     expect(scroller.scrollPosition.value[1]).not.toBeCloseTo(before, 6);

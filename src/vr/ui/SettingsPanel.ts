@@ -3,6 +3,7 @@ import { Container, Text } from '@pmndrs/uikit';
 import { applyGlyphFallback } from '../ui-system/glyphFallback.ts';
 import { SpatialPanel } from '../ui-system/SpatialPanel.ts';
 import { panelWorldScale } from '../ui-system/uikitScale.ts';
+import { getBodyFrameViewerTargetLocal } from '../spatial/BodyFrameState.ts';
 import type { PanelBudgetController } from '../ui-system/PanelBudgetController.ts';
 import { Toggle } from '../ui-system/components/Toggle.ts';
 import { Slider } from '../ui-system/components/Slider.ts';
@@ -83,9 +84,9 @@ export interface SettingsPanelOptions {
    */
   panelBudgetController?: PanelBudgetController;
   /**
-   * Viewer the panel faces each frame (usually the XR camera). Without it
-   * the panel falls back to facing the world origin, which turns a
-   * body-locked panel away from the wearer after any locomotion.
+   * @deprecated Revision-5 facing is parent-local (BodyFrameState contract):
+   * per-frame head billboarding rotated the panel with ordinary lean/gaze.
+   * Accepted but no longer read; removal is a separate API-cleanup step.
    */
   viewer?: THREE.Object3D | null;
 }
@@ -112,7 +113,12 @@ const SETTINGS: SettingDescriptor[] = [
     type: 'choice',
     choices: ['novice', 'intermediate', 'expert'],
   },
-  { key: 'gesturesEnabled', label: 'Hand Gestures', section: 'GESTURES & CONTROLS', type: 'toggle' },
+  {
+    key: 'gesturesEnabled',
+    label: 'Hand Gestures',
+    section: 'GESTURES & CONTROLS',
+    type: 'toggle',
+  },
   { key: 'snapTurn', label: 'Snap Turn', section: 'COMFORT', type: 'toggle' },
   {
     key: 'snapTurnAngle',
@@ -156,10 +162,30 @@ const SETTINGS: SettingDescriptor[] = [
     step: 0.1,
     format: (v) => `${v.toFixed(1)}m`,
   },
-  { key: 'miniOverview', label: 'Mini Overview', section: 'SPATIAL ZONATION & NAVIGATION', type: 'toggle' },
-  { key: 'peerPresence', label: 'Peer Presence', section: 'SPATIAL ZONATION & NAVIGATION', type: 'toggle' },
-  { key: 'highContrast', label: 'High Contrast', section: 'ACCESSIBILITY & LEGIBILITY', type: 'toggle' },
-  { key: 'dwellSelection', label: 'Dwell Select', section: 'ACCESSIBILITY & LEGIBILITY', type: 'toggle' },
+  {
+    key: 'miniOverview',
+    label: 'Mini Overview',
+    section: 'SPATIAL ZONATION & NAVIGATION',
+    type: 'toggle',
+  },
+  {
+    key: 'peerPresence',
+    label: 'Peer Presence',
+    section: 'SPATIAL ZONATION & NAVIGATION',
+    type: 'toggle',
+  },
+  {
+    key: 'highContrast',
+    label: 'High Contrast',
+    section: 'ACCESSIBILITY & LEGIBILITY',
+    type: 'toggle',
+  },
+  {
+    key: 'dwellSelection',
+    label: 'Dwell Select',
+    section: 'ACCESSIBILITY & LEGIBILITY',
+    type: 'toggle',
+  },
   {
     key: 'dwellTimeMs',
     label: 'Dwell Time',
@@ -188,12 +214,27 @@ const SETTINGS: SettingDescriptor[] = [
     choices: ['none', 'deuteranopia', 'protanopia', 'tritanopia'],
   },
   { key: 'lensTDA', label: 'TDA Summary Lens', section: 'STATISTICAL LENS', type: 'toggle' },
-  { key: 'lensCorrelation', label: 'Correlation Matrix', section: 'STATISTICAL LENS', type: 'toggle' },
+  {
+    key: 'lensCorrelation',
+    label: 'Correlation Matrix',
+    section: 'STATISTICAL LENS',
+    type: 'toggle',
+  },
   { key: 'feedbackAudio', label: 'Audio Feedback', section: 'FEEDBACK', type: 'toggle' },
   { key: 'feedbackHaptic', label: 'Haptic Feedback', section: 'FEEDBACK', type: 'toggle' },
   { key: 'feedbackVisual', label: 'Visual Feedback', section: 'FEEDBACK', type: 'toggle' },
-  { key: 'telemetryEnabled', label: 'Telemetry Opt-in', section: 'PRIVACY & TELEMETRY', type: 'toggle' },
-  { key: 'prodTraceEnabled', label: 'Prod Trace Recording', section: 'PRIVACY & TELEMETRY', type: 'toggle' },
+  {
+    key: 'telemetryEnabled',
+    label: 'Telemetry Opt-in',
+    section: 'PRIVACY & TELEMETRY',
+    type: 'toggle',
+  },
+  {
+    key: 'prodTraceEnabled',
+    label: 'Prod Trace Recording',
+    section: 'PRIVACY & TELEMETRY',
+    type: 'toggle',
+  },
   { key: 'strictBudget', label: 'Strict Budget', section: 'PERFORMANCE', type: 'toggle' },
   { key: 'collabEnabled', label: 'Collaboration', section: 'COLLABORATION', type: 'toggle' },
   {
@@ -256,6 +297,7 @@ export class SettingsPanel extends SpatialPanel {
 
   title = 'SETTINGS';
   onChange: (key: string, value: unknown) => void;
+  onHide: (() => void) | null = null;
   settings: SettingsMap;
   defaultPosition: THREE.Vector3;
 
@@ -282,12 +324,14 @@ export class SettingsPanel extends SpatialPanel {
   private _exitButton: Button | null = null;
   private _privacyToggle: Toggle | null = null;
   private _budgetController: PanelBudgetController | null;
-  private _viewer: THREE.Object3D | null = null;
-  private readonly _viewerPos = new THREE.Vector3();
+  private readonly _faceTarget = new THREE.Vector3();
   private _disposed = false;
 
   constructor(options: SettingsPanelOptions) {
-    const palette = SettingsPanel._palette(options.highContrast ?? false, options.colorblindMode ?? 'none');
+    const palette = SettingsPanel._palette(
+      options.highContrast ?? false,
+      options.colorblindMode ?? 'none'
+    );
     super(
       {
         width: PANEL_WIDTH,
@@ -301,7 +345,7 @@ export class SettingsPanel extends SpatialPanel {
         borderRadius: 12,
       },
       options.torsoAnchor,
-      options.worldScene,
+      options.worldScene
     );
     this.name = 'settings-panel';
 
@@ -324,7 +368,8 @@ export class SettingsPanel extends SpatialPanel {
     this._highContrast = options.highContrast ?? this.settings.highContrast;
     this._colorblindMode = options.colorblindMode ?? this.settings.colorblindMode;
     this._budgetController = options.panelBudgetController ?? null;
-    this._viewer = options.viewer ?? null;
+    // options.viewer is accepted for API compatibility but no longer read:
+    // revision-5 facing is parent-local (see update).
 
     const pos = options.position ?? [0.65, 1.55, -1.1];
     this.defaultPosition = new THREE.Vector3(pos[0], pos[1], pos[2]);
@@ -336,7 +381,24 @@ export class SettingsPanel extends SpatialPanel {
       color: palette.accent,
       fontWeight: 'bold',
     });
-    this.add(header);
+    const headerRow = new Container({
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING_TOKENS.grid.x8,
+      flexShrink: 0,
+      minHeight: 44,
+    });
+    headerRow.add(
+      header,
+      new Container({ flexGrow: 1 }),
+      new Button({
+        label: 'CLOSE',
+        minHeight: 44,
+        minWidth: 100,
+        onClick: () => this.hide(),
+      })
+    );
+    this.add(headerRow);
     this._headerText = header;
 
     // Fixed scroll budget: card 720 minus outer padding (48), header +
@@ -450,13 +512,16 @@ export class SettingsPanel extends SpatialPanel {
     // Immediate ordering for groups that already exist; lazily built groups
     // are picked up every frame by SpatialPanel.update.
     this.orderGlyphsAbovePanels();
-    this.position.copy(this.defaultPosition);
+    // Never reset position here: a dragged placement survives hide/show.
+    // Explicit reset stays with the workspace recenter authority.
     this.updateMatrixWorld();
   }
 
   hide(): void {
+    const changed = this.visible;
     this._budgetController?.close(this);
     this.visible = false;
+    if (changed) this.onHide?.();
   }
 
   toggle(): void {
@@ -470,17 +535,23 @@ export class SettingsPanel extends SpatialPanel {
     // on-frame handlers ignore delta units for layout and visibility.
     // Per-frame glyph ordering happens in SpatialPanel.update.
     super.update(delta ?? 0);
-    // This panel is body-locked to the moving camera rig: face the viewer,
-    // never a fixed world point. Facing the world origin turns the panel
-    // away from the wearer after any locomotion, making it invisible from
-    // inside the headset while near-plane metrics still report "reachable".
-    if (this._viewer) {
-      this._viewer.getWorldPosition(this._viewerPos);
-      this.lookAt(this._viewerPos);
-    } else {
-      this.lookAt(0, 0, 0);
-    }
-    this.rotation.x = -0.22;
+    this._faceBodyFrameTarget();
+  }
+
+  /**
+   * Revision-5 facing: yaw toward the anchor-local viewer target published
+   * by WorldSceneComposer through the BodyFrameState contract. Ordinary
+   * lean/gaze never re-poses the live HMD transform into this panel, so a
+   * stationary parent means a stationary panel. Skipped while grabbed so a
+   * drag owns the orientation until release.
+   */
+  private _faceBodyFrameTarget(): void {
+    if (this.referenceFrame !== 'BODY_LOCKED' || this.isGrabbed || !this.parent) return;
+    const target = getBodyFrameViewerTargetLocal(this.parent, this._faceTarget);
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    if (dx * dx + dz * dz < 1e-8) return;
+    this.rotation.set(-0.22, Math.atan2(dx, dz), 0);
   }
 
   applyAccessibility(options: AccessibilityOptions): void {
@@ -563,7 +634,10 @@ export class SettingsPanel extends SpatialPanel {
     this._labelTexts.push({ node: this._headerText, baseSize: 22 });
   }
 
-  private _buildControl(desc: SettingDescriptor, _palette: Palette): Toggle | Slider | SegmentedControl {
+  private _buildControl(
+    desc: SettingDescriptor,
+    _palette: Palette
+  ): Toggle | Slider | SegmentedControl {
     const value = this.settings[desc.key];
 
     if (desc.type === 'toggle') {
@@ -624,7 +698,9 @@ export class SettingsPanel extends SpatialPanel {
       value: this._exportPrivacyLevel === 'full-session',
       onChange: (v) => {
         this._exportPrivacyLevel = v ? 'full-session' : 'metadata';
-        privacyLabel.setProperties({ text: applyGlyphFallback(`Bundle: ${this._exportPrivacyLevel}`) });
+        privacyLabel.setProperties({
+          text: applyGlyphFallback(`Bundle: ${this._exportPrivacyLevel}`),
+        });
       },
     });
     this._exportButton = new Button({
@@ -706,9 +782,11 @@ export class SettingsPanel extends SpatialPanel {
       userNotes: this._userNotes,
     });
 
-    downloadText(formatReviewBundle(bundle), 'nemosyne-review-bundle.json', 'application/json').catch(
-      () => {},
-    );
+    downloadText(
+      formatReviewBundle(bundle),
+      'nemosyne-review-bundle.json',
+      'application/json'
+    ).catch(() => {});
   }
 
   /**
