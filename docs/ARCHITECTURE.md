@@ -134,8 +134,9 @@ facts, receipts, epistemic status and fixed obligations are not genes. System-1,
 human proposals and external genomes are peer proposal sources; every candidate crosses the same Forma
 admission/explanation/resource boundary.
 
-Production imports resolve directly through `src/moneta/`, and the kernel ABI exposes the
-`moneta_solve` / `moneta_evaluate_candidate` / `moneta_adjust_evidence` contract names. The retired
+Production imports resolve directly through `src/moneta/`. The kernel ABI still publishes the retired
+`draco_solve` / `draco_evaluate_candidate` / `draco_adjust_evidence` names (renamed to `moneta_solve` /
+`moneta_evaluate_candidate` / `moneta_adjust_evidence` under #1031). The retired
 Draco compatibility surface — the `src/draco` single-file barrel, the `draco_solve` /
 `draco_evaluate_candidate` / `draco_adjust_evidence` ABI aliases, and the `DRACO_RUST` capability
 mirror — is being removed by the alias-retirement series (#1031 kernel ABI, #1032 src surface);
