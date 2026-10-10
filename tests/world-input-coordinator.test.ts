@@ -74,7 +74,7 @@ describe('WorldInputCoordinator', () => {
 
     coordinator = new WorldInputCoordinator(engine, bus, {
       getSetting: () => undefined,
-      getDracoGroup: () => null,
+      getMonetaGroup: () => null,
       getArtifact: () => null,
       getHandWheelMenu: () => null,
       callbacks,
@@ -178,7 +178,7 @@ describe('WorldInputCoordinator', () => {
   it('does not run gesture update when gestures are disabled', () => {
     const localCoordinator = new WorldInputCoordinator(engine, bus, {
       getSetting: (key) => (key === 'gesturesEnabled' ? false : undefined),
-      getDracoGroup: () => null,
+      getMonetaGroup: () => null,
       getArtifact: () => null,
       getHandWheelMenu: () => null,
       callbacks,
@@ -217,7 +217,7 @@ describe('WorldInputCoordinator', () => {
 
     const localCoordinator = new WorldInputCoordinator(engine, bus, {
       getSetting: () => undefined,
-      getDracoGroup: () => group,
+      getMonetaGroup: () => group,
       getArtifact: () => ({ nodeMeshes: [mesh] }),
       getHandWheelMenu: () => null,
       callbacks,
@@ -242,7 +242,7 @@ describe('WorldInputCoordinator', () => {
 
     const localCoordinator = new WorldInputCoordinator(engine, bus, {
       getSetting: () => undefined,
-      getDracoGroup: () => null,
+      getMonetaGroup: () => null,
       getArtifact: () => null,
       getHandWheelMenu: () => wheelMenu,
       callbacks,
@@ -275,7 +275,7 @@ describe('WorldInputCoordinator', () => {
     const localCallbacks = { ...callbacks, onToggleSettingsPanel: vi.fn() };
     const localCoordinator = new WorldInputCoordinator(stubEngine, bus, {
       getSetting: () => undefined,
-      getDracoGroup: () => null,
+      getMonetaGroup: () => null,
       getArtifact: () => null,
       getHandWheelMenu: wheelOpen ? () => ({ isVisible: () => true }) : () => null,
       callbacks: localCallbacks,
@@ -339,7 +339,7 @@ describe('WorldInputCoordinator', () => {
 
     const localCoordinator = new WorldInputCoordinator(engine, bus, {
       getSetting: () => undefined,
-      getDracoGroup: () => null,
+      getMonetaGroup: () => null,
       getArtifact: () => null,
       getHandWheelMenu: () => wheelMenu,
       callbacks,

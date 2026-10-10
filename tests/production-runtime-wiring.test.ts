@@ -21,14 +21,14 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
 
     expect(world.bootState).toBe('INITIALIZING');
     expect(requireValue(world.currentEntry, 'initial dataset entry').key).toBe('supply-chain');
-    expect(world.dracoNode).toBeNull();
+    expect(world.monetaNode).toBeNull();
 
     try {
       await world.start();
       expect(world.bootState).toBe('READY');
       expect(initializeRuntime).toHaveBeenCalledOnce();
       expect(world.analyticalRuntime.runtime).toBe(runtimeBridge);
-      const authoritativeNode = requireValue(world.dracoNode, 'authoritative representation node');
+      const authoritativeNode = requireValue(world.monetaNode, 'authoritative representation node');
       expect(authoritativeNode.representationDecision).not.toBeNull();
     } finally {
       await world.dispose();
@@ -44,14 +44,14 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     const historyBefore = world.atlas.analysisHistory.length;
 
     expect(world.atlas.isReady()).toBe(false);
-    expect(world.dracoNode).toBeNull();
+    expect(world.monetaNode).toBeNull();
 
     try {
       await world.start();
 
       expect(world.bootState).toBe('READY');
       expect(world.atlas.isReady()).toBe(true);
-      const authoritativeNode = requireValue(world.dracoNode, 'authoritative representation node');
+      const authoritativeNode = requireValue(world.monetaNode, 'authoritative representation node');
       const decision = requireValue(
         authoritativeNode.representationDecision,
         'authoritative representation decision'
@@ -89,7 +89,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       expect(runtimeBridge.getKernelState()).toBe('READY');
       expect(world.atlas.isReady()).toBe(true);
       expect(world.analyticalRuntime.isUnavailable).toBe(false);
-      expect(requireValue(world.dracoNode, 'recovered representation node')).not.toBe(authoritativeNode);
+      expect(requireValue(world.monetaNode, 'recovered representation node')).not.toBe(authoritativeNode);
       expect(world.atlas.datasetVersion).toBe(versionBefore);
       expect(world.atlas.ledger).toEqual(ledgerAfterStart);
       expect(world.atlas.analysisHistory.length).toBe(historyBefore);
@@ -103,7 +103,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     const world = new World();
     try {
       await world.start();
-      const currentNode = requireValue(world.dracoNode, 'current representation node');
+      const currentNode = requireValue(world.monetaNode, 'current representation node');
       const currentGroup = currentNode.group;
       vi.spyOn(world.atlas, 'arbitrateRepresentation').mockImplementationOnce(() => {
         throw new WebAssembly.RuntimeError('injected representation failure');
@@ -112,7 +112,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
       expect(() => world._rebuildPalaceWithKernelFacts()).toThrow(
         'injected representation failure'
       );
-      expect(world.dracoNode).toBe(currentNode);
+      expect(world.monetaNode).toBe(currentNode);
       expect(world.engine.scene.children).toContain(currentGroup);
     } finally {
       await world.dispose();
@@ -130,7 +130,7 @@ describe('Sprint 18.1 - 18.4: Production Runtime Integration & Worker Hardening 
     expect(world.datasetSpace?.datumIds.length).toBeGreaterThan(0);
     // The logical dataset is staged pre-kernel, but no placeholder geometry is
     // constructed. The first palace is the authoritative one built at start().
-    expect(world.dracoNode).toBeNull();
+    expect(world.monetaNode).toBeNull();
     expect(world.sceneGraphController.scene).toBeInstanceOf(THREE.Scene);
 
     const disposeSpy = vi.spyOn(world.sceneGraphController, 'dispose');

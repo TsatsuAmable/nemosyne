@@ -64,7 +64,7 @@ const EAGER_WORLD_UI_DISPOSITIONS: Readonly<Record<string, string>> = {
   performancePanel: 'excluded: diagnostic role, hidden in ANALYST mode',
   networkPanel: 'excluded: diagnostic role, hidden in ANALYST mode',
   recommendationPanel: 'excluded: hidden task panel outside the canonical B3 journey',
-  dracoExplainerPanel: 'excluded: hidden task panel outside the canonical B3 journey',
+  monetaExplainerPanel: 'excluded: hidden task panel outside the canonical B3 journey',
   vaultPanel: 'excluded: hidden task panel outside the canonical B3 journey',
 };
 

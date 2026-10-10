@@ -29,7 +29,7 @@ export interface ChartPlaneOptions {
   colorblindMode?: string | boolean;
 }
 
-export interface DracoFactsLike {
+export interface MonetaFactsLike {
   numericColumns?: number;
   hasTimeSeries?: boolean;
 }
@@ -117,8 +117,8 @@ export class ChartPlane implements Updatable {
     this.dataset = null;
   }
 
-  /** Factory helper that picks a sensible chart type from a Draco facts object. */
-  static fromFacts(facts: DracoFactsLike, dataset: Dataset, options: Partial<ChartPlaneOptions> = {}): ChartPlane {
+  /** Factory helper that picks a sensible chart type from a Moneta facts object. */
+  static fromFacts(facts: MonetaFactsLike, dataset: Dataset, options: Partial<ChartPlaneOptions> = {}): ChartPlane {
     let type: ChartKind = ChartType.BAR;
     const column = options.column ?? dataset.numericColumns[0]?.name ?? null;
     let xColumn: string | null = null;

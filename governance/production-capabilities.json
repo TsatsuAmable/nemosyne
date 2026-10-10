@@ -3,11 +3,6 @@
   "policy": "Every non-development capability must have a production runtime entry point, a user/service discovery marker, and product-path evidence. Every top-level src domain must be covered by at least one non-development capability or an explicit root exception. Development-only exceptions must be explicit and may not leak misleading public production exports.",
   "rootExceptions": [
     {
-      "root": "draco",
-      "classification": "compatibility-only",
-      "reason": "Compatibility facade retained for migration only; production imports are required to resolve through Moneta."
-    },
-    {
       "root": "fitness",
       "classification": "development-only",
       "reason": "Learned-fitness training, evaluation and promotion machinery is research-only until an intentionally promoted artifact workflow is product-composed."

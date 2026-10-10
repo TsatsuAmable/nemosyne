@@ -12,7 +12,7 @@ interface AggregateEvidenceWorld {
     scene: THREE.Scene;
     renderer: { info: { render: { calls: number; triangles: number } } };
   };
-  dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
+  monetaNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
   loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
@@ -158,7 +158,7 @@ export async function runAggregateEvidenceScenario(
   };
 
   await world.loadDataset(entry);
-  const initialPromise = (world.dracoNode?.dataInput as SemanticAggregateInput | undefined)
+  const initialPromise = (world.monetaNode?.dataInput as SemanticAggregateInput | undefined)
     ?.semanticEmbodimentPromise;
   if (initialPromise) await initialPromise;
   await Promise.resolve();
@@ -170,13 +170,13 @@ export async function runAggregateEvidenceScenario(
     preserveAuxiliaryPresentation: true,
   });
 
-  const semanticPromise = (world.dracoNode?.dataInput as SemanticAggregateInput | undefined)
+  const semanticPromise = (world.monetaNode?.dataInput as SemanticAggregateInput | undefined)
     ?.semanticEmbodimentPromise;
   if (!semanticPromise) throw new Error('A5 aggregate semantic request was not started.');
   const envelope = await semanticPromise;
   await waitFrames(2);
 
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   const decision = node?.representationDecision;
   if (!node || !decision || !envelope || envelope.result.status !== 'READY') {
     throw new Error('A5 aggregate scenario did not reach a READY production semantic embodiment.');

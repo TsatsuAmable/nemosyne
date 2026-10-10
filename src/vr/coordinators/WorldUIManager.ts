@@ -22,7 +22,7 @@ import { NarrativeStrip } from '../ui/NarrativeStrip.ts';
 import { MiniOverview } from '../ui/MiniOverview.ts';
 import { PeerPresenceHUD } from '../ui/PeerPresenceHUD.ts';
 import { RecommendationPanel } from '../ui/RecommendationPanel.ts';
-import { DracoExplainerPanel } from '../ui/DracoExplainerPanel.ts';
+import { MonetaExplainerPanel } from '../ui/MonetaExplainerPanel.ts';
 import { RepresentationCarousel } from '../ui/RepresentationCarousel.ts';
 import { TransientContextCardManager } from '../ui/TransientContextCards.ts';
 import { SchemaMappingPanel } from '../ui/SchemaMappingPanel.ts';
@@ -176,7 +176,7 @@ export class WorldUIManager {
   interactionCoach: InteractionCoach | null = null;
   narrativeStrip: NarrativeStrip | null = null;
   recommendationPanel: RecommendationPanel;
-  dracoExplainerPanel: DracoExplainerPanel;
+  monetaExplainerPanel: MonetaExplainerPanel;
   vaultPanel: VaultPanel;
   statusStripPanel: StatusStripPanel;
 
@@ -442,12 +442,12 @@ export class WorldUIManager {
     this.workspaceSurfaces.hide('guidance');
     applyPanelLayout(this.recommendationPanel, PANEL_LAYOUT.recommendationPanel);
 
-    // Draco explainer panel ("Why this palace?").
-    this.dracoExplainerPanel = new DracoExplainerPanel(this.analystAnchor);
-    applyPanelLayout(this.dracoExplainerPanel, PANEL_LAYOUT.monetaExplainerPanel);
-    this.workspaceSurfaces.registerPanel('why-view', this.dracoExplainerPanel);
-    this.engine.input.addPanel(this.dracoExplainerPanel);
-    this.engine.addUpdatable(this.dracoExplainerPanel);
+    // Moneta explainer panel ("Why this palace?").
+    this.monetaExplainerPanel = new MonetaExplainerPanel(this.analystAnchor);
+    applyPanelLayout(this.monetaExplainerPanel, PANEL_LAYOUT.monetaExplainerPanel);
+    this.workspaceSurfaces.registerPanel('why-view', this.monetaExplainerPanel);
+    this.engine.input.addPanel(this.monetaExplainerPanel);
+    this.engine.addUpdatable(this.monetaExplainerPanel);
     this.workspaceSurfaces.hide('why-view');
 
     // Evidence Vault panel — archive/restore investigation snapshots.
@@ -474,13 +474,13 @@ export class WorldUIManager {
     this.panelRolesManager.registerPanel('performance', 'Performance Budget', 'diagnostic');
     this.panelRolesManager.registerPanel('network', 'Collaboration Network', 'diagnostic');
     this.panelRolesManager.registerPanel('recommendation', 'Recommendation Panel', 'primary');
-    this.panelRolesManager.registerPanel('dracoExplainer', 'Draco Explainer Panel', 'primary');
+    this.panelRolesManager.registerPanel('monetaExplainer', 'Moneta Explainer Panel', 'primary');
     this.panelRolesManager.registerPanel('vault', 'Evidence Vault', 'primary');
 
     // Superuser / Dev Lab panels — gated to DEVELOPER mode only. Pre-registered
     // so the Super User wheel category can list them before first construction.
-    // DracoDiagnosticHUD is owned by World (rebuilt per palace) and toggled via
-    // world._toggleDracoDiagnostic, so it is not registered here.
+    // MonetaDiagnosticHUD is owned by World (rebuilt per palace) and toggled via
+    // world._toggleMonetaDiagnostic, so it is not registered here.
     // SchemaMappingPanel uses SpatialPanel rendering and the canonical
     // workspace-surface lifecycle, so it is not pre-registered with role policy.
     this.panelRolesManager.registerPanel(
@@ -713,7 +713,7 @@ export class WorldUIManager {
   private _syncPanelVisibilityWithRoles(): void {
     const rolePanelMap: Record<string, PanelLike | null> = {
       recommendation: this.recommendationPanel,
-      dracoExplainer: this.dracoExplainerPanel,
+      monetaExplainer: this.monetaExplainerPanel,
       telemetry: this.telemetryPanel,
       vrConsole: this.vrConsole,
       operationLog: this.operationLogPanel,

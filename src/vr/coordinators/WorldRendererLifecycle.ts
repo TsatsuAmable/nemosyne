@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Dataset } from '../../data/Dataset.ts';
-import type { DracoDataInput, DracoFacts } from '../../moneta/types.ts';
+import type { MonetaDataInput, MonetaFacts } from '../../moneta/types.ts';
 import {
   buildTDASummaryGroup,
   type TDAComputationResult,
@@ -8,7 +8,7 @@ import {
 import { ChartPlanePanel } from '../ui/ChartPlanePanel.ts';
 import { DashboardManager } from '../ui/DashboardManager.ts';
 import { TooltipManager } from '../ui/TooltipManager.ts';
-import type { MonetaTopologyNode as DracoTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
+import type { MonetaTopologyNode as MonetaTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { Engine } from '../Engine.ts';
 import { disposeObject } from '../../utils/Dispose.ts';
@@ -18,8 +18,8 @@ export interface RendererLifecycleOptions {
   dashboard: DashboardManager;
   tooltipManager: TooltipManager;
   getOriginalDataset: () => Dataset | null;
-  getDracoNode: () => DracoTopologyNode | null;
-  /** Wave 5/6: AtlasCore — the analytical authority (Draco facts + TDA). */
+  getMonetaNode: () => MonetaTopologyNode | null;
+  /** Wave 5/6: AtlasCore — the analytical authority (Moneta facts + TDA). */
   getAtlas: () => AtlasCore | null;
 }
 
@@ -29,7 +29,7 @@ export class WorldRendererLifecycle {
   readonly dashboard: DashboardManager;
   readonly tooltipManager: TooltipManager;
   readonly getOriginalDataset: () => Dataset | null;
-  readonly getDracoNode: () => DracoTopologyNode | null;
+  readonly getMonetaNode: () => MonetaTopologyNode | null;
   readonly getAtlas: () => AtlasCore | null;
 
   dashboardPanels: { panel: ChartPlanePanel }[] = [];
@@ -44,7 +44,7 @@ export class WorldRendererLifecycle {
     this.dashboard = options.dashboard;
     this.tooltipManager = options.tooltipManager;
     this.getOriginalDataset = options.getOriginalDataset;
-    this.getDracoNode = options.getDracoNode;
+    this.getMonetaNode = options.getMonetaNode;
     this.getAtlas = options.getAtlas;
   }
 
@@ -82,15 +82,15 @@ export class WorldRendererLifecycle {
     const dataset = this.getOriginalDataset();
     if (!dataset) return;
 
-    // Wave 5: facts come from AtlasCore (kernel.statistics), not from Draco.
+    // Wave 5: facts come from AtlasCore (kernel.statistics), not from a TS engine.
     // `extractFacts` was removed from ConstraintEngine; the dashboard only
     // reads column counts + hasTimeSeries, which are dataset-shape metadata
     // (not analytical) when the kernel is unavailable.
     const atlas = this.getAtlas();
-    let facts: DracoFacts | null = null;
+    let facts: MonetaFacts | null = null;
     if (atlas) {
-      const input: DracoDataInput = { dataset };
-      facts = atlas.dracoFacts(input) ?? null;
+      const input: MonetaDataInput = { dataset };
+      facts = atlas.monetaFacts(input) ?? null;
     }
     const numericColumnCount = facts?.numericColumns ?? dataset.numericColumns.length;
     const hasTimeSeries = facts?.hasTimeSeries ?? dataset.temporalColumns.length > 0;

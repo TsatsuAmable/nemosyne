@@ -41,8 +41,8 @@ describe('MonetaExplainerPanel UXR1 UIKit migration', () => {
         },
       },
     } as never;
-    panel.setDracoNode(node);
-    expect(panel.dracoNode).toBe(node);
+    panel.setMonetaNode(node);
+    expect(panel.monetaNode).toBe(node);
     expect(panel.monetaNode).toBe(node);
   });
 });

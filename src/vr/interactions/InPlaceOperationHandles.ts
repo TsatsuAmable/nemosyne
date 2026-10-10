@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import type { SemanticTargetMeta } from '../input/InteractableRegistry.ts';
 
-interface DracoNodeLike {
+interface MonetaNodeLike {
   artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined;
   dataInput?: { topology?: string } | undefined;
 }
@@ -130,12 +130,12 @@ export class InPlaceOperationHandles {
     this._spriteMaterialCache.clear();
   }
 
-  build(dracoNode: DracoNodeLike) {
+  build(monetaNode: MonetaNodeLike) {
     this.clear();
-    if (!dracoNode?.artifact) return;
+    if (!monetaNode?.artifact) return;
 
-    const topology = dracoNode.dataInput?.topology;
-    const meshes = dracoNode.artifact.nodeMeshes ?? [];
+    const topology = monetaNode.dataInput?.topology;
+    const meshes = monetaNode.artifact.nodeMeshes ?? [];
     if (meshes.length === 0) return;
 
     switch (topology) {
@@ -152,10 +152,10 @@ export class InPlaceOperationHandles {
     }
   }
 
-  buildFromStructures(dracoNode: DracoNodeLike, structureSets: StructureSetLike[]) {
+  buildFromStructures(monetaNode: MonetaNodeLike, structureSets: StructureSetLike[]) {
     this.clear();
-    if (!dracoNode?.artifact) return;
-    const meshes = dracoNode.artifact.nodeMeshes ?? [];
+    if (!monetaNode?.artifact) return;
+    const meshes = monetaNode.artifact.nodeMeshes ?? [];
     if (meshes.length === 0) return;
 
     const iconForKind: Record<string, string> = {

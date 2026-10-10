@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
-import type { DracoFacts } from '../src/moneta/types.ts';
+import type { MonetaFacts } from '../src/moneta/types.ts';
 import type { Facts } from '../src/data/types.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset } from '../src/data/Dataset.ts';
@@ -10,8 +10,8 @@ import {
 } from './helpers/moneta-kernel-fixture.ts';
 
 describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
-  it('builds a source-aware compatibility signature from DracoFacts and kernel Facts', () => {
-    const mockDracoFacts: DracoFacts = {
+  it('builds a source-aware compatibility signature from MonetaFacts and kernel Facts', () => {
+    const mockDracoFacts: MonetaFacts = {
       topology: 'TABULAR',
       rowCount: 100,
       nodeCount: 100,
@@ -109,7 +109,7 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
   });
 
   it('does not infer cycles from graph topology or edge presence', () => {
-    const mockFacts: DracoFacts = {
+    const mockFacts: MonetaFacts = {
       topology: 'GRAPH',
       rowCount: 50,
       nodeCount: 50,
@@ -147,7 +147,7 @@ describe('Phase 2: Extract DatasetSignature from AtlasCore Facts', () => {
   });
 
   it('does not manufacture coordinate dimensionality from a GEO topology label', () => {
-    const mockFacts: DracoFacts = {
+    const mockFacts: MonetaFacts = {
       topology: 'GEO',
       rowCount: 200,
       nodeCount: 200,

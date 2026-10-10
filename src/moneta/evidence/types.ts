@@ -2,7 +2,7 @@
  * Types for the Evidence-Informed Moneta Recommender Loop.
  */
 
-import type { MonetaSpec, DracoSpec } from '../types.ts';
+import type { MonetaSpec } from '../types.ts';
 import type { StudyCondition } from '../../study/types.ts';
 
 export interface EmpiricalOutcome {
@@ -10,7 +10,7 @@ export interface EmpiricalOutcome {
   datasetFingerprint: string;
   condition: StudyCondition;
   taskType: string;
-  spec?: MonetaSpec | DracoSpec;
+  spec?: MonetaSpec;
   accuracy: number;
   precision: number;
   recall: number;

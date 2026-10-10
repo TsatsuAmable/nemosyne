@@ -1,15 +1,15 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
-import { DracoExplainerPanel } from '../src/vr/ui/DracoExplainerPanel.ts';
+import { MonetaExplainerPanel } from '../src/vr/ui/MonetaExplainerPanel.ts';
 
-describe('DracoExplainerPanel', () => {
+describe('MonetaExplainerPanel', () => {
   let cameraGroup: THREE.Group;
-  let panel: DracoExplainerPanel;
+  let panel: MonetaExplainerPanel;
 
   beforeEach(() => {
     cameraGroup = new THREE.Group();
-    panel = new DracoExplainerPanel(cameraGroup);
+    panel = new MonetaExplainerPanel(cameraGroup);
   });
 
   it('initializes with default empty state', () => {
@@ -66,8 +66,8 @@ describe('DracoExplainerPanel', () => {
     }
   });
 
-  it('updates when dracoNode solverResult is supplied', () => {
-    const mockDracoNode = {
+  it('updates when monetaNode solverResult is supplied', () => {
+    const mockMonetaNode = {
       solverResult: {
         facts: { topology: 'GRAPH', rowCount: 120, columnCount: 4 },
         spec: { layout: 'FORCE_DIRECTED_3D', geometry: 'ICOSA_NODE', behavior: 'PULSE_QUANTITATIVE', interaction: 'RESONANCE_PULSE' },
@@ -75,7 +75,7 @@ describe('DracoExplainerPanel', () => {
       },
     };
 
-    panel.setDracoNode(mockDracoNode);
+    panel.setMonetaNode(mockMonetaNode);
     expect(panel.facts.topology).toBe('GRAPH');
     expect(panel.spec.layout).toBe('FORCE_DIRECTED_3D');
   });

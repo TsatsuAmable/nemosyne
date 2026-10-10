@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { buildDatasetSignature } from '../src/moneta/representation/SignatureBuilder.ts';
 import { datasetEvidenceToSignature } from '../src/moneta/representation/DatasetEvidenceSignature.ts';
 import { structureProfileToDatasetEvidence } from '../src/data/evidence/StructureProfileEvidenceAdapter.ts';
-import type { DracoFacts } from '../src/moneta/types.ts';
+import type { MonetaFacts } from '../src/moneta/types.ts';
 import type { Facts } from '../src/data/types.ts';
 import { createMonetaStructureProfile } from './helpers/moneta-kernel-fixture.ts';
 
-const mockDracoFacts: DracoFacts = {
+const mockDracoFacts: MonetaFacts = {
   topology: 'TABULAR',
   rowCount: 100,
   nodeCount: 100,

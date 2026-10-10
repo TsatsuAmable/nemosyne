@@ -6,9 +6,9 @@ import {
   PositionSemanticsEngine,
   RepresentationHypothesisEngine,
   type SolverResult,
-  type DracoDataInput,
+  type MonetaDataInput,
   type SpectralFacts,
-  type DracoFacts,
+  type MonetaFacts,
 } from '../src/moneta/index.ts';
 import { VRChannels } from '../src/moneta/ConstraintEngine.ts';
 
@@ -78,7 +78,7 @@ describe('Phase 6: FrequencyField Representation and Renderer', () => {
       cost: 4.5,
     };
 
-    const dataInput: DracoDataInput = {
+    const dataInput: MonetaDataInput = {
       topology: 'TIME_SERIES',
       rows: Array.from({ length: 8 }, (_, i) => ({ freq: i * 0.1, power: Math.sin(i) + 2 })),
       encodings: { time: 'freq', size: 'power' },
@@ -105,7 +105,7 @@ describe('Phase 6: FrequencyField Representation and Renderer', () => {
   });
 
   it('hypothesis engine selects FREQUENCY when spectral facts show periodicity', () => {
-    const mockFacts: DracoFacts = {
+    const mockFacts: MonetaFacts = {
       topology: 'TIME_SERIES',
       rowCount: 64,
       nodeCount: 64,

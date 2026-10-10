@@ -75,9 +75,6 @@ export class MonetaDiagnosticHUD extends SpatialPanel {
     }
   }
 
-  get dracoNode(): MonetaTopologyNode {
-    return this.monetaNode;
-  }
 
   show(): void {
     this.visible = true;
@@ -181,4 +178,4 @@ export class MonetaDiagnosticHUD extends SpatialPanel {
   }
 }
 
-export { MonetaDiagnosticHUD as DracoDiagnosticHUD };
+

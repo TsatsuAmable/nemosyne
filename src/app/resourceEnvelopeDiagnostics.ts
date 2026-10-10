@@ -247,7 +247,7 @@ function sceneSnapshot(world: World): ResourceEnvelopeScenarioResult['scene'] {
   return {
     objectCount,
     visibleObjectCount,
-    renderedNodeMeshCount: world.dracoNode?.artifact?.nodeMeshes?.length ?? 0,
+    renderedNodeMeshCount: world.monetaNode?.artifact?.nodeMeshes?.length ?? 0,
     renderCalls: render.calls,
     triangles: render.triangles,
   };

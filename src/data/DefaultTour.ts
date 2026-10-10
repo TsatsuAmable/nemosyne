@@ -39,7 +39,7 @@ export const FIRST_DATASET_TOUR: Tour = {
     },
     {
       // Compatibility target ID retained until the scene-resolver contract migrates.
-      target: 'draco-palace',
+      target: 'moneta-palace',
       text: 'In front of you is the dataset representation selected by Moneta: structures, nodes, beams, or volumes chosen for the current analytical task and dataset semantics.',
       actionHint: 'Inspect the representation',
     },
@@ -115,7 +115,7 @@ export const FIRST_DATASET_TOUR: Tour = {
     },
     {
       // Compatibility target ID retained until the scene-resolver contract migrates.
-      target: 'draco-palace',
+      target: 'moneta-palace',
       text: 'That is the core loop: load, investigate, challenge, record, recover, and share. Press Next to complete the tour!',
       actionHint: 'Press Next to finish',
     },

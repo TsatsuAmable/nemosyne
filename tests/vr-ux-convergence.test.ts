@@ -194,7 +194,7 @@ describe('VR UX Convergence, Spatial Intelligence & Interaction Engineering', ()
 
       // Enforces maximum 3 primary panels rule
       expect(uiManager.panelRolesManager.openPanel('recommendation')).toBe(true);
-      expect(uiManager.panelRolesManager.openPanel('dracoExplainer')).toBe(true);
+      expect(uiManager.panelRolesManager.openPanel('monetaExplainer')).toBe(true);
       expect(uiManager.panelRolesManager.getOpenPanelsByRole('primary').length).toBe(2);
 
       // Diagnostic panel is blocked in ANALYST mode

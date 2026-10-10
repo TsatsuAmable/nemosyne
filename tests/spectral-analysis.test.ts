@@ -5,7 +5,7 @@ import {
   buildDatasetSignature,
   RepresentationHypothesisEngine,
   type SpectralFacts,
-  type DracoFacts,
+  type MonetaFacts,
 } from '../src/moneta/index.ts';
 
 describe('Phase 5: Spectral Analysis in Rust/WASM & AtlasCore', () => {
@@ -61,7 +61,7 @@ describe('Phase 5: Spectral Analysis in Rust/WASM & AtlasCore', () => {
   });
 
   it('populates spectralStructure in DatasetSignature when spectral facts are provided', () => {
-    const baseFacts: DracoFacts = {
+    const baseFacts: MonetaFacts = {
       topology: 'TIME_SERIES',
       rowCount: 64,
       nodeCount: 64,

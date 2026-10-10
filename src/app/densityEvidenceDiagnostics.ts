@@ -18,7 +18,7 @@ interface DensityEvidenceWorld {
     scene: THREE.Scene;
     renderer: { info: { render: { calls: number; triangles: number } } };
   };
-  dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
+  monetaNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
   loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
@@ -238,7 +238,7 @@ export async function runDensityEvidenceScenario(
   const loadStartedAt = performance.now();
   await world.loadDataset(entry);
   const initialSemanticPromise = (
-    world.dracoNode?.dataInput as SemanticDensityInput | undefined
+    world.monetaNode?.dataInput as SemanticDensityInput | undefined
   )?.semanticEmbodimentPromise;
   if (initialSemanticPromise) await initialSemanticPromise;
   await Promise.resolve();
@@ -260,7 +260,7 @@ export async function runDensityEvidenceScenario(
     preserveAuxiliaryPresentation: true,
   });
 
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   if (!node || node.representationDecision?.chosenCandidateId !== 'DENSITY_FIELD') {
     throw new Error(
       `Density M4 expected DENSITY_FIELD, received ${node?.representationDecision?.chosenCandidateId ?? 'none'}.`

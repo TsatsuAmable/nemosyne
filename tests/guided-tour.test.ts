@@ -38,7 +38,7 @@ describe('GuidedTour', () => {
     tour.start();
     expect(tour.currentStep!.target).toBe('datum-plane');
     tour.next();
-    expect(tour.currentStep!.target).toBe('draco-palace');
+    expect(tour.currentStep!.target).toBe('moneta-palace');
   });
 
   it('goes back with previous()', () => {

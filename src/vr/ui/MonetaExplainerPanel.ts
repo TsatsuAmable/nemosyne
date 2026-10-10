@@ -66,13 +66,7 @@ export class MonetaExplainerPanel extends SpatialPanel {
     this.refresh();
   }
 
-  get dracoNode(): MonetaTopologyNode | null {
-    return this.monetaNode;
-  }
 
-  setDracoNode(node: MonetaTopologyNode | null): void {
-    this.setMonetaNode(node);
-  }
 
   setMonetaNode(node: MonetaTopologyNode | null): void {
     this.monetaNode = node;
@@ -184,4 +178,4 @@ export class MonetaExplainerPanel extends SpatialPanel {
   }
 }
 
-export { MonetaExplainerPanel as DracoExplainerPanel };
+

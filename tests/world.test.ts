@@ -2,8 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { World } from '../src/vr/World.ts';
-import { MonetaTopologyNode as DracoTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
-import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
+import { MonetaTopologyNode as MonetaTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
+import { MonetaDiagnosticHUD } from '../src/vr/ui/MonetaDiagnosticHUD.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';
 import { WorldTheme } from '../src/vr/WorldTheme.ts';
@@ -176,26 +176,26 @@ describe('World integration', () => {
   });
 
   function expectedInteractableCount(world) {
-    const topology = world.dracoNode.dataInput?.topology;
-    const hasObservationNodes = world.dracoNode.artifact.nodeMeshes.length > 0;
+    const topology = world.monetaNode.dataInput?.topology;
+    const hasObservationNodes = world.monetaNode.artifact.nodeMeshes.length > 0;
     const supportsHandles =
       topology === 'TIME_SERIES' || topology === 'TABULAR' || topology === 'HIERARCHY';
     const handleCount =
       hasObservationNodes && supportsHandles ? (topology === 'TIME_SERIES' ? 1 : 2) : 0;
     // +1 core, +1 iceVault (P1-U6 vault landmark interactable)
-    return world.dracoNode.artifact.nodeMeshes.length + 2 + handleCount;
+    return world.monetaNode.artifact.nodeMeshes.length + 2 + handleCount;
   }
 
   it('creates the default dataset-first node without materialising raw observations', () => {
     world = new World(); wireKernel(world);
 
-    expect(world.dracoNode).toBeInstanceOf(DracoTopologyNode);
-    expect(world.dracoNode.artifact).toBeTruthy();
-    expect(world.dracoNode.dataInput.semanticIntentAbstractionLevel).toBe('DATASET');
-    expect(world.dracoNode.dataInput.observationPresentationAuthority).toBeUndefined();
-    expect(world.dracoNode.artifact.nodeMeshes).toHaveLength(0);
+    expect(world.monetaNode).toBeInstanceOf(MonetaTopologyNode);
+    expect(world.monetaNode.artifact).toBeTruthy();
+    expect(world.monetaNode.dataInput.semanticIntentAbstractionLevel).toBe('DATASET');
+    expect(world.monetaNode.dataInput.observationPresentationAuthority).toBeUndefined();
+    expect(world.monetaNode.artifact.nodeMeshes).toHaveLength(0);
 
-    expect(world.diagnostic).toBeInstanceOf(DracoDiagnosticHUD);
+    expect(world.diagnostic).toBeInstanceOf(MonetaDiagnosticHUD);
 
     const panels = world.engine.input.panels;
     expect(panels).toContain(world.uiManager.telemetryPanel);
@@ -204,7 +204,7 @@ describe('World integration', () => {
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
     expect(interactableMeshes.length).toBe(expectedInteractableCount(world));
     expect(interactableMeshes).toContain(world.core.group);
-    for (const mesh of world.dracoNode.artifact.nodeMeshes) {
+    for (const mesh of world.monetaNode.artifact.nodeMeshes) {
       expect(interactableMeshes).toContain(mesh);
     }
   });
@@ -212,7 +212,7 @@ describe('World integration', () => {
   it('loadDataset tears down the previous Draco node and diagnostic, then rebuilds', () => {
     world = new World(); wireKernel(world);
 
-    const oldDraco = world.dracoNode;
+    const oldDraco = world.monetaNode;
     const oldDiagnostic = world.diagnostic;
     const oldMeshes = [...oldDraco.artifact.nodeMeshes];
 
@@ -221,8 +221,8 @@ describe('World integration', () => {
     world.loadDataset(entry);
 
     expect(world.currentEntry).toBe(entry);
-    expect(world.dracoNode).toBeInstanceOf(DracoTopologyNode);
-    expect(world.dracoNode).not.toBe(oldDraco);
+    expect(world.monetaNode).toBeInstanceOf(MonetaTopologyNode);
+    expect(world.monetaNode).not.toBe(oldDraco);
     expect(world.diagnostic).not.toBe(oldDiagnostic);
     expect(world.engine.input.panels).toContain(world.diagnostic);
 
@@ -232,7 +232,7 @@ describe('World integration', () => {
     for (const mesh of oldMeshes) {
       expect(interactableMeshes).not.toContain(mesh);
     }
-    for (const mesh of world.dracoNode.artifact.nodeMeshes) {
+    for (const mesh of world.monetaNode.artifact.nodeMeshes) {
       expect(interactableMeshes).toContain(mesh);
     }
   });
@@ -240,18 +240,18 @@ describe('World integration', () => {
   it('reSolveAndSynthesize re-wires artifact interactables', () => {
     world = new World(); wireKernel(world);
 
-    const oldMeshes = [...world.dracoNode.artifact.nodeMeshes];
+    const oldMeshes = [...world.monetaNode.artifact.nodeMeshes];
     expect(oldMeshes).toHaveLength(0);
-    world.dracoNode.reSolveAndSynthesize();
+    world.monetaNode.reSolveAndSynthesize();
 
     const interactableMeshes = world.engine.input.interactables.map((i) => i.mesh);
-    expect(world.dracoNode.artifact.nodeMeshes).toHaveLength(0);
+    expect(world.monetaNode.artifact.nodeMeshes).toHaveLength(0);
     expect(interactableMeshes.length).toBe(expectedInteractableCount(world));
     expect(interactableMeshes).toContain(world.core.group);
     for (const mesh of oldMeshes) {
       expect(interactableMeshes).not.toContain(mesh);
     }
-    for (const mesh of world.dracoNode.artifact.nodeMeshes) {
+    for (const mesh of world.monetaNode.artifact.nodeMeshes) {
       expect(interactableMeshes).toContain(mesh);
     }
   });
@@ -263,11 +263,11 @@ describe('World integration', () => {
     const entry = { name: 'Sales Table', topology: sales.topology, dataset: sales.dataset };
     world.loadDataset(entry);
 
-    expect(world.dracoNode.dataInput.encodings).toBeTruthy();
-    expect(world.dracoNode.dataInput.encodings.color).toBe(
+    expect(world.monetaNode.dataInput.encodings).toBeTruthy();
+    expect(world.monetaNode.dataInput.encodings.color).toBe(
       sales.dataset.categoricalColumns[0]?.name
     );
-    expect(world.dracoNode.solverResult.spec).toBeTruthy();
+    expect(world.monetaNode.solverResult.spec).toBeTruthy();
   });
 
   it('updates the DOM telemetry overlay with current dataset and head position', () => {
@@ -320,7 +320,7 @@ describe('World integration', () => {
 
     const nextName = world.currentEntry?.label ?? world.currentEntry?.name;
     expect(nextName).not.toBe(initialName);
-    expect(world.dracoNode).toBeInstanceOf(DracoTopologyNode);
+    expect(world.monetaNode).toBeInstanceOf(MonetaTopologyNode);
   });
 
   it('toggles individual panels through WorkspaceSurfaceManager', () => {
@@ -708,7 +708,7 @@ describe('World integration', () => {
 
     // VR scene rebuilt WITHOUT manual reconstruction:
     // artefact meshes re-solved.
-    expect(restoredWorld.dracoNode.artifact.nodeMeshes.length).toBeGreaterThan(0);
+    expect(restoredWorld.monetaNode.artifact.nodeMeshes.length).toBeGreaterThan(0);
     // structure handles rebuilt from restored structures (not generic build()).
     const structureHandles = restoredWorld.inPlaceHandles._handles.filter((h) => h.structureId);
     expect(structureHandles.length).toBeGreaterThan(0);

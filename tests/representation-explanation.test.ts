@@ -4,11 +4,11 @@ import { Dataset } from '../src/data/Dataset.ts';
 import {
   RepresentationHypothesisEngine,
   createDefaultRequirements,
-  type DracoFacts,
+  type MonetaFacts,
 } from '../src/moneta/index.ts';
 
 describe('Phase 7: Explanation Traces & Canonical Investigation Digest', () => {
-  const baseTabularFacts: DracoFacts = {
+  const baseTabularFacts: MonetaFacts = {
     topology: 'TABULAR',
     rowCount: 100,
     nodeCount: 100,

@@ -51,7 +51,6 @@ function expectAccepted(result, description) {
 }
 
 try {
-  await mkdir(path.join(fixtureRoot, 'src', 'draco'), { recursive: true });
   await mkdir(path.join(fixtureRoot, 'src', 'safe'), { recursive: true });
   await mkdir(path.join(fixtureRoot, 'src', 'vr'), { recursive: true });
   await mkdir(path.join(fixtureRoot, 'src', 'feature'), { recursive: true });
@@ -71,24 +70,10 @@ try {
       `  },\n` +
       `};\n`
   );
-  await writeFile(
-    path.join(fixtureRoot, 'src', 'draco', 'compat.js'),
-    'export const legacy = true;\n'
-  );
   await writeFile(path.join(fixtureRoot, 'src', 'safe', 'value.js'), 'export const value = 1;\n');
   await writeFile(path.join(fixtureRoot, 'src', 'vr', 'World.js'), 'export class World {}\n');
 
   const consumerPath = path.join(fixtureRoot, 'src', 'feature', 'consumer.js');
-  await writeFile(
-    consumerPath,
-    "import { legacy } from '../draco/compat.js';\nexport const value = legacy;\n"
-  );
-  expectRejected(
-    runFixture(),
-    'no-production-draco-imports',
-    'the deliberately invalid production -> Draco fixture'
-  );
-
   await writeFile(
     consumerPath,
     "import { World } from '../vr/World.js';\nexport const createFeature = () => new World();\n"
@@ -133,7 +118,7 @@ try {
   );
 
   console.log(
-    'Architecture boundary fixture proved fail-closed Draco, World, and governed-event dependency enforcement.'
+    'Architecture boundary fixture proved fail-closed World and governed-event dependency enforcement.'
   );
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
