@@ -34,10 +34,23 @@ describe('reviewer test-quality scanner', () => {
 
   it('finds the known vacuous assertion end to end', () => {
     const bin = resolveAstGrepBin(root) as string;
+    const result = scanRule(
+      bin,
+      join(rulesDir, 'vacuous-test.yml'),
+      join('tests', 'fixtures', 'scan-samples'),
+      root
+    );
+    expect(result.ok).toBe(true);
+    const hits = parseLocations(result.output);
+    expect(hits.some((h) => h.includes('vacuous-sample.ts'))).toBe(true);
+  });
+
+  it('no longer finds the fixed webxr-simulator vacuous test', () => {
+    const bin = resolveAstGrepBin(root) as string;
     const result = scanRule(bin, join(rulesDir, 'vacuous-test.yml'), join('tests', 'ui-system'), root);
     expect(result.ok).toBe(true);
     const hits = parseLocations(result.output);
-    expect(hits.some((h) => h.endsWith('webxr-simulator.test.ts:109'))).toBe(true);
+    expect(hits.some((h) => h.includes('webxr-simulator.test.ts'))).toBe(false);
   });
 
   it('parses pretty-print locations without the binary', () => {
