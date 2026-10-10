@@ -103,13 +103,21 @@ describe('P1-USIM / USIM-0 — WebXR simulator adapter', () => {
     adapter.setHeadPose(0, 1.6, -2);
     adapter.setControllerPosition('right', 0.5, 1.4, -1.8);
     adapter.setControllerPosition('left', -0.5, 1.4, -1.8);
-    expect(true).toBe(true);
+    expect(adapter.device.position.x).toBeCloseTo(0, 5);
+    expect(adapter.device.position.y).toBeCloseTo(1.6, 5);
+    expect(adapter.device.position.z).toBeCloseTo(-2, 5);
+    expect(adapter.device.controllers.right?.position.x).toBeCloseTo(0.5, 5);
+    expect(adapter.device.controllers.right?.position.y).toBeCloseTo(1.4, 5);
+    expect(adapter.device.controllers.right?.position.z).toBeCloseTo(-1.8, 5);
+    expect(adapter.device.controllers.left?.position.x).toBeCloseTo(-0.5, 5);
   });
 
   it('triggers controller buttons without throwing', () => {
     const adapter = new WebXRSimulatorAdapter();
     adapter.setControllerTrigger('right', true);
+    expect(adapter.device.controllers.right?.getButtonValue('trigger')).toBe(1);
     adapter.setControllerTrigger('right', false);
+    expect(adapter.device.controllers.right?.getButtonValue('trigger')).toBe(0);
   });
 
   it('installs a real WebXR runtime and starts a real immersive-vr session', async () => {
