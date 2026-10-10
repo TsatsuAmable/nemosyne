@@ -10,7 +10,6 @@ export const CapabilityFlags = {
   PARSER_RUST: 1 << 1,
   OPERATIONS_RUST: 1 << 2,
   MONETA_RUST: 1 << 3,
-  DRACO_RUST: 1 << 3,
   SCENE_RUST: 1 << 4,
   INPUT_RUST: 1 << 5,
   NETWORK_RUST: 1 << 6,

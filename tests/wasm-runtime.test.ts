@@ -182,7 +182,10 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('aggregates with the legacy sum-all-numeric default', () => {
-    const result = bridge.executeOperation(peopleDataset, { op: 'aggregate', group_by: 'team' } as OperationSpec);
+    const result = bridge.executeOperation(peopleDataset, {
+      op: 'aggregate',
+      group_by: 'team',
+    } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.rows.length).toBe(2);
     const a = result!.rows.find((r) => r.team === 'A')!;
@@ -224,7 +227,10 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('detects anomalies with the anomaly_iqr op name', () => {
-    const result = bridge.executeOperation(peopleDataset, { op: 'anomaly_iqr', column: 'age' } as OperationSpec);
+    const result = bridge.executeOperation(peopleDataset, {
+      op: 'anomaly_iqr',
+      column: 'age',
+    } as OperationSpec);
     expect(result).not.toBeNull();
     expect(result!.columns.some((c) => c.name === '_anomaly')).toBe(true);
   });
@@ -251,7 +257,9 @@ describe('RuntimeBridge integration', () => {
       expect(facts!.rowCount).toBe(4);
       const x = facts!.numeric.find((c) => c.name === 'x')!;
       expect(x.mean).toBeCloseTo(2.5, 6);
-      const xy = facts!.correlation.find((p) => (p.a === 'x' && p.b === 'y') || (p.a === 'y' && p.b === 'x'))!;
+      const xy = facts!.correlation.find(
+        (p) => (p.a === 'x' && p.b === 'y') || (p.a === 'y' && p.b === 'x')
+      )!;
       expect(xy.value).toBeCloseTo(1, 6);
       const g = facts!.categorical.find((c) => c.name === 'g')!;
       expect(g.cardinality).toBe(2);
@@ -355,7 +363,11 @@ describe('RuntimeBridge integration', () => {
   it('records a provenance envelope on an analytical result', () => {
     const handle = bridge.loadDatasetJson(peopleDataset);
     expect(handle).toBeGreaterThan(0);
-    const outHandle = bridge.runOperation(handle, { op: 'sort', column: 'age', ascending: true } as OperationSpec);
+    const outHandle = bridge.runOperation(handle, {
+      op: 'sort',
+      column: 'age',
+      ascending: true,
+    } as OperationSpec);
     expect(outHandle).toBeGreaterThan(0);
     try {
       const prov = bridge.kernelProvenance();
@@ -423,7 +435,7 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('applies the sole Rust sample-count cost adjustment through the bridge', () => {
-    // TEC2 authority pinning: `draco_adjust_evidence` is the only
+    // TEC2 authority pinning: `moneta_adjust_evidence` is the only
     // implementation of the empirical cost adjustment (the TypeScript
     // EvidenceWeightedScorer re-ranking twin was deleted). These exact values
     // pin the kernel formula — delta relative to the 0.5 neutral utility,
@@ -456,11 +468,6 @@ describe('RuntimeBridge integration', () => {
       delta: 0,
     });
     expect(bridge.adjustMonetaEvidence(50, null)).toEqual({ adjustedCost: 50, delta: 0 });
-    // The retained compatibility alias resolves to the same single authority.
-    expect(bridge.adjustDracoEvidence(50, { sampleCount: 10, compositeUtility: 0.8 })).toEqual({
-      adjustedCost: 41,
-      delta: -9,
-    });
   });
 
   it('refuses non-finite JSON contract inputs before they cross into Rust', () => {

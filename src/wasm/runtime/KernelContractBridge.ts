@@ -79,11 +79,11 @@ export function solveMoneta(facts: Record<string, unknown>): Record<string, unkn
   if (!factsBytes) return null;
   const { ptr: factsPtr, len: factsLen } = allocBytes(factsBytes);
   try {
-    const needed = wasm.draco_solve(factsPtr, factsLen, 0, 0);
+    const needed = wasm.moneta_solve(factsPtr, factsLen, 0, 0);
     if (!Number.isSafeInteger(needed) || needed <= 0) return null;
     const output = allocBuffer(needed);
     try {
-      const written = wasm.draco_solve(factsPtr, factsLen, output.ptr, output.len);
+      const written = wasm.moneta_solve(factsPtr, factsLen, output.ptr, output.len);
       if (written !== needed) return null;
       const resultBytes = readBytes(output.ptr, written);
       return JSON.parse(new TextDecoder().decode(resultBytes)) as Record<string, unknown>;
@@ -95,8 +95,6 @@ export function solveMoneta(facts: Record<string, unknown>): Record<string, unkn
   }
 }
 
-export const solveDraco = solveMoneta;
-
 export function evaluateMonetaCandidate(
   facts: Record<string, unknown>,
   spec: Record<string, unknown>
@@ -107,14 +105,12 @@ export function evaluateMonetaCandidate(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm.draco_evaluate_candidate.bind(wasm), { facts, spec }) as {
+  return callJsonAbi(wasm.moneta_evaluate_candidate.bind(wasm), { facts, spec }) as {
     valid: boolean;
     cost: number;
     violations: string[];
   } | null;
 }
-
-export const evaluateDracoCandidate = evaluateMonetaCandidate;
 
 export function adjustMonetaEvidence(
   baseCost: number,
@@ -126,13 +122,11 @@ export function adjustMonetaEvidence(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm.draco_adjust_evidence.bind(wasm), {
+  return callJsonAbi(wasm.moneta_adjust_evidence.bind(wasm), {
     baseCost,
     evidence,
   }) as { adjustedCost: number; delta: number } | null;
 }
-
-export const adjustDracoEvidence = adjustMonetaEvidence;
 
 /**
  * Strict Rust-owned V1 semantic payload validation/normalisation boundary.
@@ -148,9 +142,10 @@ export function roundTripSemanticEmbodimentPayloadV1(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm.moneta_semantic_embodiment_v1_roundtrip.bind(wasm), input) as
-    | SemanticEmbodimentEnvelopeV1
-    | null;
+  return callJsonAbi(
+    wasm.moneta_semantic_embodiment_v1_roundtrip.bind(wasm),
+    input
+  ) as SemanticEmbodimentEnvelopeV1 | null;
 }
 
 export function roundTripSemanticDetailEnvelopeV1(
@@ -162,9 +157,10 @@ export function roundTripSemanticDetailEnvelopeV1(
   } catch {
     return null;
   }
-  return callJsonAbi(wasm.moneta_semantic_detail_v1_roundtrip.bind(wasm), input) as
-    | SemanticDetailEnvelopeV1
-    | null;
+  return callJsonAbi(
+    wasm.moneta_semantic_detail_v1_roundtrip.bind(wasm),
+    input
+  ) as SemanticDetailEnvelopeV1 | null;
 }
 
 export function compileIntent(

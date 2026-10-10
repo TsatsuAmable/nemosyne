@@ -1,22 +1,22 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EvidenceStore } from '../src/moneta/evidence/index.ts';
-import type { DracoSpec } from '../src/moneta/types.ts';
+import type { MonetaSpec } from '../src/moneta/types.ts';
 import type { StudySessionExport } from '../src/study/types.ts';
 
 // The EvidenceWeightedScorer TypeScript re-ranking implementation was removed
 // (TEC2): the sample-count cost adjustment is owned solely by the Rust kernel
-// (`draco_adjust_evidence`), reached through the RuntimeBridge. The tests here
+// (`moneta_adjust_evidence`), reached through the RuntimeBridge. The tests here
 // cover EvidenceStore itself, which aggregates investigator study outcomes into
 // the empirical input (`sampleCount`, `compositeUtility`) that the Rust
 // authority consumes. No TypeScript cost-adjustment or candidate-ranking
 // formula may be reintroduced; `tests/moneta-evidence-scorer-authority.test.ts`
 // fails if one reappears.
 
-describe('Evidence-Informed Draco Recommender Loop', () => {
+describe('Evidence-Informed Moneta Recommender Loop', () => {
   let store: EvidenceStore;
 
-  const mockSpecA: DracoSpec = {
+  const mockSpecA: MonetaSpec = {
     layout: 'FORCE_DIRECTED_3D',
     geometry: 'ICOSA_NODE',
     behavior: 'STATIC',

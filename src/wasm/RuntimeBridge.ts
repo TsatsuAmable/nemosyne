@@ -87,18 +87,12 @@ export {
   kernelVersion,
   kernelProvenance,
   solveMoneta,
-  solveDraco,
   evaluateMonetaCandidate,
-  evaluateDracoCandidate,
   adjustMonetaEvidence,
-  adjustDracoEvidence,
   roundTripSemanticEmbodimentPayloadV1,
   roundTripSemanticDetailEnvelopeV1,
   compileIntent,
   discoverStructures,
 } from './runtime/KernelContractBridge.ts';
 
-export {
-  querySemanticDetailV1,
-} from './runtime/SemanticEmbodimentBridge.ts';
-
+export { querySemanticDetailV1 } from './runtime/SemanticEmbodimentBridge.ts';

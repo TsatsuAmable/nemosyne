@@ -139,7 +139,9 @@ export const WASM_TESTS = [
   'tests/chart-plane-integration.test.ts',
   'tests/desktop-preview.test.ts',
   'tests/draco-layouts.test.ts',
-  'tests/draco-topology-node.test.ts',
+  // renamed from draco-topology-node.test.ts in the Draco ABI retirement
+  'tests/moneta-topology-node.test.ts',
+  'tests/moneta-abi-surface.test.ts',
   'tests/draco.test.ts',
   'tests/e2e/tier1_feature_coverage/f02_draco_vr_decoupling.spec.ts',
   'tests/e2e/tier1_feature_coverage/f07_edge_line_segments.spec.ts',

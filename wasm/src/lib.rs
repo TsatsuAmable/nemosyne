@@ -4,7 +4,6 @@ pub mod command_buffer;
 mod prepared_results;
 mod data;
 pub mod moneta;
-pub use moneta as draco;
 pub mod intent;
 pub mod layouts;
 
@@ -288,7 +287,6 @@ const CAP_DATASET_RUST: u32 = 1 << 0;
 const CAP_PARSER_RUST: u32 = 1 << 1;
 const CAP_OPERATIONS_RUST: u32 = 1 << 2;
 const CAP_MONETA_RUST: u32 = 1 << 3;
-const CAP_DRACO_RUST: u32 = CAP_MONETA_RUST;
 const CAP_SCENE_RUST: u32 = 1 << 4;
 const CAP_INPUT_RUST: u32 = 1 << 5;
 const CAP_NETWORK_RUST: u32 = 1 << 6;
@@ -1522,7 +1520,6 @@ mod tests {
         assert!(caps & CAP_ENCODINGS_RUST != 0, "ENCODINGS_RUST implemented in Wave 1");
         assert!(caps & CAP_STATS_RUST != 0, "STATS_RUST implemented in Wave 1");
         assert!(caps & CAP_SPECTRAL_RUST != 0, "SPECTRAL_RUST implemented in Phase 5");
-        assert_eq!(caps & CAP_DRACO_RUST, 0, "DRACO_RUST not yet migrated");
         assert_eq!(caps & CAP_SCENE_RUST, 0, "SCENE_RUST not yet migrated");
         assert_eq!(caps & CAP_COMMAND_BUFFER, 0, "COMMAND_BUFFER is dormant");
         assert_eq!(caps & CAP_INSTANCING, 0, "INSTANCING not yet migrated");
@@ -2335,7 +2332,7 @@ mod tests {
 }
 
 #[no_mangle]
-pub extern "C" fn draco_solve(
+pub extern "C" fn moneta_solve(
     facts_ptr: u32,
     facts_len: u32,
     out_ptr: u32,
@@ -2344,11 +2341,11 @@ pub extern "C" fn draco_solve(
     let Some(facts_bytes) = (unsafe { allocator::try_view(facts_ptr, facts_len) }) else {
         return 0;
     };
-    let facts: draco::types::DracoFacts = match serde_json::from_slice(facts_bytes) {
+    let facts: moneta::types::MonetaFacts = match serde_json::from_slice(facts_bytes) {
         Ok(f) => f,
         Err(_) => return 0,
     };
-    let result = match draco::solver::solve_draco(facts) {
+    let result = match moneta::solver::solve_moneta(facts) {
         Some(r) => r,
         None => return 0,
     };
@@ -2360,7 +2357,7 @@ pub extern "C" fn draco_solve(
 }
 
 #[no_mangle]
-pub extern "C" fn draco_evaluate_candidate(
+pub extern "C" fn moneta_evaluate_candidate(
     input_ptr: u32,
     input_len: u32,
     out_ptr: u32,
@@ -2371,14 +2368,14 @@ pub extern "C" fn draco_evaluate_candidate(
     };
     #[derive(serde::Deserialize)]
     struct Input {
-        facts: draco::types::DracoFacts,
-        spec: draco::types::DracoSpec,
+        facts: moneta::types::MonetaFacts,
+        spec: moneta::types::MonetaSpec,
     }
     let input: Input = match serde_json::from_slice(bytes) {
         Ok(i) => i,
         Err(_) => return 0,
     };
-    let (valid, cost, violations) = draco::solver::evaluate_candidate(&input.facts, &input.spec);
+    let (valid, cost, violations) = moneta::solver::evaluate_candidate(&input.facts, &input.spec);
     let output = serde_json::json!({
         "valid": valid,
         "cost": cost,
@@ -2389,7 +2386,7 @@ pub extern "C" fn draco_evaluate_candidate(
 }
 
 #[no_mangle]
-pub extern "C" fn draco_adjust_evidence(
+pub extern "C" fn moneta_adjust_evidence(
     input_ptr: u32,
     input_len: u32,
     out_ptr: u32,
@@ -2402,13 +2399,13 @@ pub extern "C" fn draco_adjust_evidence(
     #[serde(rename_all = "camelCase")]
     struct Input {
         base_cost: f64,
-        evidence: Option<draco::evidence::EmpiricalUtilityEvidence>,
+        evidence: Option<moneta::evidence::EmpiricalUtilityEvidence>,
     }
     let input: Input = match serde_json::from_slice(bytes) {
         Ok(i) => i,
         Err(_) => return 0,
     };
-    let (adjusted, delta) = draco::evidence::adjust_candidate_cost_with_evidence(
+    let (adjusted, delta) = moneta::evidence::adjust_candidate_cost_with_evidence(
         input.base_cost,
         input.evidence.as_ref(),
     );
