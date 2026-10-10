@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { World } from '../src/vr/World.ts';
-import { MonetaTopologyNode as MonetaTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
+import { MonetaTopologyNode } from '../src/moneta/MonetaTopologyNode.ts';
 import { MonetaDiagnosticHUD } from '../src/vr/ui/MonetaDiagnosticHUD.ts';
 import { getSampleDataset } from '../src/data/SampleDatasets.ts';
 import { WebSocketAdapter } from '../src/data/connectors/WebSocketAdapter.ts';

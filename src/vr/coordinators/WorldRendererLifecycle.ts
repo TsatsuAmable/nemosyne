@@ -8,7 +8,7 @@ import {
 import { ChartPlanePanel } from '../ui/ChartPlanePanel.ts';
 import { DashboardManager } from '../ui/DashboardManager.ts';
 import { TooltipManager } from '../ui/TooltipManager.ts';
-import type { MonetaTopologyNode as MonetaTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
+import type { MonetaTopologyNode } from '../../moneta/MonetaTopologyNode.ts';
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import type { Engine } from '../Engine.ts';
 import { disposeObject } from '../../utils/Dispose.ts';

@@ -133,7 +133,7 @@ export const UV0_INVENTORY: readonly Uv0SurfaceEntry[] = [
   },
   {
     id: 'moneta-diagnostic-hud',
-    name: 'MonetaDiagnosticHUD (alias MonetaDiagnosticHUD)',
+    name: 'MonetaDiagnosticHUD',
     source: 'src/vr/presentation/representation/RepresentationSurface.ts:78',
     purpose: 'Moneta constraint-solver candidate/cost diagnostic panel.',
     referenceFrame: 'BODY_LOCKED',
