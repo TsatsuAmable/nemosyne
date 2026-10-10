@@ -33,7 +33,7 @@ When the kernel is unavailable, surface `KernelUnavailable`; never add a JavaScr
 | Network protocol                  | `src/network/`                                                   |
 | Study instrument                  | `src/study/`, `docs/study/`                                      |
 
-`src/draco/` exists only for compatibility. New production code imports Moneta directly.
+Import Moneta directly (`src/moneta/`). The `src/draco/` compatibility barrel remains for legacy entry points until the alias-retirement series removes it (#1031/#1032) — new code must not import it.
 
 ## Follow one dataset
 

@@ -13,7 +13,7 @@ This register catalogs all standardized error codes, domains, severity levels, d
 | ----------- | ------------------- | --------------------------------------------------------------------------- |
 | `01xx`      | `WASM_KERNEL`       | Rust WebAssembly analytical execution, buffer ABI, memory bounds.           |
 | `02xx`      | `DATASET_PARSER`    | CSV, JSON, ArrayBuffer ingestion, schema inference, content hashing.        |
-| `03xx`      | `DRACO_SOLVER`      | Compatibility error domain for the Moneta constraint/representation engine. |
+| `03xx`      | `MONETA_SOLVER`     | Moneta constraint/representation engine.                                    |
 | `04xx`      | `SPATIAL_RUNTIME`   | WebGL context, Three.js scene graph, GPU memory, frame budgets.             |
 | `05xx`      | `INTERACTION_FSM`   | Hand tracking, gesture recognition, both-pinch ownership, raycasting.       |
 | `06xx`      | `COLLABORATION_NET` | WebRTC mesh, signalling server, token authorization, room quotas.           |
@@ -52,12 +52,17 @@ This register catalogs all standardized error codes, domains, severity levels, d
 
 ---
 
-### 03xx — Moneta solver and recommender (compatibility codes)
+### 03xx — Moneta solver and recommender
 
-- **`ERR_0301_NO_VALID_DRACO_SPEC`** (`WARNING`, retained compatibility identifier)
+- **`ERR_0302_NO_VALID_MONETA_SPEC`** (`WARNING`)
   - _Title:_ No valid Moneta representation satisfies constraints
-  - _Description:_ Hard constraints excluded all 3,168 candidate specifications for the active dataset.
-  - _Recovery:_ Relax topology constraints or switch to fallback 3D grid layout.
+  - _Description:_ Hard constraints excluded all 3,168 candidate specifications for the active dataset. The solver refuses to fabricate fallback geometry.
+  - _Recovery:_ Relax topology constraints or switch to the explicit 3D grid layout.
+
+- **`ERR_0301_NO_VALID_DRACO_SPEC`** (`WARNING`, retired-but-reserved)
+  - _Title:_ No valid representation satisfies constraints (retired Draco-era identifier)
+  - _Description:_ Retired alias of `ERR_0302_NO_VALID_MONETA_SPEC` under the former compatibility name. Not emitted by live code; registered for persisted-archive decode compatibility only.
+  - _Recovery:_ Interpret as `ERR_0302_NO_VALID_MONETA_SPEC` when reading historical records.
 
 ---
 

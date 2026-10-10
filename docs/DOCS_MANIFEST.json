@@ -1,245 +1,251 @@
 {
-  "schemaVersion": 1,
-  "lastReviewed": "2026-10-06",
-  "statuses": [
-    "canonical",
-    "active",
-    "historical"
-  ],
-  "documents": [
-    {
-      "path": "docs/rfcs/0014-stationary-workspace-and-explicit-home.md",
-      "status": "active",
-      "authority": "stationary-workspace-target-policy",
-      "owner": "product-design"
-    },
-    {
-      "path": "docs/rfcs/0013-fm8-composition-evidence-binding.md",
-      "status": "active",
-      "authority": "fm8-composition-evidence-binding-rfc",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/rfcs/0012-minimum-nemosyne-architecture.md",
-      "status": "active",
-      "authority": "proposed-minimum-architecture-rfc",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/Nemosyne_Definitive_Vision_and_Roadmap.md",
-      "status": "canonical",
-      "authority": "product-research-architecture",
-      "owner": "product-research"
-    },
-    {
-      "path": "docs/SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md",
-      "status": "active",
-      "authority": "semantic-embodiment-vision-clarification",
-      "owner": "product-research"
-    },
-    {
-      "path": "docs/NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md",
-      "status": "active",
-      "authority": "product-ux-design-doctrine",
-      "owner": "product-design"
-    },
-    {
-      "path": "docs/ROADMAP.md",
-      "status": "canonical",
-      "authority": "implementation-status",
-      "owner": "engineering"
-    },
-    {
-      "path": "AGENTS.md",
-      "status": "canonical",
-      "authority": "engineering-agent-contract",
-      "owner": "engineering"
-    },
-    {
-      "path": "docs/PROJECT_DOCS_INDEX.md",
-      "status": "canonical",
-      "authority": "documentation-index",
-      "owner": "documentation"
-    },
-    {
-      "path": "docs/ARCHITECTURE.md",
-      "status": "active",
-      "authority": "architecture-reference",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md",
-      "status": "active",
-      "authority": "full-moneta-semantic-embodiment-architecture",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md",
-      "status": "active",
-      "authority": "proposed-dataset-first-semantic-embodiment-design",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/architecture/ARCHITECTURE_2027_REVIEW.md",
-      "status": "active",
-      "authority": "architecture-2027-review",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/architecture/A27_1_DUAL_EPISTEMIC_REASSESSMENT.md",
-      "status": "active",
-      "authority": "dual-epistemic-architecture-reassessment",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/rfcs/0011-dual-epistemic-embodiment-and-preservation.md",
-      "status": "active",
-      "authority": "dual-epistemic-preservation-rfc",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/architecture/A27_0_AUTHORITY_VERSION_DECISION.md",
-      "status": "active",
-      "authority": "a27-0-authority-version-decision",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md",
-      "status": "active",
-      "authority": "semantic-snapshot-forma-admission-rfc",
-      "owner": "architecture"
-    },
-    {
-      "path": "CONTRIBUTING.md",
-      "status": "active",
-      "authority": "contribution-process",
-      "owner": "engineering"
-    },
-    {
-      "path": "SECURITY.md",
-      "status": "active",
-      "authority": "security-reporting-policy",
-      "owner": "security"
-    },
-    {
-      "path": "docs/OWNERSHIP.md",
-      "status": "active",
-      "authority": "semantic-ownership-map",
-      "owner": "engineering"
-    },
-    {
-      "path": "docs/RFC_PROCESS.md",
-      "status": "active",
-      "authority": "architecture-change-process",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/rfcs/0009-persisted-governed-evidence-replay.md",
-      "status": "active",
-      "authority": "accepted-persisted-evidence-contract",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/rfcs/0003-production-data-lifecycle-and-event-boundary.md",
-      "status": "active",
-      "authority": "accepted-production-data-contract",
-      "owner": "architecture-security"
-    },
-    {
-      "path": "docs/rfcs/0004-governed-data-plane-vertical-slice.md",
-      "status": "active",
-      "authority": "accepted-governed-data-plane-contract",
-      "owner": "architecture-security"
-    },
-    {
-      "path": "docs/rfcs/0005-persistence-architecture-rationalisation.md",
-      "status": "active",
-      "authority": "accepted-persistence-architecture",
-      "owner": "architecture-security"
-    },
-    {
-      "path": "docs/architecture/decisions/README.md",
-      "status": "active",
-      "authority": "architecture-decisions-index",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/archive/IMPLEMENTATION_PLAN_V3.md",
-      "status": "historical",
-      "authority": "historical-implementation-sequencing-reference",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/archive/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
-      "status": "historical",
-      "authority": "historical-implementation-quality-contract",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/archive/STREAM_C_SECURITY_ASSURANCE.md",
-      "status": "historical",
-      "authority": "historical-security-assurance-reference",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/CI_TEST_ACCELERATION_STRATEGY.md",
-      "status": "active",
-      "authority": "ci-strategy",
-      "owner": "engineering"
-    },
-    {
-      "path": "docs/PRODUCTION_READINESS.md",
-      "status": "active",
-      "authority": "production-readiness-projection",
-      "owner": "engineering"
-    },
-    {
-      "path": "docs/STATISTICAL_METHOD_REGISTER.md",
-      "status": "active",
-      "authority": "statistical-methods",
-      "owner": "research"
-    },
-    {
-      "path": "docs/study/README.md",
-      "status": "active",
-      "authority": "study-index",
-      "owner": "research"
-    },
-    {
-      "path": "docs/archive/ROADMAP_HISTORY_THROUGH_2026-10-03.md",
-      "status": "historical",
-      "authority": "roadmap-history-through-2026-10-03",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/archive/TEST_READY_2026-08-26.md",
-      "status": "historical",
-      "authority": "historical-test-readiness",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/archive/TEST_INFRA_2026-08-26.md",
-      "status": "historical",
-      "authority": "historical-test-infrastructure",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/archive/DRACO_REPRESENTATION_REASONING_PLAN.md",
-      "status": "historical",
-      "authority": "historical-draco-representation-plan",
-      "owner": "archive"
-    },
-    {
-      "path": "docs/review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md",
-      "status": "active",
-      "authority": "full-moneta-completeness-audit",
-      "owner": "architecture"
-    },
-    {
-      "path": "docs/review-plans/DSE0_PREFLIGHT_AND_REMOVAL_INVENTORY.md",
-      "status": "active",
-      "authority": "dse0-preflight-removal-inventory",
-      "owner": "architecture"
-    }
-  ]
+ "schemaVersion": 1,
+ "lastReviewed": "2026-10-06",
+ "statuses": [
+  "canonical",
+  "active",
+  "historical"
+ ],
+ "documents": [
+  {
+   "path": "docs/rfcs/0014-stationary-workspace-and-explicit-home.md",
+   "status": "active",
+   "authority": "stationary-workspace-target-policy",
+   "owner": "product-design"
+  },
+  {
+   "path": "docs/rfcs/0013-fm8-composition-evidence-binding.md",
+   "status": "active",
+   "authority": "fm8-composition-evidence-binding-rfc",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/rfcs/0012-minimum-nemosyne-architecture.md",
+   "status": "active",
+   "authority": "proposed-minimum-architecture-rfc",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/Nemosyne_Definitive_Vision_and_Roadmap.md",
+   "status": "canonical",
+   "authority": "product-research-architecture",
+   "owner": "product-research"
+  },
+  {
+   "path": "docs/SEMANTIC_EMBODIMENT_VISION_CLARIFICATION.md",
+   "status": "active",
+   "authority": "semantic-embodiment-vision-clarification",
+   "owner": "product-research"
+  },
+  {
+   "path": "docs/NEMOSYNE_USER_EXPERIENCE_DESIGN_DOCTRINE.md",
+   "status": "active",
+   "authority": "product-ux-design-doctrine",
+   "owner": "product-design"
+  },
+  {
+   "path": "docs/ROADMAP.md",
+   "status": "canonical",
+   "authority": "implementation-status",
+   "owner": "engineering"
+  },
+  {
+   "path": "AGENTS.md",
+   "status": "canonical",
+   "authority": "engineering-agent-contract",
+   "owner": "engineering"
+  },
+  {
+   "path": "docs/PROJECT_DOCS_INDEX.md",
+   "status": "canonical",
+   "authority": "documentation-index",
+   "owner": "documentation"
+  },
+  {
+   "path": "docs/ARCHITECTURE.md",
+   "status": "active",
+   "authority": "architecture-reference",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/architecture/FULL_MONETA_SEMANTIC_EMBODIMENT_ARCHITECTURE_PLAN.md",
+   "status": "active",
+   "authority": "full-moneta-semantic-embodiment-architecture",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/architecture/MONETA_DATASET_FIRST_SEMANTIC_EMBODIMENT.md",
+   "status": "active",
+   "authority": "proposed-dataset-first-semantic-embodiment-design",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/architecture/ARCHITECTURE_2027_REVIEW.md",
+   "status": "active",
+   "authority": "architecture-2027-review",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/architecture/A27_1_DUAL_EPISTEMIC_REASSESSMENT.md",
+   "status": "active",
+   "authority": "dual-epistemic-architecture-reassessment",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/rfcs/0011-dual-epistemic-embodiment-and-preservation.md",
+   "status": "active",
+   "authority": "dual-epistemic-preservation-rfc",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/architecture/A27_0_AUTHORITY_VERSION_DECISION.md",
+   "status": "active",
+   "authority": "a27-0-authority-version-decision",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/rfcs/0010-moneta-semantic-snapshot-and-forma-admission.md",
+   "status": "active",
+   "authority": "semantic-snapshot-forma-admission-rfc",
+   "owner": "architecture"
+  },
+  {
+   "path": "CONTRIBUTING.md",
+   "status": "active",
+   "authority": "contribution-process",
+   "owner": "engineering"
+  },
+  {
+   "path": "SECURITY.md",
+   "status": "active",
+   "authority": "security-reporting-policy",
+   "owner": "security"
+  },
+  {
+   "path": "docs/OWNERSHIP.md",
+   "status": "active",
+   "authority": "semantic-ownership-map",
+   "owner": "engineering"
+  },
+  {
+   "path": "docs/RFC_PROCESS.md",
+   "status": "active",
+   "authority": "architecture-change-process",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/rfcs/0009-persisted-governed-evidence-replay.md",
+   "status": "active",
+   "authority": "accepted-persisted-evidence-contract",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/rfcs/0003-production-data-lifecycle-and-event-boundary.md",
+   "status": "active",
+   "authority": "accepted-production-data-contract",
+   "owner": "architecture-security"
+  },
+  {
+   "path": "docs/rfcs/0004-governed-data-plane-vertical-slice.md",
+   "status": "active",
+   "authority": "accepted-governed-data-plane-contract",
+   "owner": "architecture-security"
+  },
+  {
+   "path": "docs/rfcs/0005-persistence-architecture-rationalisation.md",
+   "status": "active",
+   "authority": "accepted-persistence-architecture",
+   "owner": "architecture-security"
+  },
+  {
+   "path": "docs/architecture/decisions/README.md",
+   "status": "active",
+   "authority": "architecture-decisions-index",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/archive/IMPLEMENTATION_PLAN_V3.md",
+   "status": "historical",
+   "authority": "historical-implementation-sequencing-reference",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/STREAM_A_IMPLEMENTATION_QUALITY_CONTRACT.md",
+   "status": "historical",
+   "authority": "historical-implementation-quality-contract",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/STREAM_C_SECURITY_ASSURANCE.md",
+   "status": "historical",
+   "authority": "historical-security-assurance-reference",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/CI_TEST_ACCELERATION_STRATEGY.md",
+   "status": "active",
+   "authority": "ci-strategy",
+   "owner": "engineering"
+  },
+  {
+   "path": "docs/PRODUCTION_READINESS.md",
+   "status": "active",
+   "authority": "production-readiness-projection",
+   "owner": "engineering"
+  },
+  {
+   "path": "docs/STATISTICAL_METHOD_REGISTER.md",
+   "status": "active",
+   "authority": "statistical-methods",
+   "owner": "research"
+  },
+  {
+   "path": "docs/study/README.md",
+   "status": "active",
+   "authority": "study-index",
+   "owner": "research"
+  },
+  {
+   "path": "docs/archive/ROADMAP_HISTORY_THROUGH_2026-10-03.md",
+   "status": "historical",
+   "authority": "roadmap-history-through-2026-10-03",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/TEST_READY_2026-08-26.md",
+   "status": "historical",
+   "authority": "historical-test-readiness",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/TEST_INFRA_2026-08-26.md",
+   "status": "historical",
+   "authority": "historical-test-infrastructure",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/DRACO_REPRESENTATION_REASONING_PLAN.md",
+   "status": "historical",
+   "authority": "historical-draco-representation-plan",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/review-plans/FULL_MONETA_COMPLETENESS_AUDIT_2026-10-04.md",
+   "status": "active",
+   "authority": "full-moneta-completeness-audit",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/review-plans/DSE0_PREFLIGHT_AND_REMOVAL_INVENTORY.md",
+   "status": "active",
+   "authority": "dse0-preflight-removal-inventory",
+   "owner": "architecture"
+  },
+  {
+   "path": "docs/archive/DRACO_COMPAT_INVENTORY.md",
+   "status": "historical",
+   "authority": "historical-draco-compatibility-inventory",
+   "owner": "archive"
+  }
+ ]
 }

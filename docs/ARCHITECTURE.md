@@ -134,11 +134,16 @@ facts, receipts, epistemic status and fixed obligations are not genes. System-1,
 human proposals and external genomes are peer proposal sources; every candidate crosses the same Forma
 admission/explanation/resource boundary.
 
-`src/draco/` is a bounded compatibility re-export barrel (`src/draco/index.ts` only — "Backwards
-compatibility re-export for the legacy `src/draco` path"; the deep mirrors were collapsed in the
-Draco compatibility exit). Production imports must resolve directly through `src/moneta/`. The Rust
-ABI retains the `draco_solve`/`draco_evaluate_candidate` export names and the
-`pub use moneta as draco` alias for compatibility; names do not confer independent authority.
+Production imports resolve directly through `src/moneta/`. The kernel ABI still publishes the retired
+`draco_solve` / `draco_evaluate_candidate` / `draco_adjust_evidence` names (renamed to `moneta_solve` /
+`moneta_evaluate_candidate` / `moneta_adjust_evidence` under #1031). The retired
+Draco compatibility surface — the `src/draco` single-file barrel, the `draco_solve` /
+`draco_evaluate_candidate` / `draco_adjust_evidence` ABI aliases, and the `DRACO_RUST` capability
+mirror — is being removed by the alias-retirement series (#1031 kernel ABI, #1032 src surface);
+once those land, no `src/draco` tree, `draco_*` kernel export, or `DRACO_RUST` capability remains.
+`ERR_0301_NO_VALID_DRACO_SPEC` is retained in the register as retired-but-reserved so persisted
+archives stay decodable. The historical compatibility contract is archived at
+`docs/archive/DRACO_COMPAT_INVENTORY.md`; names do not confer independent authority.
 
 ## Planned FM5 System-1 / System-2 boundary
 

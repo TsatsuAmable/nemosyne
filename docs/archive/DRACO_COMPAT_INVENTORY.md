@@ -1,3 +1,8 @@
+# ARCHIVED (2026-10-10) — retired from the docs/ root once its content was superseded: the
+# compatibility window this inventory governed is being closed by the Draco alias-retirement
+# series (#1031 kernel ABI, #1032 src surface, register/docs closure). Kept verbatim below as
+# the historical compatibility record.
+
 # Draco Compatibility Inventory
 
 This is the current compatibility contract after the completed Moneta migration. `src/draco/**` is compatibility surface only; production code imports Moneta directly.
