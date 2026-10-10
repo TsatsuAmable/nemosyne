@@ -1,7 +1,5 @@
 /**
  * Moneta / Representation Subsystem — Core Types
- *
-
  */
 
 import type { TopologyTypeValue, TopologyType } from '../types/topology.ts';

@@ -23,8 +23,8 @@ const ALLOWED_FILES: ReadonlySet<string> = new Set([
 const ALLOWED_TOKEN_PATTERNS: ReadonlyArray<RegExp> = [
   // Academic citation of the Moritz et al. TVCG 2019 benchmark corpus id.
   // Currently carried only by dev/xr-lab (intentionally, along with docs/ and
-// tests/, outside this ratchet's scan roots) — retained so the allowance
-// documents itself if dev/ is ever brought into scope.
+  // tests/, outside this ratchet's scan roots) — retained so the allowance
+  // documents itself if dev/ is ever brought into scope.
   /draco-perception/gi,
 ];
 
