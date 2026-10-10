@@ -1,0 +1,7 @@
+language: TypeScript
+rule:
+  any:
+    - pattern: expect(true).toBe(true)
+    - pattern: expect(false).toBe(false)
+    - pattern: expect(true).toEqual(true)
+    - pattern: expect(false).toEqual(false)

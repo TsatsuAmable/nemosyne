@@ -1,0 +1,5 @@
+language: TypeScript
+rule:
+  pattern: expect($X).toBe($X)
+  not:
+    regex: ^expect\((true|false)\)
