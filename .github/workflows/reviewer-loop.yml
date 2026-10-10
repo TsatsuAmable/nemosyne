@@ -1,8 +1,9 @@
 name: Reviewer loop
 
-# Read-only autonomous reviewer: architecture, static bug-catchers, duplication.
-# Report-only by design — jobs stay green and publish findings to the run
-# summary plus artifacts. Nothing commits, files issues, or merges.
+# Read-only autonomous reviewer: architecture, static bug-catchers,
+# duplication, test quality. Report-only by design — jobs stay green and
+# publish findings to the run summary plus artifacts. Nothing commits, files
+# issues, or merges.
 
 on:
   schedule:
@@ -14,7 +15,7 @@ on:
         required: false
         default: 'all'
         type: choice
-        options: [all, architecture, bugs, duplication]
+        options: [all, architecture, bugs, duplication, test-quality]
 
 permissions:
   contents: read
@@ -157,3 +158,42 @@ jobs:
           path: |
             reports/duplication/
             review-duplication-console.txt
+
+  test-quality:
+    if: github.event_name == 'schedule' || inputs.theme == 'all' || inputs.theme == 'test-quality'
+    name: Review test quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test-quality review
+        run: |
+          npm run review:test-quality > review-test-quality-console.txt 2>&1
+          {
+            echo "## Test-quality review"
+            echo ""
+            echo "(informational — this loop never reds; findings are leads, verify before acting)"
+            echo ""
+            cat reports/test-quality/test-quality-report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload test-quality report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: review-test-quality
+          path: |
+            reports/test-quality/
+            review-test-quality-console.txt

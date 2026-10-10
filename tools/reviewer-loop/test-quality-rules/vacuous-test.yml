@@ -1,0 +1,10 @@
+language: TypeScript
+rule:
+  any:
+    - pattern: test($NAME, $FN)
+    - pattern: it($NAME, $FN)
+  not:
+    has:
+      kind: call_expression
+      regex: expect|assert
+      stopBy: end
