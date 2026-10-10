@@ -233,7 +233,7 @@ export interface WorldUIManagerLike {
   miniOverview?: (PanelLike & { mesh?: Object3D; setEnabled?(enabled: boolean): void }) | null;
   peerPresenceHUD?: PanelLike | null;
   recommendationPanel?: (PanelLike & { markDirty?(): void }) | null;
-  dracoExplainerPanel?: PanelLike | null;
+  monetaExplainerPanel?: PanelLike | null;
   vaultPanel?: PanelLike | null;
   dispose?(): void;
   /** Lazy accessors for panels deferred from boot. Construct + register on first call. */
@@ -779,8 +779,8 @@ export interface DatumLike {
   mesh?: Object3D;
 }
 
-/** Draco topology node facade (group + artefact node meshes). */
-export interface DracoNodeFacadeLike {
+/** Moneta topology node facade (group + artefact node meshes). */
+export interface MonetaNodeFacadeLike {
   group?: Object3D;
   artifact?: { nodeMeshes?: Object3D[] } | null;
 }

@@ -34,9 +34,8 @@ mod tests {
     use super::*;
 
     // TEC2 authority pinning tests: `moneta::evidence` is the single compiled
-    // implementation of the sample-count cost adjustment (`draco` is a `pub
-    // use` alias of `moneta` in `lib.rs`, so the wasm export
-    // `draco_adjust_evidence` reaches this code). These tests pin the exact
+    // implementation of the sample-count cost adjustment (the wasm export
+    // `moneta_adjust_evidence` reaches this code). These tests pin the exact
     // current numerics — including the zero/absent-evidence semantics — so any
     // drift in scale, saturation, or the zero-sample fail-closed path fails
     // here before it can reach the ABI. Sample count is a bounded support

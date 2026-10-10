@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { describe, it, expect } from 'vitest';
-import { DracoEmpiricalTuner } from '../src/moneta/evidence/MonetaEmpiricalTuner.ts';
+import { MonetaEmpiricalTuner } from '../src/moneta/evidence/MonetaEmpiricalTuner.ts';
 import type { EmpiricalOutcome } from '../src/moneta/evidence/types.ts';
 
-describe('Draco Empirical Tuner & Adaptive Solver Loop (Sprint 26.2)', () => {
+describe('Moneta Empirical Tuner & Adaptive Solver Loop (Sprint 26.2)', () => {
   function makeOutcome(
     id: string,
     layout: 'FORCE_DIRECTED_3D' | 'GEO_SURFACE' | 'GRID_3D',
@@ -34,7 +34,7 @@ describe('Draco Empirical Tuner & Adaptive Solver Loop (Sprint 26.2)', () => {
   }
 
   it('promotes layouts with high empirical accuracy, fast completion, and low workload', () => {
-    const tuner = new DracoEmpiricalTuner();
+    const tuner = new MonetaEmpiricalTuner();
     tuner.recordOutcomes([
       makeOutcome('1', 'FORCE_DIRECTED_3D', 0.95, 18000, 25),
       makeOutcome('2', 'FORCE_DIRECTED_3D', 0.90, 22000, 30),
@@ -59,7 +59,7 @@ describe('Draco Empirical Tuner & Adaptive Solver Loop (Sprint 26.2)', () => {
   });
 
   it('demotes layouts with poor accuracy and high cognitive workload', () => {
-    const tuner = new DracoEmpiricalTuner();
+    const tuner = new MonetaEmpiricalTuner();
     tuner.recordOutcomes([
       makeOutcome('1', 'GRID_3D', 0.40, 58000, 85),
       makeOutcome('2', 'GRID_3D', 0.35, 60000, 90),
@@ -74,7 +74,7 @@ describe('Draco Empirical Tuner & Adaptive Solver Loop (Sprint 26.2)', () => {
   });
 
   it('generates complete empirical tuning summary with solver override weights', () => {
-    const tuner = new DracoEmpiricalTuner();
+    const tuner = new MonetaEmpiricalTuner();
     tuner.recordOutcomes([
       makeOutcome('1', 'GEO_SURFACE', 0.96, 15000, 20),
       makeOutcome('2', 'GRID_3D', 0.40, 58000, 85),

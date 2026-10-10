@@ -35,7 +35,7 @@ interface GraphEvidenceWorld {
     scene: THREE.Scene;
     renderer: { info: { render: { calls: number; triangles: number } } };
   };
-  dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
+  monetaNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
   loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
@@ -290,7 +290,7 @@ function entry(dataset: Dataset, key: string): DatasetLoadEntry {
 
 async function settleInitialLoad(world: GraphEvidenceWorld, loadEntry: DatasetLoadEntry): Promise<void> {
   await world.loadDataset(loadEntry);
-  const promise = (world.dracoNode?.dataInput as SemanticGraphInput | undefined)
+  const promise = (world.monetaNode?.dataInput as SemanticGraphInput | undefined)
     ?.semanticEmbodimentPromise;
   if (promise) await promise;
   await Promise.resolve();
@@ -388,7 +388,7 @@ export async function runGraphEvidenceScenario(
     preserveAuxiliaryPresentation: true,
   });
 
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   if (!node || node.representationDecision?.chosenCandidateId !== 'RELATIONSHIP_GRAPH') {
     throw new Error(
       `Graph B4 expected RELATIONSHIP_GRAPH, received ${node?.representationDecision?.chosenCandidateId ?? 'none'}.`
@@ -606,7 +606,7 @@ export async function runGraphMissingEndpointScenario(
     preserveAnalyticalState: true,
     preserveAuxiliaryPresentation: true,
   });
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   if (!node || node.representationDecision?.chosenCandidateId !== 'RELATIONSHIP_GRAPH') {
     throw new Error('Graph B4 missing-endpoint fixture did not reach graph authority.');
   }
@@ -652,7 +652,7 @@ export async function runGraphNoSourceAuthorityScenario(
     preserveAnalyticalState: true,
     preserveAuxiliaryPresentation: true,
   });
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   const chosenCandidateId = String(node?.representationDecision?.chosenCandidateId ?? 'none');
   const graphSurfacePresent = Boolean(
     node?.group?.getObjectByName(GRAPH_NODE_SURFACE_NAME) ||

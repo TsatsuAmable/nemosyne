@@ -31,7 +31,7 @@ interface ClusterEvidenceWorld {
     scene: THREE.Scene;
     renderer: { info: { render: { calls: number; triangles: number } } };
   };
-  dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
+  monetaNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
   loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
@@ -298,7 +298,7 @@ export async function runClusterEvidenceScenario(
   const loadStartedAt = performance.now();
   await world.loadDataset(entry);
   const initialSemanticPromise = (
-    world.dracoNode?.dataInput as SemanticClusterInput | undefined
+    world.monetaNode?.dataInput as SemanticClusterInput | undefined
   )?.semanticEmbodimentPromise;
   if (initialSemanticPromise) await initialSemanticPromise;
   await Promise.resolve();
@@ -326,7 +326,7 @@ export async function runClusterEvidenceScenario(
     preserveAuxiliaryPresentation: true,
   });
 
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   if (!node || node.representationDecision?.chosenCandidateId !== 'CLUSTER_REGIONS') {
     throw new Error(
       `Cluster C4 expected CLUSTER_REGIONS, received ${node?.representationDecision?.chosenCandidateId ?? 'none'}.`

@@ -14,10 +14,14 @@
  * `tests/wasm-runtime.test.ts`.
  */
 import { TopologyTypes } from '../../src/types/topology.ts';
+// The helper predates the Draco retirement; its annotations keep the legacy
+// Draco* names as local aliases over the canonical Moneta types so its ~20
+// importers can move file-by-file without a fleet-wide rewrite in this PR.
+// (The blanket @ts-nocheck above is scoped to this test-only file.)
+type DracoDataInput = import('../../src/moneta/types.ts').MonetaDataInput;
+type DracoFacts = import('../../src/moneta/types.ts').MonetaFacts;
 import type {
   CategoricalDistribution,
-  DracoDataInput,
-  DracoFacts,
   FactProvider,
   NumericStats,
   TrendDirection,

@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { InputRouter } from '../src/vr/InputRouter.ts';
 import { Locomotion } from '../src/vr/Locomotion.ts';
-import { DracoDiagnosticHUD } from '../src/vr/ui/DracoDiagnosticHUD.ts';
+import { MonetaDiagnosticHUD } from '../src/vr/ui/MonetaDiagnosticHUD.ts';
 import { ConstraintEngine, TopologyTypes } from '../src/moneta/ConstraintEngine.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeFactProvider } from './helpers/dracoFactsHelper.ts';
@@ -626,15 +626,15 @@ describe('Locomotion', () => {
   });
 });
 
-describe('DracoDiagnosticHUD', () => {
+describe('MonetaDiagnosticHUD', () => {
   let engine;
-  let dracoNode;
+  let monetaNode;
   let cameraGroup;
 
   beforeEach(() => {
     engine = new ConstraintEngine({ factProvider: makeFactProvider() });
     const dataset = new Dataset('Test', [{ name: 'a', type: ColumnType.NUMERIC }], [{ a: 1 }]);
-    dracoNode = {
+    monetaNode = {
       engine,
       solverResult: engine.solve({ topology: TopologyTypes.TABULAR, dataset }),
       adjustWeight: (name, delta) => engine.adjustWeight(name, delta),
@@ -643,12 +643,12 @@ describe('DracoDiagnosticHUD', () => {
   });
 
   it('projects one UIKit constraint row per soft constraint', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
+    const hud = new MonetaDiagnosticHUD(cameraGroup, monetaNode);
     expect(hud.monetaNode.engine.softConstraints.length).toBe(engine.softConstraints.length);
   });
 
   it('forwards an explicit INC adjustment to the Moneta node', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
+    const hud = new MonetaDiagnosticHUD(cameraGroup, monetaNode);
     const firstRule = engine.softConstraints[0];
     const startWeight = firstRule.weight;
 
@@ -657,7 +657,7 @@ describe('DracoDiagnosticHUD', () => {
   });
 
   it('forwards an explicit DEC adjustment to the Moneta node', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
+    const hud = new MonetaDiagnosticHUD(cameraGroup, monetaNode);
     const firstRule = engine.softConstraints[0];
     engine.setWeight(firstRule.name, 20);
 
@@ -666,7 +666,7 @@ describe('DracoDiagnosticHUD', () => {
   });
 
   it('rejects duplicate rapid adjustments through the preserved cooldown', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
+    const hud = new MonetaDiagnosticHUD(cameraGroup, monetaNode);
     const firstRule = engine.softConstraints[0];
     const startWeight = firstRule.weight;
 
@@ -676,7 +676,7 @@ describe('DracoDiagnosticHUD', () => {
   });
 
   it('does not decrement a weight below zero', () => {
-    const hud = new DracoDiagnosticHUD(cameraGroup, dracoNode);
+    const hud = new MonetaDiagnosticHUD(cameraGroup, monetaNode);
     const firstRule = engine.softConstraints[0];
     engine.setWeight(firstRule.name, 3);
 

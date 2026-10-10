@@ -6,8 +6,8 @@ export { AnalyticalState } from './AnalyticalState.ts';
 export { EvidenceLedger } from './EvidenceLedger.ts';
 export {
   RepresentationState,
-  mapKernelFactsToDraco,
-  minimalDracoFacts,
+  mapKernelFactsToMoneta,
+  minimalMonetaFacts,
   estimateClusterCount,
 } from './RepresentationState.ts';
 export { DecisionHistory } from './DecisionHistory.ts';

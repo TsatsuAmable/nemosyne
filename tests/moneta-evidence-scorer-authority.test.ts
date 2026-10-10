@@ -55,7 +55,7 @@ describe('Moneta empirical-evidence scorer authority', () => {
     // 20.0 variant, and a `(weight || 1.0)` zero-sample inversion that flipped
     // the fail-closed semantics. Any reappearance of these shapes in
     // TypeScript is shadow analytical authority: the kernel's
-    // `draco_adjust_evidence` is the only cost-adjustment path.
+    // `moneta_adjust_evidence` is the only cost-adjustment path.
     expect(fs.existsSync(path.resolve(root, 'src/moneta/evidence/EvidenceWeightedScorer.ts'))).toBe(
       false
     );
@@ -81,30 +81,29 @@ describe('Moneta empirical-evidence scorer authority', () => {
     ).toEqual([]);
   });
 
-  it('keeps the bridge alias mapped to exactly one Rust authority', () => {
-    // `adjustDracoEvidence` is retained as a compatibility alias, but it must
-    // resolve to the same single function that binds the one WASM export
-    // `draco_adjust_evidence`. The runtime identity assertion lives in
+  it('keeps the bridge bound to exactly one Rust authority', () => {
+    // `adjustMonetaEvidence` must resolve to the one WASM export binding
+    // `moneta_adjust_evidence`. The runtime identity assertion lives in
     // `tests/runtime-bridge-module-boundaries.test.ts`.
     const bridge = source('src/wasm/runtime/KernelContractBridge.ts');
-    expect(bridge).toContain('export const adjustDracoEvidence = adjustMonetaEvidence;');
     const binding = bridge.match(
       /export function adjustMonetaEvidence\([\s\S]*?\{[\s\S]*?\n\}/
     )?.[0];
     expect(binding).toBeDefined();
-    expect(binding).toContain('draco_adjust_evidence');
+    expect(binding).toContain('moneta_adjust_evidence');
   });
 
   it('has exactly one compiled Rust implementation of the adjustment', () => {
     // `wasm/src/draco/` was an uncompiled stale twin of `wasm/src/moneta/`
-    // (no `mod draco;` ever declared it; `pub use moneta as draco` in lib.rs
-    // routes `draco::evidence` to the moneta module). It must not reappear as
-    // a second source of truth a future reader could "fix" independently.
+    // (no `mod draco;` ever declared it; the retired `pub use moneta as
+    // draco` alias routed `draco::evidence` to the moneta module), and the
+    // ABI export names carried the same alias. Neither may reappear — the
+    // alias was a second name a future reader could "fix" independently.
     expect(fs.existsSync(path.resolve(root, 'wasm/src/draco'))).toBe(false);
     const lib = source('wasm/src/lib.rs');
-    expect(lib).toContain('pub use moneta as draco;');
-    expect(lib).toContain('pub extern "C" fn draco_adjust_evidence(');
-    expect(lib).toMatch(/draco::evidence::adjust_candidate_cost_with_evidence/);
+    expect(lib).not.toMatch(/\bdraco\b/);
+    expect(lib).toContain('pub extern "C" fn moneta_adjust_evidence(');
+    expect(lib).toMatch(/moneta::evidence::adjust_candidate_cost_with_evidence/);
   });
 
   it('never calls sample count a confidence', () => {

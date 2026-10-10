@@ -41,7 +41,7 @@ describe('RF-062C production World path', () => {
           return world?.currentEntry ?? null;
         },
         loadDataset: (entry, options) => world!.loadDataset(entry, options),
-        getActiveSpecInfo: () => captureActiveSpecInfo(world?.dracoNode ?? null),
+        getActiveSpecInfo: () => captureActiveSpecInfo(world?.monetaNode ?? null),
         eventBus: { emit: (topic, payload) => events.push({ topic, payload }) },
       },
       world.engine
@@ -96,7 +96,7 @@ describe('RF-062C production World path', () => {
     });
     expect(summary.steps[0].loadDurationMs).toBeGreaterThanOrEqual(0);
 
-    const rowMarkerMesh = world.dracoNode?.artifact?.nodeMeshes?.[0];
+    const rowMarkerMesh = world.monetaNode?.artifact?.nodeMeshes?.[0];
     expect(rowMarkerMesh).toBeInstanceOf(THREE.InstancedMesh);
     expect((rowMarkerMesh as THREE.InstancedMesh).count).toBe(100_000);
     expect(rowMarkerMesh?.geometry).toBeInstanceOf(THREE.TetrahedronGeometry);
@@ -128,7 +128,7 @@ describe('RF-062C production World path', () => {
 
     expect(execute).toHaveBeenCalledOnce();
     expect(replace).toHaveBeenCalledOnce();
-    expect(world.dracoNode).toBe(world.representationSurface.currentNode);
+    expect(world.monetaNode).toBe(world.representationSurface.currentNode);
     expect(world.diagnostic).toBe(world.representationSurface.diagnostic);
     expect(world.currentEntry?.dataset).toBe(sample.dataset);
     expect(world.atlas.dataset).not.toBe(sample.dataset);
@@ -276,7 +276,7 @@ describe('RF-062C production World path', () => {
     await world.dispose();
 
     expect(disposeSurface).toHaveBeenCalledOnce();
-    expect(world.dracoNode).toBeNull();
+    expect(world.monetaNode).toBeNull();
     expect(world.diagnostic).toBeNull();
     world = null;
   });
@@ -330,7 +330,7 @@ describe('RF-062C production World path', () => {
     expect(execute).toHaveBeenCalledOnce();
     expect(clear).toHaveBeenCalledOnce();
     expect(replace).not.toHaveBeenCalled();
-    expect(world.dracoNode).toBeNull();
+    expect(world.monetaNode).toBeNull();
     expect(world.representationSurface.currentNode).toBeNull();
   });
 

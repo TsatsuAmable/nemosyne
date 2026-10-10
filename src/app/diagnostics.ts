@@ -87,7 +87,7 @@ function buildRuntimeDiagnosticSnapshot(world: World): RuntimeDiagnosticSnapshot
       objectCount,
       visibleObjectCount,
       byType,
-      renderedNodeMeshCount: world.dracoNode?.artifact?.nodeMeshes?.length ?? 0,
+      renderedNodeMeshCount: world.monetaNode?.artifact?.nodeMeshes?.length ?? 0,
       dashboardPanelCount: world.dashboardPanels?.length ?? 0,
     },
     renderer: {

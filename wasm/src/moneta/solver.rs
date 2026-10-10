@@ -53,8 +53,6 @@ pub fn solve_moneta(facts: MonetaFacts) -> Option<SolverResult> {
     })
 }
 
-pub use solve_moneta as solve_draco;
-
 pub fn evaluate_candidate(facts: &MonetaFacts, spec: &MonetaSpec) -> (bool, f64, Vec<String>) {
     let is_valid = check_hard_constraints(facts, spec);
     let mut cost = 0.0;

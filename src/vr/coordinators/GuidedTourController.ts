@@ -3,14 +3,14 @@ import type { TourStep } from '../../data/DefaultTour.ts';
 import type {
   DataOperationControllerLike,
   DatumLike,
-  DracoNodeFacadeLike,
+  MonetaNodeFacadeLike,
   GuidedTourLike,
   WorldUIManagerLike,
 } from './types.ts';
 
 export interface GuidedTourHost {
   datum?: DatumLike;
-  dracoNode?: DracoNodeFacadeLike | null;
+  monetaNode?: MonetaNodeFacadeLike | null;
   uiManager: Pick<
     WorldUIManagerLike,
     | 'handWheelMenu'
@@ -37,11 +37,11 @@ export class GuidedTourController {
     switch (target) {
       case 'datum-plane':
         return { object: w.datum?.mesh, position: w.datum?.mesh?.position };
-      case 'draco-palace':
-        return { object: w.dracoNode?.group, position: w.dracoNode?.group?.position };
+      case 'moneta-palace':
+        return { object: w.monetaNode?.group, position: w.monetaNode?.group?.position };
       case 'node-mesh':
-        return w.dracoNode?.artifact?.nodeMeshes?.[0]
-          ? { object: w.dracoNode.artifact.nodeMeshes[0] }
+        return w.monetaNode?.artifact?.nodeMeshes?.[0]
+          ? { object: w.monetaNode.artifact.nodeMeshes[0] }
           : null;
       case 'wheel-menu':
         return w.uiManager?.handWheelMenu?.group

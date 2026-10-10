@@ -41,7 +41,6 @@ const publicFacadeExports = [
   'KernelAbiError',
   'KernelUnavailableError',
   'UnsupportedAtScaleError',
-  'adjustDracoEvidence',
   'adjustMonetaEvidence',
   'allocBuffer',
   'allocBytes',
@@ -69,7 +68,6 @@ const publicFacadeExports = [
   'debugFillPattern',
   'destroyDataset',
   'discoverStructures',
-  'evaluateDracoCandidate',
   'evaluateMonetaCandidate',
   'executeOperation',
   'getCommandBufferBytes',
@@ -107,7 +105,6 @@ const publicFacadeExports = [
   'roundTripSemanticEmbodimentPayloadV1',
   'runOperation',
   'sampleKeys',
-  'solveDraco',
   'solveMoneta',
   'statistics',
   'statisticsEvidenceReceiptBundle',
@@ -192,9 +189,10 @@ describe('RuntimeBridge module boundaries', () => {
     expect(columnarBoundarySource).toMatch(/deallocBuffer/);
   });
 
-  it('keeps compatibility aliases as identity-only adapters', () => {
-    expect(facade.solveDraco).toBe(facade.solveMoneta);
-    expect(facade.evaluateDracoCandidate).toBe(facade.evaluateMonetaCandidate);
-    expect(facade.adjustDracoEvidence).toBe(facade.adjustMonetaEvidence);
+  it('does not resurrect retired Draco compatibility aliases', () => {
+    const retired = facade as unknown as Record<string, unknown>;
+    expect(retired.solveDraco).toBeUndefined();
+    expect(retired.evaluateDracoCandidate).toBeUndefined();
+    expect(retired.adjustDracoEvidence).toBeUndefined();
   });
 });

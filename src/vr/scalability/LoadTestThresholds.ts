@@ -221,7 +221,7 @@ export interface StepResult {
   criticalViolations: number;
   warnings: number;
   errors: number;
-  /** Geometry/layout the Draco solver actually picked for this dataset — honest record of what was stressed. */
+  /** Geometry/layout the Moneta solver actually picked for this dataset — honest record of what was stressed. */
   specGeometry?: string;
   specLayout?: string;
   grade: VerdictGrade;

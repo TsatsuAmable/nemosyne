@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ConstraintEngine, isNoFeasibleConstraintResult } from './ConstraintEngine.ts';
 import { VRTopologyTranslator } from './VRTopologyTranslator.ts';
 import { MeshPool } from '../utils/ObjectPool.ts';
-import { solveMoneta, solveDraco } from '../wasm/RuntimeBridge.ts';
+import { solveMoneta } from '../wasm/RuntimeBridge.ts';
 import type {
   Artifact,
   MonetaDataInput,
@@ -71,7 +71,9 @@ export class MonetaTopologyNode {
     representationGraph: RepresentationGraph | null = null
   ) {
     if (representationDecision?.decisionStatus === 'ABSTAIN') {
-      throw new Error('MonetaTopologyNode: scientific ABSTAIN has no promoted representation to render');
+      throw new Error(
+        'MonetaTopologyNode: scientific ABSTAIN has no promoted representation to render'
+      );
     }
     this.scene = scene;
     this.dataInput = dataInput;
@@ -87,7 +89,9 @@ export class MonetaTopologyNode {
 
   setRepresentationDecision(decision: RepresentationDecision | null): void {
     if (decision?.decisionStatus === 'ABSTAIN') {
-      throw new Error('MonetaTopologyNode: scientific ABSTAIN has no promoted representation to render');
+      throw new Error(
+        'MonetaTopologyNode: scientific ABSTAIN has no promoted representation to render'
+      );
     }
     this.representationGraph = null;
     this.representationDecision = decision;
@@ -202,7 +206,7 @@ export class MonetaTopologyNode {
     }
     if (this.useRustSolver) {
       throw new Error(
-        'MonetaTopologyNode: per-weight tuning is not exposed through the Rust draco_solve ABI (moneta_solve). ' +
+        'MonetaTopologyNode: per-weight tuning is not exposed through the Rust moneta_solve ABI. ' +
           'Use the TS solver (useRustSolver=false) for weight tuning.'
       );
     }
@@ -317,11 +321,10 @@ export class MonetaTopologyNode {
         'MonetaTopologyNode: no facts provided (supply a FactProvider to use the Rust solver)'
       );
     }
-    const solverFn = solveDraco || solveMoneta;
-    const rust = solverFn(facts as unknown as Record<string, unknown>);
+    const rust = solveMoneta(facts as unknown as Record<string, unknown>);
     if (!rust) {
       throw new Error(
-        'MonetaTopologyNode: Rust draco_solve returned null — the WASM runtime is not initialised. ' +
+        'MonetaTopologyNode: Rust moneta_solve returned null — the WASM runtime is not initialised. ' +
           'Initialise the kernel before opting into useRustSolver, or use the TS solver (useRustSolver=false).'
       );
     }
@@ -382,5 +385,3 @@ export class MonetaTopologyNode {
     return incremental;
   }
 }
-
-export { MonetaTopologyNode as DracoTopologyNode };

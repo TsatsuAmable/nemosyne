@@ -6,7 +6,6 @@ describe('Sprint 27.7 — Recurring Maintainability, Tech Debt & Code Hygiene Au
   it('ensures all 8 architectural subsystem public barrels exist', () => {
     const subsystems = [
       'atlas',
-      'draco',
       'data',
       'network',
       'session',

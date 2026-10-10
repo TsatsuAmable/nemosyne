@@ -174,7 +174,7 @@ describe('Investigation Domain Aggregate Architecture', () => {
   });
 
   describe('RepresentationState', () => {
-    it('maps kernel facts into DracoFacts shape', () => {
+    it('maps kernel facts into MonetaFacts shape', () => {
       const rep = new RepresentationState();
       const mockFacts: Facts = {
         rowCount: 3,
@@ -186,7 +186,7 @@ describe('Investigation Domain Aggregate Architecture', () => {
         correlation: [],
       };
 
-      const dracoFacts = rep.toDracoFacts({ dataset: sampleDataset }, mockFacts);
+      const dracoFacts = rep.toMonetaFacts({ dataset: sampleDataset }, mockFacts);
       expect(dracoFacts.rowCount).toBe(3);
       expect(dracoFacts.numericColumns).toBe(1);
       expect(dracoFacts.columnStats['value'].mean).toBe(25);
@@ -194,7 +194,7 @@ describe('Investigation Domain Aggregate Architecture', () => {
 
     it('returns minimal facts when kernel facts are absent', () => {
       const rep = new RepresentationState();
-      const dracoFacts = rep.toDracoFacts({ dataset: sampleDataset }, null);
+      const dracoFacts = rep.toMonetaFacts({ dataset: sampleDataset }, null);
       expect(dracoFacts.rowCount).toBe(3);
       expect(dracoFacts.outlierCount).toBe(0);
       expect(dracoFacts.columnStats).toEqual({});

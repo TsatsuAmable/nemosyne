@@ -3,8 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Engine } from './Engine.ts';
 import { LoadDatasetUseCase } from '../app/dataset/LoadDatasetUseCase.ts';
 import { RepresentationSurface } from './presentation/representation/RepresentationSurface.ts';
-import { MonetaTopologyNode as DracoTopologyNode } from '../moneta/MonetaTopologyNode.ts';
-import { MonetaDiagnosticHUD as DracoDiagnosticHUD } from './ui/MonetaDiagnosticHUD.ts';
+import { MonetaTopologyNode } from '../moneta/MonetaTopologyNode.ts';
+import { MonetaDiagnosticHUD } from './ui/MonetaDiagnosticHUD.ts';
 import { TooltipManager } from './ui/TooltipManager.ts';
 import { ChartPlanePanel } from './ui/ChartPlanePanel.ts';
 import { FileLoaderUI } from '../ui/FileLoader.ts';
@@ -154,7 +154,7 @@ const CAMERA_AUTOSAVE_SETTLE_MS = 750;
 const DOM_TELEMETRY_INTERVAL_MS = 250;
 
 /**
- * Composes the Nemosyne scene: datumplane, landmark, Draco data palace,
+ * Composes the Nemosyne scene: datumplane, landmark, Moneta data palace,
  * diagnostic HUD, telemetry panel, Farcaster portals, data-card inspection,
  * and dataset switching.
  */
@@ -243,8 +243,8 @@ export class World {
   lifecycle: WorldLifecycleOwner;
   _desktopPreviewSavedPose!: { position: THREE.Vector3; yaw: number; pitch: number } | null;
   _orbitControls!: OrbitControls | null;
-  dracoNode!: DracoTopologyNode | null;
-  diagnostic!: DracoDiagnosticHUD | null;
+  monetaNode!: MonetaTopologyNode | null;
+  diagnostic!: MonetaDiagnosticHUD | null;
   currentEntry!: DatasetLoadEntry | null;
   tdaGroup!: THREE.Group | null;
   tdaRecompute!:
@@ -328,7 +328,7 @@ export class World {
     // commands to AtlasCore instead of calling the kernel directly.
     this.dataOperationController = new DataOperationController({
       eventBus: this.eventBus as WorldEventBus,
-      getArtifact: () => this.dracoNode?.artifact ?? null,
+      getArtifact: () => this.monetaNode?.artifact ?? null,
       atlas: this.atlas,
     });
 
@@ -381,7 +381,7 @@ export class World {
       onPanelChange: () => this._requestAutoSave(),
       onSettingChanged: (key, value) => this._onSettingChanged(key, value),
       onSeekHistory: (index) => this._seekAnalysisHistory(index),
-      getNodeMeshes: () => this.dracoNode?.artifact?.nodeMeshes ?? [],
+      getNodeMeshes: () => this.monetaNode?.artifact?.nodeMeshes ?? [],
       getDominantHand: () => {
         const index = this.inputCoordinator?.gestureRecognizer?.dominantHandIndex;
         return this.engine.input.hands[index ?? 0] as unknown as HandLike | null;
@@ -446,8 +446,8 @@ export class World {
     // the mapping from gestures/commands to world actions.
     this.inputCoordinator = new WorldInputCoordinator(this.engine, this.eventBus, {
       getSetting: (key) => this.uiManager.settingsPanel?.getSetting?.(key),
-      getDracoGroup: () => this.dracoNode?.group ?? null,
-      getArtifact: () => this.dracoNode?.artifact ?? null,
+      getMonetaGroup: () => this.monetaNode?.group ?? null,
+      getArtifact: () => this.monetaNode?.artifact ?? null,
       getHandWheelMenu: () => this.uiManager.handWheelMenu,
       callbacks: {
         onApplyOperation: (op) => this._dispatchAnalysis(op),
@@ -545,7 +545,7 @@ export class World {
       dashboard: this.uiManager.dashboard,
       tooltipManager: this.tooltipManager,
       getOriginalDataset: () => this.atlas.originalDataset,
-      getDracoNode: () => this.dracoNode,
+      getMonetaNode: () => this.monetaNode,
       getAtlas: () => this.atlas,
     });
 
@@ -607,8 +607,8 @@ export class World {
       rendererLifecycle: this.rendererLifecycle,
       markRecommendationDirty: () => this.uiManager.recommendationPanel?.markDirty?.(),
       publishStructureHandles: () => {
-        if (this.dracoNode && this.atlas.structures.length > 0) {
-          this.inPlaceHandles.buildFromStructures(this.dracoNode, this.atlas.structures as never);
+        if (this.monetaNode && this.atlas.structures.length > 0) {
+          this.inPlaceHandles.buildFromStructures(this.monetaNode, this.atlas.structures as never);
           this.inPlaceHandles.registerInteractables(this.engine.input as never);
         }
       },
@@ -678,8 +678,8 @@ export class World {
     this.liveStreamCoordinator = new LiveStreamCoordinator({
       dataset: {
         appendRows: (rows, options) => {
-          if (!this.dracoNode || this.currentEntry?.name !== 'Live Stream') return false;
-          return this.dracoNode.appendRows?.(rows, options) ?? false;
+          if (!this.monetaNode || this.currentEntry?.name !== 'Live Stream') return false;
+          return this.monetaNode.appendRows?.(rows, options) ?? false;
         },
         materializeRows: (rows, name, topology) => {
           const bytes = new TextEncoder().encode(JSON.stringify(rows));
@@ -905,7 +905,7 @@ export class World {
       focusContext: this.focusContext,
       getCurrentEntry: () => this.currentEntry,
       getFallbackDatasetName: () => this.atlas.originalDataset?.name ?? null,
-      hasRepresentation: () => !!this.dracoNode,
+      hasRepresentation: () => !!this.monetaNode,
     });
     this.sessionController = new WorldSessionController({
       session: this.session,
@@ -934,7 +934,7 @@ export class World {
     this.currentEntry = DEFAULT_DATASET_ENTRY;
     this._lastLoadedEntry = DEFAULT_DATASET_ENTRY;
     this._activeRequirements = createDefaultRequirements('overview');
-    this.dracoNode = null;
+    this.monetaNode = null;
     this.diagnostic = null;
 
     // Apply the initial user mode (novice by default) to the coach, tooltips,
@@ -1257,9 +1257,9 @@ export class World {
 
     if (result.representationDecision?.decisionStatus === 'ABSTAIN') {
       this.representationSurface.clear();
-      this.dracoNode = null;
+      this.monetaNode = null;
     } else {
-      this.dracoNode = this.representationSurface.replace(
+      this.monetaNode = this.representationSurface.replace(
         result.dataInput,
         result.representationDecision,
         this.atlas.getActiveContextBinding() ?? undefined
@@ -1396,14 +1396,14 @@ export class World {
     this.rendererLifecycle.updateDashboardDatasets(dataset);
   }
 
-  private _rebuildStructureHandles(dracoNode: {
+  private _rebuildStructureHandles(monetaNode: {
     artifact?: { nodeMeshes?: THREE.Mesh[] } | undefined;
     dataInput?: { topology?: string } | undefined;
   }): void {
     if (this.atlas.structures.length > 0) {
-      this.inPlaceHandles.buildFromStructures(dracoNode as never, this.atlas.structures as never);
+      this.inPlaceHandles.buildFromStructures(monetaNode as never, this.atlas.structures as never);
     } else {
-      this.inPlaceHandles.build(dracoNode as never);
+      this.inPlaceHandles.build(monetaNode as never);
     }
     this.inPlaceHandles.registerInteractables(this.engine.input as never);
   }
@@ -1712,10 +1712,10 @@ export class World {
 
   private _applyEmbodimentHint(): void {
     const rec = this.atlas.activeRecommendation;
-    if (!rec?.suggestedEmbodiment || !this.dracoNode) return;
+    if (!rec?.suggestedEmbodiment || !this.monetaNode) return;
     import('./../moneta/EmbodimentHints.ts').then(({ applyEmbodimentHint }) => {
-      if (this.dracoNode) {
-        applyEmbodimentHint(this.dracoNode, rec.suggestedEmbodiment!);
+      if (this.monetaNode) {
+        applyEmbodimentHint(this.monetaNode, rec.suggestedEmbodiment!);
       }
     });
   }
@@ -1735,20 +1735,20 @@ export class World {
   }
 
   private _isolateStructures(rowIndices: number[]): void {
-    if (!this.dracoNode?.artifact) return;
-    isolateRowIndices(this.dracoNode.artifact, rowIndices);
+    if (!this.monetaNode?.artifact) return;
+    isolateRowIndices(this.monetaNode.artifact, rowIndices);
     this.engine.input.invalidateSpatialAcceleration();
   }
 
   private _navigateToStructures(rowIndices: number[]): void {
-    if (!this.dracoNode?.artifact?.nodeMeshes || rowIndices.length === 0) return;
+    if (!this.monetaNode?.artifact?.nodeMeshes || rowIndices.length === 0) return;
     let cx = 0,
       cy = 0,
       cz = 0,
       count = 0;
-    for (let i = 0; i < this.dracoNode.artifact.nodeMeshes.length; i++) {
+    for (let i = 0; i < this.monetaNode.artifact.nodeMeshes.length; i++) {
       if (rowIndices.includes(i)) {
-        const mesh = this.dracoNode.artifact.nodeMeshes[i];
+        const mesh = this.monetaNode.artifact.nodeMeshes[i];
         cx += mesh.position.x;
         cy += mesh.position.y;
         cz += mesh.position.z;
@@ -1761,8 +1761,8 @@ export class World {
   }
 
   private _resetEmbodiment(): void {
-    if (!this.dracoNode?.artifact) return;
-    resetVisibility(this.dracoNode.artifact);
+    if (!this.monetaNode?.artifact) return;
+    resetVisibility(this.monetaNode.artifact);
   }
 
   private _executeStructureCommand(structureId: string, action: string): void {
@@ -2023,25 +2023,25 @@ export class World {
     });
   }
 
-  _toggleDracoExplainer(): void {
-    const panel = this.uiManager?.dracoExplainerPanel;
+  _toggleMonetaExplainer(): void {
+    const panel = this.uiManager?.monetaExplainerPanel;
     if (!panel) return;
     this.uiManager.toggleWorkspaceSurface('why-view');
-    if (panel.mesh.visible && this.dracoNode) {
-      panel.setDracoNode(this.dracoNode);
+    if (panel.mesh.visible && this.monetaNode) {
+      panel.setMonetaNode(this.monetaNode);
     }
   }
 
   /**
-   * Toggle the Draco constraint diagnostic HUD (Dev Lab / superuser). World owns
+   * Toggle the Moneta constraint diagnostic HUD (Dev Lab / superuser). World owns
    * this HUD and rebuilds it per palace, so we toggle its mesh visibility
    * directly because it is a diagnostic HUD rather than a workspace panel. No-op (with a console
    * hint) when no palace is loaded.
    */
-  _toggleDracoDiagnostic(): void {
+  _toggleMonetaDiagnostic(): void {
     if (!this.diagnostic) {
       this.uiManager?.vrConsole?.log?.('warn', [
-        'Draco Diagnostic HUD requires a loaded dataset/palace.',
+        'Moneta Diagnostic HUD requires a loaded dataset/palace.',
       ]);
       return;
     }
@@ -2194,11 +2194,11 @@ export class World {
     );
 
     if (
-      this.dracoNode &&
-      this.dracoNode.translatorOptions.colorblindMode !== options.colorblindMode
+      this.monetaNode &&
+      this.monetaNode.translatorOptions.colorblindMode !== options.colorblindMode
     ) {
-      this.dracoNode.translatorOptions.colorblindMode = options.colorblindMode;
-      this.dracoNode.reSolveAndSynthesize();
+      this.monetaNode.translatorOptions.colorblindMode = options.colorblindMode;
+      this.monetaNode.reSolveAndSynthesize();
       // A full re-solve rebuilds the artefact from the dataset but drops the
       // visual transform of the currently-active data operation (e.g. a
       // filter's lifted/hidden nodes). Re-apply it so a mid-analysis palette
@@ -2270,12 +2270,12 @@ export class World {
   }
 
   _restoreDataset(dataset: Dataset | null, operation: string): void {
-    if (!dataset || !this.dracoNode) return;
+    if (!dataset || !this.monetaNode) return;
 
     const transformedDataset = dataset.clone();
     this.atlas.setCurrentDataset(transformedDataset);
-    this.dracoNode.dataInput.dataset = transformedDataset;
-    this.dracoNode.reSolveAndSynthesize();
+    this.monetaNode.dataInput.dataset = transformedDataset;
+    this.monetaNode.reSolveAndSynthesize();
 
     // Re-apply the visual transform that belongs to this operation, because a
     // full re-solve only rebuilds the artefact from the dataset.
@@ -2293,38 +2293,38 @@ export class World {
    * re-solves mid-analysis must call this to preserve the active operation.
    */
   _reapplyOperationTransform(operation: string, dataset: Dataset): void {
-    if (!this.dracoNode?.artifact) return;
+    if (!this.monetaNode?.artifact) return;
     switch (operation) {
       case 'filter':
-        applyFilter(this.dracoNode.artifact, dataset);
+        applyFilter(this.monetaNode.artifact, dataset);
         break;
       case 'sort':
-        applySort(this.dracoNode.artifact, dataset);
+        applySort(this.monetaNode.artifact, dataset);
         break;
       case 'aggregate':
-        applyAggregate(this.dracoNode.artifact, dataset);
+        applyAggregate(this.monetaNode.artifact, dataset);
         break;
       case 'cluster':
-        applyCluster(this.dracoNode.artifact, dataset);
+        applyCluster(this.monetaNode.artifact, dataset);
         break;
       case 'hierarchical':
-        applyHierarchicalCluster(this.dracoNode.artifact, dataset);
+        applyHierarchicalCluster(this.monetaNode.artifact, dataset);
         break;
       case 'density':
-        applyDensityCluster(this.dracoNode.artifact, dataset);
+        applyDensityCluster(this.monetaNode.artifact, dataset);
         break;
       case 'anomaly':
-        applyAnomaly(this.dracoNode.artifact, dataset);
+        applyAnomaly(this.monetaNode.artifact, dataset);
         break;
       case 'timeSlice':
-        applySlice(this.dracoNode.artifact, dataset, this.atlas.originalDataset ?? dataset);
+        applySlice(this.monetaNode.artifact, dataset, this.atlas.originalDataset ?? dataset);
         break;
       case 'compare':
         // The dataset re-solve is the visual representation for Compare.
         break;
       case 'reset':
       default:
-        resetTransforms(this.dracoNode.artifact);
+        resetTransforms(this.monetaNode.artifact);
         break;
     }
   }
@@ -2373,7 +2373,7 @@ export class World {
     this._lastTelemetryUpdateAt = now;
 
     const pos = this.engine.headWorldPos;
-    const spec = this.dracoNode?.solverResult?.spec;
+    const spec = this.monetaNode?.solverResult?.spec;
     const name = this.currentEntry?.name ?? '-';
     const resources = this.resourceLifecycleGovernor.getSnapshot();
     const resourceText = `RES: A${resources.counts.ACTIVE}/W${resources.counts.WARM}/C${resources.counts.COLD}/Q${resources.queuedCleanupCount}`;
@@ -2478,7 +2478,7 @@ export class World {
     this.dataOperationController.reset();
     // For layouts whose positions were changed by sort/cluster, a full re-solve
     // is the safest reset.
-    this.dracoNode?.reSolveAndSynthesize?.();
+    this.monetaNode?.reSolveAndSynthesize?.();
     this._updateDashboardDatasets(this.dataOperationController.transformedDataset);
     if (this.tdaRecompute) this.tdaRecompute();
     this._updateOperationLog();
@@ -2536,7 +2536,7 @@ export class World {
     await run(() => this.rendererLifecycle?.dispose());
     await run(() => this.livePreview?.clear());
     await run(() => this.representationSurface?.dispose());
-    this.dracoNode = null;
+    this.monetaNode = null;
     this.diagnostic = null;
     this._lastSelectedMesh = null;
     await run(() => this.engine.removeUpdatable(this.resourceLifecycleGovernor));

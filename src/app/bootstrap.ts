@@ -356,7 +356,7 @@ function semanticEmbodimentState(world: World): {
   status: SemanticEmbodimentPresentationStatus;
   message: string | null;
 } | null {
-  const data = world.dracoNode?.group?.userData;
+  const data = world.monetaNode?.group?.userData;
   const rawStatus = data?.semanticEmbodimentStatus;
   const rawMessage = data?.semanticEmbodimentStatusMessage;
   if (
@@ -471,7 +471,7 @@ export async function bootstrapApp(): Promise<AppInstance> {
       loadDataset: (entry, options) => world.loadDataset(entry, options),
       getCurrentEntry: () => world.currentEntry,
       getDatasetLoadGeneration: () => world.datasetLoadGeneration,
-      getActiveSpecInfo: () => captureActiveSpecInfo(world.dracoNode),
+      getActiveSpecInfo: () => captureActiveSpecInfo(world.monetaNode),
       getWasmMemoryBytes: () => {
         try {
           return world.analyticalRuntime.runtime?.memory?.().buffer.byteLength ?? null;

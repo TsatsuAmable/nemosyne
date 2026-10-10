@@ -164,7 +164,6 @@ export function mapKernelFactsToMoneta(
   };
 }
 
-export const mapKernelFactsToDraco = mapKernelFactsToMoneta;
 
 /**
  * Explicit degraded bootstrap facts retained temporarily for pre-kernel scene
@@ -213,7 +212,6 @@ export function minimalMonetaFacts(
   };
 }
 
-export const minimalDracoFacts = minimalMonetaFacts;
 
 export class RepresentationState {
   readonly largeRowThreshold = 500;
@@ -270,10 +268,6 @@ export class RepresentationState {
       );
     }
     return minimalMonetaFacts(input, this.largeRowThreshold, this.highCardinalityThreshold);
-  }
-
-  toDracoFacts(input: MonetaDataInput, kernelFacts: Facts | null): MonetaFacts {
-    return this.toMonetaFacts(input, kernelFacts);
   }
 
   toDatasetSignature(

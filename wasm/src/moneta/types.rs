@@ -156,8 +156,6 @@ pub struct MonetaSpec {
     pub interaction: VRInteraction,
 }
 
-pub type DracoSpec = MonetaSpec;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonetaFacts {
@@ -197,8 +195,6 @@ pub struct MonetaFacts {
     #[serde(default)]
     pub is_large_dataset: bool,
 }
-
-pub type DracoFacts = MonetaFacts;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolverResult {

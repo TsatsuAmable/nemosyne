@@ -2,7 +2,7 @@
  * Shared Topology Data Types & Runtime Constants.
  *
  * Enforces strict unidirectional data flow across Nemosyne layers:
- * Data Ingestion (src/data/) → Draco Engine (src/draco/) → VR Runtime (src/vr/)
+ * Data Ingestion (src/data/) → Moneta Engine (src/moneta/) → VR Runtime (src/vr/)
  */
 
 export type TopologyType =

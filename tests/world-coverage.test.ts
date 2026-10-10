@@ -162,7 +162,7 @@ describe('World coverage extensions', () => {
     // Should have produced at least two distinct dataset names.
     expect(new Set(names).size).toBeGreaterThan(1);
     // The 12th cycle should not error even after wrapping.
-    expect(world.dracoNode).toBeTruthy();
+    expect(world.monetaNode).toBeTruthy();
   });
 
   it('applies filter, sort, aggregate, cluster, and time-slice operations', () => {
@@ -266,7 +266,7 @@ describe('World coverage extensions', () => {
       });
 
       world.liveConnector._ws.open();
-      const appendSpy = vi.spyOn(world.dracoNode, 'appendRows').mockReturnValue(true);
+      const appendSpy = vi.spyOn(world.monetaNode, 'appendRows').mockReturnValue(true);
 
       world.liveConnector._ws.dispatchMessage(
         JSON.stringify({

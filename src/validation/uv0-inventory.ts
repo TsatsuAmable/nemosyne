@@ -133,11 +133,11 @@ export const UV0_INVENTORY: readonly Uv0SurfaceEntry[] = [
   },
   {
     id: 'moneta-diagnostic-hud',
-    name: 'MonetaDiagnosticHUD (alias DracoDiagnosticHUD)',
+    name: 'MonetaDiagnosticHUD',
     source: 'src/vr/presentation/representation/RepresentationSurface.ts:78',
     purpose: 'Moneta constraint-solver candidate/cost diagnostic panel.',
     referenceFrame: 'BODY_LOCKED',
-    summonDismiss: 'Built per palace at boot; toggled via superuser Dev Lab (world._toggleDracoDiagnostic).',
+    summonDismiss: 'Built per palace at boot; toggled via superuser Dev Lab (world._toggleMonetaDiagnostic).',
     owningState: 'Moneta solver candidate/cost state.',
     classification: 'DEMOTE',
     rationale: '§16: developer/research diagnostic — but it IS visible at boot in normal analyst mode today (finding).',

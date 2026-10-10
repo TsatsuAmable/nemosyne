@@ -49,7 +49,7 @@ export interface InputCallbacks {
 
 export interface WorldInputOptions {
   getSetting?: (key: string) => unknown;
-  getDracoGroup?: () => THREE.Object3D | null;
+  getMonetaGroup?: () => THREE.Object3D | null;
   getArtifact?: () => ArtifactRef | null;
   getHandWheelMenu?: () => HandWheelMenuLike | null;
   callbacks?: InputCallbacks;
@@ -59,7 +59,7 @@ export class WorldInputCoordinator {
   engine: Engine | EngineLike;
   eventBus: WorldEventBusLike;
   getSetting: (key: string) => unknown;
-  getDracoGroup: () => THREE.Object3D | null;
+  getMonetaGroup: () => THREE.Object3D | null;
   getArtifact: () => ArtifactRef | null;
   getHandWheelMenu: () => HandWheelMenuLike | null;
   callbacks: InputCallbacks;
@@ -81,7 +81,7 @@ export class WorldInputCoordinator {
     this.engine = engine;
     this.eventBus = eventBus ?? new WorldEventBus();
     this.getSetting = options.getSetting ?? (() => undefined);
-    this.getDracoGroup = options.getDracoGroup ?? (() => null);
+    this.getMonetaGroup = options.getMonetaGroup ?? (() => null);
     this.getArtifact = options.getArtifact ?? (() => null);
     this.getHandWheelMenu = options.getHandWheelMenu ?? (() => null);
     this.callbacks = options.callbacks ?? {};
@@ -367,11 +367,11 @@ export class WorldInputCoordinator {
     // Check proximity to the palace centre / node bounding sphere.
     let artefactCenter: THREE.Vector3 | null = null;
     let artefactRadius = 0;
-    const dracoGroup = this.getDracoGroup();
+    const monetaGroup = this.getMonetaGroup();
     const artifact = this.getArtifact();
     const nodeMeshes = artifact?.nodeMeshes ?? [];
-    if (dracoGroup && nodeMeshes.length > 0) {
-      const box = new THREE.Box3().setFromObject(dracoGroup);
+    if (monetaGroup && nodeMeshes.length > 0) {
+      const box = new THREE.Box3().setFromObject(monetaGroup);
       artefactCenter = new THREE.Vector3();
       box.getCenter(artefactCenter);
       artefactRadius = box.getBoundingSphere(new THREE.Sphere()).radius;

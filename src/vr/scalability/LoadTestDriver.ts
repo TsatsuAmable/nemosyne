@@ -106,7 +106,7 @@ export interface LoadTestWorldLike {
   currentEntry: DatasetLoadEntry | null;
   /** Monotonic ownership token for queued as well as adopted dataset loads. */
   readonly datasetLoadGeneration?: number;
-  /** Read the geometry/layout the Draco solver actually picked, if available. */
+  /** Read the geometry/layout the Moneta solver actually picked, if available. */
   getActiveSpecInfo?(): {
     geometry?: string;
     layout?: string;

@@ -1,12 +1,5 @@
 const boundaryRules = [
   {
-    name: 'no-production-draco-imports',
-    comment: 'Draco is compatibility-only; production code imports Moneta directly.',
-    severity: 'error',
-    from: { path: '^src/', pathNot: '^src/draco/' },
-    to: { path: '^src/draco/' },
-  },
-  {
     name: 'investigation-domain-is-presentation-independent',
     comment: 'Investigation and persistence meaning must not depend on VR/UI presentation state.',
     severity: 'error',

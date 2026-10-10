@@ -48,7 +48,6 @@ check('Dim 2', 'Public subsystem API contract', () => {
   const subsystems = [
     'atlas',
     'data',
-    'draco',
     'investigation',
     'network',
     'session',

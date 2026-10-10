@@ -59,12 +59,7 @@ export interface DatasetHandleExports {
   data_load_json(ptr: number, len: number): number;
   data_load_dataset_json(ptr: number, len: number): number;
   data_load_typed_columns(ptr: number, len: number): number;
-  data_load_typed_columns_named(
-    ptr: number,
-    len: number,
-    namePtr: number,
-    nameLen: number
-  ): number;
+  data_load_typed_columns_named(ptr: number, len: number, namePtr: number, nameLen: number): number;
   data_load_sample(ptr: number, len: number): number;
   data_sample_keys(ptr: number, len: number): number;
   dataset_row_count(handle: number): number;
@@ -192,19 +187,20 @@ export interface KernelContractExports {
   /** Sequence of the most recently recorded provenance envelope; zero means none. */
   kernel_provenance_sequence(): number;
   /** Read one retained provenance envelope by sequence id. */
-  kernel_provenance_by_sequence(
-    sequence: number,
-    ptr: number,
-    len: number
-  ): number;
-  draco_solve(factsPtr: number, factsLen: number, outPtr: number, outLen: number): number;
-  draco_evaluate_candidate(
+  kernel_provenance_by_sequence(sequence: number, ptr: number, len: number): number;
+  moneta_solve(factsPtr: number, factsLen: number, outPtr: number, outLen: number): number;
+  moneta_evaluate_candidate(
     inputPtr: number,
     inputLen: number,
     outPtr: number,
     outLen: number
   ): number;
-  draco_adjust_evidence(inputPtr: number, inputLen: number, outPtr: number, outLen: number): number;
+  moneta_adjust_evidence(
+    inputPtr: number,
+    inputLen: number,
+    outPtr: number,
+    outLen: number
+  ): number;
   moneta_semantic_embodiment_v1_roundtrip(
     inputPtr: number,
     inputLen: number,

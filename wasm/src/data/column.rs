@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// Column type taxonomy used by the Draco engine to choose encodings and
-/// operations. Kept in sync with `src/data/Dataset.js` `ColumnType`.
+/// Column type taxonomy used by the Moneta engine to choose encodings and
+/// operations. Kept in sync with `src/data/Dataset.ts` `ColumnType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ColumnType {
     Numeric,

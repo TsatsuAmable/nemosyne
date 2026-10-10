@@ -49,8 +49,6 @@ import type {
 import type {
   MonetaDataInput,
   MonetaFacts,
-  DracoDataInput,
-  DracoFacts,
   FactProvider,
   RepresentationRequirements,
   SpatialStrategy,
@@ -1615,10 +1613,6 @@ export class AtlasCore {
     return this._aggregate.representation.toMonetaFacts(input, this.facts());
   }
 
-  dracoFacts(input: DracoDataInput): DracoFacts | null {
-    return this.monetaFacts(input);
-  }
-
   /**
    * Compatibility/presentation FactProvider. Canonical representation ranking
    * does not use this surface; it consumes DatasetEvidence via datasetEvidence().
@@ -1640,7 +1634,7 @@ export class AtlasCore {
   }
 
   computeDatasetSignature(
-    _input?: DracoDataInput,
+    _input?: MonetaDataInput,
     _spectralFacts?: SpectralFacts | null
   ): DatasetSignature {
     return this._aggregate.representation.computeDatasetSignatureFromEvidence(
@@ -1658,7 +1652,7 @@ export class AtlasCore {
 
   arbitrateRepresentation(
     requirements?: RepresentationRequirements,
-    _input?: DracoDataInput,
+    _input?: MonetaDataInput,
     _spectralFacts?: SpectralFacts | null
   ): RepresentationDecision {
     const activeContext = this._aggregate.getActiveContext();
@@ -2023,7 +2017,7 @@ export class AtlasCore {
 
   arbitrateSpatialStrategy(
     requirements?: RepresentationRequirements,
-    _input?: DracoDataInput
+    _input?: MonetaDataInput
   ): SpatialStrategy {
     return this._aggregate.representation.arbitrateStrategyFromEvidence(
       this.datasetEvidence(),

@@ -31,9 +31,10 @@ describe('Moneta migration authority exit guards', () => {
     expect(engine).not.toMatch(/\bconfidence:\s*winner\.score/);
   });
 
-  it('keeps Draco as one explicit compatibility facade instead of a shadow module tree', () => {
-    const dracoDir = path.resolve(root, 'src/draco');
-    expect(fs.readdirSync(dracoDir).sort()).toEqual(['index.ts']);
-    expect(source('src/draco/index.ts')).toMatch(/export \* from '\.\.\/moneta\/index\.ts'/);
+  it('retired the src/draco compatibility facade entirely', () => {
+    // The migration window is closed: production code must resolve through
+    // src/moneta directly, and no shim module tree remains to shadow it.
+    expect(fs.existsSync(path.resolve(root, 'src/draco'))).toBe(false);
+    expect(() => fs.readdirSync(path.resolve(root, 'src/draco'))).toThrow();
   });
 });

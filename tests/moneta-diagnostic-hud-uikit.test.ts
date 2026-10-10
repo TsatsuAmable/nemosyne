@@ -23,7 +23,7 @@ describe('MonetaDiagnosticHUD UXR1 UIKit migration', () => {
     const { node } = createNode();
     const hud = new MonetaDiagnosticHUD(new THREE.Group(), node);
     expect(hud).toBeInstanceOf(SpatialPanel);
-    expect(hud.dracoNode).toBe(node);
+    expect(hud.monetaNode).toBe(node);
   });
 
   it('forwards explicit diagnostic weight adjustments to Moneta authority', () => {

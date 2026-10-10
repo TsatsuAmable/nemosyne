@@ -90,8 +90,8 @@ function makeWheelWorld() {
     _leaveCollaborationRoom: vi.fn(),
     _toggleLoadTestPanel: vi.fn(),
     _toggleStatisticalLens: vi.fn(),
-    _toggleDracoExplainer: vi.fn(),
-    _toggleDracoDiagnostic: vi.fn(),
+    _toggleMonetaExplainer: vi.fn(),
+    _toggleMonetaDiagnostic: vi.fn(),
     dispatchIntent: (intent) => {
       dispatched.push(intent);
     },

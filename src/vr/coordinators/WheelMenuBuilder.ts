@@ -75,8 +75,8 @@ export interface WheelMenuHost {
   _joinCollaborationRoom(): void;
   _leaveCollaborationRoom(): void;
   _toggleStatisticalLens?(): void;
-  _toggleDracoExplainer?(): void;
-  _toggleDracoDiagnostic?(): void;
+  _toggleMonetaExplainer?(): void;
+  _toggleMonetaDiagnostic?(): void;
   /**
    * Canonical command authority injected by the bootstrap composition root.
    * When present the wheel dispatches mutating commands (analysis ops,
@@ -154,7 +154,7 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           callback: () => toggleSurface('vault'),
         },
         {
-          id: 'draco-explainer',
+          id: 'moneta-explainer',
           label: 'Explain',
           icon: '💡',
           callback: () => toggleSurface('why-view'),
@@ -487,10 +487,10 @@ export function buildWheelMenuCategories(world: WheelMenuHost): WheelMenuCategor
           callback: () => toggleSurface('schema-map'),
         },
         {
-          id: 'su-draco-diagnostic',
-          label: 'Draco Diag',
+          id: 'su-moneta-diagnostic',
+          label: 'Moneta Diag',
           icon: '🩺',
-          callback: () => world._toggleDracoDiagnostic?.(),
+          callback: () => world._toggleMonetaDiagnostic?.(),
         },
         {
           id: 'su-gesture-confidence',
@@ -872,10 +872,10 @@ export function buildIntentWheelMenuCategories(world: WheelMenuHost): WheelMenuC
           callback: () => toggleSurface('schema-map'),
         },
         {
-          id: 'su-draco-diagnostic',
-          label: 'Draco Diag',
+          id: 'su-moneta-diagnostic',
+          label: 'Moneta Diag',
           icon: '🩺',
-          callback: () => world._toggleDracoDiagnostic?.(),
+          callback: () => world._toggleMonetaDiagnostic?.(),
         },
         {
           id: 'su-gesture-confidence',

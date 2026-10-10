@@ -5,15 +5,15 @@ import type { MonetaTopologyNode } from '../moneta/MonetaTopologyNode.ts';
 import type { Dataset } from '../data/Dataset.ts';
 
 interface GraphEvidenceDebugWorld {
-  dracoNode: MonetaTopologyNode | null;
+  monetaNode: MonetaTopologyNode | null;
 }
 
 function residentDataset(world: GraphEvidenceDebugWorld): Dataset | undefined {
-  return (world.dracoNode?.dataInput as { dataset?: Dataset } | undefined)?.dataset;
+  return (world.monetaNode?.dataInput as { dataset?: Dataset } | undefined)?.dataset;
 }
 
 function boundedIdentitySnapshot(world: GraphEvidenceDebugWorld): Record<string, unknown> {
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   const semanticInput = node?.dataInput as
     | {
         dataset?: Dataset;

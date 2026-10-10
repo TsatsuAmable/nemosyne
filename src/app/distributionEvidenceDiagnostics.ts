@@ -16,7 +16,7 @@ interface DistributionEvidenceWorld {
     scene: THREE.Scene;
     renderer: { info: { render: { calls: number; triangles: number } } };
   };
-  dracoNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
+  monetaNode: import('../moneta/MonetaTopologyNode.ts').MonetaTopologyNode | null;
   _activeRequirements: RepresentationRequirements;
   loadDataset(entry: DatasetLoadEntry): Promise<void>;
   _doLoadDataset(
@@ -183,7 +183,7 @@ export async function runDistributionEvidenceScenario(
   const loadStartedAt = performance.now();
   await world.loadDataset(entry);
   const initialSemanticPromise = (
-    world.dracoNode?.dataInput as SemanticDistributionInput | undefined
+    world.monetaNode?.dataInput as SemanticDistributionInput | undefined
   )?.semanticEmbodimentPromise;
   if (initialSemanticPromise) await initialSemanticPromise;
   await Promise.resolve();
@@ -205,7 +205,7 @@ export async function runDistributionEvidenceScenario(
     preserveAuxiliaryPresentation: true,
   });
 
-  const node = world.dracoNode;
+  const node = world.monetaNode;
   if (!node || node.representationDecision?.chosenCandidateId !== 'DISTRIBUTION_FIELD') {
     throw new Error(
       `M4 expected DISTRIBUTION_FIELD, received ${node?.representationDecision?.chosenCandidateId ?? 'none'}.`

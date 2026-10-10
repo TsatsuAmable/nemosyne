@@ -1,5 +1,5 @@
 import type {
-  DracoFacts,
+  MonetaFacts,
   SpectralFacts,
   RepresentationRequirements,
   RepresentationFamily,
@@ -9,7 +9,7 @@ import { createDefaultRequirements } from '../../src/moneta/index.ts';
 export interface SyntheticFixture {
   name: string;
   description: string;
-  facts: DracoFacts;
+  facts: MonetaFacts;
   spectralFacts?: SpectralFacts | null;
   requirements: RepresentationRequirements;
   expectedFamily: RepresentationFamily;

@@ -98,7 +98,7 @@ function makeStubWorld(): { world: WheelMenuHost; spy: Record<string, ReturnType
     _toggleMiniOverview: fn('_toggleMiniOverview'),
     _togglePeerPresenceHUD: fn('_togglePeerPresenceHUD'),
     _toggleDesktopPreview: fn('_toggleDesktopPreview'),
-    _toggleDracoDiagnostic: fn('_toggleDracoDiagnostic'),
+    _toggleMonetaDiagnostic: fn('_toggleMonetaDiagnostic'),
 
     // Views.
     portalsEnabled: false,
@@ -201,6 +201,18 @@ describe('WheelMenuBuilder', () => {
 
     const anyCalled = spyNames.some((n) => spy[n].mock.calls.length > countsBefore[n]);
     expect(anyCalled).toBe(true);
+  });
+
+  it('wires the su-moneta-diagnostic item to _toggleMonetaDiagnostic', () => {
+    const { world, spy } = makeStubWorld();
+    const cats = buildWheelMenuCategories(world);
+    const diagnostic = cats
+      .flatMap((c) => c.items)
+      .find((i) => i.id === 'su-moneta-diagnostic');
+
+    expect(diagnostic).toBeDefined();
+    diagnostic!.callback();
+    expect(spy._toggleMonetaDiagnostic).toHaveBeenCalledTimes(1);
   });
 
   it('wires the new Lens (toggle-lens) item to _toggleStatisticalLens', () => {

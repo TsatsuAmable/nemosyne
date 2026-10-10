@@ -1,7 +1,5 @@
 /**
  * Moneta / Representation Subsystem — Core Types
- *
- * Evolved from Draco into Moneta: the explainable analytical representation solver.
  */
 
 import type { TopologyTypeValue, TopologyType } from '../types/topology.ts';
@@ -61,7 +59,6 @@ export interface MonetaSpec {
   interaction: VRInteraction;
 }
 
-export type DracoSpec = MonetaSpec;
 
 export interface NumericStats {
   mean: number;
@@ -116,7 +113,6 @@ export interface MonetaFacts {
   [key: string]: unknown;
 }
 
-export type DracoFacts = MonetaFacts;
 
 export type HardConstraint = (facts: MonetaFacts, spec: MonetaSpec) => boolean;
 
@@ -148,7 +144,6 @@ export interface MonetaDataInput {
   [key: string]: unknown;
 }
 
-export type DracoDataInput = MonetaDataInput;
 
 export interface FactProvider {
   facts(input: MonetaDataInput): MonetaFacts | null;

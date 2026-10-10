@@ -4,14 +4,14 @@ import { MonetaTopologyNode as DracoTopologyNode } from '../src/moneta/MonetaTop
 import {
   RepresentationHypothesisEngine,
   createDefaultRequirements,
-  type DracoFacts,
+  type MonetaFacts,
   type FactProvider,
 } from '../src/moneta/index.ts';
 
 describe('Phase 4: Integrate RepresentationDecision into DracoTopologyNode', () => {
   const scene = new THREE.Scene();
 
-  const mockFacts: DracoFacts = {
+  const mockFacts: MonetaFacts = {
     topology: 'TIME_SERIES',
     rowCount: 20,
     nodeCount: 20,
