@@ -60,7 +60,7 @@ typed data
   → evidence, reasoning, archive and replay
 ```
 
-All production representation reasoning belongs to Moneta (`src/moneta/`); the retired `src/draco/` compatibility facade has been fully removed.
+All production representation reasoning belongs to Moneta (`src/moneta/`). The legacy `src/draco/` compatibility facade is being retired by the alias-retirement series (#1031/#1032) — production code must not import it.
 
 ---
 
@@ -129,6 +129,7 @@ nemosyne/
 │   ├── judgement/       # Human judgement and representation feedback contracts
 │   ├── learning/        # Governed model-learning/update infrastructure
 │   ├── memory/          # Memory/investigation projection support
+│   ├── draco/           # Legacy compatibility facade; being retired by #1031/#1032
 │   ├── moneta/          # Representation reasoning, evidence gates and embodiment adapters
 │   ├── network/         # Collaboration/signalling protocol and browser-safe network surface
 │   ├── observability/   # Runtime/product observability contracts

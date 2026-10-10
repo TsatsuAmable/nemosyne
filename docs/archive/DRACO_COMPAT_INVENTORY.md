@@ -1,7 +1,7 @@
-# ARCHIVED (2026-10-10) — the compatibility window this inventory governed is closed: the
-# src/draco barrel, the draco_* WASM ABI aliases, the draco root exception and the legacy-named
-# modules/tests were removed under the Draco alias retirement PRs (#1031, #1032, and the
-# error-register/docs closure). Kept verbatim below as the historical compatibility record.
+# ARCHIVED (2026-10-10) — retired from the docs/ root once its content was superseded: the
+# compatibility window this inventory governed is being closed by the Draco alias-retirement
+# series (#1031 kernel ABI, #1032 src surface, register/docs closure). Kept verbatim below as
+# the historical compatibility record.
 
 # Draco Compatibility Inventory
 

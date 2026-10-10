@@ -134,12 +134,15 @@ facts, receipts, epistemic status and fixed obligations are not genes. System-1,
 human proposals and external genomes are peer proposal sources; every candidate crosses the same Forma
 admission/explanation/resource boundary.
 
-The former `src/draco/` compatibility barrel and the legacy `draco_solve` / `draco_evaluate_candidate`
-/ `draco_adjust_evidence` WASM ABI aliases were fully retired (alias retirement, #1031/#1032): no
-`src/draco` tree, `draco_*` kernel export, or `DRACO_RUST` capability remains. Production imports
-resolve directly through `src/moneta/` and the kernel ABI exposes only the `moneta_*` contract names;
-`ERR_0301_NO_VALID_DRACO_SPEC` survives solely as a retired-but-reserved error code for persisted
-archives. Historical compatibility contracts are archived under `docs/archive/DRACO_COMPAT_INVENTORY.md`.
+Production imports resolve directly through `src/moneta/`, and the kernel ABI exposes the
+`moneta_solve` / `moneta_evaluate_candidate` / `moneta_adjust_evidence` contract names. The retired
+Draco compatibility surface — the `src/draco` single-file barrel, the `draco_solve` /
+`draco_evaluate_candidate` / `draco_adjust_evidence` ABI aliases, and the `DRACO_RUST` capability
+mirror — is being removed by the alias-retirement series (#1031 kernel ABI, #1032 src surface);
+once those land, no `src/draco` tree, `draco_*` kernel export, or `DRACO_RUST` capability remains.
+`ERR_0301_NO_VALID_DRACO_SPEC` is retained in the register as retired-but-reserved so persisted
+archives stay decodable. The historical compatibility contract is archived at
+`docs/archive/DRACO_COMPAT_INVENTORY.md`; names do not confer independent authority.
 
 ## Planned FM5 System-1 / System-2 boundary
 
