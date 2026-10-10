@@ -369,10 +369,13 @@ describe('P1-B: Asynchronous Analytical Runtime Contracts', () => {
 
   it('S3: production async Atlas requests do not ship foreign handles or repeat dataset payloads', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/atlas/AtlasCore.ts'), 'utf8');
-    const asyncSection = source.slice(
-      source.indexOf('async computePersistenceIntervalsAsync'),
-      source.indexOf('computeSpectralFacts(')
-    );
+    // Fail loudly on slice-boundary drift instead of letting indexOf(-1) make
+    // the window empty (vacuous pass) or the whole file.
+    const start = source.indexOf('async computePersistenceIntervalsAsync');
+    const end = source.indexOf('computeSpectralFacts(');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const asyncSection = source.slice(start, end);
     expect(asyncSection).not.toContain('handle,');
     expect(asyncSection).not.toContain('datasetPayload:');
     expect(asyncSection).toContain('_registerCurrentDatasetInWorker');

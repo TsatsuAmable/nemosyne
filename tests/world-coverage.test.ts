@@ -185,7 +185,9 @@ describe('World coverage extensions', () => {
     // 'sorted'). Assert ascending ordering on the sort column instead.
     const sortCol = world.atlas.dataset.numericColumns[0]?.name;
     expect(world.atlas.dataset.rowCount).toBeGreaterThan(0);
-    if (sortCol) {
+    // Fail-loud: a missing sort column is a regression, not a skip condition.
+    expect(sortCol).toBeTruthy();
+    {
       const sortedRows = world.atlas.dataset.rows;
       const first = Number(sortedRows[0][sortCol]);
       const last = Number(sortedRows[sortedRows.length - 1][sortCol]);
@@ -334,7 +336,10 @@ describe('World coverage extensions', () => {
     const ds = getSampleDataset('sales-table');
     world.loadDataset({ name: ds.label, topology: ds.topology, dataset: ds.dataset });
 
-    if (world.tdaGroup) {
+    // Fail-loud: the statistical lens group is part of the product surface;
+    // its absence is a regression, not a skip condition.
+    expect(world.tdaGroup).toBeTruthy();
+    {
       // TDA is hidden by default (progressive disclosure) until the lens is requested.
       expect(world.tdaGroup.visible).toBe(false);
       world.inputCoordinator.onGesture('scoopUp');
