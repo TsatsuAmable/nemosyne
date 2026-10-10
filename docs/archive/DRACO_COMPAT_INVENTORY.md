@@ -1,3 +1,8 @@
+# ARCHIVED (2026-10-10) — the compatibility window this inventory governed is closed: the
+# src/draco barrel, the draco_* WASM ABI aliases, the draco root exception and the legacy-named
+# modules/tests were removed under the Draco alias retirement PRs (#1031, #1032, and the
+# error-register/docs closure). Kept verbatim below as the historical compatibility record.
+
 # Draco Compatibility Inventory
 
 This is the current compatibility contract after the completed Moneta migration. `src/draco/**` is compatibility surface only; production code imports Moneta directly.

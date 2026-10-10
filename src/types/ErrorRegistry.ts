@@ -8,7 +8,7 @@
 export type ErrorDomain =
   | 'WASM_KERNEL'
   | 'DATASET_PARSER'
-  | 'DRACO_SOLVER'
+  | 'MONETA_SOLVER'
   | 'SPATIAL_RUNTIME'
   | 'INTERACTION_FSM'
   | 'COLLABORATION_NET'
@@ -63,14 +63,28 @@ export const SYSTEM_ERROR_REGISTER: Record<string, ErrorDefinition> = {
     recoveryGuidance: 'Load a non-empty dataset or verify stream ingestion status.',
   },
 
-  // Draco Solver & Recommender Errors (03xx)
+  // Moneta Solver & Recommender Errors (03xx)
+  'ERR_0302_NO_VALID_MONETA_SPEC': {
+    code: 'ERR_0302_NO_VALID_MONETA_SPEC',
+    domain: 'MONETA_SOLVER',
+    severity: 'WARNING',
+    title: 'No Valid Moneta Representation Satisfies Constraints',
+    description:
+      'Hard constraints excluded all 3,168 candidate specifications for the active dataset. ' +
+      'The solver refuses to fabricate fallback geometry.',
+    recoveryGuidance: 'Relax topology constraints or switch to the explicit 3D grid layout.',
+  },
+  // Retired-but-reserved: the Draco-era identifier is no longer emitted, but
+  // stays registered so persisted archives carrying it remain decodable.
   'ERR_0301_NO_VALID_DRACO_SPEC': {
     code: 'ERR_0301_NO_VALID_DRACO_SPEC',
-    domain: 'DRACO_SOLVER',
+    domain: 'MONETA_SOLVER',
     severity: 'WARNING',
-    title: 'No Valid Draco Representation Satisfies Constraints',
-    description: 'Hard constraints excluded all 3,168 candidate specifications for the active dataset.',
-    recoveryGuidance: 'Relax topology constraints or switch to fallback 3D grid layout.',
+    title: 'No Valid Representation Satisfies Constraints (retired Draco-era identifier)',
+    description:
+      'Retired alias of ERR_0302_NO_VALID_MONETA_SPEC under the former compatibility name. ' +
+      'Not emitted by live code; registered for persisted-archive decode compatibility only.',
+    recoveryGuidance: 'Interpret as ERR_0302_NO_VALID_MONETA_SPEC when reading historical records.',
   },
 
   // Spatial Runtime & Three.js Errors (04xx)

@@ -6,7 +6,7 @@ The analytics layer computes statistical facts, clustering, anomaly detection, t
 
 ## Statistical facts (Rust kernel and `DatasetEvidence`)
 
-All statistical facts are computed in the Rust/WASM kernel. Production Moneta consumes the validated `DatasetEvidence` path. `AtlasCore.dracoFacts()` remains compatibility-only:
+All statistical facts are computed in the Rust/WASM kernel. Production Moneta consumes the validated `DatasetEvidence` path. The Atlas fact surface is `AtlasCore.monetaFacts()` (the retired `dracoFacts()` wrapper was removed):
 
 - **`columnStats`** — per numeric column: `mean`, `median`, `stdDev`, `skew`, `kurtosis`, `min`, `max`, `outlierCount`.
 - **`correlationMatrix`** — pairwise complete Pearson correlation for every numeric column pair.

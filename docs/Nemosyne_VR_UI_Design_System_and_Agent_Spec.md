@@ -726,7 +726,7 @@ The current repository has many bespoke panels. The target design reduces surfac
 | `NetworkPanel` | collaboration settings/reference panel, hidden by default |
 | `OperationLogPanel` | provenance/history view under Evidence/History |
 | `RecommendationPanel` | Moneta Representation lens surface |
-| `DracoExplainerPanel` | rename/migrate into TechnoCore Representation/Provenance lens |
+| `MonetaExplainerPanel` (renamed from the retired `DracoExplainerPanel`) | migrate into TechnoCore Representation/Provenance lens |
 | `GestureConfidenceHUD` | diagnostic only; no persistent analyst HUD |
 | `NarrativeStrip` | context card/status projection, not permanent strip |
 | `InteractionCoach` | just-in-time teaching, transient |
