@@ -4,10 +4,14 @@
 // files (basename import scan). Report-only: always exits 0. Findings are
 // leads for a human reviewer, not defects — helper assertion styles and
 // indirect coverage produce false positives by design.
+//
+// A scan that cannot run is reported as SCAN FAILED, never as a zero count:
+// the ast-grep entry must be spawned as a native binary (see
+// scripts/lib/test-quality-scanner.mjs), and absence is explicit.
 
-import { execFileSync } from 'node:child_process';
 import { readdirSync, statSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative, basename } from 'node:path';
+import { resolveAstGrepBin, scanRule, parseLocations } from './lib/test-quality-scanner.mjs';
 
 const root = process.cwd();
 const rulesDir = join(root, 'tools', 'reviewer-loop', 'test-quality-rules');
@@ -26,39 +30,23 @@ function walk(dir, ext) {
   return found;
 }
 
-function scan(rule, scope) {
-  try {
-    // Spawn the ast-grep JS entry through node directly: no shell, no PATH
-    // dependence, identical on Windows and Linux CI runners.
-    const out = execFileSync(
-      process.execPath,
-      [
-        join(root, 'node_modules', '@ast-grep', 'cli', 'ast-grep'),
-        'scan',
-        '--rule',
-        join(rulesDir, rule),
-        scope,
-      ],
-      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
-    );
-    return out;
-  } catch (error) {
-    return error.stdout ?? '';
-  }
+const bin = resolveAstGrepBin(root);
+
+function runCategory(rule, scope) {
+  if (!bin) return { ok: false, hits: [], error: 'ast-grep binary not found under node_modules/@ast-grep/cli' };
+  const result = scanRule(bin, join(rulesDir, rule), scope, root);
+  if (!result.ok) return { ok: false, hits: [], error: result.error };
+  return { ok: true, hits: parseLocations(result.output), error: '' };
 }
 
-function locations(output) {
-  const hits = [];
-  for (const line of String(output).split('\n')) {
-    const match = line.match(/┌─\s+(\S+?):(\d+):(\d+)/);
-    if (match) hits.push(`${match[1]}:${match[2]}`);
-  }
-  return [...new Set(hits)];
-}
+const vacuous = runCategory('vacuous-test.yml', 'tests');
+const tautological = runCategory('tautological-expect.yml', 'tests');
+const determinismOnly = runCategory('determinism-only-expect.yml', 'tests');
 
-const vacuous = locations(scan('vacuous-test.yml', 'tests'));
-const tautological = locations(scan('tautological-expect.yml', 'tests'));
-const determinismOnly = locations(scan('determinism-only-expect.yml', 'tests'));
+function section(title, category) {
+  if (!category.ok) return [`${title}: **SCAN FAILED**`, `- scanner error: ${category.error}`];
+  return [`${title}: **${category.hits.length}**`, ...category.hits.map((h) => `- ${h}`)];
+}
 
 // Candidate untested files: no test file references the source basename.
 const testFiles = walk(join(root, 'tests'), '.test.ts');
@@ -75,25 +63,24 @@ const untested = srcFiles
 const lines = [
   '# Test-quality review',
   '',
-  `Vacuous tests (no expect/assert call): **${vacuous.length}**`,
-  ...vacuous.map((h) => `- ${h}`),
+  ...section('Vacuous tests (no expect/assert call)', vacuous),
   '',
-  `Tautological assertions (literal self-compare): **${tautological.length}**`,
-  ...tautological.map((h) => `- ${h}`),
+  ...section('Tautological assertions (literal self-compare)', tautological),
   '',
-  `Determinism-only assertions (self-compare; weak but non-empty): **${determinismOnly.length}**`,
-  ...determinismOnly.map((h) => `- ${h}`),
+  ...section('Determinism-only assertions (self-compare; weak but non-empty)', determinismOnly),
   '',
   `Candidate untested source files (basename never referenced by a test): **${untested.length}**`,
   ...untested.slice(0, 50).map((h) => `- ${h}`),
 ];
-if (untested.length > 50) lines.push(`- …and ${untested.length - 50} more (see artifact)`);
+if (untested.length > 50) lines.push(`- \u2026and ${untested.length - 50} more (see artifact)`);
 lines.push(
   '',
   '_Helper assertion styles and indirect coverage cause false positives; verify before acting._'
 );
 const report = lines.join('\n');
 writeFileSync(join(outDir, 'test-quality-report.md'), report);
+const failed = [vacuous, tautological, determinismOnly].filter((c) => !c.ok).length;
 console.log(
-  `test-quality: vacuous=${vacuous.length} tautological=${tautological.length} determinism-only=${determinismOnly.length} untested=${untested.length}`
+  `test-quality: vacuous=${vacuous.hits.length} tautological=${tautological.hits.length} determinism-only=${determinismOnly.hits.length} untested=${untested.length} scanFailures=${failed}`
 );
+if (failed > 0) console.error(`test-quality: ${failed} categor${failed === 1 ? 'y' : 'ies'} failed to scan; see report`);

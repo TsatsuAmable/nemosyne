@@ -104,6 +104,7 @@ export const FAST_NODE_TESTS = [
   'tests/quest-loadtest-sink.test.ts',
   'tests/quest-validation-manifest.test.ts',
   'tests/runtime-bridge-module-boundaries.test.ts',
+  'tests/reviewer-test-quality-contract.test.ts',
   'tests/uv0-baseline-inventory.test.ts',
   'tests/uxr0-hot-path-allocation.test.ts',
   'tests/uxr0-replacement-qualification.test.ts',
