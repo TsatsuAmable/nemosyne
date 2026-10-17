@@ -43,7 +43,18 @@ host.self = {
 await import('../../src/atlas/ports/analytical.worker.ts');
 parentPort!.postMessage({ hostReady: true });
 
-parentPort!.on('message', async (message: { probe?: { payload: DatasetJSON } }) => {
+parentPort!.on('message', async (message: { probe?: { payload: DatasetJSON }; replay?: Uint8Array }) => {
+  if (message.replay) {
+    try {
+      if (!bridge.isReady()) await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
+      const { InvestigationReplayRunner } = await import('../../src/session/InvestigationReplayRunner.ts');
+      const result = await new InvestigationReplayRunner(bridge).replayArchive(message.replay);
+      parentPort!.postMessage({ replayed: result });
+    } catch (error) {
+      parentPort!.postMessage({ replayError: String(error) });
+    }
+    return;
+  }
   if (message && typeof message === 'object' && 'probe' in message && message.probe) {
     if (!bridge.isReady()) await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
     // `loadDatasetJson` takes the DatasetJSON object and encodes it itself;
