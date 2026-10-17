@@ -1,6 +1,6 @@
 # P1-R2D C4 Pre-Implementation Adversarial Review
 
-**Status:** IMPLEMENTATION ACTIVE  
+**Lifecycle:** HISTORICAL — pre-implementation checkpoint; current status is owned by [ROADMAP.md](../../ROADMAP.md).
 **Base:** `main@e305a5e39feeb977949a60c6a9a81b1414c61c70` (#592 / C3 merged)  
 **Scope:** C4 product, scale and perceptual evidence for the already-governed source-partition `CLUSTER_REGIONS` path.
 
