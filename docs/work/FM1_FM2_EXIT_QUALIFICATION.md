@@ -1,6 +1,6 @@
 # FM1/FM2 exit qualification through the direct loop
 
-**Status:** ACTIVE. **Risk tier:** high-risk posture (per #999: interaction grammar + representation-authority routing). Downgrades to verification-only if the battery passes with zero source changes.
+**Status:** HEADLESS EXIT BATTERY LANDED via #1020; rendered-surface and investigator qualification remain open. **Risk tier:** high-risk posture (per #999: interaction grammar + representation-authority routing). Downgrades to verification-only if the battery passes with zero source changes.
 **Depends on:** #999 plan, #1000/#1012/#1015 implementation, FM6-R6/FM7-R7 battery precedent. **Not a diary:** implementation evidence belongs in the PR.
 
 ## Goal

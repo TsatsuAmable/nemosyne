@@ -1,83 +1,32 @@
-# DSE6 — Dataset-First Direct Loop Qualification Battery
+# DSE6 — Dataset-first qualification evidence and remaining gates
 
-**Status:** COMPLETE / QUALIFIED. **Base:** `main@d338c2fe`. **Branch:** `feat/dse6-qualification`.
-**Roadmap row:** FM-DSE `DSE3 IMPLEMENTED / DSE6 QUALIFICATION ACTIVE` → `DSE6 QUALIFIED / FM-DSE COMPLETED`.
-**Risk tier:** high-risk (qualification authority, physical/runtime budget boundaries, epistemic gate enforcement, decision promotion).
+**Status:** SYNTHETIC BATTERY LANDED / PRODUCTION, DEVICE AND HUMAN QUALIFICATION OPEN.
+**Execution authority:** [ROADMAP.md](../ROADMAP.md). Architecture: [ADR-0013](../architecture/decisions/0013-minimum-nemosyne-architecture.md).
 
-## 1. Purpose
+## Retained implementation and evidence
 
-Qualify the complete, unified direct dataset-first embodiment loop (`DSE1` + `DSE2` + `DSE3`) established under RFC 0012 and ADR-0013. The battery evaluates the embodiment pipeline across five empirical dimensions to reach a formal `STOP / CONTINUE / REVISE` disposition, determining whether the direct dataset-first loop satisfies product requirements on standalone hardware (Meta Quest 3S) without requiring online neural advice (FM5) or runtime evolutionary search (FM7).
+The direct DSE1–DSE3 compilation, traversal and feedback implementation is landed. The development battery in [`DSE6LoopQualification.ts`](../../src/moneta/representation/DSE6LoopQualification.ts) exercises direct compilation, obligation-preserving budget variants, traversal and conjectural disclosure. [`dse6-loop-qualification.test.ts`](../../tests/dse6-loop-qualification.test.ts) exercises that battery.
 
-## 2. Qualification Dimensions & Battery Structure
+The prior document promoted its `CONTINUE` result to physical Quest qualification, N-independent computation, leak-free endurance and semantic/accessibility recovery. Source inspection on 17 October 2026 does not support those claims:
 
-1. **Physical Device Qualification:**
-   - Evaluates device capability boundaries comparing `DESKTOP_EXPANSIVE` against `QUEST_CONSTRAINED`.
-   - Invariant: Constrained plan strictly obeys $\le 50$ primitives and 32MB budget ceiling; mandatory semantic nodes and channels survive shedding; traversal root is preserved and identical between paired variants.
-2. **Resource Attribution & $N$-Independence:**
-   - Evaluates latency and output plan cardinality across varying dataset scales ($N=100$ to $N=1,000,000$).
-   - Invariant: Plan element count remains strictly invariant to raw dataset row count ($O(1)$ scene cardinality); zero neural network inferences and zero runtime evolutionary generations executed.
-3. **Long-Session Endurance & Reversible Recovery:**
-   - Evaluates multi-cycle drill-down, memory eviction, and reconstruction across repeated interaction cycles.
-   - Invariant: Eviction returns active page cache to zero; reconstruction yields byte-identical detail pages; memory footprint remains bounded without leaks.
-4. **Known-Structure Semantic Recovery:**
-   - Evaluates spatial recovery of known distribution modes (1D KDE) and topological cluster centroids (2D partitions).
-   - Invariant: Reconstructed clusters preserve multiscale lineage back to the direct decision and underlying analytical dataset fingerprint.
-5. **Accessibility & Dual-Mode Epistemic Disclosure:**
-   - Evaluates purpose enforcement (`CLAIM_BEARING` vs `EXPLORATORY_ABDUCTION`), conjectural disclosure joins, and color accessibility translations.
-   - Invariant: Conjectural elements fail closed under `CLAIM_BEARING`; exploratory mode explicitly joins conjectural elements to generator provenance and uncertainty text; colorblind-safe remapping operates without loss.
-6. **Formal Decision:**
-   - Evaluates aggregate pass/fail criteria to issue an immutable `STOP`, `CONTINUE`, or `REVISE` verdict.
+| Reported dimension | What the implementation actually checks | Limit on the claim |
+| --- | --- | --- |
+| Physical Quest | Compiles synthetic snapshots against desktop and constrained budget constants. | No physical device, frame-time or measured memory evidence. |
+| N-independence | Changes represented-row-count metadata while retaining a fixed-size synthetic snapshot. | Bounded fixture plan cardinality; no real dataset-scale analytical or ingestion complexity measurement. |
+| Endurance / recovery | Repeated traversal through `makeMockPort`; checks rebuild success and an empty current page. | `memoryGrowthBytes: 0` and `memoryLeakDetected: false` are fixed fields. Rebuild success is not a byte-equality comparison. No measured leak-freedom or long-session claim. |
+| Semantic recovery | Compiles generated distribution/cluster snapshots and checks traversal lineage. | No real kernel known-structure recovery or investigator comprehension evidence. |
+| Accessibility / disclosure | Exercises disclosure/refusal and color-remapping helpers. | No physical interaction or human accessibility qualification. |
 
-## 3. Adversarial Contract (Pre-implementation)
+Synthetic receipt/digest references are created by `createMockEvidenceReferences`; they are not evidence of real Rust/Worker analytical admission. The exported report's dimension names and verdict rationale still overstate these boundaries. Treat the report as a development fixture result, never promotion authority; correcting its runtime contract needs a separately scoped high-risk change.
 
-- **Invariant:** The direct compilation loop must satisfy all physical Quest limits ($\le 50$ primitives), execute with $N$-independent bounded cardinality without neural/evolutionary dependencies, endure repeated drill-down/evict/rebuild cycles with zero leak, recover topological and statistical structures with unbroken multiscale lineage, and fail closed against conjectural intrusion under `CLAIM_BEARING`.
-- **Authority / Production Path:**
-  - Rust/WASM analytical kernels own aggregate computations and member partitions.
-  - `FormaResolutionBroker` and `DirectEmbodimentCompiler` own physical bounding and slice compilation.
-  - `InvestigationAggregate` owns committed epistemic context and feedback lineage.
-  - Production entry: `runDSE6Qualification()` exercising `compileDirectEmbodimentPlan()`, `compileObligationPreservingVariants()`, `DirectTraversalSession`, and `discloseConjecturalElements()`.
-- **Failure Modes:**
-  1. *Quest Budget Breach:* Plan generates $>50$ elements or exceeds memory bounds on constrained profile.
-  2. *Scale Creep ($O(N)$ Leak):* Scene cardinality increases with larger raw dataset sizes, introducing runtime lag.
-  3. *Endurance Desync:* Evicted pages fail to reconstruct byte-identically or retain leaked memory state.
-  4. *Lineage Severance:* Reconstructed observation drill-down drops direct decision or dataset fingerprint links.
-  5. *Epistemic Bleed:* Conjectural hypotheses or unverified models leak into `CLAIM_BEARING` representations.
-- **Falsifying Evidence:**
-  - Enforced checks in `tests/dse6-loop-qualification.test.ts` for element limits, $N$-scaling equality, cycle rebuild verification, lineage completeness, and claim-bearing refusal errors.
-  - Refusal of invalid or non-finite budget parameters (e.g. `NaN`).
-- **Non-Goals:**
-  - Implementing multi-dataset comparison (`DSE4`), which remains conditional offline research.
-  - Adding runtime genetic search or online neural generation (`DSE5`), which remains offline lab tooling.
-  - Altering Rust/WASM kernel APIs or modifying external VR shell rendering engines.
+## Remaining qualification and falsifiers
 
-## 4. Qualification Results & Verdict
+Before FM-DSE completion, acquire evidence through the actual import → Rust/Worker evidence → aggregate → direct compiler → rendered surface → interaction/replay path:
 
-Execution of `runDSE6Qualification()` yields the following verified results:
+1. **Production authority:** real datasets and receipt-bearing analytical outputs, including malformed/refused/stale cases; no fixture authority substituted for the production Worker/kernel.
+2. **Physical resource envelope:** attributable Quest runs with build/device/workload identities, frame/latency and measured memory; paired desktop/constrained variants preserve required semantic obligations.
+3. **Scale:** vary actual input datasets, measure analytical and boundary costs separately from bounded plan cardinality, and record resource refusals honestly.
+4. **Endurance/recovery:** measured long-session heap/WASM/resource behavior and explicit content-identity comparisons after evict/rebuild, cancellation and recovery.
+5. **Human semantics/accessibility:** governed investigator tasks for semantic recoverability, disclosure comprehension and usable interaction, following the [study governance](../study/README.md).
 
-| Dimension | Measured Value | Threshold / Target | Status |
-| --- | --- | --- | --- |
-| **Physical (Quest)** | 20 elements, 3 channels | $\le 50$ elements, $\le 32$MB | **PASS** |
-| **Resource Attribution** | $N=100$ and $N=10^6$ identical | $O(1)$ cardinality, 0 neural/gen | **PASS** |
-| **Endurance** | 100% byte-identical reconstruction | 0 active pages on evict, 0 leak | **PASS** |
-| **Semantic Recovery** | Distribution mode + centroids recovered | Multiscale lineage intact | **PASS** |
-| **Epistemic Disclosure** | Refusal on claim, join on explore | 100% conjectural coverage | **PASS** |
-
-### Formal Verdict: CONTINUE
-
-The direct dataset-first embodiment loop satisfies all qualification criteria.
-- **Retained Direct Capabilities:**
-  - `DirectEmbodimentCompiler` (single-pass deterministic overview)
-  - `compileObligationPreservingVariants` (desktop & Quest-constrained pair)
-  - `DirectTraversalSession` (reversible structure $\rightarrow$ subset $\rightarrow$ observation)
-  - `DirectFeedbackLoop` (conjectural disclosure & critique alternative)
-- **Conditional Deferred Capabilities:**
-  - `DSE4` Multi-dataset comparison (remains offline lab research)
-  - `DSE5` Runtime population search (remains offline lab research)
-
-## 5. Completion Evidence
-
-- Implementation: [`src/moneta/representation/DSE6LoopQualification.ts`](../../src/moneta/representation/DSE6LoopQualification.ts).
-- Export: [`src/moneta/representation/index.ts`](../../src/moneta/representation/index.ts).
-- Unit & battery test: [`tests/dse6-loop-qualification.test.ts`](../../tests/dse6-loop-qualification.test.ts) (8/8 green).
-- Full DSE test suite: `tests/dse*` (44/44 green).
-- Typecheck & hygiene: `npm run typecheck`, `npm run docs:check` (clean).
+Freeze acceptance criteria and evidence custody before acquisition; use STOP / CONTINUE / REVISE against those criteria. No physical, scientific, memory or human outcome is established by this documentation correction. DSE4/DSE5 remain conditional and are not prerequisites for acquiring this evidence.
