@@ -1,8 +1,8 @@
 # P1-R2D C2 pre-implementation adversarial review
 
-**Status:** IMPLEMENTATION / ADVERSARIAL REVIEW ACTIVE  
+**Lifecycle:** HISTORICAL — pre-implementation checkpoint; current status is owned by [ROADMAP.md](../../ROADMAP.md).
 **Original base:** `main@f7d356c6b69f89374db0fdbe51088f1bd039d857` (#587 merged)  
-**Current integration base:** includes merged #589 and #591  
+**Integration base at checkpoint:** includes merged #589 and #591
 **Governing RFC:** `docs/rfcs/0001-source-partition-cluster-authority.md`  
 **Scope:** resident Rust/WASM source-partition builder only
 

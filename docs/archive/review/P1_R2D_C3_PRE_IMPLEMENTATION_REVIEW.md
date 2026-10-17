@@ -1,6 +1,6 @@
 # P1-R2D C3 pre-implementation adversarial review
 
-**Status:** IMPLEMENTATION ACTIVE / CONTRACT RECORDED BEFORE CODE  
+**Lifecycle:** HISTORICAL — pre-implementation checkpoint; current status is owned by [ROADMAP.md](../../ROADMAP.md).
 **Base:** `main@ba58f0a373bf677caa9af3d1d03c0d2e3fdbbb6d` (#590 merged)  
 **Governing RFC:** `docs/rfcs/0001-source-partition-cluster-authority.md`  
 **Scope:** production Worker/semantic-loader/renderer cutover for source-partition `CLUSTER_REGIONS` only

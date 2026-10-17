@@ -1,6 +1,6 @@
 {
  "schemaVersion": 1,
- "lastReviewed": "2026-10-06",
+ "lastReviewed": "2026-10-17",
  "statuses": [
   "canonical",
   "active",
@@ -245,6 +245,24 @@
    "path": "docs/archive/DRACO_COMPAT_INVENTORY.md",
    "status": "historical",
    "authority": "historical-draco-compatibility-inventory",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/review/P1_R2D_C2_PRE_IMPLEMENTATION_REVIEW.md",
+   "status": "historical",
+   "authority": "historical-p1-r2d-c2-pre-implementation-review",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/review/P1_R2D_C3_PRE_IMPLEMENTATION_REVIEW.md",
+   "status": "historical",
+   "authority": "historical-p1-r2d-c3-pre-implementation-review",
+   "owner": "archive"
+  },
+  {
+   "path": "docs/archive/review/P1_R2D_C4_PRE_IMPLEMENTATION_REVIEW.md",
+   "status": "historical",
+   "authority": "historical-p1-r2d-c4-pre-implementation-review",
    "owner": "archive"
   }
  ]

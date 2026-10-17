@@ -1,12 +1,12 @@
 # FM1/FM2 direct-loop product integration
 
-**Status:** PROPOSED (planning only — authorizes no code changes).
-**Roadmap rows:** FM1 `PRODUCT INTEGRATION OPEN`, FM2 `SURFACE QUALIFICATION OPEN`.
+**Status:** BOUNDED IMPLEMENTATION LANDED via #1000/#1012/#1015; headless exit battery landed via #1020. This retained plan does not authorize new work.
+**Roadmap rows:** FM1/FM2 rendered-surface and investigator qualification remain open; see [ROADMAP.md](../ROADMAP.md).
 **Risk tier of the proposed work:** high-risk (interaction grammar + representation-authority routing; needs its own pre-implementation contract and independent post-review, possibly an RFC/ADR for NIL dual-path semantics).
 
 ## Goal
 
-Bridge the completed DSE direct loop (DSE1–3, DSE6-qualified) into the
+Bridge the implemented DSE direct loop (DSE1–3; [DSE6 production/device/human qualification remains open](DSE6_QUALIFICATION_BATTERY.md)) into the
 researcher-facing product path: NIL intent actions and
 inspector/history/alternative views must operate on direct compilations,
 traversals, disclosures, and critique→alternative links — not only on the
