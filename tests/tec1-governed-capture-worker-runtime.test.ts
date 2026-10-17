@@ -1,3 +1,10 @@
+import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { Dataset } from '../src/data/Dataset.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
+import { NemosynePackageManager, EVIDENCE_RECEIPTS_ENTRY } from '../src/session/NemosynePackage.ts';
+import type { ReplayVerificationResult } from '../src/session/InvestigationReplayRunner.ts';
+import { sha256Hex } from '../src/security/CryptoHash.ts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Worker } from 'node:worker_threads';
 import path from 'node:path';
@@ -48,10 +55,18 @@ class ThreadedWorkerTransport implements WorkerTransport {
    * miss a transported handle that the Worker happens to ignore today.
    */
   readonly posted: unknown[] = [];
+  readonly received: unknown[] = [];
+  holdCapture: ((deliver: () => void) => void) | null = null;
 
   constructor(readonly worker: Worker) {
     worker.on('message', (data) => {
-      this.onmessage?.({ data } as MessageEvent);
+      this.received.push(data);
+      const deliver = () => this.onmessage?.({ data } as MessageEvent);
+      if (data?.type === 'GOVERNED_EVIDENCE' && this.holdCapture) {
+        this.holdCapture(deliver);
+      } else {
+        deliver();
+      }
     });
     worker.on('error', (err) => {
       this.onerror?.(err);
@@ -90,11 +105,8 @@ const CALLER_DATASET = {
 
 const liveWorkers: Worker[] = [];
 
-afterEach(() => {
-  while (liveWorkers.length) {
-    const worker = liveWorkers.pop()!;
-    void worker.terminate();
-  }
+afterEach(async () => {
+  await Promise.all(liveWorkers.splice(0).map((worker) => worker.terminate()));
 });
 
 async function startWorkerThread(): Promise<ThreadedWorkerTransport> {
@@ -108,10 +120,10 @@ async function startWorkerThread(): Promise<ThreadedWorkerTransport> {
     // Vitest — transforms it: type stripping for the graph's TypeScript, and a
     // load hook that inlines the Vite env constant the bundler would supply.
     execArgv: [
-      ...(process.allowedNodeEnvironmentFlags.has('--experimental-strip-types')
-        ? ['--experimental-strip-types']
-        : process.allowedNodeEnvironmentFlags.has('--experimental-transform-types')
-          ? ['--experimental-transform-types']
+      ...(process.allowedNodeEnvironmentFlags.has('--experimental-transform-types')
+        ? ['--experimental-transform-types']
+        : process.allowedNodeEnvironmentFlags.has('--experimental-strip-types')
+          ? ['--experimental-strip-types']
           : []),
       '--import',
       pathToFileURL(path.resolve(process.cwd(), 'tests/helpers/runtimeBridgeEnvRegister.mjs')).href,
@@ -317,5 +329,135 @@ describe('TEC1 governed capture from a real Worker runtime (issue #834)', () => 
       transport.terminate();
     }
     bridge.destroyDataset(callerHandle);
+  }, 60000);
+});
+
+/** Every invocation starts with an independent module graph and Rust instance. */
+async function replayInFreshWorker(bytes: Uint8Array): Promise<ReplayVerificationResult> {
+  const transport = await startWorkerThread();
+  try {
+    await awaitHostReady(transport.worker);
+    return await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        transport.worker.off('error', onError);
+        transport.worker.off('exit', onExit);
+        transport.worker.off('message', onMessage);
+      };
+      const onError = (error: Error) => { cleanup(); reject(error); };
+      const onExit = (code: number) => onError(new Error(`Replay Worker exited before replying (${code})`));
+      const onMessage = (message: { replayed?: ReplayVerificationResult; replayError?: string }) => {
+        if (message.replayError) onError(new Error(message.replayError));
+        if (message.replayed) { cleanup(); resolve(message.replayed); }
+      };
+      transport.worker.once('error', onError);
+      transport.worker.once('exit', onExit);
+      transport.worker.on('message', onMessage);
+      transport.worker.postMessage({ replay: bytes });
+    });
+  } finally {
+    await transport.worker.terminate();
+  }
+}
+
+async function workerSession() {
+  const transport = await startWorkerThread();
+  await awaitHostReady(transport.worker);
+  const atlas = new AtlasCore({ kernel: bridge });
+  atlas.loadDataset(Dataset.fromJSON(WORKER_DATASET));
+  atlas.setExecutionPort(new WorkerAnalyticalPort(transport));
+  return { transport, atlas, session: new NemosyneSession({ atlas }) };
+}
+
+describe('TEC/FM0 Worker-backed session export and clean-room replay', () => {
+  it('preserves Worker-issued identities through session ZIP export into a fresh runtime', async () => {
+    const { transport, atlas, session } = await workerSession();
+    let bytes: Uint8Array;
+    try {
+      bytes = await session.exportPortablePackage({}, undefined, { governedEvidence: true });
+      const payload = NemosynePackageManager.unpack(bytes);
+      const envelope = parsePersistedEvidenceReceiptsV1(JSON.parse(strFromU8(payload.evidenceReceiptBytes!)));
+      const captures = transport.received.filter((message) =>
+        (message as { type?: string }).type === 'GOVERNED_EVIDENCE') as { capture: GovernedEvidenceCaptureV1 }[];
+      expect(captures).toHaveLength(1);
+      expect(captures[0]!.capture).not.toBeNull();
+      expect(envelope.bundle).toEqual(parseEvidenceReceiptBundleV1(captures[0]!.capture.rawBundle));
+      expect(envelope.bundle.receipts.length).toBeGreaterThan(0);
+      expect(payload.manifest.analyticalDatasetFingerprint).toBe(captures[0]!.capture.datasetFingerprint);
+      expect(payload.manifest.analyticalKernelVersion).toBe(captures[0]!.capture.kernelVersion);
+      expect(envelope.uses).toEqual(envelope.bundle.receipts.map((receipt) => ({
+        consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+        receiptId: receipt.receiptId,
+        requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+      })));
+    } finally {
+      atlas.dispose();
+      await transport.worker.terminate();
+    }
+    // The producer is gone before replay: resident producer handles cannot help.
+    const payload = NemosynePackageManager.unpack(bytes);
+    const result = await replayInFreshWorker(bytes);
+    expect(result.success).toBe(true);
+    expect(result.discrepancies).toEqual([]);
+    expect(result.datasetFingerprint).toBe(payload.manifest.datasetFingerprint);
+    expect(result.investigationDigest).toBe(payload.manifest.investigationDigest);
+    expect(result.evidence).toEqual({ envelope: 'present', integrity: 'verified', enforcement: 'consumer-policy' });
+  }, 60000);
+
+  it.each(['missing-use', 'altered-profile', 'member-only-rehash'] as const)('refuses %s in an otherwise real Worker export', async (mutation) => {
+    const { transport, atlas, session } = await workerSession();
+    let bytes: Uint8Array;
+    try {
+      bytes = await session.exportPortablePackage({}, undefined, { governedEvidence: true });
+    } finally {
+      atlas.dispose();
+      await transport.worker.terminate();
+    }
+    const files = unzipSync(bytes);
+    const envelope = JSON.parse(strFromU8(files[EVIDENCE_RECEIPTS_ENTRY]!));
+    expect(envelope.uses.length).toBeGreaterThan(1);
+    if (mutation === 'missing-use') envelope.uses = [];
+    else if (mutation === 'altered-profile') envelope.uses[0].requirementProfileId = 'inferential-claim/v1';
+    else envelope.uses.reverse();
+    files[EVIDENCE_RECEIPTS_ENTRY] = strToU8(JSON.stringify(envelope));
+    const manifest = JSON.parse(strFromU8(files['manifest.json']!));
+    manifest.evidenceReceiptDigest = sha256Hex(files[EVIDENCE_RECEIPTS_ENTRY]!);
+    files['manifest.json'] = strToU8(JSON.stringify(manifest));
+    const result = await replayInFreshWorker(zipSync(files));
+    expect(result.success).toBe(false);
+    if (mutation === 'member-only-rehash') {
+      expect(result.evidence).toEqual({
+        envelope: 'present', integrity: 'verified', enforcement: 'none',
+        refusal: { code: 'INVESTIGATION_DIGEST_MISMATCH' },
+      });
+      expect(result.discrepancies.join(' ')).toMatch(/digest/i);
+    } else {
+      expect(result.evidence).toMatchObject({
+        envelope: 'present', enforcement: 'none',
+        refusal: { code: mutation === 'missing-use' ? 'CONSUMER_NOT_GOVERNED' : 'CONSUMER_POLICY_REFUSED' },
+      });
+    }
+  }, 60000);
+
+  it('refuses a real capture delivered after dataset replacement without serializing a stale carrier', async () => {
+    const { transport, atlas, session } = await workerSession();
+    try {
+      const captured = new Promise<() => void>((resolve) => { transport.holdCapture = resolve; });
+      const exporting = session.exportPortablePackage({}, undefined, { governedEvidence: true });
+      // Attach the rejection assertion before supersession can settle the export.
+      const refused = expect(exporting).rejects.toThrow(/none is available|different analytical dataset state/);
+      const deliver = await captured;
+      atlas.loadDataset(Dataset.fromJSON(CALLER_DATASET));
+      deliver();
+      await refused;
+      expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
+      transport.holdCapture = null;
+      const recovered = await session.exportPortablePackage({}, undefined, { governedEvidence: true });
+      const replayed = await replayInFreshWorker(recovered);
+      expect(replayed.success).toBe(true);
+      expect(replayed.datasetFingerprint).toBe(atlas.datasetFingerprint);
+    } finally {
+      atlas.dispose();
+      await transport.worker.terminate();
+    }
   }, 60000);
 });
