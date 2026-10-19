@@ -17,10 +17,9 @@ use std::collections::VecDeque;
 /// Canonical kernel identifier carried on every provenance envelope.
 pub const KERNEL_NAME: &str = "nemosyne-wasm";
 
-/// Bumped on any analytical algorithm change. `0.2.0` is the Wave 1 canonical
-/// versioned ABI: provenance envelope, canonical FNV-1a fingerprint, full
-/// predicate/aggregator parity, exported topology/TDA/arrow/encodings.
-pub const KERNEL_VERSION: &str = "0.2.0";
+/// Bumped on analytical behavior changes. Version 0.2.1 preserves finite f64
+/// values exactly when loading dataset JSON, preventing post-export identity drift.
+pub const KERNEL_VERSION: &str = "0.2.1";
 
 /// Recent envelopes retained for sequence-addressable host reads. The host reads
 /// immediately after a result-bearing call, so this is intentionally small and

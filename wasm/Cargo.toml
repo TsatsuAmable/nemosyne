@@ -15,7 +15,8 @@ wasm-bindgen = "0.2.100"
 js-sys = "0.3.77"
 web-sys = { version = "0.3.77", features = ["console"] }
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.138"
+# Dataset JSON must reload finite f64 values without changing analytical identity.
+serde_json = { version = "1.0.138", features = ["float_roundtrip"] }
 csv = "1.3.1"
 # Battle-tested linear-algebra substrate for the Facts correlation matrix and
 # (in a follow-up Wave 1 sub-commit) linfa/smartcore clustering & isolation
