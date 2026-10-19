@@ -84,7 +84,7 @@
     "review:test-quality": "node scripts/reviewer-test-quality.mjs"
   },
   "devDependencies": {
-    "@ast-grep/cli": "0.45.3",
+    "@ast-grep/cli": "0.51.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@types/three": "^0.186.0",
@@ -93,7 +93,7 @@
     "@typescript-eslint/parser": "^8.67.0",
     "@vitest/coverage-v8": "^5.0.0",
     "@vitest/eslint-plugin": "^1.6.27",
-    "dependency-cruiser": "18.5.0",
+    "dependency-cruiser": "18.6.0",
     "eslint": "^10.8.1",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",
