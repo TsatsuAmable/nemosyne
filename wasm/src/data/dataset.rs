@@ -585,6 +585,36 @@ mod row_identity_tests {
         )
     }
 
+    #[test]
+    fn json_roundtrip_preserves_computed_float_bits_and_fingerprint() {
+        // Values observed after anomaly_zscore in the production browser journey.
+        let values = [
+            -0.9589945347193353_f64,
+            -0.9919969276549017,
+            -0.9809961300097129,
+        ];
+        let mut original = Dataset::new(
+            "computed-floats",
+            vec![Column::new("value", ColumnType::Numeric)],
+            values.iter().map(|value| row(*value)).collect(),
+        );
+        let mut edge = Edge::new(0, 1);
+        edge.weight = Some(values[0]);
+        original.edges = Some(vec![edge]);
+        let restored = Dataset::from_js_json(&original.to_js_json()).unwrap();
+        for (index, value) in values.iter().enumerate() {
+            let Value::Number(actual) = restored.rows[index]["value"] else {
+                panic!("numeric observation changed type");
+            };
+            assert_eq!(actual.to_bits(), value.to_bits(), "row {index}");
+        }
+        assert_eq!(
+            restored.edges.as_ref().unwrap()[0].weight.unwrap().to_bits(),
+            values[0].to_bits()
+        );
+        assert_eq!(restored.fingerprint(), original.fingerprint());
+    }
+
     fn graph_dataset() -> Dataset {
         let mut dataset = Dataset::new(
             "graph",

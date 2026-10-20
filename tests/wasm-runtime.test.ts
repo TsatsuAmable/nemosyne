@@ -39,7 +39,7 @@ describe('RuntimeBridge integration', () => {
   });
 
   it('reports the canonical kernel version', () => {
-    expect(bridge.kernelVersion()).toBe('0.2.0');
+    expect(bridge.kernelVersion()).toBe('0.2.1');
   });
 
   it('loads a built-in sample dataset from Rust', () => {
@@ -373,7 +373,7 @@ describe('RuntimeBridge integration', () => {
       const prov = bridge.kernelProvenance();
       expect(prov).not.toBeNull();
       expect(prov!.kernel).toBe('nemosyne-wasm');
-      expect(prov!.kernelVersion).toBe('0.2.0');
+      expect(prov!.kernelVersion).toBe('0.2.1');
       expect(prov!.operation).toBe('sort');
       expect(prov!.inputFingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(prov!.outputFingerprint).toMatch(/^[0-9a-f]{64}$/);
