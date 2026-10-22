@@ -35,11 +35,12 @@ import {
   type CommittedInvestigationContextV2,
 } from '../../atlas/domain/CommittedInvestigationContext.ts';
 
-export const DSE6_QUALIFICATION_SCHEMA_VERSION = '1.0.0' as const;
+export const DSE6_QUALIFICATION_SCHEMA_VERSION = '2.0.0' as const;
+export const DSE6_EVIDENCE_SCOPE = 'SYNTHETIC_FIXTURE_ONLY' as const;
 
 export type StopContinueReviseVerdict = 'STOP' | 'CONTINUE' | 'REVISE';
 
-export interface PhysicalDeviceQualificationEvaluation {
+export interface BudgetSimulationEvaluation {
   readonly status: 'PASS' | 'FAIL';
   readonly desktopElements: number;
   readonly constrainedElements: number;
@@ -52,52 +53,54 @@ export interface PhysicalDeviceQualificationEvaluation {
   readonly traversalRootShared: boolean;
 }
 
-export interface ResourceAttributionEvaluation {
+export interface SyntheticPlanCardinalityEvaluation {
   readonly status: 'PASS' | 'FAIL';
-  readonly smallDatasetCompileMs: number;
-  readonly largeDatasetCompileMs: number;
+  readonly smallFixtureCompileMs: number;
+  readonly largeFixtureCompileMs: number;
   readonly executionRegime: 'DIRECT_DETERMINISTIC';
   readonly neuralInferencesExecuted: 0;
   readonly evolutionaryGenerationsSpawned: 0;
-  readonly isNIndependent: boolean;
-  readonly memoryGrowthBytes: number;
+  readonly planCardinalityStable: boolean;
 }
 
-export interface LongSessionEnduranceEvaluation {
+export interface MockTraversalEvaluation {
   readonly status: 'PASS' | 'FAIL';
   readonly completedCycles: number;
-  readonly memoryLeakDetected: boolean;
   readonly activePagesAfterEviction: number;
   readonly reconstructedPagesVerified: number;
-  readonly byteIdenticalRebuildConfirmed: boolean;
 }
 
-export interface SemanticRecoveryEvaluation {
+export interface SyntheticStructureEvaluation {
   readonly status: 'PASS' | 'FAIL';
-  readonly distributionModeRecovered: boolean;
-  readonly clusterCentroidsRecovered: boolean;
-  readonly multiscaleLineageIntact: boolean;
-  readonly dualDecisionProvenanceVerified: boolean;
+  readonly distributionElementsPresent: boolean;
+  readonly clusterElementsPresent: boolean;
+  readonly mockTraversalLineageConsistent: boolean;
+  readonly mockDecisionIdentityConsistent: boolean;
 }
 
-export interface AccessibilityAndDisclosureEvaluation {
+export interface SyntheticDisclosureEvaluation {
   readonly status: 'PASS' | 'FAIL';
   readonly conjecturalDisclosureCoverage: number;
   readonly claimBearingRejectionVerified: boolean;
   readonly exploratoryConjectureVisible: boolean;
-  readonly highContrastPaletteAccessible: boolean;
+  readonly colorRemappingChangesColor: boolean;
 }
 
-export interface DSE6QualificationReportV1 {
+export interface DSE6QualificationReportV2 {
   readonly schemaVersion: typeof DSE6_QUALIFICATION_SCHEMA_VERSION;
   readonly reportId: string;
   readonly timestamp: number;
   readonly targetCommit: string;
-  readonly physicalDevice: PhysicalDeviceQualificationEvaluation;
-  readonly resourceAttribution: ResourceAttributionEvaluation;
-  readonly longSessionEndurance: LongSessionEnduranceEvaluation;
-  readonly semanticRecovery: SemanticRecoveryEvaluation;
-  readonly accessibilityAndDisclosure: AccessibilityAndDisclosureEvaluation;
+  readonly evidenceScope: typeof DSE6_EVIDENCE_SCOPE;
+  readonly qualification: {
+    readonly status: 'NOT_QUALIFIED';
+    readonly missingEvidenceGates: readonly string[];
+  };
+  readonly budgetSimulation: BudgetSimulationEvaluation;
+  readonly syntheticCardinality: SyntheticPlanCardinalityEvaluation;
+  readonly mockTraversal: MockTraversalEvaluation;
+  readonly syntheticStructure: SyntheticStructureEvaluation;
+  readonly syntheticDisclosure: SyntheticDisclosureEvaluation;
   readonly verdict: {
     readonly decision: StopContinueReviseVerdict;
     readonly rationale: string;
@@ -333,12 +336,13 @@ function makeMockPort(generation = 1, datasetVersion = 1): DirectTraversalPort {
 }
 
 /**
- * Runs the comprehensive DSE6 qualification evaluation across all physical,
- * resource, endurance, scientific, and accessibility dimensions.
+ * Runs a synthetic development battery only. No physical device, real dataset,
+ * measured memory, scientific recovery, or investigator is exercised here.
+ * The versioned report must never grant production/DSE6 promotion authority.
  */
 export async function runDSE6Qualification(
   options?: DSE6QualificationOptions
-): Promise<DSE6QualificationReportV1> {
+): Promise<DSE6QualificationReportV2> {
   const targetCommit = options?.targetCommit ?? 'HEAD';
   const fingerprint = options?.datasetFingerprint ?? 'e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7';
   const cycles = options?.enduranceCycles ?? 25;
@@ -346,7 +350,7 @@ export async function runDSE6Qualification(
   const snapshot = makeQualificationDistributionSnapshot(fingerprint, 1200);
   const context = makeGroundedContext('ctx-dse6-qual');
 
-  // 1. Physical Device Budget Comparison (Desktop Expansive vs Quest Constrained)
+  // 1. Synthetic plan-budget comparison (no physical device exercised)
   const variants = compileObligationPreservingVariants({
     datasetFingerprint: fingerprint,
     snapshot,
@@ -363,7 +367,7 @@ export async function runDSE6Qualification(
     constrainedPlan.elements.some((e) => e.semanticNodeId === id)
   );
 
-  const physicalDevice: PhysicalDeviceQualificationEvaluation = {
+  const budgetSimulation: BudgetSimulationEvaluation = {
     status:
       constrainedPlan.elements.length <= QUEST_CONSTRAINED_BUDGET.maxElements &&
       mandatoryNodesSurviving &&
@@ -381,7 +385,7 @@ export async function runDSE6Qualification(
     traversalRootShared: variants.traversalRootId.startsWith('traversal-root-'),
   };
 
-  // 2. Resource Attribution & N-Independence
+  // 2. Fixture-size/cardinality comparison; both snapshots have the same 20 nodes
   const t0Small = performance.now();
   const smallResult = compileDirectEmbodimentPlan({
     datasetFingerprint: fingerprint,
@@ -400,20 +404,19 @@ export async function runDSE6Qualification(
   });
   const t1Large = performance.now();
 
-  const isNIndependent = smallResult.plan.elements.length === largeResult.plan.elements.length;
+  const planCardinalityStable = smallResult.plan.elements.length === largeResult.plan.elements.length;
 
-  const resourceAttribution: ResourceAttributionEvaluation = {
-    status: isNIndependent ? 'PASS' : 'FAIL',
-    smallDatasetCompileMs: Math.max(0.01, t1Small - t0Small),
-    largeDatasetCompileMs: Math.max(0.01, t1Large - t0Large),
+  const syntheticCardinality: SyntheticPlanCardinalityEvaluation = {
+    status: planCardinalityStable ? 'PASS' : 'FAIL',
+    smallFixtureCompileMs: Math.max(0.01, t1Small - t0Small),
+    largeFixtureCompileMs: Math.max(0.01, t1Large - t0Large),
     executionRegime: 'DIRECT_DETERMINISTIC',
     neuralInferencesExecuted: 0,
     evolutionaryGenerationsSpawned: 0,
-    isNIndependent,
-    memoryGrowthBytes: 0,
+    planCardinalityStable,
   };
 
-  // 3. Long Session Endurance & Evict/Rebuild Recovery
+  // 3. Bounded mock traversal/rebuild, not memory-leak/endurance measurement
   const port = makeMockPort(1, 1);
   const authority: EstablishedDetailAuthorityV1 = {
     datasetFingerprint: fingerprint,
@@ -452,16 +455,14 @@ export async function runDSE6Qualification(
   // After loop, evict again and verify clean state
   session.evictMaterialisedPages();
 
-  const longSessionEndurance: LongSessionEnduranceEvaluation = {
+  const mockTraversal: MockTraversalEvaluation = {
     status: reconstructedPagesVerified === cycles && session.currentPage === null ? 'PASS' : 'FAIL',
     completedCycles: cycles,
-    memoryLeakDetected: false,
     activePagesAfterEviction: session.currentPage ? 1 : 0,
     reconstructedPagesVerified,
-    byteIdenticalRebuildConfirmed: reconstructedPagesVerified === cycles,
   };
 
-  // 4. Known-Structure Semantic Recovery
+  // 4. Synthetic structure/lineage consistency, not known-truth scientific recovery
   const clusterSnapshot = makeQualificationClusteringSnapshot(fingerprint);
   const clusterCompilation = compileDirectEmbodimentPlan({
     datasetFingerprint: fingerprint,
@@ -502,15 +503,15 @@ export async function runDSE6Qualification(
     }
   }
 
-  const semanticRecovery: SemanticRecoveryEvaluation = {
+  const syntheticStructure: SyntheticStructureEvaluation = {
     status: clusterCompilation.plan.elements.length === 5 && lineageVerified ? 'PASS' : 'FAIL',
-    distributionModeRecovered: variants.desktop.plan.elements.length > 0,
-    clusterCentroidsRecovered: clusterCompilation.plan.elements.length === 5,
-    multiscaleLineageIntact: lineageVerified,
-    dualDecisionProvenanceVerified: lineageVerified,
+    distributionElementsPresent: variants.desktop.plan.elements.length > 0,
+    clusterElementsPresent: clusterCompilation.plan.elements.length === 5,
+    mockTraversalLineageConsistent: lineageVerified,
+    mockDecisionIdentityConsistent: lineageVerified,
   };
 
-  // 5. Accessibility & Conjectural Disclosure
+  // 5. Mock disclosure and color remapping; no human accessibility testing
   const exploratoryContext = makeExploratoryContext('ctx-exploratory');
   const exploratoryContextId = computeCommittedContextIdentity(exploratoryContext);
   const sampleProposal = makeHypothesisProposal(
@@ -566,7 +567,7 @@ export async function runDSE6Qualification(
   const highContrastAccessible =
     typeof remappedColor === 'number' ? remappedColor !== 0xff0000 : remappedColor !== defaultColor;
 
-  const accessibilityAndDisclosure: AccessibilityAndDisclosureEvaluation = {
+  const syntheticDisclosure: SyntheticDisclosureEvaluation = {
     status:
       claimBearingRejectionVerified &&
       disclosureResult.disclosures.length > 0 &&
@@ -577,24 +578,25 @@ export async function runDSE6Qualification(
       disclosureResult.disclosures.length > 0 ? 1.0 : 0.0,
     claimBearingRejectionVerified,
     exploratoryConjectureVisible: disclosureResult.disclosures.length > 0,
-    highContrastPaletteAccessible: highContrastAccessible,
+    colorRemappingChangesColor: highContrastAccessible,
   };
 
   const allPassed =
-    physicalDevice.status === 'PASS' &&
-    resourceAttribution.status === 'PASS' &&
-    longSessionEndurance.status === 'PASS' &&
-    semanticRecovery.status === 'PASS' &&
-    accessibilityAndDisclosure.status === 'PASS';
+    budgetSimulation.status === 'PASS' &&
+    syntheticCardinality.status === 'PASS' &&
+    mockTraversal.status === 'PASS' &&
+    syntheticStructure.status === 'PASS' &&
+    syntheticDisclosure.status === 'PASS';
 
   const reportId = `dse6-qual-${canonicalSha256Hex({
     targetCommit,
     fingerprint,
-    physicalStatus: physicalDevice.status,
-    resourceStatus: resourceAttribution.status,
-    enduranceStatus: longSessionEndurance.status,
-    recoveryStatus: semanticRecovery.status,
-    accessStatus: accessibilityAndDisclosure.status,
+    reportSchemaVersion: DSE6_QUALIFICATION_SCHEMA_VERSION,
+    budgetStatus: budgetSimulation.status,
+    resourceStatus: syntheticCardinality.status,
+    enduranceStatus: mockTraversal.status,
+    recoveryStatus: syntheticStructure.status,
+    accessStatus: syntheticDisclosure.status,
   }).slice(0, 16)}`;
 
   return {
@@ -602,19 +604,30 @@ export async function runDSE6Qualification(
     reportId,
     timestamp: Date.now(),
     targetCommit,
-    physicalDevice,
-    resourceAttribution,
-    longSessionEndurance,
-    semanticRecovery,
-    accessibilityAndDisclosure,
+    evidenceScope: DSE6_EVIDENCE_SCOPE,
+    qualification: {
+      status: 'NOT_QUALIFIED',
+      missingEvidenceGates: [
+        'Real Rust/Worker analytical evidence and receipt admission',
+        'Physical Quest resource/frame and interaction measurements',
+        'Actual dataset-scale analytical and boundary cost measurements',
+        'Measured endurance and exact data/content reconstruction',
+        'Governed human semantic comprehension and accessibility study',
+      ],
+    },
+    budgetSimulation,
+    syntheticCardinality,
+    mockTraversal,
+    syntheticStructure,
+    syntheticDisclosure,
     verdict: {
-      decision: allPassed ? 'CONTINUE' : 'REVISE',
+      decision: allPassed ? 'REVISE' : 'STOP',
       rationale: allPassed
-        ? 'Direct dataset-first embodiment satisfies physical Quest bounds, N-independent compute, long-session endurance without leaks, known-structure semantic recovery, and dual-mode epistemic disclosure.'
-        : 'One or more qualification dimensions failed to meet required criteria.',
+        ? 'Synthetic direct-plan, mock traversal and disclosure checks passed; production Rust/Worker, real-scale, physical-device, measured endurance and human qualification remain unverified. DSE6 promotion is not authorised.'
+        : 'One or more synthetic development checks failed; DSE6 promotion is not authorised, and real-world evidence remains outstanding.',
       retainedDirectCapabilities: [
         'DirectEmbodimentCompiler (single-pass deterministic overview)',
-        'ObligationPreservingVariants (desktop & Quest-constrained pair)',
+        'ObligationPreservingVariants (synthetic desktop and constrained-budget pair)',
         'DirectTraversalSession (reversible structure -> subset -> observation)',
         'DirectFeedbackLoop (conjectural disclosure & critique alternative)',
       ],
