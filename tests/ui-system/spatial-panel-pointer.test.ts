@@ -6,15 +6,16 @@
 // synthetic events directly on the components; these tests exercise the live
 // `SpatialPanel.handlePointer*` raycast-dispatch path that runs in VR.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as THREE from 'three';
 import { Container } from '@pmndrs/uikit';
 import { SpatialPanel } from '../../src/vr/ui-system/SpatialPanel.ts';
+import { intersectUIKitComponents } from '../../src/vr/ui-system/raycastUIKit.ts';
 import { Toggle } from '../../src/vr/ui-system/components/Toggle.ts';
 import { Slider } from '../../src/vr/ui-system/components/Slider.ts';
 
 describe('SpatialPanel production pointer dispatch', () => {
-  it('keeps a captured drag anchored to the capturing component (no foreign-uv jump)', () => {
+  it('keeps a captured drag anchored to the capturing component (no foreign-uv jump)', async () => {
     // Real geometry: a Slider drag whose ray drifts onto a neighbouring
     // component must hold its value (the captured track is re-raycast
     // alone; a miss carries no uv) rather than jumping to the foreign
@@ -42,8 +43,22 @@ describe('SpatialPanel production pointer dispatch', () => {
     const trackPoint = (fraction: number) =>
       track.localToWorld(new THREE.Vector3(-0.5 + fraction, 0, 0));
 
+    // UIKit builds its renderless components and panel raycast surfaces lazily.
+    // A fixed number of synchronous updates is not a readiness guarantee on a
+    // loaded CI worker. Before exercising the *production* dispatch path, wait
+    // for the real component traversal to report the capturing track as the
+    // nearest hit with the expected local UV. Do not synthesize the hit/event:
+    // the pointer-down and all later moves below still use live raycasts.
+    await vi.waitFor(() => {
+      SpatialPanel.prototype.update.call(panel, 0.016);
+      scene.updateMatrixWorld(true);
+      aim(trackPoint(0.25));
+      const nearest = intersectUIKitComponents(panel, raycaster)[0];
+      expect(nearest?.object).toBe(track);
+      expect(nearest?.uv?.x).toBeCloseTo(0.25, 1);
+    }, { timeout: 5_000, interval: 20 });
+
     // Press at 25% of the track, drag along it to 75%: the value follows.
-    aim(trackPoint(0.25));
     panel.handlePointerDown(raycaster, pointer as never);
     expect(slider.value).toBeCloseTo(25, 0);
     aim(trackPoint(0.75));
