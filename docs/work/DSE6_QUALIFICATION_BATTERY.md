@@ -30,3 +30,15 @@ Before FM-DSE completion, acquire evidence through the actual import → Rust/Wo
 5. **Human semantics/accessibility:** governed investigator tasks for semantic recoverability, disclosure comprehension and usable interaction, following the [study governance](../study/README.md).
 
 Freeze acceptance criteria and evidence custody before acquisition; use STOP / CONTINUE / REVISE against those criteria. No physical, scientific, memory or human outcome is established by this documentation correction. DSE4/DSE5 remain conditional and are not prerequisites for acquiring this evidence.
+
+## DSE6 report evidence-scope repair (2026-10-22)
+
+**Pre-implementation adversarial contract; high-risk evidence/promotional reporting boundary.** Base: `main@46d663e`. Only `DSE6LoopQualification.ts`, its focused test, and this task are owned by this tranche; the canonical roadmap is unchanged until a status gate actually closes.
+
+- **Invariant:** A programmatic consumer must never mistake synthetic direct-plan compilation, fixed-size snapshots with varied row-count metadata, mock traversal, or colour-remap helpers for Quest, memory-leak, N-scaling, real analytical recovery, or human-accessibility qualification. The development fixtures may still PASS their *own* bounded assertions, but cannot issue a DSE6 completion/CONTINUE result.
+- **Authority and path:** `runDSE6Qualification` constructs and exports the report. No call to the production Rust/Worker analytical path or physical device is present. An in-repository symbol search finds only the report source and its focused test as consumers. This permits replacing the non-persisted report shape with an explicitly versioned V2 rather than silently retaining the misleading V1 semantics.
+- **Failure modes:** Existing report field names or zero/false constants still masquerade as measurements; a consumer mistakes a fixture PASS for field qualification; mocks silently satisfy an evidence gate; the reporter returns CONTINUE based only on fixtures; a new test merely asserts a warning string while leaving a machine-readable completion flag.
+- **Falsifiers:** A bounded test must prove explicit `SYNTHETIC_FIXTURE_ONLY` scope, named missing real-world gates, no invented memory or byte-identity metrics, fixture-status separation and a non-CONTINUE decision. Existing direct compiler/traversal/admission tests and hosted CI must remain green. Report schema increments to V2; readers requiring V1 must fail rather than silently reinterpret it.
+- **STOP / limits:** This does not acquire device, worker, real-N, human or authenticated-origin evidence; no production representation logic is changed. If any consumer beyond this module's tests, any persisted/public report reader, or a promotion pipeline is discovered, STOP for explicit migration/ADR rather than silently changing its contract.
+
+**Expected exit:** The report becomes an honest *synthetic-development battery* with separate outstanding qualification gates. Production/device/human DSE6 status stays open. The work is corrective; it does not upgrade DSE6 readiness.
