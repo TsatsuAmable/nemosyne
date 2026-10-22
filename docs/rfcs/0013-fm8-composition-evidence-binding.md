@@ -53,3 +53,23 @@ Pending acceptance. Link the immutable ADR here once recorded.
 
 - SHADOW-0018 (recorded-advice replay consumption) appears addressed by `09670185` ("consume verified recorded System-1 advice on replay", FM5-R4 tests asserting `RECORDED` provenance without proposer rerun). Flagged for independent validation; no decision is requested by this RFC.
 - The phantom-edge concern referenced as SHADOW-0016 (no ledger record exists; known only through SHADOW-0017's text) was addressed by PR #962's relationship checks and is unaffected by this proposal.
+## 8. Architecture review addendum (2026-10-22, owner decision still open)
+
+**Scope:** static re-check of current `main@4382e1d` sources; this is an advisory refinement, **not** an accepted ADR, implementation authorization, device qualification, or SHADOW-0017 ledger promotion.
+
+### Source-backed findings
+
+- `FullMonetaEngine.ts` step 8 still chooses `snapshotsList.find(source.family === prim.kind) ?? snapshotsList[i] ?? snapshot`. A failed non-primary `brokerVariant` silently retains the primary slice. `FormaMultiElementRuntime.registerElement` copies the supplied slice/snapshot id and a caller-provided `phenomenonFamily` but does not verify a semantic family mapping. This confirms the central *candidate* defect against current code, but SHADOW-0017 status still requires its own governed validation.
+- The closed `RepresentationPrimitiveKind` union currently contains **18**, not 15, kinds (including `AGGREGATION`, `FILTER`, `DETAIL_EXPANSION`). A naïve equality rule leaves `AGGREGATION` vs `AGGREGATE` and `POINT_IDENTITY` vs `POINT`/`POINT_CLOUD` unresolved. Exact string equality alone is not an approved evidence mapping.
+- `FullMonetaEngine` validates the primary snapshot, then accepts each additional snapshot for brokering without an explicit comparison of its `analyticalDatasetFingerprint` to the primary snapshot's. `FormaResolutionBroker.brokerVariant` is given a snapshot and context but not the selected graph's or primary snapshot's dataset identity, so per-snapshot admission by itself cannot prove one coherent analytical dataset for the composition. No mixed-dataset *successful exploit* was executed in this static review; the missing coherence guard is a design falsifier to run.
+- Distinguish **absent** `options.snapshots` (today's production caller asserting one primary snapshot) from **explicit empty/one/many** lists (caller requesting evidence selection). Otherwise `snapshots: []` remains an implicit primary fallback, defeating explicit binding semantics.
+
+### Recommended amendment to option C before acceptance
+
+1. Preserve the omitted-list production behavior only, explicitly labeling per-element basis as `PRIMARY_ASSERTED` rather than calling it an individually verified family match. Do not grant that assertion to an explicitly supplied empty list.
+2. For explicit lists, first require each snapshot's analytical dataset fingerprint to equal the primary snapshot's final analytical fingerprint, pending a separately approved multi-dataset contract. Validate/record kernel identity where applicable; do not conflate the portable dataset fingerprint with the transformed analytical fingerprint.
+3. Select only via a closed, reviewed `primitive kind -> admitted source family` mapping. Unmapped/ambiguous kind, missing snapshot, duplicate contradictory matches, mismatched analytical identity and a non-admitted broker result all **refuse with named reasons**. No positional/default substitution.
+4. Commit the selected `snapshotId`, `sliceId`, primitive ID and **binding basis** into the composed result's versioned/auditable identity. Check whether changing composed-state members requires a schema/identity update before calling additive fields backward compatible.
+5. Add falsifiers: reordered explicit lists are semantically invariant; explicit `[]` refuses; `AGGREGATION`/unsupported mappings refuse until governed; an unrelated-dataset same-family snapshot refuses; a budget/admission refusal does not register the primary instead; the omitted-list production flow remains unchanged. Keep the current FM3/4 graph-edge and admissibility batteries green.
+
+**Owner decision required:** accept refined C, modify it, or request a larger per-primitive binding API. Until that decision/ADR and code review occur, this addendum proposes no change to runtime behavior. It does not justify a Full Moneta completion claim.
