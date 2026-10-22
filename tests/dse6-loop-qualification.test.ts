@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   runDSE6Qualification,
   DSE6_QUALIFICATION_SCHEMA_VERSION,
-  type DSE6QualificationReportV1,
+  DSE6_EVIDENCE_SCOPE,
+  type DSE6QualificationReportV2,
 } from '../src/moneta/representation/DSE6LoopQualification.ts';
 import {
   compileDirectEmbodimentPlan,
@@ -58,9 +59,9 @@ function makeSimpleSnapshot(): SemanticSnapshotV1 {
   return { schemaVersion: SEMANTIC_SNAPSHOT_SCHEMA_VERSION, snapshotId: computeSnapshotId(body), body };
 }
 
-describe('DSE6 Qualification Battery: Complete Dataset-First Direct Loop', () => {
-  it('executes full qualification battery and issues CONTINUE verdict', async () => {
-    const report: DSE6QualificationReportV1 = await runDSE6Qualification({
+describe('DSE6 synthetic development battery: dataset-first direct loop, not promotion evidence', () => {
+  it('runs bounded synthetic checks but refuses real-world qualification', async () => {
+    const report: DSE6QualificationReportV2 = await runDSE6Qualification({
       targetCommit: 'test-commit-dse6',
       datasetFingerprint: TEST_FINGERPRINT,
       enduranceCycles: 10,
@@ -69,8 +70,13 @@ describe('DSE6 Qualification Battery: Complete Dataset-First Direct Loop', () =>
     expect(report.schemaVersion).toBe(DSE6_QUALIFICATION_SCHEMA_VERSION);
     expect(report.reportId).toMatch(/^dse6-qual-[0-9a-f]{16}$/);
     expect(report.targetCommit).toBe('test-commit-dse6');
-    expect(report.verdict.decision).toBe('CONTINUE');
-    expect(report.verdict.rationale).toContain('Direct dataset-first embodiment satisfies');
+    expect(report.evidenceScope).toBe(DSE6_EVIDENCE_SCOPE);
+    expect(report.qualification.status).toBe('NOT_QUALIFIED');
+    expect(report.qualification.missingEvidenceGates).toHaveLength(5);
+    expect(report.qualification.missingEvidenceGates).toContain('Physical Quest resource/frame and interaction measurements');
+    expect(report.verdict.decision).toBe('REVISE');
+    expect(report.verdict.rationale).toContain('Synthetic direct-plan');
+    expect(report.verdict.rationale).toContain('DSE6 promotion is not authorised');
     expect(report.verdict.retainedDirectCapabilities.length).toBeGreaterThanOrEqual(4);
     expect(report.verdict.conditionalDeferredCapabilities).toContain(
       'DSE4 Multi-dataset comparison (offline lab research only)'
@@ -80,19 +86,19 @@ describe('DSE6 Qualification Battery: Complete Dataset-First Direct Loop', () =>
     );
   });
 
-  describe('Dimension 1: Physical Device Qualification (Desktop Expansive vs Quest Constrained)', () => {
+  describe('Dimension 1: synthetic desktop and constrained-budget plan comparison', () => {
     it('enforces physical primitive envelope and shared traversal root', async () => {
       const report = await runDSE6Qualification({ enduranceCycles: 2 });
-      const { physicalDevice } = report;
+      const { budgetSimulation } = report;
 
-      expect(physicalDevice.status).toBe('PASS');
-      expect(physicalDevice.constrainedElements).toBeLessThanOrEqual(QUEST_CONSTRAINED_BUDGET.maxElements);
-      expect(physicalDevice.constrainedElements).toBeLessThanOrEqual(50);
-      expect(physicalDevice.desktopElements).toBeGreaterThanOrEqual(physicalDevice.constrainedElements);
-      expect(physicalDevice.mandatoryNodesSurviving).toBe(true);
-      expect(physicalDevice.mandatoryChannelsSurviving).toBe(true);
-      expect(physicalDevice.traversalRootShared).toBe(true);
-      expect(physicalDevice.shedOptionalChannels).toBeInstanceOf(Array);
+      expect(budgetSimulation.status).toBe('PASS');
+      expect(budgetSimulation.constrainedElements).toBeLessThanOrEqual(QUEST_CONSTRAINED_BUDGET.maxElements);
+      expect(budgetSimulation.constrainedElements).toBeLessThanOrEqual(50);
+      expect(budgetSimulation.desktopElements).toBeGreaterThanOrEqual(budgetSimulation.constrainedElements);
+      expect(budgetSimulation.mandatoryNodesSurviving).toBe(true);
+      expect(budgetSimulation.mandatoryChannelsSurviving).toBe(true);
+      expect(budgetSimulation.traversalRootShared).toBe(true);
+      expect(budgetSimulation.shedOptionalChannels).toBeInstanceOf(Array);
     });
 
     it('fails closed when budget violates finite positive constraint', () => {
@@ -122,73 +128,75 @@ describe('DSE6 Qualification Battery: Complete Dataset-First Direct Loop', () =>
     });
   });
 
-  describe('Dimension 2: Resource Attribution & N-Independence', () => {
-    it('proves O(1) plan cardinality across small and large datasets with zero neural overhead', async () => {
+  describe('Dimension 2: fixture plan cardinality, not real-N resource measurement', () => {
+    it('compares identically sized synthetic fixtures with distinct row-count metadata', async () => {
       const report = await runDSE6Qualification({ enduranceCycles: 2 });
-      const { resourceAttribution } = report;
+      const { syntheticCardinality } = report;
 
-      expect(resourceAttribution.status).toBe('PASS');
-      expect(resourceAttribution.executionRegime).toBe('DIRECT_DETERMINISTIC');
-      expect(resourceAttribution.neuralInferencesExecuted).toBe(0);
-      expect(resourceAttribution.evolutionaryGenerationsSpawned).toBe(0);
-      expect(resourceAttribution.isNIndependent).toBe(true);
-      expect(resourceAttribution.smallDatasetCompileMs).toBeGreaterThan(0);
-      expect(resourceAttribution.largeDatasetCompileMs).toBeGreaterThan(0);
-      expect(resourceAttribution.memoryGrowthBytes).toBe(0);
+      expect(syntheticCardinality.status).toBe('PASS');
+      expect(syntheticCardinality.executionRegime).toBe('DIRECT_DETERMINISTIC');
+      expect(syntheticCardinality.neuralInferencesExecuted).toBe(0);
+      expect(syntheticCardinality.evolutionaryGenerationsSpawned).toBe(0);
+      expect(syntheticCardinality.planCardinalityStable).toBe(true);
+      expect(syntheticCardinality.smallFixtureCompileMs).toBeGreaterThan(0);
+      expect(syntheticCardinality.largeFixtureCompileMs).toBeGreaterThan(0);
+      expect('memoryGrowthBytes' in syntheticCardinality).toBe(false);
     });
   });
 
-  describe('Dimension 3: Long-Session Endurance & Recovery', () => {
-    it('executes repeated drill-down, eviction, and reconstruction cycles without leak', async () => {
+  describe('Dimension 3: mock traversal eviction and rebuild', () => {
+    it('completes mock page reconstruction without fabricating leak or byte-identity proof', async () => {
       const cycles = 15;
       const report = await runDSE6Qualification({ enduranceCycles: cycles });
-      const { longSessionEndurance } = report;
+      const { mockTraversal } = report;
 
-      expect(longSessionEndurance.status).toBe('PASS');
-      expect(longSessionEndurance.completedCycles).toBe(cycles);
-      expect(longSessionEndurance.reconstructedPagesVerified).toBe(cycles);
-      expect(longSessionEndurance.byteIdenticalRebuildConfirmed).toBe(true);
-      expect(longSessionEndurance.memoryLeakDetected).toBe(false);
-      expect(longSessionEndurance.activePagesAfterEviction).toBe(0);
+      expect(mockTraversal.status).toBe('PASS');
+      expect(mockTraversal.completedCycles).toBe(cycles);
+      expect(mockTraversal.reconstructedPagesVerified).toBe(cycles);
+      expect('byteIdenticalRebuildConfirmed' in mockTraversal).toBe(false);
+      expect('memoryLeakDetected' in mockTraversal).toBe(false);
+      expect(mockTraversal.activePagesAfterEviction).toBe(0);
     });
   });
 
-  describe('Dimension 4: Known-Structure Semantic Recovery', () => {
-    it('recovers distribution modes and cluster hulls with intact multiscale lineage', async () => {
+  describe('Dimension 4: synthetic structure and mock lineage checks', () => {
+    it('compiles fixture elements and follows mock traversal lineage', async () => {
       const report = await runDSE6Qualification({ enduranceCycles: 2 });
-      const { semanticRecovery } = report;
+      const { syntheticStructure } = report;
 
-      expect(semanticRecovery.status).toBe('PASS');
-      expect(semanticRecovery.distributionModeRecovered).toBe(true);
-      expect(semanticRecovery.clusterCentroidsRecovered).toBe(true);
-      expect(semanticRecovery.multiscaleLineageIntact).toBe(true);
-      expect(semanticRecovery.dualDecisionProvenanceVerified).toBe(true);
+      expect(syntheticStructure.status).toBe('PASS');
+      expect(syntheticStructure.distributionElementsPresent).toBe(true);
+      expect(syntheticStructure.clusterElementsPresent).toBe(true);
+      expect(syntheticStructure.mockTraversalLineageConsistent).toBe(true);
+      expect(syntheticStructure.mockDecisionIdentityConsistent).toBe(true);
     });
   });
 
-  describe('Dimension 5: Accessibility & Dual-Mode Epistemic Disclosure', () => {
+  describe('Dimension 5: conjectural disclosure and color-remapping helper checks', () => {
     it('verifies claim-bearing refusal, exploratory disclosure, and color remapping', async () => {
       const report = await runDSE6Qualification({ enduranceCycles: 2 });
-      const { accessibilityAndDisclosure } = report;
+      const { syntheticDisclosure } = report;
 
-      expect(accessibilityAndDisclosure.status).toBe('PASS');
-      expect(accessibilityAndDisclosure.claimBearingRejectionVerified).toBe(true);
-      expect(accessibilityAndDisclosure.exploratoryConjectureVisible).toBe(true);
-      expect(accessibilityAndDisclosure.highContrastPaletteAccessible).toBe(true);
-      expect(accessibilityAndDisclosure.conjecturalDisclosureCoverage).toBe(1.0);
+      expect(syntheticDisclosure.status).toBe('PASS');
+      expect(syntheticDisclosure.claimBearingRejectionVerified).toBe(true);
+      expect(syntheticDisclosure.exploratoryConjectureVisible).toBe(true);
+      expect(syntheticDisclosure.colorRemappingChangesColor).toBe(true);
+      expect(syntheticDisclosure.conjecturalDisclosureCoverage).toBe(1.0);
     });
   });
 
-  describe('Dimension 6: STOP / CONTINUE / REVISE Decision Logic', () => {
-    it('returns CONTINUE when all dimensions pass, and provides transparent capability boundaries', async () => {
+  describe('Dimension 6: promotion refusal despite green fixture checks', () => {
+    it('returns REVISE when all synthetic checks pass because real qualification is absent', async () => {
       const report = await runDSE6Qualification({ enduranceCycles: 5 });
 
-      expect(report.verdict.decision).toBe('CONTINUE');
-      expect(report.physicalDevice.status).toBe('PASS');
-      expect(report.resourceAttribution.status).toBe('PASS');
-      expect(report.longSessionEndurance.status).toBe('PASS');
-      expect(report.semanticRecovery.status).toBe('PASS');
-      expect(report.accessibilityAndDisclosure.status).toBe('PASS');
+      expect(report.verdict.decision).toBe('REVISE');
+      expect(report.qualification.status).toBe('NOT_QUALIFIED');
+      expect(JSON.stringify(report)).not.toMatch(/memoryGrowthBytes|memoryLeakDetected|byteIdenticalRebuildConfirmed/);
+      expect(report.budgetSimulation.status).toBe('PASS');
+      expect(report.syntheticCardinality.status).toBe('PASS');
+      expect(report.mockTraversal.status).toBe('PASS');
+      expect(report.syntheticStructure.status).toBe('PASS');
+      expect(report.syntheticDisclosure.status).toBe('PASS');
       expect(report.verdict.retainedDirectCapabilities).toContain(
         'DirectEmbodimentCompiler (single-pass deterministic overview)'
       );
