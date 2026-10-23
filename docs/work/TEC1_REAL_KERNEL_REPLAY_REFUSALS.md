@@ -1,6 +1,6 @@
 # TEC1 real-kernel replay refusal qualification
 
-**Roadmap:** TEC/FM0 evidence integrity, [RFC 0009](../rfcs/0009-persisted-governed-evidence-replay.md). **Status:** IN PROGRESS, bounded test-only tranche. **Base:** `main@4382e1d`.
+**Roadmap:** TEC/FM0 evidence integrity, [RFC 0009](../rfcs/0009-persisted-governed-evidence-replay.md). **Status:** LANDED via #1050 (merge c869344, 23 October 2026), bounded test-only tranche. **Base:** `main@4382e1d`.
 
 ## High-risk pre-implementation falsification contract
 
@@ -13,3 +13,7 @@
 ## Exit
 
 Host CI (including WASM, focused test, coverage, security and smoke) must be green on the exact PR head; post-implementation review must confirm these negatives fail for the *policy decision*, not unrelated archive corruption. This proves only two bounded real-runtime policy-refusal cases, not full TEC/FM0 closure.
+
+## Completion record (2026-10-23)
+
+PR #1050 landed at `c869344952ce90bd3e744586a088ae32d61fda9d` after successful Rust/WASM, all three Vitest shards + aggregate, CodeQL, Chromium production/recovery smoke, and approval gate. Real Rust-issued V3 archives reject both unauthorized-profile and absent-receipt use mutations at the typed consumer-policy gate. This retires only this falsifier task, not TEC/FM0 or authenticity/calibration/claim coverage.
