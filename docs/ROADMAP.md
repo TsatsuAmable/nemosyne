@@ -76,7 +76,7 @@ The roles below route work; they do not assert that an agent has claimed it. Nam
 
 | ID / priority | Next bounded action and gate | Responsible role | Assignment |
 | --- | --- | --- | --- |
-| **TEC/FM0 — dependency first** | Close remaining receipt/calibration/consumer qualification under [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md); live-WASM policy refusal [qualification tranche](work/TEC1_REAL_KERNEL_REPLAY_REFUSALS.md) in verification. | Evidence/runtime specialist | Assigned: TEC1 live-refusal PR |
+| **TEC/FM0 — dependency first** | Continue claim-specific qualification under [RFC 0009](rfcs/0009-persisted-governed-evidence-replay.md); TEC1 [policy refusals](work/TEC1_REAL_KERNEL_REPLAY_REFUSALS.md) landed, TEC3 [real-WASM null cases](work/TEC3_REAL_WASM_STATISTICAL_NULL_CONTROLS.md) in verification. | Evidence/runtime specialist | Assigned: TEC3 null-control PR |
 | **FM8-BIND — owner decision** | Decide [RFC 0013](rfcs/0013-fm8-composition-evidence-binding.md) before changing composition evidence selection. | Project owner + representation specialist | Unassigned |
 | **DSE6 — evidence closure** | Replace synthetic-only completion evidence with the [production/device/human qualification](work/DSE6_QUALIFICATION_BATTERY.md); coordinate shared hardware with UXR/QCA. | Runtime + XR/research qualification specialists | Unassigned |
 | **FM1/FM2 — surface evidence** | Qualify rendered inspector/history/alternative journeys; retain the bounded [headless exit evidence](work/FM1_FM2_EXIT_QUALIFICATION.md). | Interaction/XR specialist | Unassigned |
