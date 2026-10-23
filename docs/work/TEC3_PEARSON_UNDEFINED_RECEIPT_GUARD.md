@@ -11,6 +11,10 @@
 - **Falsifiers:** Rust unit parity tests for numerical value and diagnostic status; production real-WASM tests for constant/under-supported/legitimate-zero/nonzero pairs, bundle identity, `VIOLATED_ASSUMPTION` refusal for undefined and `RESOLVED` descriptive legitimate zero. Gate must fail on removal of Rust-emitted status.
 - **Non-goals/dependencies:** no new significance test, no p-values, no confidence intervals, no universal variance cutoff beyond the already-used algorithm threshold, no historical mutation or V1 schema extension. Keep existing archives byte-preserved. This is a correction implementing accepted RFC 0007 / ADR 0007 explicit-assumption refusal, not an expansion of scientific authority. If review finds an actual new statistical policy needed, stop for separate owner RFC.
 
+## Governed export availability tradeoff
+
+The kernel's descriptive consumer attests **all** receipt IDs. `composeGovernedEvidenceReceiptSnapshot` refuses to mint a V3 use when any receipt fails the profile. A constant/sparse Pearson pair therefore makes **governed V3 export unavailable** for that dataset; it must not silently downgrade to V2. A caller may explicitly export the ordinary V2 package, which carries no governed evidence. Changing the kernel-minted coverage or suppressing invalid receipts requires a separate owner decision. The production-WASM test pins this refusal and explicit legacy availability.
+
 ## Exit
 
 Exact-head host Rust + actual WASM Vitest + coverage + production smoke + CodeQL + approval gate; adversarial review and honest limitations. No Quest or human research claims.
