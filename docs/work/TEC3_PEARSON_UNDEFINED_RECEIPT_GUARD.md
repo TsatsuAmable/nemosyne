@@ -21,7 +21,7 @@ Exact-head host Rust + actual WASM Vitest + coverage + production smoke + CodeQL
 
 ## Next bounded follow-up: capture refusal diagnostics (23 October 2026)
 
-**Status:** Scoped implementation in progress; no new authority decision, selective-receipt export, or generalized UI claim.
+**Status:** LANDED via PR #1054 (merge `4ec62b06`, 23 October 2026). No new authority decision, selective-receipt export, or rendered-UI qualification.
 
 **Pre-implementation high-risk falsification contract.** The live Rust consumer still attests *all* receipts, so an undefined Pearson receipt must continue to block governed V3 export. Current Atlas composition knows the exact governed receipt/profile/refusal but `NemosyneSession._requireGovernedEvidenceBytes` catches all live acquisition exceptions and reports only “none is available” when no restored carrier exists.
 
@@ -30,3 +30,7 @@ Exact-head host Rust + actual WASM Vitest + coverage + production smoke + CodeQL
 - **Falsifiers:** actual Rust/WASM constant-Pearson V3 export rejects with the typed receipt/profile/status, cannot serialize/adopt a carrier, and still permits explicit ordinary V2; a genuine defined zero V3 export still succeeds; unknown transport/capture errors retain the existing generic no-carrier refusal; a valid restored carrier remains subject to the existing exact binding, identity and policy checks rather than being blocked or downgraded by a live capture exception.
 - **Risks:** leaking arbitrary transport exception detail, accidentally interpreting a captured failure as a valid receipt, bypassing replay/binding, or prohibiting RFC0009's allowed restored-carrier fallback.
 - **STOP/non-goals:** do not change attested all-receipts coverage, do not omit invalid receipts or produce a weaker V3, do not claim a user-facing rendered UI or human qualification. Changing the governed-consumer scope requires a separate owner decision. Complete exact-head CI and independent code-path review before promotion.
+
+### Bounded completion record (23 October 2026)
+
+PR [#1054](https://github.com/TsatsuAmable/nemosyne/pull/1054) merged at `4ec62b06bf37532f18999eb554ef788e10934421`, head `c40393e401b04c454b9e9fa2df2f0dda643a3e5b`. Exact-head CI, Rust/WASM, all Vitest shards and aggregate coverage, production build, browser smoke, CodeQL and approval gate passed. Only the closed `GovernedEvidenceCapturePolicyRefusal` is surfaced to a governed-export caller when no restored carrier is usable. The policy and all-receipts attestation remain unchanged. Unknown transport errors remain concealed; restored-carrier binding and identity checks remain mandatory. This is **not** TEC/FM0 completion, selective-receipt export authorization or a claim about investigator-facing UI.
