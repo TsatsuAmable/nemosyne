@@ -419,6 +419,45 @@ export interface GovernedEvidenceProducerReadoutV1 {
  *   envelope is serialized, so an export never writes a use its own replay
  *   loader would refuse to bind.
  */
+/**
+ * A *specific* producer-side consumer-policy refusal, not a transport failure
+ * or missing-kernel signal. Carries only identities and the exact closed
+ * resolution produced by the authority-owned policy over a Rust-issued receipt.
+ *
+ * The session's RFC0009 restored-carrier fallback remains intact: this type
+ * is exposed only when no carrier exists. No decision is made from its message.
+ */
+export class GovernedEvidenceCapturePolicyRefusal extends Error {
+  readonly code = 'GOVERNED_EVIDENCE_USE_REFUSED' as const;
+  readonly consumerId: string;
+  readonly receiptId: string;
+  readonly requirementProfileId: string;
+  readonly resolution: Exclude<EvidenceReceiptResolutionV1, { readonly status: 'RESOLVED' }>;
+
+  constructor(
+    consumerId: string,
+    receiptId: string,
+    requirementProfileId: string,
+    resolution: Exclude<EvidenceReceiptResolutionV1, { readonly status: 'RESOLVED' }>,
+  ) {
+    const cause =
+      resolution.status === 'VIOLATED_ASSUMPTION' ||
+      resolution.status === 'UNRESOLVED_ASSUMPTION'
+        ? ` (${resolution.assumption})`
+        : '';
+    super(
+      `[AtlasCore] Governed evidence capture would mint a use whose receipt does not resolve under '${requirementProfileId}': ` +
+      `receipt '${receiptId}' for consumer '${consumerId}' refused: ${resolution.status}${cause}`,
+    );
+    this.name = 'GovernedEvidenceCapturePolicyRefusal';
+    this.consumerId = consumerId;
+    this.receiptId = receiptId;
+    this.requirementProfileId = requirementProfileId;
+    this.resolution = resolution;
+    Object.freeze(this);
+  }
+}
+
 export function composeGovernedEvidenceReceiptSnapshot(
   readout: GovernedEvidenceProducerReadoutV1,
 ): GovernedEvidenceReceiptSnapshotV1 {
@@ -485,11 +524,10 @@ export function composeGovernedEvidenceReceiptSnapshot(
           `[AtlasCore] Governed evidence capture attests receipt '${receiptId}' absent from the bundle`
         );
       }
-      if (
-        evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt).status !== 'RESOLVED'
-      ) {
-        throw new Error(
-          `[AtlasCore] Governed evidence capture would mint a use whose receipt does not resolve under '${requiredProfileId}'`
+      const resolution = evaluateEvidenceReceiptAgainstProfileV1(profile, receiptId, receipt);
+      if (resolution.status !== 'RESOLVED') {
+        throw new GovernedEvidenceCapturePolicyRefusal(
+          consumer.consumerId, receiptId, requiredProfileId, resolution,
         );
       }
       uses.push({
