@@ -197,9 +197,14 @@ describe('TEC3 real-WASM null cases remain descriptive rather than inferential',
       // With one non-resolving Pearson use, governed export must refuse before
       // it can persist an artifact the reader would reject. This is an explicit
       // availability tradeoff, not a silently successful V3 export.
+      // The Atlas authority exposes the exact kernel consumer-policy refusal.
+      await expect(atlas.captureGovernedEvidenceReceipt())
+        .rejects.toThrow(/receipt does not resolve under/);
+      // Session export intentionally hides live-capture exceptions behind its
+      // existing missing-carrier refusal; it still cannot write V3.
       await expect(session.exportPortablePackage(
         {}, undefined, { governedEvidence: true }
-      )).rejects.toThrow(/receipt does not resolve under/);
+      )).rejects.toThrow(/none is available for this session/);
       expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
 
       // A normal historical V2 snapshot is still exportable without claiming
