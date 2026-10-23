@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { strFromU8 } from 'fflate';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { GovernedEvidenceCapturePolicyRefusal } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import { canonicalDatasetIdentityHex } from '../src/data/DatasetIdentity.ts';
 import type { DatasetJSON } from '../src/data/types.ts';
@@ -308,6 +309,62 @@ describe('TEC1 governed evidence session carrier', () => {
           requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
         },
       ]);
+  });
+
+  it('preserves the accepted restored-carrier fallback after a live policy-refusal exception', async () => {
+    const envelope = {
+      ...validSyntheticEnvelope('unknown'),
+      uses: [{
+        consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+        receiptId: 'descriptive:x',
+        requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+      }],
+    };
+    const atlas = new AtlasCore({ kernel: null });
+    const session = NemosyneSession.deserialize({
+      ...minimalSessionJson(),
+      evidenceReceiptSnapshot: carrierFor(JSON.stringify(envelope)),
+    }, atlas);
+    // A live capture can fail, but RFC0009 allows fallback to the carrier
+    // this session already holds. The existing envelope/binding/identity gates
+    // still run and cannot be bypassed by a reported capture error.
+    const refusal = new GovernedEvidenceCapturePolicyRefusal(
+      DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+      'pearson:x:y',
+      DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+      {
+        status: 'VIOLATED_ASSUMPTION',
+        receiptId: 'pearson:x:y',
+        assumption: 'Pearson coefficient must be defined for this pair',
+      },
+    );
+    const spy = vi.spyOn(atlas, 'captureGovernedEvidenceReceipt').mockRejectedValue(refusal);
+    try {
+      const bytes = await session.exportPortablePackage({}, undefined, { governedEvidence: true });
+      const exported = NemosynePackageManager.unpack(bytes);
+      expect(exported.manifest.formatVersion).toBe(3);
+      expect(parsePersistedEvidenceReceiptsV1(JSON.parse(strFromU8(exported.evidenceReceiptBytes!))).uses)
+        .toEqual(envelope.uses);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('does not reveal unrelated transport exceptions when no carrier can attest evidence', async () => {
+    const atlas = new AtlasCore({ kernel: null });
+    const session = NemosyneSession.deserialize(minimalSessionJson(), atlas);
+    const spy = vi.spyOn(atlas, 'captureGovernedEvidenceReceipt')
+      .mockRejectedValue(new Error('private transport implementation detail'));
+    try {
+      const error = await session.exportPortablePackage(
+        {}, undefined, { governedEvidence: true }
+      ).then(() => null, (failure: unknown) => failure);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('none is available for this session');
+      expect((error as Error).message).not.toContain('private transport implementation detail');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('refuses a non-boolean governedEvidence option instead of silently exporting V2', async () => {

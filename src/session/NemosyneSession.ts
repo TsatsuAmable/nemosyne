@@ -11,6 +11,7 @@ import {
   canonicalDatasetIdentityHex,
 } from '../data/DatasetIdentity.ts';
 import { AtlasCore } from '../atlas/AtlasCore.ts';
+import { GovernedEvidenceCapturePolicyRefusal } from '../atlas/MonetaEvidenceAuthority.ts';
 import type { AnalysisSpec, AtlasCoreState, ResearchContext } from '../atlas/types.ts';
 import {
   GOVERNED_INVESTIGATION_DIGEST_ALGORITHM,
@@ -552,24 +553,27 @@ export class NemosyneSession {
    */
   private async _requireGovernedEvidenceBytes(): Promise<{ bytes: Uint8Array; live: boolean }> {
     let bytes: Uint8Array | null = null;
+    let policyRefusal: GovernedEvidenceCapturePolicyRefusal | null = null;
     try {
       bytes = (await this._atlas.captureGovernedEvidenceReceipt())?.bytes ?? null;
-    } catch {
-      // A drifted live capture does not silently satisfy the governed request
-      // with unvalidated bytes: the identity coherence checks below reject any
-      // carrier (restored or captured) that disagrees with the committed state.
-      //
-      // This catch is deliberately wider than drift. A port that *throws*
-      // (disposed, saturated, transport failure, identity mismatch) is a real
-      // fault, and swallowing it here means a governed export falls back to a
-      // restored carrier instead of surfacing the fault. That is accepted
-      // because #834 record item (5) sanctions exactly this fallback, and the
-      // fallback is still fully validated below — so the failure mode is a
-      // quieter signal, not a weaker admission rule. If acquisition faults ever
-      // need to be observable, record them here rather than narrowing the catch.
+    } catch (error) {
+      // #834 restored-carrier fallback is deliberately preserved for all
+      // acquisition failures, including policy refusals. A restored carrier
+      // must still pass the normal identity/binding checks before export.
+      // Only the closed producer-side refusal type is retained for reporting
+      // if *no* restored carrier can satisfy this request. Arbitrary port,
+      // transport or Worker error messages remain suppressed.
+      if (error instanceof GovernedEvidenceCapturePolicyRefusal) {
+        policyRefusal = error;
+      }
     }
     const resolved = bytes ?? this._evidenceReceiptBytes;
     if (!resolved) {
+      if (policyRefusal !== null) {
+        // Preserve the original Rust-policy status and exact evidence identity
+        // for the export caller; no failed carrier was adopted or serialized.
+        throw policyRefusal;
+      }
       throw new Error(
         'Governed evidence export requires a Rust-issued statistics evidence receipt bundle; none is available for this session'
       );

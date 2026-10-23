@@ -1,6 +1,6 @@
 # TEC3 Pearson undefined-statistic evidence guard
 
-**Scope:** one Rust-owned, fail-closed correction on the existing Pearson receipt; no `Facts` numerical/wire or V1 envelope format change. **Base:** `main@621275d9`. **Status:** implementation/qualification open; not TEC/FM0 completion.
+**Scope:** one Rust-owned, fail-closed correction on the existing Pearson receipt; no `Facts` numerical/wire or V1 envelope format change. **Base:** `main@621275d9`. **Status:** MERGED via PR #1053 on 23 October 2026 (head `fc1786d9`, merge `d1ffed65`); wider TEC/FM0 remains open.
 
 ## High-risk pre-implementation contract
 
@@ -18,3 +18,15 @@ The kernel's descriptive consumer attests **all** receipt IDs. `composeGovernedE
 ## Exit
 
 Exact-head host Rust + actual WASM Vitest + coverage + production smoke + CodeQL + approval gate; adversarial review and honest limitations. No Quest or human research claims.
+
+## Next bounded follow-up: capture refusal diagnostics (23 October 2026)
+
+**Status:** Scoped implementation in progress; no new authority decision, selective-receipt export, or generalized UI claim.
+
+**Pre-implementation high-risk falsification contract.** The live Rust consumer still attests *all* receipts, so an undefined Pearson receipt must continue to block governed V3 export. Current Atlas composition knows the exact governed receipt/profile/refusal but `NemosyneSession._requireGovernedEvidenceBytes` catches all live acquisition exceptions and reports only “none is available” when no restored carrier exists.
+
+- **Invariant:** the user/export caller receives a named, typed `GOVERNED_EVIDENCE_USE_REFUSED` with Rust-derived `receiptId`, authority-owned `profileId`, kernel-minted `consumerId`, and exact closed `EvidenceReceiptResolutionV1` status on a policy-rejected *live* capture when there is no restored carrier.
+- **Path:** `composeGovernedEvidenceReceiptSnapshot` rejects at the existing `evaluateEvidenceReceiptAgainstProfileV1` check; only `NemosyneSession._requireGovernedEvidenceBytes` may re-expose this particular known type when *no* carrier is available. Re-use existing policy and resolver; do not change rule order or Rust/TS scientific outputs.
+- **Falsifiers:** actual Rust/WASM constant-Pearson V3 export rejects with the typed receipt/profile/status, cannot serialize/adopt a carrier, and still permits explicit ordinary V2; a genuine defined zero V3 export still succeeds; unknown transport/capture errors retain the existing generic no-carrier refusal; a valid restored carrier remains subject to the existing exact binding, identity and policy checks rather than being blocked or downgraded by a live capture exception.
+- **Risks:** leaking arbitrary transport exception detail, accidentally interpreting a captured failure as a valid receipt, bypassing replay/binding, or prohibiting RFC0009's allowed restored-carrier fallback.
+- **STOP/non-goals:** do not change attested all-receipts coverage, do not omit invalid receipts or produce a weaker V3, do not claim a user-facing rendered UI or human qualification. Changing the governed-consumer scope requires a separate owner decision. Complete exact-head CI and independent code-path review before promotion.
