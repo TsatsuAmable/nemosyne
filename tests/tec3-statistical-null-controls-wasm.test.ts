@@ -6,9 +6,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { GovernedEvidenceCapturePolicyRefusal } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
+import { DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1 } from '../src/data/evidence/GovernedConsumerAttestation.ts';
 import { parseEvidenceReceiptBundleV1 } from '../src/data/evidence/EvidenceReceipt.ts';
 import { statisticsEvidenceReceiptAuthority } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import {
@@ -200,11 +202,27 @@ describe('TEC3 real-WASM null cases remain descriptive rather than inferential',
       // The Atlas authority exposes the exact kernel consumer-policy refusal.
       await expect(atlas.captureGovernedEvidenceReceipt())
         .rejects.toThrow(/receipt does not resolve under/);
-      // Session export intentionally hides live-capture exceptions behind its
-      // existing missing-carrier refusal; it still cannot write V3.
-      await expect(session.exportPortablePackage(
+      // Session exposes *only* the exact closed Atlas policy refusal when no
+      // validated/restored carrier is available, without relaxing V3 admission.
+      const refusal = await session.exportPortablePackage(
         {}, undefined, { governedEvidence: true }
-      )).rejects.toThrow(/none is available for this session/);
+      ).then(
+        () => null,
+        (error: unknown) => error
+      );
+      expect(refusal).toBeInstanceOf(GovernedEvidenceCapturePolicyRefusal);
+      expect(refusal).toMatchObject({
+        code: 'GOVERNED_EVIDENCE_USE_REFUSED',
+        consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+        receiptId: 'pearson:x:y',
+        requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        resolution: {
+          status: 'VIOLATED_ASSUMPTION',
+          receiptId: 'pearson:x:y',
+          assumption: 'Pearson coefficient must be defined for this pair',
+        },
+      });
+      expect((refusal as Error).message).toContain('VIOLATED_ASSUMPTION');
       expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
 
       // A normal historical V2 snapshot is still exportable without claiming
