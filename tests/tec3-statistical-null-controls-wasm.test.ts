@@ -5,6 +5,10 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
+import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
+import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import { parseEvidenceReceiptBundleV1 } from '../src/data/evidence/EvidenceReceipt.ts';
 import { statisticsEvidenceReceiptAuthority } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import {
@@ -176,6 +180,37 @@ describe('TEC3 real-WASM null cases remain descriptive rather than inferential',
       bridge.destroyDataset(handle);
     }
   });
+
+  it('refuses governed V3 export of invalid Pearson rather than persisting an unbindable use', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(new Dataset(
+      'tec3-constant-pearson-export',
+      [
+        { name: 'x', type: ColumnType.NUMERIC },
+        { name: 'y', type: ColumnType.NUMERIC },
+      ],
+      [{ x: 5, y: 0 }, { x: 5, y: 1 }, { x: 5, y: 2 }],
+    ));
+    const session = new NemosyneSession({ atlas });
+    try {
+      // The current kernel-minted descriptive consumer claims *every* receipt.
+      // With one non-resolving Pearson use, governed export must refuse before
+      // it can persist an artifact the reader would reject. This is an explicit
+      // availability tradeoff, not a silently successful V3 export.
+      await expect(session.exportPortablePackage(
+        {}, undefined, { governedEvidence: true }
+      )).rejects.toThrow(/receipt does not resolve under/);
+      expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
+
+      // A normal historical V2 snapshot is still exportable without claiming
+      // any governed receipt authority. No transparent V3-to-V2 downgrade.
+      const v2 = NemosynePackageManager.unpack(await session.exportPortablePackage({}));
+      expect(v2.manifest.formatVersion).toBe(2);
+      expect(v2.evidenceReceiptBytes).toBeUndefined();
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
 
   it.each([
     { name: 'one observed class (entropy null control)', values: ['A', 'A', 'A', 'A'], entropy: 0, cardinality: 1 },
