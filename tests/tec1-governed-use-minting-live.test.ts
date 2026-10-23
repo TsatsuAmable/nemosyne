@@ -14,6 +14,7 @@
  * substitute the registry; here only the shipped authority must hold.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
+import { sha256Hex } from '../src/security/CryptoHash.ts';
 import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
 import { InvestigationReplayRunner } from '../src/session/InvestigationReplayRunner.ts';
@@ -89,4 +90,86 @@ describe('TEC1 minted governed uses on the live production path', () => {
       bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
     }
   }, 60000);
+  it('refuses mutated consumer uses in real Rust-issued archives before accepting an investigation', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(fixtureDataset());
+    const session = new NemosyneSession({ atlas });
+    try {
+      const originalBytes = await session.exportPortablePackage({}, undefined, {
+        governedEvidence: true,
+      });
+      // The unmodified real-kernel export establishes the positive control:
+      // refusing every archive, regardless of its contents, cannot pass here.
+      const runner = new InvestigationReplayRunner(bridge);
+      const original = await runner.replayArchive(originalBytes);
+      expect(original.success).toBe(true);
+      expect(original.evidence).toEqual({
+        envelope: 'present',
+        integrity: 'verified',
+        enforcement: 'consumer-policy',
+      });
+
+      const exported = NemosynePackageManager.unpack(originalBytes);
+      expect(exported.evidenceReceiptBytes).toBeDefined();
+      const originalEnvelope = parsePersistedEvidenceReceiptsV1(
+        JSON.parse(new TextDecoder().decode(exported.evidenceReceiptBytes!))
+      );
+      expect(originalEnvelope.uses.length).toBeGreaterThan(0);
+
+      const mutations = [
+        {
+          name: 'unauthorised historical requirement profile',
+          change: (uses: Array<{ requirementProfileId: string; receiptId: string }>) => {
+            uses[0]!.requirementProfileId = 'inferential-claim/v1';
+          },
+        },
+        {
+          name: 'receipt ID not present in the Rust-issued bundle',
+          change: (uses: Array<{ requirementProfileId: string; receiptId: string }>) => {
+            uses[0]!.receiptId = 'attacker-invented-receipt';
+          },
+        },
+      ];
+      for (const { name, change } of mutations) {
+        // Start with the actual Rust-issued archived bytes each time, not
+        // fabricated fixture receipts or an injected test policy.
+        const changed = JSON.parse(
+          new TextDecoder().decode(exported.evidenceReceiptBytes!)
+        ) as { uses: Array<{ requirementProfileId: string; receiptId: string }> };
+        change(changed.uses);
+        const mutatedEntry = new TextEncoder().encode(JSON.stringify(changed));
+        expect(sha256Hex(mutatedEntry), name).not.toBe(exported.manifest.evidenceReceiptDigest);
+
+        // Keep the member's *recorded* checksum coherent. A refusal based on
+        // wrong member bytes proves only a transport checksum, not that policy
+        // actually rejects a governed use. The outer investigation digest is
+        // retained; the policy must refuse *before* that check.
+        const changedArchive = NemosynePackageManager.pack({
+          ...exported,
+          evidenceReceiptBytes: mutatedEntry,
+          manifest: {
+            ...exported.manifest,
+            evidenceReceiptDigest: sha256Hex(mutatedEntry),
+          },
+        });
+        const restored = NemosynePackageManager.unpack(changedArchive);
+        expect(sha256Hex(restored.evidenceReceiptBytes!), name).toBe(
+          restored.manifest.evidenceReceiptDigest
+        );
+        const result = await runner.replayArchive(changedArchive);
+        expect(result.success, name).toBe(false);
+        expect(result.commandsReplayed, name).toBe(0);
+        expect(result.discrepancies, name).toEqual([]);
+        expect(result.evidence, name).toEqual({
+          envelope: 'present',
+          integrity: 'verified',
+          enforcement: 'none',
+          refusal: { code: 'CONSUMER_POLICY_REFUSED' },
+        });
+      }
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
+
 });
