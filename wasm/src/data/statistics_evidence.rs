@@ -232,6 +232,7 @@ mod tests {
     use std::collections::HashMap;
     use crate::data::column::{Column, ColumnType};
     use crate::data::value::Value;
+    use crate::data::statistics::compute_statistics;
     use super::*;
 
     fn row(values: &[(&str, Value)]) -> HashMap<String, Value> {
