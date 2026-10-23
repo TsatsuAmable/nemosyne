@@ -146,8 +146,37 @@ fn iqr_and_multimodality(sorted: &[f64]) -> (f64, bool) {
     (iqr, peaks >= 2)
 }
 
-/// Pearson correlation over pairwise-complete finite rows.
+/// Diagnostic for the *same* canonical Pearson computation used by legacy Facts.
+///
+/// Facts retains the historical numeric 0.0 fallback for undefined pairs; only
+/// Rust-issued scientific receipts interpret that fallback as non-evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PearsonPairwiseStatus {
+    Defined,
+    InsufficientPairedRows,
+    DegenerateDenominator,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PearsonPairwiseDiagnostic {
+    pub value: f64,
+    pub status: PearsonPairwiseStatus,
+}
+
+/// Compatibility numerical result. Deliberately unchanged for historical
+/// Facts consumers; receipt admission must use the diagnostic below.
 pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
+    pearson_pairwise_with_status(a, b).value
+}
+
+/// Pearson correlation over pairwise-complete finite rows, with Rust-owned
+/// definition status. This is the sole source for both the numeric Facts value
+/// and the evidence receipt's validity assertion; no duplicate TS statistic
+/// or independent denominator threshold is permitted.
+pub fn pearson_pairwise_with_status(
+    a: &PrimitiveColumn,
+    b: &PrimitiveColumn,
+) -> PearsonPairwiseDiagnostic {
     let len = a
         .values
         .len()
@@ -167,7 +196,10 @@ pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
     }
 
     if n < 2 {
-        return 0.0;
+        return PearsonPairwiseDiagnostic {
+            value: 0.0,
+            status: PearsonPairwiseStatus::InsufficientPairedRows,
+        };
     }
 
     let mean_a = sum_a / n as f64;
@@ -187,9 +219,15 @@ pub fn pearson_pairwise(a: &PrimitiveColumn, b: &PrimitiveColumn) -> f64 {
 
     let denominator = (variance_a * variance_b).sqrt();
     if denominator > 1e-12 {
-        (covariance / denominator).clamp(-1.0, 1.0)
+        PearsonPairwiseDiagnostic {
+            value: (covariance / denominator).clamp(-1.0, 1.0),
+            status: PearsonPairwiseStatus::Defined,
+        }
     } else {
-        0.0
+        PearsonPairwiseDiagnostic {
+            value: 0.0,
+            status: PearsonPairwiseStatus::DegenerateDenominator,
+        }
     }
 }
 
@@ -478,6 +516,55 @@ mod tests {
             .value;
         assert!((actual - legacy).abs() < 1e-12);
         assert!((actual - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn pearson_diagnostic_separates_legitimate_zero_from_legacy_undefined_zero() {
+        let x = PrimitiveColumn {
+            values: vec![-2.0, -1.0, 1.0, 2.0],
+            validity: vec![1; 4],
+        };
+        let orthogonal_y = PrimitiveColumn {
+            values: vec![1.0, -2.0, 2.0, -1.0],
+            validity: vec![1; 4],
+        };
+        let real_zero = pearson_pairwise_with_status(&x, &orthogonal_y);
+        assert_eq!(real_zero.value, 0.0);
+        assert_eq!(real_zero.status, PearsonPairwiseStatus::Defined);
+
+        let proportional_y = PrimitiveColumn {
+            values: vec![-4.0, -2.0, 2.0, 4.0],
+            validity: vec![1; 4],
+        };
+        let positive = pearson_pairwise_with_status(&x, &proportional_y);
+        assert_eq!(positive.value, 1.0);
+        assert_eq!(positive.status, PearsonPairwiseStatus::Defined);
+
+        let constant_x = PrimitiveColumn {
+            values: vec![5.0; 4],
+            validity: vec![1; 4],
+        };
+        let constant = pearson_pairwise_with_status(&constant_x, &proportional_y);
+        assert_eq!(constant.value, pearson_pairwise(&constant_x, &proportional_y));
+        assert_eq!(constant.value, 0.0);
+        assert_eq!(constant.status, PearsonPairwiseStatus::DegenerateDenominator);
+
+        let sparse_y = PrimitiveColumn {
+            validity: vec![0, 0, 1, 0],
+            ..proportional_y.clone()
+        };
+        let sparse = pearson_pairwise_with_status(&x, &sparse_y);
+        assert_eq!(sparse.value, pearson_pairwise(&x, &sparse_y));
+        assert_eq!(sparse.value, 0.0);
+        assert_eq!(sparse.status, PearsonPairwiseStatus::InsufficientPairedRows);
+
+        let tiny_x = PrimitiveColumn {
+            values: vec![0.0, 1e-15, 2e-15, 3e-15],
+            validity: vec![1; 4],
+        };
+        let near_degenerate = pearson_pairwise_with_status(&tiny_x, &proportional_y);
+        assert_eq!(near_degenerate.value, 0.0);
+        assert_eq!(near_degenerate.status, PearsonPairwiseStatus::DegenerateDenominator);
     }
 
     #[test]

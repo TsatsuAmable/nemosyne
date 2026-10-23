@@ -1,13 +1,16 @@
 use serde::Serialize;
 
+use crate::data::column::ColumnType;
+use crate::data::columnar::ColumnarDataset;
 use crate::data::dataset::Dataset;
 use crate::data::evidence::{
     AssumptionCheck, AssumptionStatus, EvidenceClaim, EvidenceMeasurementContextV1,
     EvidenceReceiptBundleV1, EvidenceReceiptV1, MethodProvenance, SupportPolicy,
 };
 use crate::data::statistics::{
-    compute_statistics, CategoricalStats, ColumnStats, CorrelationPair, TemporalStats,
+    compute_statistics_with_columnar, CategoricalStats, ColumnStats, CorrelationPair, TemporalStats,
 };
+use crate::data::statistics_columnar::{pearson_pairwise_with_status, PearsonPairwiseStatus};
 use crate::data::support::{
     finite_numeric_support, legacy_temporal_support, observed_value_support,
 };
@@ -68,7 +71,11 @@ pub fn compute_statistics_evidence(
     dataset_fingerprint: &str,
     kernel_version: &str,
 ) -> StatisticsEvidence {
-    let facts = compute_statistics(dataset);
+    // Keep the live columnar representation so the Rust receipt can interrogate
+    // the *same* canonical Pearson implementation and validity threshold that
+    // generated Facts. No independent threshold or TS calculation is added.
+    let columnar = ColumnarDataset::from_dataset(dataset);
+    let facts = compute_statistics_with_columnar(dataset, &columnar);
 
     let numeric = facts.numeric.iter().cloned().map(|result| {
         let columns = vec![result.name.clone()];
@@ -87,18 +94,58 @@ pub fn compute_statistics_evidence(
         }
     }).collect();
 
-    let correlation = facts.correlation.iter().cloned().map(|result| {
-        let columns = vec![result.a.clone(), result.b.clone()];
-        let mut sample_support = finite_numeric_support(dataset, &columns);
-        sample_support.policy = SupportPolicy::PairwiseComplete;
-        EvidenceClaim {
-            claim_id: format!("pearson:{}:{}", result.a, result.b),
-            estimand: format!("Pearson linear association between {} and {}", result.a, result.b),
-            sample_support,
-            result,
-            method_provenance: provenance("dependency/pearson", kernel_version, dataset_fingerprint),
-            geometry: None,
-            assumptions: vec![
+    // Pair order is the same stable schema order used by correlate_columnar.
+    // Work from column indices rather than looking them up by source names:
+    // duplicate display names must not accidentally bind a receipt to another
+    // column's numerical diagnostic.
+    let numeric_indices: Vec<usize> = dataset.columns.iter().enumerate()
+        .filter_map(|(index, column)| (column.ty == ColumnType::Numeric).then_some(index))
+        .collect();
+    let mut correlation_results = facts.correlation.iter().cloned();
+    let mut correlation = Vec::with_capacity(facts.correlation.len());
+    for (pair_index, left_index) in numeric_indices.iter().enumerate() {
+        for right_index in numeric_indices.iter().skip(pair_index + 1) {
+            let result = correlation_results.next().expect("Rust Facts Pearson pair order changed");
+            let columns = vec![result.a.clone(), result.b.clone()];
+            let mut sample_support = finite_numeric_support(dataset, &columns);
+            sample_support.policy = SupportPolicy::PairwiseComplete;
+
+            // Every nonzero legacy coefficient is necessarily in the defined
+            // branch. Only numerical zeros need a second kernel-owned check to
+            // distinguish a legitimate exact zero from the compatibility
+            // sentinel; ordinary nonzero captures avoid duplicate computation.
+            let definition = if result.value == 0.0 {
+                pearson_pairwise_with_status(
+                    columnar.primitive_column(*left_index)
+                        .expect("validated numeric left column must exist"),
+                    columnar.primitive_column(*right_index)
+                        .expect("validated numeric right column must exist"),
+                ).status
+            } else {
+                PearsonPairwiseStatus::Defined
+            };
+            let mut assumptions = Vec::with_capacity(3);
+            let mut limitations = Vec::with_capacity(3);
+            if definition != PearsonPairwiseStatus::Defined {
+                let detail = match definition {
+                    PearsonPairwiseStatus::InsufficientPairedRows =>
+                        "fewer than two pairwise-complete finite observations",
+                    PearsonPairwiseStatus::DegenerateDenominator =>
+                        "the pairwise variance denominator is below the kernel definition threshold",
+                    PearsonPairwiseStatus::Defined => unreachable!(),
+                };
+                assumptions.push(AssumptionCheck {
+                    assumption: "Pearson coefficient must be defined for this pair".to_string(),
+                    status: AssumptionStatus::Violated,
+                    detail: detail.to_string(),
+                });
+                limitations.push(
+                    "legacy Facts returns 0 for an undefined Pearson coefficient; this is not evidence of zero association".to_string()
+                );
+            }
+            // For defined pairs, preserve existing assumption ordering and
+            // bytes. Inferential independence is still not testable from data.
+            assumptions.extend([
                 AssumptionCheck {
                     assumption: "observation independence for inferential interpretation".to_string(),
                     status: AssumptionStatus::NotTestableFromData,
@@ -109,16 +156,27 @@ pub fn compute_statistics_evidence(
                     status: AssumptionStatus::Satisfied,
                     detail: "claim terminology is restricted to linear association".to_string(),
                 },
-            ],
-            uncertainty: None,
-            stability: None,
-            sensitivity: Vec::new(),
-            limitations: vec![
+            ]);
+            limitations.extend([
                 "no hypothesis test, p-value, confidence interval, or multiplicity correction is performed".to_string(),
                 "a weak Pearson coefficient does not establish absence of nonlinear dependence".to_string(),
-            ],
+            ]);
+            correlation.push(EvidenceClaim {
+                claim_id: format!("pearson:{}:{}", result.a, result.b),
+                estimand: format!("Pearson linear association between {} and {}", result.a, result.b),
+                sample_support,
+                result,
+                method_provenance: provenance("dependency/pearson", kernel_version, dataset_fingerprint),
+                geometry: None,
+                assumptions,
+                uncertainty: None,
+                stability: None,
+                sensitivity: Vec::new(),
+                limitations,
+            });
         }
-    }).collect();
+    }
+    assert!(correlation_results.next().is_none(), "Rust Facts Pearson pair count changed");
 
     let categorical = facts.categorical.iter().cloned().map(|result| EvidenceClaim {
         claim_id: format!("categorical:{}", result.name),
@@ -174,6 +232,7 @@ mod tests {
     use std::collections::HashMap;
     use crate::data::column::{Column, ColumnType};
     use crate::data::value::Value;
+    use crate::data::statistics::compute_statistics;
     use super::*;
 
     fn row(values: &[(&str, Value)]) -> HashMap<String, Value> {

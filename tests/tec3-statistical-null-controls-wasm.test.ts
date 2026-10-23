@@ -5,6 +5,10 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
+import { NemosynePackageManager } from '../src/session/NemosynePackage.ts';
+import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import { parseEvidenceReceiptBundleV1 } from '../src/data/evidence/EvidenceReceipt.ts';
 import { statisticsEvidenceReceiptAuthority } from '../src/atlas/MonetaEvidenceAuthority.ts';
 import {
@@ -77,6 +81,9 @@ describe('TEC3 real-WASM null cases remain descriptive rather than inferential',
       });
       expect(receipt!.uncertainty).toBeNull();
       expect(receipt!.stability).toBeNull();
+      // A legitimate exact-zero Pearson coefficient is definitionally valid.
+      // A blanket 'value === 0 means invalid' policy would fail this control.
+      expect(receipt!.assumptions.some((a) => a.status === 'violated')).toBe(false);
 
       const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
       expect(authority.resolveAgainst(
@@ -93,6 +100,122 @@ describe('TEC3 real-WASM null cases remain descriptive rather than inferential',
       bridge.destroyDataset(handle);
     }
   });
+
+  it.each([
+    {
+      name: 'constant numeric input with four pairwise observations',
+      x: [5, 5, 5, 5],
+      y: [0, 1, 2, 3],
+      used: 4,
+      detail: 'the pairwise variance denominator is below the kernel definition threshold',
+    },
+    {
+      name: 'only one pairwise-complete observation despite varying columns',
+      x: [1, 2, null, null],
+      y: [null, 4, 5, null],
+      used: 1,
+      detail: 'fewer than two pairwise-complete finite observations',
+    },
+    {
+      name: 'no pairwise-complete observations',
+      x: [null, null, null],
+      y: [1, 2, 3],
+      used: 0,
+      detail: 'fewer than two pairwise-complete finite observations',
+    },
+    {
+      name: 'numerically degenerate but nonconstant finite scale',
+      x: [0, 1e-15, 2e-15, 3e-15],
+      y: [-4, -2, 2, 4],
+      used: 4,
+      detail: 'the pairwise variance denominator is below the kernel definition threshold',
+    },
+  ])('refuses an undefined Rust Pearson result despite compatibility-zero for $name', ({
+    name, x, y, used, detail,
+  }) => {
+    const handle = bridge.loadDatasetJson({
+      name: `tec3-pearson-degenerate-${name}`,
+      columns: [{ name: 'x', type: 'NUMERIC' }, { name: 'y', type: 'NUMERIC' }],
+      rows: x.map((value, index) => ({ x: value, y: y[index] })),
+    });
+    try {
+      // Facts is historical numerical ABI and retains its zero sentinel.
+      const facts = bridge.statistics(handle);
+      expect(facts).not.toBeNull();
+      expect(facts!.correlation.find((pair) => pair.a === 'x' && pair.b === 'y')?.value).toBe(0);
+
+      // The actual Rust-issued receipt must explicitly refuse scientific use
+      // rather than silently reinterpreting that zero as a valid association.
+      const raw = bridge.statisticsEvidenceReceiptBundle(handle);
+      const bundle = parseEvidenceReceiptBundleV1(raw);
+      expect(bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
+      expect(bundle.kernelVersion).toBe(bridge.kernelVersion());
+      const receipt = bundle.receipts.find((item) => item.receiptId === 'pearson:x:y');
+      expect(receipt, name).toBeDefined();
+      expect(receipt!.sampleSupport.policy).toBe('pairwiseComplete');
+      expect(receipt!.sampleSupport.rowsUsed).toBe(used);
+      expect(receipt!.assumptions[0]).toEqual({
+        assumption: 'Pearson coefficient must be defined for this pair',
+        status: 'violated',
+        detail,
+      });
+      expect(receipt!.limitations).toContain(
+        'legacy Facts returns 0 for an undefined Pearson coefficient; this is not evidence of zero association'
+      );
+      expect(receipt!.uncertainty).toBeNull();
+      expect(receipt!.stability).toBeNull();
+
+      const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
+      for (const profile of [
+        DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1,
+        INFERENTIAL_CLAIM_REQUIREMENT_PROFILE_V1,
+      ]) {
+        expect(authority.resolveAgainst(profile, 'pearson:x:y')).toEqual({
+          status: 'VIOLATED_ASSUMPTION',
+          receiptId: 'pearson:x:y',
+          assumption: 'Pearson coefficient must be defined for this pair',
+        });
+      }
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  });
+
+  it('refuses governed V3 export of invalid Pearson rather than persisting an unbindable use', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(new Dataset(
+      'tec3-constant-pearson-export',
+      [
+        { name: 'x', type: ColumnType.NUMERIC },
+        { name: 'y', type: ColumnType.NUMERIC },
+      ],
+      [{ x: 5, y: 0 }, { x: 5, y: 1 }, { x: 5, y: 2 }],
+    ));
+    const session = new NemosyneSession({ atlas });
+    try {
+      // The current kernel-minted descriptive consumer claims *every* receipt.
+      // With one non-resolving Pearson use, governed export must refuse before
+      // it can persist an artifact the reader would reject. This is an explicit
+      // availability tradeoff, not a silently successful V3 export.
+      // The Atlas authority exposes the exact kernel consumer-policy refusal.
+      await expect(atlas.captureGovernedEvidenceReceipt())
+        .rejects.toThrow(/receipt does not resolve under/);
+      // Session export intentionally hides live-capture exceptions behind its
+      // existing missing-carrier refusal; it still cannot write V3.
+      await expect(session.exportPortablePackage(
+        {}, undefined, { governedEvidence: true }
+      )).rejects.toThrow(/none is available for this session/);
+      expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
+
+      // A normal historical V2 snapshot is still exportable without claiming
+      // any governed receipt authority. No transparent V3-to-V2 downgrade.
+      const v2 = NemosynePackageManager.unpack(await session.exportPortablePackage({}));
+      expect(v2.manifest.formatVersion).toBe(2);
+      expect(v2.evidenceReceiptBytes).toBeUndefined();
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
 
   it.each([
     { name: 'one observed class (entropy null control)', values: ['A', 'A', 'A', 'A'], entropy: 0, cardinality: 1 },
