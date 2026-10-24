@@ -2,6 +2,7 @@ import { canonicalSha256Hex } from '../../security/CryptoHash.js';
 import type { FormaCompiledSliceV1, SpatialElementV1 } from './FormaSpatialCompiler.js';
 
 export const FORMA_MULTI_ELEMENT_RUNTIME_SCHEMA_VERSION = 1 as const;
+export const FORMA_MULTI_ELEMENT_BOUND_SCHEMA_VERSION = 2 as const;
 
 export type ElementLifecycleState = 'RESIDENT' | 'COOLED' | 'EVICTED';
 
@@ -13,19 +14,33 @@ export type CompositionRelationship =
   | 'DETAIL_OF'
   | 'COMPARES_WITH';
 
+/**
+ * RFC 0013: authoritative binding basis selected by FullMonetaEngine, never
+ * inferred by the spatial runtime from a primitive's display label.
+ * The registered record already commits exact snapshotId + sliceId.
+ */
+export interface CompositionEvidenceBindingV2 {
+  readonly primitiveId: string;
+  readonly basis: 'PRIMARY_ASSERTED' | 'FAMILY_MATCHED';
+  readonly sourceFamily: string | null;
+  readonly analyticalDatasetFingerprint: string;
+  readonly kernelVersion: string;
+}
+
 export interface RuntimeElementRecordV1 {
   readonly elementId: string;
   readonly sliceId: string;
   readonly snapshotId: string;
   readonly contextId: string;
   readonly phenomenonFamily: string;
+  readonly evidenceBinding?: CompositionEvidenceBindingV2;
   lifecycleState: ElementLifecycleState;
   generation: number;
   spatialElements: readonly SpatialElementV1[];
 }
 
 export interface ComposedRepresentationStateV1 {
-  readonly schemaVersion: typeof FORMA_MULTI_ELEMENT_RUNTIME_SCHEMA_VERSION;
+  readonly schemaVersion: typeof FORMA_MULTI_ELEMENT_RUNTIME_SCHEMA_VERSION | typeof FORMA_MULTI_ELEMENT_BOUND_SCHEMA_VERSION;
   readonly composedIdentity: string;
   readonly elements: readonly RuntimeElementRecordV1[];
   readonly relationships: readonly {
@@ -61,6 +76,7 @@ export class FormaMultiElementRuntime {
     elementId: string,
     slice: FormaCompiledSliceV1,
     phenomenonFamily: string,
+    evidenceBinding?: CompositionEvidenceBindingV2,
   ): RuntimeElementRecordV1 {
     if (this.elements.has(elementId)) {
       throw new Error(`Element ${elementId} already registered in multi-element runtime`);
@@ -72,6 +88,7 @@ export class FormaMultiElementRuntime {
       snapshotId: slice.snapshotId,
       contextId: slice.contextId,
       phenomenonFamily,
+      ...(evidenceBinding ? { evidenceBinding: Object.freeze({ ...evidenceBinding }) } : {}),
       lifecycleState: 'RESIDENT',
       generation: 1,
       spatialElements: [...slice.elements],
@@ -156,6 +173,9 @@ export class FormaMultiElementRuntime {
         `SLICE_IDENTITY_MISMATCH: sliceId ${slice.sliceId} does not match registered sliceId ${record.sliceId}`,
       );
     }
+    if (record.evidenceBinding && slice.snapshotId !== record.snapshotId) {
+      throw new Error('EVIDENCE_BINDING_MISMATCH: reconstructed slice changes the committed snapshot');
+    }
 
     record.lifecycleState = 'RESIDENT';
     record.spatialElements = [...slice.elements];
@@ -206,6 +226,7 @@ export class FormaMultiElementRuntime {
    * Remains invariant across non-destructive lifecycle changes (e.g. cooling) of constituent elements.
    */
   public computeComposedIdentity(): string {
+    const evidenceBound = this.hasEvidenceBindings();
     const elementsSummary = Array.from(this.elements.values())
       .map((e) => ({
         elementId: e.elementId,
@@ -213,6 +234,7 @@ export class FormaMultiElementRuntime {
         snapshotId: e.snapshotId,
         contextId: e.contextId,
         phenomenonFamily: e.phenomenonFamily,
+        ...(evidenceBound ? { evidenceBinding: e.evidenceBinding } : {}),
       }))
       .sort((a, b) => a.elementId.localeCompare(b.elementId));
 
@@ -220,18 +242,38 @@ export class FormaMultiElementRuntime {
       `${a.sourceElementId}:${a.targetElementId}`.localeCompare(`${b.sourceElementId}:${b.targetElementId}`),
     );
 
+    if (evidenceBound) {
+      return `composed-forma-v2:${canonicalSha256Hex({
+        schemaVersion: FORMA_MULTI_ELEMENT_BOUND_SCHEMA_VERSION,
+        elements: elementsSummary,
+        relationships: relationshipsSummary,
+      })}`;
+    }
     return `composed-forma-v1:${canonicalSha256Hex({
       elements: elementsSummary,
       relationships: relationshipsSummary,
     })}`;
   }
 
+  /** Mixed bound/unbound elements are not a coherent provenance contract. */
+  private hasEvidenceBindings(): boolean {
+    const registered = Array.from(this.elements.values());
+    const count = registered.filter((e) => e.evidenceBinding !== undefined).length;
+    if (count > 0 && count !== registered.length) {
+      throw new Error('EVIDENCE_BINDING_MISMATCH: composed state mixes bound and unbound elements');
+    }
+    return count > 0;
+  }
+
   /**
    * Exports full composed representation state.
    */
   public exportComposedState(): ComposedRepresentationStateV1 {
+    const evidenceBound = this.hasEvidenceBindings();
     return {
-      schemaVersion: FORMA_MULTI_ELEMENT_RUNTIME_SCHEMA_VERSION,
+      schemaVersion: evidenceBound
+        ? FORMA_MULTI_ELEMENT_BOUND_SCHEMA_VERSION
+        : FORMA_MULTI_ELEMENT_RUNTIME_SCHEMA_VERSION,
       composedIdentity: this.computeComposedIdentity(),
       elements: this.getAllElements(),
       relationships: [...this.relationships],
