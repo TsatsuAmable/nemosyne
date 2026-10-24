@@ -137,6 +137,9 @@ export const WASM_TESTS = [
   // FM2: real Rust semantic envelope + kernel-attested descriptive receipts
   // must not be misrepresented as a governed direct-representation consumer.
   'tests/fm2-direct-evidence-readiness-wasm.test.ts',
+  // FM2: single-pass kernel-issued semantic source and independent bound
+  // descriptive-only direct consumer; never grant the V3 statistics consumer.
+  'tests/fm2-rust-direct-distribution-binding-wasm.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',

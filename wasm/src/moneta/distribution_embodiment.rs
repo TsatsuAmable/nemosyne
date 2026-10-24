@@ -395,6 +395,73 @@ fn copy_host_input(_in_ptr: u32, _in_len: u32) -> Option<Vec<u8>> {
     None
 }
 
+/// Dedicated, versioned direct-representation consumer. This never enters the
+/// legacy V3 statistics receipt bundle or changes its replay policy.
+pub const DIRECT_DISTRIBUTION_CONSUMER_V1: &str =
+    "nemosyne:consumer/direct-distribution/v1";
+pub const DIRECT_DISTRIBUTION_PROFILE_V1: &str = "direct-empirical-distribution/v1";
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectDistributionBindingV1 {
+    schema_version: &'static str,
+    consumer_id: &'static str,
+    requirement_profile_id: &'static str,
+    claim_kind: &'static str,
+    dataset_fingerprint: String,
+    kernel_version: String,
+    source_json: String,
+    source_digest: String,
+    receipt_id: String,
+}
+
+fn build_direct_distribution_binding_v1(
+    handle: u32,
+    request: &DistributionEmbodimentRequestV1,
+) -> Option<DirectDistributionBindingV1> {
+    // The complete source and its receipt are minted in ONE Rust invocation,
+    // never combined with a caller-supplied or previously produced envelope.
+    let source = build_distribution_embodiment_v1(handle, request)?;
+    if !matches!(source.result, SemanticEmbodimentResultV1::Ready { .. }) {
+        return None;
+    }
+    if source.dataset_fingerprint.is_empty()
+        || source.provenance.kernel_version != crate::data::provenance::KERNEL_VERSION
+    {
+        return None;
+    }
+    let source_json = serde_json::to_string(&source).ok()?;
+    let source_digest = crate::data::fingerprint::sha256_hex(&source_json);
+    Some(DirectDistributionBindingV1 {
+        schema_version: "1",
+        consumer_id: DIRECT_DISTRIBUTION_CONSUMER_V1,
+        requirement_profile_id: DIRECT_DISTRIBUTION_PROFILE_V1,
+        claim_kind: "DESCRIPTIVE_EMPIRICAL_DISTRIBUTION",
+        dataset_fingerprint: source.dataset_fingerprint,
+        kernel_version: source.provenance.kernel_version,
+        source_json,
+        receipt_id: format!("direct-distribution:{}", source_digest),
+        source_digest,
+    })
+}
+
+/// A single prepared result holding both the exact kernel-built source bytes
+/// and its own source-bound consumer declaration. Invalid handles, rejected
+/// semantic sources and malformed requests mint NOTHING.
+#[wasm_bindgen]
+pub fn moneta_prepare_direct_distribution_binding_v1(
+    handle: u32,
+    input_ptr: u32,
+    input_len: u32,
+) -> u32 {
+    crate::prepared_results::prepare(handle, || {
+        let input = copy_host_input(input_ptr, input_len)?;
+        let request: DistributionEmbodimentRequestV1 = serde_json::from_slice(&input).ok()?;
+        let binding = build_direct_distribution_binding_v1(handle, &request)?;
+        serde_json::to_string(&binding).ok()
+    })
+}
+
 #[wasm_bindgen]
 pub fn moneta_build_distribution_embodiment_v1(
     handle: u32,

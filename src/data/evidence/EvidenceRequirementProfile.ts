@@ -203,6 +203,19 @@ export const DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1: EvidenceRequirementProf
   });
 
 /**
+ * Experimental direct distribution representation policy. It permits only
+ * descriptive empirical geometry, not inference; authority to use it also
+ * requires the separate Rust-issued source-bound direct consumer binding.
+ * This closed profile does not add a V3 archive consumer or alter existing
+ * statistics receipt exports and replay policy.
+ */
+export const DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1: EvidenceRequirementProfileV1 =
+  createEvidenceRequirementProfileV1('direct-empirical-distribution/v1', [], {
+    refuseViolated: true,
+    refuseUnresolved: false,
+  });
+
+/**
  * Requirements for an operation that would make a population-level
  * inferential claim. Such a claim needs established measurement semantics
  * and measured uncertainty, and refuses receipts carrying violated or
