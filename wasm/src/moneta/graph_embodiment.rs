@@ -330,7 +330,7 @@ fn base_envelope(
             max_element_count: MAX_RELATIONSHIP_GRAPH_EDGES_V1,
         },
         provenance: SemanticPayloadProvenanceV1 {
-            kernel_version: env!("CARGO_PKG_VERSION").to_string(),
+            kernel_version: crate::data::provenance::KERNEL_VERSION.to_string(),
             algorithm_version: GRAPH_ALGORITHM_VERSION_V1.to_string(),
             decision_id: request.decision_id.clone(),
             decision_model_version: request.decision_model_version.clone(),

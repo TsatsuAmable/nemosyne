@@ -2,6 +2,10 @@ import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import { computeCommittedContextIdentity } from '../../atlas/domain/CommittedInvestigationContext.ts';
 import { NIL_VERSION, type NilCommand, type NilExecutor } from '../../interaction/nil/index.ts';
 import { WorldTopics, type WorldEventBus } from '../../utils/EventBus.ts';
+import {
+  directEvidenceReadinessMessage,
+  type DirectEvidenceReadinessV1,
+} from './DirectEvidenceReadiness.ts';
 
 export interface DesktopDirectLoopHandle {
   refresh(): void;
@@ -54,6 +58,7 @@ export function mountDesktopDirectLoopControls(
   executor: NilExecutor,
   eventBus?: Pick<WorldEventBus, 'on'>,
   onChanged?: () => void,
+  diagnoseEvidence?: () => Promise<DirectEvidenceReadinessV1>,
 ): DesktopDirectLoopHandle {
   const anchor = document.getElementById('review-direct-variants');
   if (!anchor?.parentElement) return { refresh: () => {}, dispose: () => {} };
@@ -80,10 +85,20 @@ export function mountDesktopDirectLoopControls(
   const reject = actionButton('review-direct-critique', 'Record critique');
   const critique = createSelect('review-direct-critique-id', 'Recorded direct critique');
   const prefer = actionButton('review-direct-prefer', 'Explore constrained alternative (device unverified)');
-  root.append(state, target, phenomenon, kind, note, reject, critique, prefer);
+  const evidenceButton = actionButton('review-direct-check-evidence', 'Check Rust evidence for direct representation');
+  const evidenceStatus = document.createElement('p');
+  evidenceStatus.id = 'review-direct-evidence-status';
+  evidenceStatus.setAttribute('role', 'status');
+  evidenceStatus.setAttribute('aria-live', 'polite');
+  evidenceStatus.style.cssText = 'margin: 0; overflow-wrap: anywhere; font-size: var(--nms-font-size-meta);';
+  evidenceStatus.textContent = 'Direct evidence · not checked';
+  root.append(evidenceButton, evidenceStatus, state, target, phenomenon, kind, note, reject, critique, prefer);
   anchor.insertAdjacentElement('afterend', root);
 
   let pending = false;
+  let checkingEvidence = false;
+  let disposed = false;
+  let checkEpoch = 0;
   let lastMessage = '';
   let fallbackSequence = 0;
   // Reject stale direct results after dataset replacement or committed intent changes.
@@ -106,6 +121,7 @@ export function mountDesktopDirectLoopControls(
     state.textContent = lastMessage || (!active
       ? 'Direct-loop actions unavailable: no governed direct compilation. Ordinary analysis does not create one.'
       : `Active direct compilation · ${active.compilationId} · ${elements.length} elements; existing branches: ${atlas.getDirectFeedbackLinks().length}`);
+    evidenceButton.toggleAttribute('disabled', checkingEvidence || !diagnoseEvidence || !atlas.datasetFingerprint);
     reject.toggleAttribute('disabled', pending || elements.length === 0 || phenomena.length === 0);
     prefer.toggleAttribute('disabled', pending || critiqueIds.length === 0);
     target.disabled = pending || elements.length === 0;
@@ -114,6 +130,30 @@ export function mountDesktopDirectLoopControls(
     note.disabled = pending || elements.length === 0;
     critique.disabled = pending || critiqueIds.length === 0;
   };
+
+  evidenceButton.addEventListener('click', () => {
+    if (!diagnoseEvidence || checkingEvidence || disposed || !atlas.datasetFingerprint) return;
+    checkingEvidence = true;
+    const epoch = ++checkEpoch;
+    const fingerprint = atlas.datasetFingerprint;
+    evidenceStatus.textContent = 'Checking the live Rust producer and governed receipts…';
+    refresh();
+    void diagnoseEvidence().then((result) => {
+      if (disposed || checkEpoch !== epoch) return;
+      if (atlas.datasetFingerprint !== fingerprint) {
+        evidenceStatus.textContent = 'Direct evidence check discarded: dataset changed.';
+        return;
+      }
+      evidenceStatus.textContent = directEvidenceReadinessMessage(result);
+    }).catch((error: unknown) => {
+      if (disposed || checkEpoch !== epoch) return;
+      evidenceStatus.textContent = `Direct evidence check refused: ${error instanceof Error ? error.message : String(error)}`;
+    }).finally(() => {
+      if (disposed || checkEpoch !== epoch) return;
+      checkingEvidence = false;
+      refresh();
+    });
+  });
 
   async function execute(verb: 'REJECT' | 'PREFER', parameters: NilCommand['parameters']): Promise<void> {
     const investigationId = atlas.aggregate.sessionId;
@@ -195,7 +235,13 @@ export function mountDesktopDirectLoopControls(
   });
 
   const unsubscribers = eventBus ? [
-    eventBus.on(WorldTopics.DATASET_LOADED, () => { lastMessage = ''; queueMicrotask(refresh); }),
+    eventBus.on(WorldTopics.DATASET_LOADED, () => {
+      lastMessage = '';
+      checkEpoch += 1;
+      checkingEvidence = false;
+      evidenceStatus.textContent = 'Direct evidence · not checked for the new dataset';
+      queueMicrotask(refresh);
+    }),
     eventBus.on(WorldTopics.OPERATION_APPLIED, () => { lastMessage = ''; queueMicrotask(refresh); }),
     eventBus.on(WorldTopics.HISTORY_SEEK, () => { lastMessage = ''; queueMicrotask(refresh); }),
   ] : [];
@@ -205,6 +251,8 @@ export function mountDesktopDirectLoopControls(
   return {
     refresh,
     dispose: () => {
+      disposed = true;
+      checkEpoch += 1;
       unsubscribers.forEach((unsubscribe) => unsubscribe());
       details?.removeEventListener('toggle', refresh);
       root.remove();
