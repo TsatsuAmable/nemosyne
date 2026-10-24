@@ -64,6 +64,27 @@ function liveAtlas(): AtlasCore {
 afterEach(() => { document.body.replaceChildren(); });
 
 describe('FM2 direct critique controls use the product NIL command path', () => {
+  it('shows a governed evidence refusal without enabling a representation branch', async () => {
+    mountRail();
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as never });
+    atlas.loadDataset(new Dataset('evidence-probe', [
+      { name: 'val', type: ColumnType.NUMERIC },
+    ], [{ val: 1 }, { val: 2 }]));
+    const executor = new NilExecutor();
+    const probe = vi.fn(async () => ({
+      status: 'REFUSED' as const, code: 'DIRECT_CONSUMER_UNATTESTED' as const,
+    }));
+    const controls = mountDesktopDirectLoopControls(atlas, executor, undefined, undefined, probe);
+    document.getElementById('review-direct-check-evidence')?.click();
+    await vi.waitFor(() => {
+      expect(probe).toHaveBeenCalledTimes(1);
+      expect(document.getElementById('review-direct-evidence-status')?.textContent)
+        .toContain('authorize descriptive statistics, not this semantic representation');
+    });
+    expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
+    expect(document.getElementById('review-direct-prefer')?.hasAttribute('disabled')).toBe(true);
+    controls.dispose();
+  });
   it('refuses to create a direct-loop decision from ordinary analysis or an absent compilation', () => {
     mountRail();
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as never });

@@ -134,6 +134,9 @@ export const WASM_TESTS = [
   // TEC3 null/positive controls exercise the real Rust receipt producer and
   // governed V3 export; enforce WASM setup in the explicit boundary lane.
   'tests/tec3-statistical-null-controls-wasm.test.ts',
+  // FM2: real Rust semantic envelope + kernel-attested descriptive receipts
+  // must not be misrepresented as a governed direct-representation consumer.
+  'tests/fm2-direct-evidence-readiness-wasm.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',

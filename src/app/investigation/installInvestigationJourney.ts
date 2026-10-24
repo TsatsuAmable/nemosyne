@@ -7,6 +7,7 @@ import { InvestigationJourneyController } from './InvestigationJourneyController
 import { bindInvestigationJourneyNilRuntime } from './InvestigationJourneyNilRuntime.ts';
 import { mountDesktopInvestigationJourney } from './DesktopInvestigationJourney.ts';
 import { mountDesktopDirectLoopControls } from './DesktopDirectLoopControls.ts';
+import { diagnoseDirectEvidenceReadiness, isSemanticEnvelopeV1 } from './DirectEvidenceReadiness.ts';
 
 /**
  * Install the PT5C production investigation path after the base application has
@@ -47,7 +48,23 @@ export function installInvestigationJourney(app: AppInstance): () => void {
   // FM2 uses the very same sequenced NIL executor and Atlas bindings as the
   // normal investigation journey. The rail is presentation, not authority.
   const directControls = mountDesktopDirectLoopControls(
-    world.atlas, executor, world.eventBus, () => app.investigationShell.refreshContext()
+    world.atlas, executor, world.eventBus, () => app.investigationShell.refreshContext(),
+    async () => {
+      // Inspect only the currently displayed production Rust semantic source.
+      // Descriptive statistics receipts cannot authorize its representation.
+      const dataInput = world.monetaNode?.dataInput as
+        | { semanticEmbodiment?: unknown; semanticEmbodimentPromise?: Promise<unknown> }
+        | undefined;
+      const rawSource = dataInput?.semanticEmbodimentPromise
+        ? await dataInput.semanticEmbodimentPromise : dataInput?.semanticEmbodiment;
+      const source = isSemanticEnvelopeV1(rawSource) ? rawSource : null;
+      const capture = source ? await world.atlas.captureGovernedEvidenceReceipt() : null;
+      return diagnoseDirectEvidenceReadiness({
+        source, capture,
+        liveDatasetFingerprint: world.atlas.datasetFingerprint,
+        liveKernelVersion: world.atlas.kernelVersion(),
+      });
+    }
   );
   const panel = new InvestigationJourneyPanel(world.uiManager.analystAnchor, journey);
   world.uiManager.workspaceSurfaces.registerPanel('investigation-journey', panel);

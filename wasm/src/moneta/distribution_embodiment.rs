@@ -84,7 +84,7 @@ fn base_envelope(
             max_element_count: MAX_DISTRIBUTION_ELEMENTS_V1,
         },
         provenance: SemanticPayloadProvenanceV1 {
-            kernel_version: env!("CARGO_PKG_VERSION").to_string(),
+            kernel_version: crate::data::provenance::KERNEL_VERSION.to_string(),
             algorithm_version: DISTRIBUTION_ALGORITHM_VERSION.to_string(),
             decision_id: request.decision_id.clone(),
             decision_model_version: request.decision_model_version.clone(),

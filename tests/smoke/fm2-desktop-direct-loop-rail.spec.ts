@@ -36,6 +36,13 @@ test('desktop Review & Recovery renders direct-loop provenance without fabricate
     .toHaveText('Compiled direct variants · none recorded');
   await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
   await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
+  // Exercise the real browser's read-only producer/receipt readiness probe;
+  // no mocked source or hidden success injection is permitted.
+  await page.locator('#review-direct-check-evidence').click();
+  await expect(page.locator('#review-direct-evidence-status'))
+    .toContainText(/Direct-loop (unavailable|refused):/, { timeout: 15_000 });
+  await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
+  await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
 
   // Existing data-first review still operates in the same surface: no new
   // floating panel and no control that can promote an unverified variant.
