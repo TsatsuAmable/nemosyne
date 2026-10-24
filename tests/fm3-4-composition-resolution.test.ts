@@ -350,7 +350,9 @@ describe('FM3/4 Composition + Resolution Qualification (L2-FORMA-2 + L4-RUNTIME-
       const result = FullMonetaEngine.synthesizeOrAdapt(signature, context, undefined, {
         currentGraph: disjointGraph,
         snapshot: snapshotAgg,
-        snapshots: [snapshotAgg, snapshotDist],
+        // This fixture tests graph-edge fidelity, not explicit multi-family
+        // evidence admission. Omitted snapshots retain the approved primary
+        // assertion; RFC0013 explicitly refuses its unmapped graph kinds.
         mandatoryNodeIds: ['grp-1', 'grp-2'],
       });
 
