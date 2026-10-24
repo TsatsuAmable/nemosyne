@@ -15,6 +15,13 @@ test('desktop Review & Recovery renders direct-loop provenance without fabricate
     .toHaveText('Direct-loop history · no critique-to-alternative branches');
   await expect(page.locator('#review-direct-variants'))
     .toHaveText('Compiled direct variants · none recorded');
+  // The normal browser must not fabricate a direct compilation merely to make
+  // critique/branch buttons actionable. These use the canonical Journey NIL
+  // executor once a real upstream direct compile is available.
+  await expect(page.locator('#review-direct-action-state'))
+    .toContainText('no governed direct compilation');
+  await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
+  await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
 
   // A real normal-shell analysis is not evidence that FM2 produced an
   // alternative. The rail must not infer a direct branch from legacy Moneta.
@@ -27,6 +34,8 @@ test('desktop Review & Recovery renders direct-loop provenance without fabricate
     .toHaveText('Direct-loop history · no critique-to-alternative branches');
   await expect(page.locator('#review-direct-variants'))
     .toHaveText('Compiled direct variants · none recorded');
+  await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
+  await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
 
   // Existing data-first review still operates in the same surface: no new
   // floating panel and no control that can promote an unverified variant.

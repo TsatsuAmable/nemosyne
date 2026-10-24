@@ -6,6 +6,7 @@ import { DiscoveryReasoningService } from './DiscoveryReasoningService.ts';
 import { InvestigationJourneyController } from './InvestigationJourneyController.ts';
 import { bindInvestigationJourneyNilRuntime } from './InvestigationJourneyNilRuntime.ts';
 import { mountDesktopInvestigationJourney } from './DesktopInvestigationJourney.ts';
+import { mountDesktopDirectLoopControls } from './DesktopDirectLoopControls.ts';
 
 /**
  * Install the PT5C production investigation path after the base application has
@@ -43,6 +44,11 @@ export function installInvestigationJourney(app: AppInstance): () => void {
   };
 
   const desktop = mountDesktopInvestigationJourney({ journey, subscribeContext });
+  // FM2 uses the very same sequenced NIL executor and Atlas bindings as the
+  // normal investigation journey. The rail is presentation, not authority.
+  const directControls = mountDesktopDirectLoopControls(
+    world.atlas, executor, world.eventBus, () => app.investigationShell.refreshContext()
+  );
   const panel = new InvestigationJourneyPanel(world.uiManager.analystAnchor, journey);
   world.uiManager.workspaceSurfaces.registerPanel('investigation-journey', panel);
   world.uiManager.workspaceSurfaces.hide('investigation-journey');
@@ -51,6 +57,7 @@ export function installInvestigationJourney(app: AppInstance): () => void {
 
   const dispose = (): void => {
     unsubscribePanelContext();
+    directControls.dispose();
     desktop.dispose();
     world.uiManager.workspaceSurfaces.unregister('investigation-journey');
     panel.dispose();
