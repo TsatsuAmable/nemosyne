@@ -131,6 +131,9 @@ export const WASM_TESTS = [
   // uses, policy enforcement actually applied).
   'tests/tec1-governed-use-minting-live.test.ts',
   'tests/tec1-statistics-evidence-receipts.test.ts',
+  // TEC3 null/positive controls exercise the real Rust receipt producer and
+  // governed V3 export; enforce WASM setup in the explicit boundary lane.
+  'tests/tec3-statistical-null-controls-wasm.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',
