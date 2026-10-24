@@ -123,7 +123,17 @@ describe('FM2 direct critique controls use the product NIL command path', () => 
     expect(document.getElementById('review-direct-action-state')?.textContent)
       .toContain('Device performance unverified');
 
-    // Dataset turnover revokes the old direct compilation's action rights,
+    // A committed intent revision revokes a prior direct compilation before
+    // the UI can dispatch any more NIL mutation against stale framing.
+    const context = atlas.getActiveInvestigationContext()!;
+    atlas.commitInvestigationContext(context.nodeId, {
+      ...context, intent: { ...context.intent, researchQuestion: 'Revised question for the same dataset' },
+    });
+    controls.refresh();
+    expect(document.getElementById('review-direct-critique')?.hasAttribute('disabled')).toBe(true);
+    expect(document.getElementById('review-direct-prefer')?.hasAttribute('disabled')).toBe(true);
+
+    // Dataset turnover also revokes the old direct compilation's action rights,
     // even if an Atlas implementation retains a prior result temporarily.
     atlas.loadDataset(new Dataset('replacement', [
       { name: 'val', type: ColumnType.NUMERIC },

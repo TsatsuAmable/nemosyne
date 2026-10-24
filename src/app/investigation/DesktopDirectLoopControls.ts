@@ -1,8 +1,7 @@
 import type { AtlasCore } from '../../atlas/AtlasCore.ts';
 import { computeCommittedContextIdentity } from '../../atlas/domain/CommittedInvestigationContext.ts';
 import { NIL_VERSION, type NilCommand, type NilExecutor } from '../../interaction/nil/index.ts';
-import { WorldTopics } from '../../utils/EventBus.ts';
-import type { World } from '../../vr/World.ts';
+import { WorldTopics, type WorldEventBus } from '../../utils/EventBus.ts';
 
 export interface DesktopDirectLoopHandle {
   refresh(): void;
@@ -53,7 +52,7 @@ export function mountDesktopDirectLoopControls(
   atlas: Pick<AtlasCore, 'aggregate' | 'getActiveDirectCompileResult' | 'getDirectFeedbackLinks' |
     'datasetFingerprint' | 'getActiveInvestigationContext'>,
   executor: NilExecutor,
-  eventBus?: Pick<World['eventBus'], 'on'>,
+  eventBus?: Pick<WorldEventBus, 'on'>,
   onChanged?: () => void,
 ): DesktopDirectLoopHandle {
   const anchor = document.getElementById('review-direct-variants');
