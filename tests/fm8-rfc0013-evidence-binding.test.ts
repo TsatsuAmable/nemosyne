@@ -83,7 +83,18 @@ function snapshot(
           },
     },
   };
-  return normalizeEnvelopeToSnapshot(envelope);
+  return normalizeEnvelopeToSnapshot(envelope, [{
+    datasetFingerprint,
+    kernelVersion,
+    bundleContentDigest: 'bundle-rfc0013',
+    receiptId: 'receipt-rfc0013',
+    receiptContentDigest: 'receipt-digest-rfc0013',
+    consumerId: 'descriptive-statistics/v1',
+    requirementProfileId: 'descriptive-summary/v1',
+    requirementProfileDigest: 'profile-rfc0013',
+    admissionPolicyId: 'admission-rfc0013',
+    admissionPolicyDigest: 'admission-digest-rfc0013',
+  }]);
 }
 
 function graph(...kinds: RepresentationPrimitiveKind[]) {
