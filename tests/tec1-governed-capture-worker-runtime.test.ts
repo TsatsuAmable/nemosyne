@@ -461,3 +461,62 @@ describe('TEC/FM0 Worker-backed session export and clean-room replay', () => {
     }
   }, 60000);
 });
+
+describe('FM2 direct binding across a separate Worker-owned Rust runtime', () => {
+  it('binds only the Worker-resident dataset, never a colliding caller handle', async () => {
+    const callerHandle = bridge.loadDatasetJson(CALLER_DATASET);
+    const callerFingerprint = bridge.datasetFingerprint(callerHandle);
+    const transport = await startWorkerThread();
+    try {
+      await awaitHostReady(transport.worker);
+      const identity = await probeInWorker(transport.worker, WORKER_DATASET);
+      expect(identity.fingerprint).not.toBe(callerFingerprint);
+      const port = new WorkerAnalyticalPort(transport);
+      await port.registerDataset({
+        registrationId: 'fm2-isolated-registration',
+        dataset: { fingerprint: identity.fingerprint, version: 1 },
+        generation: 1,
+        payload: { type: 'json', data: WORKER_DATASET },
+      });
+      const value = await port.execute({
+        requestId: 'fm2-isolated-positive',
+        operation: 'directDistributionBinding',
+        dataset: { fingerprint: identity.fingerprint, version: 1 },
+        generation: 1,
+        handle: callerHandle,
+        params: {
+          schemaVersion: 1,
+          candidateId: 'DISTRIBUTION_FIELD',
+          measureField: 'x',
+          histogramBinCount: 4,
+          ecdfKnotCount: 4,
+          quantileProbabilities: [0, 0.5, 1],
+        },
+      });
+      const bound = value.value as import('../src/moneta/representation/DirectDistributionBindingV1.ts').DirectDistributionBindingV1;
+      expect(value.error).toBeUndefined();
+      expect(bound?.datasetFingerprint).toBe(identity.fingerprint);
+      expect(bound?.datasetFingerprint).not.toBe(callerFingerprint);
+      expect(bound?.source.result.status).toBe('READY');
+      expect(bound?.receiptId).toBe('direct-distribution:' + bound.sourceDigest);
+      const outgoing = transport.posted.find((msg) =>
+        (msg as { type?: string })?.type === 'EXECUTE'
+      ) as { request?: Record<string, unknown> };
+      expect(Object.keys(outgoing.request!).sort()).toEqual(
+        ['requestId', 'operation', 'dataset', 'generation', 'params'].sort()
+      );
+      // A second dataset generation must require fresh resident registration.
+      port.supersede({ generation: 2, datasetVersion: 2, datasetFingerprint: callerFingerprint! });
+      await expect(port.execute({
+        requestId: 'fm2-isolated-stale',
+        operation: 'directDistributionBinding',
+        dataset: { fingerprint: identity.fingerprint, version: 1 },
+        generation: 1,
+        params: {},
+      })).resolves.toMatchObject({ value: null });
+    } finally {
+      bridge.destroyDataset(callerHandle);
+      transport.terminate();
+    }
+  }, 60000);
+});
