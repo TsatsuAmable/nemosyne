@@ -235,6 +235,81 @@ describe('TEC3 real-WASM null cases remain descriptive rather than inferential',
     }
   }, 60000);
 
+  it('keeps governed capture fail-closed when one undefined pair coexists with valid descriptive evidence', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(new Dataset(
+      'tec3-mixed-validity-governed-consumer',
+      [
+        { name: 'constant', type: ColumnType.NUMERIC },
+        { name: 'a', type: ColumnType.NUMERIC },
+        { name: 'b', type: ColumnType.NUMERIC },
+      ],
+      [
+        { constant: 5, a: 0, b: 0 },
+        { constant: 5, a: 1, b: 2 },
+        { constant: 5, a: 2, b: 4 },
+        { constant: 5, a: 3, b: 6 },
+      ],
+    ));
+    const handle = atlas.aggregate.analytical.currentHandle;
+    const session = new NemosyneSession({ atlas });
+    try {
+      // Both receipts originate in the real Rust kernel and bind to the same
+      // dataset fingerprint. An invalid pair must not poison the valid pair's
+      // descriptive meaning, but the current all-receipts consumer still
+      // refuses the complete governed export.
+      const bundle = parseEvidenceReceiptBundleV1(
+        bridge.statisticsEvidenceReceiptBundle(handle)
+      );
+      expect(bundle.datasetFingerprint).toBe(bridge.datasetFingerprint(handle));
+      expect(bundle.kernelVersion).toBe(bridge.kernelVersion());
+      const validPair = bundle.receipts.find((receipt) => receipt.receiptId === 'pearson:a:b');
+      const invalidPair = bundle.receipts.find(
+        (receipt) => receipt.receiptId === 'pearson:constant:a'
+      );
+      expect(validPair).toBeDefined();
+      expect(invalidPair).toBeDefined();
+      expect(validPair!.assumptions.some((assumption) => assumption.status === 'violated')).toBe(false);
+      expect(invalidPair!.assumptions).toContainEqual({
+        assumption: 'Pearson coefficient must be defined for this pair',
+        status: 'violated',
+        detail: 'the pairwise variance denominator is below the kernel definition threshold',
+      });
+      const authority = statisticsEvidenceReceiptAuthority(bridge, handle);
+      expect(authority.resolveAgainst(
+        DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1, 'pearson:a:b'
+      ).status).toBe('RESOLVED');
+      expect(authority.resolveAgainst(
+        DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1, 'descriptive:a'
+      ).status).toBe('RESOLVED');
+      expect(authority.resolveAgainst(
+        DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1, 'pearson:constant:a'
+      ).status).toBe('VIOLATED_ASSUMPTION');
+
+      const refusal = await session.exportPortablePackage(
+        {}, undefined, { governedEvidence: true }
+      ).then(() => null, (error: unknown) => error);
+      expect(refusal).toBeInstanceOf(GovernedEvidenceCapturePolicyRefusal);
+      expect(refusal).toMatchObject({
+        code: 'GOVERNED_EVIDENCE_USE_REFUSED',
+        consumerId: DESCRIPTIVE_STATISTICS_CONSUMER_ID_V1,
+        receiptId: 'pearson:constant:a',
+        requirementProfileId: DESCRIPTIVE_SUMMARY_REQUIREMENT_PROFILE_V1.profileId,
+        resolution: {
+          status: 'VIOLATED_ASSUMPTION',
+          receiptId: 'pearson:constant:a',
+          assumption: 'Pearson coefficient must be defined for this pair',
+        },
+      });
+      expect(session.serialize().evidenceReceiptSnapshot).toBeUndefined();
+      const v2 = NemosynePackageManager.unpack(await session.exportPortablePackage({}));
+      expect(v2.manifest.formatVersion).toBe(2);
+      expect(v2.evidenceReceiptBytes).toBeUndefined();
+    } finally {
+      bridge.destroyDataset(handle);
+    }
+  }, 60000);
+
   it.each([
     { name: 'one observed class (entropy null control)', values: ['A', 'A', 'A', 'A'], entropy: 0, cardinality: 1 },
     { name: 'balanced two classes (positive entropy control)', values: ['A', 'B', 'A', 'B'], entropy: 1, cardinality: 2 },

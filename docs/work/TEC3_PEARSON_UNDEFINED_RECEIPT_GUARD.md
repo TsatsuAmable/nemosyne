@@ -34,3 +34,17 @@ Exact-head host Rust + actual WASM Vitest + coverage + production smoke + CodeQL
 ### Bounded completion record (23 October 2026)
 
 PR [#1054](https://github.com/TsatsuAmable/nemosyne/pull/1054) merged at `4ec62b06bf37532f18999eb554ef788e10934421`, head `c40393e401b04c454b9e9fa2df2f0dda643a3e5b`. Exact-head CI, Rust/WASM, all Vitest shards and aggregate coverage, production build, browser smoke, CodeQL and approval gate passed. Only the closed `GovernedEvidenceCapturePolicyRefusal` is surfaced to a governed-export caller when no restored carrier is usable. The policy and all-receipts attestation remain unchanged. Unknown transport errors remain concealed; restored-carrier binding and identity checks remain mandatory. This is **not** TEC/FM0 completion, selective-receipt export authorization or a claim about investigator-facing UI.
+
+## TEC3-MIXED: mixed-validity governed consumer scope falsifier (24 October 2026)
+
+**Status:** Test-only qualification proposed; TEC/FM0 and the owner-governed consumer-scope decision stay open. This is not a new scientific threshold, policy or production capability.
+
+**Question:** Under the already accepted kernel-minted *all-receipts* descriptive consumer, does one undefined Pearson receipt block governed V3 export even while a different Pearson receipt and numeric summary are independently valid? This is a meaningful availability cost of fail-closed governance, not evidence that valid receipts are scientifically false.
+
+**Invariant and real path:** The real Rust/WASM statisticsEvidenceReceiptBundle must keep the valid pearson:a:b and descriptive:a receipts resolvable under the sealed descriptive profile, while marking pearson:constant:a as a violated assumption. AtlasCore -> NemosyneSession.exportPortablePackage(governedEvidence: true) must refuse with the exact typed consumer/profile/receipt identity, leave no governed carrier and never silently produce a V2 fallback. An explicit ordinary V2 export remains possible but carries no governed evidence.
+
+**Regression:** tests/tec3-statistical-null-controls-wasm.test.ts, mixed constant/variable three-column dataset plus valid relationship positive control. A regression that drops the invalid receipt, wrongly invalidates valid evidence, mints a partial ungoverned use or silently succeeds V3 must fail. The test uses the actual WASM producer, not a fixture kernel.
+
+**Owner decision still required:** Retain all-receipts atomic refusal (simple and conservative) or separately propose a *versioned*, kernel-minted, purpose-specific attestation and consumer policy with a named requested subset, complete omission/replay attacks and exact authority bindings. Neither a caller-supplied receipt filter nor silent suppression of invalid evidence is acceptable. Do not alter the existing V1 consumer or historical archives under this falsifier. Human/device qualification and inferential calibration remain outside scope.
+
+**Exit:** Fresh worktree based on remote main; focused real-WASM test, relevant type/build/docs checks and exact-head CI. Until that evidence is green, treat this as an unqualified test addition rather than a passed milestone.
