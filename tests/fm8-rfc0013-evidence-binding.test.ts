@@ -47,7 +47,7 @@ function snapshot(
         : { field: 'count', binCount: 2 },
     },
     approximation: { mode: 'EXACT', representedRowCount: 4 },
-    informationContract: { preserves: ['count'], loses: ['row-identity'] },
+    informationContract: { preserves: ['exact-metric-values'], loses: ['individual-observation-identity'] },
     resource: { sourceRowCount: 4, elementCount: 2, maxElementCount: 4096 },
     provenance: {
       kernelVersion,
