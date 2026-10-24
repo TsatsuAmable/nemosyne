@@ -15,6 +15,7 @@ import { CANONICAL_DATASET_IDENTITY_ALGORITHM } from '../data/DatasetIdentity.ts
 import { parsePersistedEvidenceReceiptsV1 } from '../data/evidence/PersistedEvidenceReceipts.ts';
 import { sha256Hex } from '../security/CryptoHash.ts';
 import { GOVERNED_INVESTIGATION_DIGEST_ALGORITHM, INVESTIGATION_DIGEST_ALGORITHM } from '../investigation/InvestigationDigest.ts';
+import { parseDirectDistributionReplayCarrierV1 } from '../moneta/representation/DirectDistributionReplayCarrierV1.ts';
 
 export const MAX_ARCHIVE_SIZE = 100 * 1024 * 1024;
 export const MAX_TOTAL_UNCOMPRESSED = 250 * 1024 * 1024;
@@ -35,6 +36,7 @@ export const NEMOSYNE_PACKAGE_FORMAT_VERSION = 2 as const;
 export const GOVERNED_NEMOSYNE_PACKAGE_FORMAT_VERSION = 3 as const;
 export const FORMA_PACKAGE_FORMAT_VERSION = 4 as const;
 export const EVIDENCE_RECEIPTS_ENTRY = 'investigation/evidence-receipts.json' as const;
+export const DIRECT_DISTRIBUTION_ENTRY = 'investigation/direct-distribution.json' as const;
 export const FORMA_INVESTIGATION_ENTRY = 'investigation/forma.json' as const;
 export const LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION = 1 as const;
 
@@ -114,6 +116,7 @@ export const NemosyneManifestSchema = v.object({
   nilOutcomeCount: v.nullish(v.number()),
   investigationDigest: v.nullish(v.string()),
   evidenceReceiptDigest: v.nullish(v.string()),
+  directDistributionDigest: v.nullish(v.string()),
   formaDigest: v.nullish(v.string()),
   /** RF-046: absent means the historical schema-v1 digest contract. */
   investigationDigestAlgorithm: v.nullish(v.string()),
@@ -162,6 +165,7 @@ export interface NemosynePackagePayload {
   discoveryEpisodesBytes?: Uint8Array;
   nilOutcomesBytes?: Uint8Array;
   evidenceReceiptBytes?: Uint8Array;
+  directDistributionBytes?: Uint8Array;
   formaInvestigationBytes?: Uint8Array;
   extraFiles?: Record<string, Uint8Array>;
 }
@@ -170,6 +174,9 @@ function assertSupportedManifestIdentityContract(manifest: NemosynePackageManife
   if (manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION) {
     if (manifest.investigationDigestAlgorithm) {
       throw new Error('Format-v1 package cannot declare an RF-046 investigation digest algorithm');
+    }
+    if (manifest.directDistributionDigest != null) {
+      throw new Error('Format-v1 package cannot declare a direct-distribution carrier');
     }
     return;
   }
@@ -245,6 +252,33 @@ function assertEvidenceContract(manifest: NemosynePackageManifest, bytes?: Uint8
   }
 }
 
+function assertDirectDistributionContract(
+  manifest: NemosynePackageManifest,
+  bytes?: Uint8Array,
+): void {
+  if (manifest.directDistributionDigest == null) {
+    if (bytes) throw new Error('Direct-distribution bytes require directDistributionDigest');
+    return;
+  }
+  if (manifest.formatVersion < NEMOSYNE_PACKAGE_FORMAT_VERSION) {
+    throw new Error('Direct-distribution carrier requires a canonical format-v2-or-newer package');
+  }
+  if (!/^[0-9a-f]{64}$/.test(manifest.directDistributionDigest)) {
+    throw new Error('directDistributionDigest must be a lowercase SHA-256 digest');
+  }
+  if (!bytes) throw new Error('Package declares directDistributionDigest but entry is missing');
+  if (sha256Hex(bytes) !== manifest.directDistributionDigest) {
+    throw new Error('Direct-distribution entry digest mismatch');
+  }
+  parseDirectDistributionReplayCarrierV1(
+    JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)),
+    {
+      datasetFingerprint: manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint,
+      kernelVersion: manifest.analyticalKernelVersion ?? manifest.kernelVersion,
+    },
+  );
+}
+
 function assertFormaContract(manifest: NemosynePackageManifest, bytes?: Uint8Array): void {
   if (manifest.formatVersion !== FORMA_PACKAGE_FORMAT_VERSION) {
     return;
@@ -318,6 +352,11 @@ export class NemosynePackageManager {
     const evidenceReceiptBytes = evidenceSource === undefined ? undefined : new Uint8Array(evidenceSource);
     assertEvidenceContract(validatedManifest, evidenceReceiptBytes);
 
+    const directDistributionBytes = payload.directDistributionBytes === undefined
+      ? undefined
+      : new Uint8Array(payload.directDistributionBytes);
+    assertDirectDistributionContract(validatedManifest, directDistributionBytes);
+
     const formaSource = validatedManifest.formatVersion === FORMA_PACKAGE_FORMAT_VERSION
       ? payload.formaInvestigationBytes : undefined;
     const formaInvestigationBytes = formaSource === undefined ? undefined : new Uint8Array(formaSource);
@@ -330,6 +369,7 @@ export class NemosynePackageManager {
     };
 
     if (evidenceReceiptBytes) zipFiles[EVIDENCE_RECEIPTS_ENTRY] = evidenceReceiptBytes;
+    if (directDistributionBytes) zipFiles[DIRECT_DISTRIBUTION_ENTRY] = directDistributionBytes;
     if (formaInvestigationBytes) zipFiles[FORMA_INVESTIGATION_ENTRY] = formaInvestigationBytes;
 
     if (payload.representationDecisionBytes) {
@@ -454,6 +494,11 @@ export class NemosynePackageManager {
       ? finalFiles[EVIDENCE_RECEIPTS_ENTRY] : undefined;
     assertEvidenceContract(manifestResult.output, evidenceReceiptBytes);
 
+    const directDistributionBytes = manifestResult.output.directDistributionDigest == null
+      ? undefined
+      : finalFiles[DIRECT_DISTRIBUTION_ENTRY];
+    assertDirectDistributionContract(manifestResult.output, directDistributionBytes);
+
     const formaInvestigationBytes = manifestResult.output.formatVersion === FORMA_PACKAGE_FORMAT_VERSION
       ? finalFiles[FORMA_INVESTIGATION_ENTRY] : undefined;
     assertFormaContract(manifestResult.output, formaInvestigationBytes);
@@ -496,6 +541,7 @@ export class NemosynePackageManager {
     return {
       manifest: manifestResult.output,
       evidenceReceiptBytes,
+      directDistributionBytes,
       formaInvestigationBytes,
       datasetBytes,
       commandLogBytes,

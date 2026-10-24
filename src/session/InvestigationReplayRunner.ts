@@ -40,6 +40,11 @@ import { governedConsumerPolicyV1 } from '../data/evidence/ConsumerPolicyRegistr
 import { sha256Hex } from '../security/CryptoHash.ts';
 import { fnv1aHex } from '../atlas/DatasetSpace.ts';
 import { strFromU8 } from 'fflate';
+import {
+  directDistributionBindingsEqualV1,
+  parseDirectDistributionReplayCarrierV1,
+  type DirectDistributionReplayCarrierV1,
+} from '../moneta/representation/DirectDistributionReplayCarrierV1.ts';
 
 /**
  * RFC 0009: typed refusal for a well-formed package whose governed evidence this
@@ -194,6 +199,17 @@ export interface ReplayVerificationResult {
     annotations: number;
   };
   discrepancies: string[];
+  directDistribution?:
+    | {
+        readonly status: 'VERIFIED';
+        readonly consumerId: string;
+        readonly receiptId: string;
+        readonly sourceDigest: string;
+      }
+    | {
+        readonly status: 'REFUSED';
+        readonly reason: string;
+      };
   historicalInspectionCapability?: HistoricalInspectionCapability | null;
 }
 
@@ -490,6 +506,7 @@ export class InvestigationReplayRunner {
       discoveryEpisodesBytes,
       nilOutcomesBytes,
       evidenceReceiptBytes,
+      directDistributionBytes,
     } = payload;
     const isLegacyV1 = manifest.formatVersion === LEGACY_NEMOSYNE_PACKAGE_FORMAT_VERSION;
     const isV2 = manifest.formatVersion === NEMOSYNE_PACKAGE_FORMAT_VERSION;
@@ -531,6 +548,50 @@ export class InvestigationReplayRunner {
       return this._failedResult(manifest,
         [`Governed format-v${manifest.formatVersion} package requires its investigation digest as a lowercase SHA-256 digest`],
         { envelope: 'present', integrity: 'not-established' });
+    }
+
+    const directEvidenceState = (integrity: 'verified' | 'not-established'): ReplayEvidenceAttestation =>
+      isV3 || isV4
+        ? integrity === 'verified'
+          ? { envelope: 'present', integrity, enforcement: 'none' }
+          : { envelope: 'present', integrity }
+        : { envelope: 'absent' };
+    let directCarrier: DirectDistributionReplayCarrierV1 | null = null;
+    if (manifest.directDistributionDigest != null) {
+      if (!directDistributionBytes) {
+        return this._failedResult(
+          manifest,
+          ['Direct-distribution carrier is missing'],
+          directEvidenceState('not-established'),
+          { status: 'REFUSED', reason: 'missing direct-distribution carrier' },
+        );
+      }
+      try {
+        if (sha256Hex(directDistributionBytes) !== manifest.directDistributionDigest) {
+          throw new Error('Direct-distribution entry digest mismatch');
+        }
+        directCarrier = parseDirectDistributionReplayCarrierV1(
+          JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(directDistributionBytes)),
+          {
+            datasetFingerprint: manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint,
+            kernelVersion: manifest.analyticalKernelVersion ?? manifest.kernelVersion,
+          },
+        );
+      } catch (error) {
+        return this._failedResult(
+          manifest,
+          [`Direct-distribution integrity failure: ${(error as Error).message}`],
+          directEvidenceState('not-established'),
+          { status: 'REFUSED', reason: (error as Error).message },
+        );
+      }
+    } else if (directDistributionBytes) {
+      return this._failedResult(
+        manifest,
+        ['Direct-distribution bytes are present without a manifest digest'],
+        directEvidenceState('not-established'),
+        { status: 'REFUSED', reason: 'direct-distribution digest absent' },
+      );
     }
 
     // RFC 0009 step 2: verify the reserved entry's byte digest and parse the
@@ -751,6 +812,51 @@ export class InvestigationReplayRunner {
     const replayKernelVersion = atlas.kernelVersion();
     if (replayKernelVersion && manifest.kernelVersion && replayKernelVersion !== manifest.kernelVersion) {
       discrepancies.push(`Kernel version mismatch: package manifest has '${manifest.kernelVersion}', replay kernel is '${replayKernelVersion}'`);
+    }
+
+    let directDistribution: ReplayVerificationResult['directDistribution'];
+    if (directCarrier) {
+      if (
+        directCarrier.binding.datasetFingerprint !== atlas.datasetFingerprint ||
+        directCarrier.binding.kernelVersion !== replayKernelVersion
+      ) {
+        const reason = 'direct-distribution carrier does not match reconstructed dataset or replay kernel';
+        discrepancies.push(reason);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          postEnvelopeEvidence,
+          { status: 'REFUSED', reason },
+        );
+      }
+      try {
+        const liveBinding = await atlas.captureDirectDistributionBinding(directCarrier.request);
+        if (!liveBinding || !directDistributionBindingsEqualV1(directCarrier.binding, liveBinding)) {
+          const reason = 'direct-distribution source does not reproduce through the live Rust producer';
+          discrepancies.push(reason);
+          return this._failedResult(
+            manifest,
+            discrepancies,
+            postEnvelopeEvidence,
+            { status: 'REFUSED', reason },
+          );
+        }
+      } catch (error) {
+        const reason = `direct-distribution replay refused: ${(error as Error).message}`;
+        discrepancies.push(reason);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          postEnvelopeEvidence,
+          { status: 'REFUSED', reason },
+        );
+      }
+      directDistribution = {
+        status: 'VERIFIED',
+        consumerId: directCarrier.binding.consumerId,
+        receiptId: directCarrier.binding.receiptId,
+        sourceDigest: directCarrier.binding.sourceDigest,
+      };
     }
 
     // RFC 0009 step 3: compare the persisted bundle identity against the state
@@ -1114,6 +1220,7 @@ export class InvestigationReplayRunner {
         annotations: atlas.evidenceLedger.annotations.length,
       },
       discrepancies,
+      directDistribution,
       historicalInspectionCapability,
     };
   }
@@ -1122,6 +1229,7 @@ export class InvestigationReplayRunner {
     manifest: NemosynePackageManifest,
     discrepancies: string[],
     evidence: ReplayEvidenceAttestation,
+    directDistribution?: ReplayVerificationResult['directDistribution'],
   ): ReplayVerificationResult {
     return {
       success: false,
@@ -1141,6 +1249,7 @@ export class InvestigationReplayRunner {
       investigationDigest: '',
       evidenceCount: { observations: 0, findings: 0, annotations: 0 },
       discrepancies,
+      directDistribution,
       historicalInspectionCapability: null,
     };
   }

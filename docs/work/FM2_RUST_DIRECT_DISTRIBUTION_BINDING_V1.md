@@ -1,6 +1,6 @@
 # FM2: Rust-issued direct empirical-distribution binding (v1)
 
-**Status:** Distribution-only kernel producer and policy identity, implementation bounded. Normal browser direct-loop activation, replay binding, multi-family source admission and human/Quest qualification remain OPEN.
+**Status:** Distribution-only kernel producer and policy identity, plus governed persisted direct-use/replay carrier implemented. Normal browser direct-loop activation, SemanticSnapshot admission, multi-family source admission and human/Quest qualification remain OPEN.
 
 ## Why this exists
 
@@ -25,7 +25,7 @@ Existing TEC1 governed export/replay tests must continue passing, proving the V3
 ## Remaining integration and design gates
 
 1. **FM2-WORKER IMPLEMENTED:** The independent source-and-consumer artifact travels through the existing analytical execution operation `directDistributionBinding` on inline and Worker ports. Only a resident Rust handle can mint it. The request is fenced by generation/version/fingerprint, the transport strips caller handles and compatibility payloads, and the response is revalidated from exact kernel source bytes; stale results and worker recycle refuse. Positive real-WASM Worker handler, separate Node Worker-thread runtime, failure and lifecycle tests are required for qualification.
-2. Define the authoritative policy for using this new claim and its source digest in a **governed persisted direct-use/replay carrier**, with negative tests for forged source, old replay, source divergence, omitted use and invalidated dataset.
+2. **FM2-REPLAY IMPLEMENTED:** `DirectDistributionReplayCarrierV1` records the Rust binding, exact request, source digest/receipt identity and closed direct use; package export/restore persists it as an additive `investigation/direct-distribution.json` entry with a manifest digest. Real replay re-runs the Rust direct producer against the reconstructed dataset and refuses altered, missing, stale, mismatched, wrong-consumer, invalidated and rehashed-forged claims. Existing V1/V2 replay and RFC 0009 V3/V4 statistics policy remain unchanged. Evidence: `tests/fm2-replay-governed-direct-distribution-wasm.test.ts` (8 real-WASM tests), the focused FM2/RFC 0009 WASM regression (35 tests), and existing replay integration regressions (23 tests).
 3. Only then wire a typed kernel-issued evidence reference into `SemanticSnapshotV1` and prove actual normal-shell Chromium critique → alternative → compare → branch → replay. No inference, fabricated sample/uncertainty axes, TS-authored receipt, synthetic promotion or new panel.
 
 The producer is a narrow capability **not yet a general, replay-governed FM2 direct consumer admission**. Broader policy adoption and human/device sign-off require separate evidence.
