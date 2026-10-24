@@ -1,6 +1,6 @@
 ﻿# RFC 0013 — FM8 composition evidence binding
 
-**Status:** ACCEPTED by owner on 24 October 2026: refined Option C (2026-10-22 addendum). Implementation/qualification on PR #1056; no Full Moneta completion claim.
+**Status:** ACCEPTED and IMPLEMENTED (#1056, merge `f5bd84d7`, 24 October 2026); independent SHADOW-0017 revalidation and Full Moneta integration qualification remain open.
 
 **Governing authority:** [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md).
 **Execution:** [ROADMAP](../ROADMAP.md) (FM8 composition row).
