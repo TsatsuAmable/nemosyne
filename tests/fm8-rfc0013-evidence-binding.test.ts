@@ -232,4 +232,63 @@ describe('RFC0013 explicit multi-snapshot binding', () => {
       spy.mockRestore();
     }
   });
+  it('SHADOW-0017 original three-primitive reproducer refuses before any element registration, regardless of list order', () => {
+    // Post-fix falsifier separate from the authored RFC0013 unit cases:
+    // before #1056 an unmatched third kind received the first (aggregate)
+    // snapshot by positional/primary fallback. The real compose path must now
+    // reject the entire operation before even one seemingly-valid element
+    // becomes resident, with either ordering of the same evidence list.
+    const seed = RepresentationSearchEngine.search(signature, {
+      context, maxGenerations: 1, populationSize: 4,
+    });
+    const target = graph('DISTRIBUTION', 'DISTRIBUTION', 'AGGREGATION');
+    const candidate = { ...seed.referenceCandidate, graph: target };
+    const searchSpy = vi.spyOn(RepresentationSearchEngine, 'search').mockReturnValue({
+      ...seed, paretoFrontier: [candidate], referenceCandidate: candidate,
+    });
+    const registrationSpy = vi.spyOn(FormaMultiElementRuntime.prototype, 'registerElement');
+    try {
+      for (const snapshots of [[primary, distribution], [distribution, primary]]) {
+        expect(() => FullMonetaEngine.synthesizeOrAdapt(signature, context, undefined, {
+          snapshot: primary, snapshots, mandatoryChannels: ['spatial_scatter'],
+          maxGenerations: 1, populationSize: 4,
+        })).toThrow(/EVIDENCE_BINDING_UNMAPPED_KIND.*p2.*AGGREGATION/);
+        expect(registrationSpy).not.toHaveBeenCalled();
+      }
+    } finally {
+      registrationSpy.mockRestore();
+      searchSpy.mockRestore();
+    }
+  });
+
+  it('SHADOW-0017 equivalent reordered evidence produces the same bound state and exact slice identity', () => {
+    const searchSpy = controlledSearch();
+    try {
+      const a = FullMonetaEngine.synthesizeOrAdapt(signature, context, undefined, {
+        snapshot: primary, snapshots: [primary, distribution],
+        mandatoryChannels: ['spatial_scatter'], maxGenerations: 1, populationSize: 4,
+      });
+      const b = FullMonetaEngine.synthesizeOrAdapt(signature, context, undefined, {
+        snapshot: primary, snapshots: [distribution, primary],
+        mandatoryChannels: ['spatial_scatter'], maxGenerations: 1, populationSize: 4,
+      });
+      expect(a.composedState.composedIdentity).toBe(b.composedState.composedIdentity);
+      expect(a.composedState.elements.map((element) => ({
+        primitiveId: element.evidenceBinding?.primitiveId,
+        basis: element.evidenceBinding?.basis,
+        snapshotId: element.snapshotId,
+        sliceId: element.sliceId,
+      }))).toEqual(b.composedState.elements.map((element) => ({
+        primitiveId: element.evidenceBinding?.primitiveId,
+        basis: element.evidenceBinding?.basis,
+        snapshotId: element.snapshotId,
+        sliceId: element.sliceId,
+      })));
+      expect(a.composedState.elements[0]?.evidenceBinding?.basis).toBe('FAMILY_MATCHED');
+      expect(a.composedState.elements[0]?.snapshotId).toBe(distribution.snapshotId);
+    } finally {
+      searchSpy.mockRestore();
+    }
+  });
+
 });
