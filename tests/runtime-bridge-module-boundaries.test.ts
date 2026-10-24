@@ -67,6 +67,9 @@ const publicFacadeExports = [
   'deallocBytes',
   'debugFillPattern',
   'destroyDataset',
+  // FM2: the explicit injected-kernel capability for source-bound distribution
+  // consumers. It is not a general statistics receipt or replay admission.
+  'directDistributionBinding',
   'discoverStructures',
   'evaluateMonetaCandidate',
   'executeOperation',
