@@ -77,7 +77,7 @@ The roles below route work; they do not assert that an agent has claimed it. Nam
 | ID / priority | Next bounded action and gate | Responsible role | Assignment |
 | --- | --- | --- | --- |
 | **TEC/FM0 — dependency first** | TEC1 [policy refusals](work/TEC1_REAL_KERNEL_REPLAY_REFUSALS.md), TEC3 [null cases](work/TEC3_REAL_WASM_STATISTICAL_NULL_CONTROLS.md), [Pearson guard](work/TEC3_PEARSON_UNDEFINED_RECEIPT_GUARD.md) landed. Typed capture-refusal diagnostics landed (#1054); wider calibration and governed consumer-scope decision remain open. | Evidence/runtime specialist | Unassigned |
-| **FM8-BIND — owner decision** | Decide [RFC 0013](rfcs/0013-fm8-composition-evidence-binding.md) before changing composition evidence selection. | Project owner + representation specialist | Unassigned |
+| **FM8-BIND — accepted** | [RFC 0013](rfcs/0013-fm8-composition-evidence-binding.md) refined C approved; strict binding and v2 composition identity in PR #1056 verification. | Representation specialist | Assigned |
 | **DSE6 — evidence closure** | Replace synthetic-only completion evidence with the [production/device/human qualification](work/DSE6_QUALIFICATION_BATTERY.md); coordinate shared hardware with UXR/QCA. | Runtime + XR/research qualification specialists | Unassigned |
 | **FM1/FM2 — surface evidence** | Qualify rendered inspector/history/alternative journeys; retain the bounded [headless exit evidence](work/FM1_FM2_EXIT_QUALIFICATION.md). | Interaction/XR specialist | Unassigned |
 | **FM5 — revise before promotion** | Reassess failed proxy results under the [value plan](work/FM5_VALUE_QUALIFICATION_PLAN.md); any behavior fix needs its own contract and owner-approved evaluation bar. | Representation + scientific-method specialist | Unassigned |
