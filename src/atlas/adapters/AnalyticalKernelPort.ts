@@ -9,6 +9,8 @@ import type {
   SpectralFacts,
   TdaMapperGraph,
 } from '../../data/types.ts';
+import type { DistributionEmbodimentRequestV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import type { DirectDistributionBindingV1 } from '../../moneta/representation/DirectDistributionBindingV1.ts';
 import type { RustDatasetStructureProfile } from '../../data/evidence/index.ts';
 
 /**
@@ -45,6 +47,8 @@ export interface AnalyticalKernelPort {
    * transport port — instead of a module-global singleton.
    */
   statisticsEvidenceReceiptBundle?(handle: number): unknown | null;
+  /** Independent Rust FM2 producer, never a V3 statistics receipt. */
+  directDistributionBinding?(handle: number, request: DistributionEmbodimentRequestV1): DirectDistributionBindingV1 | null;
   /**
    * RFC 0009 tranche 3 slice 2: the kernel-issued governed-consumer
    * attestation for this dataset (which governed consumers consume its

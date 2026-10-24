@@ -140,6 +140,9 @@ export const WASM_TESTS = [
   // FM2: single-pass kernel-issued semantic source and independent bound
   // descriptive-only direct consumer; never grant the V3 statistics consumer.
   'tests/fm2-rust-direct-distribution-binding-wasm.test.ts',
+  // FM2-WORKER: direct Rust-bound source traverses inline and production Worker
+  // execution paths, retaining generation/fingerprint and refusing shortcuts.
+  'tests/fm2-worker-direct-distribution-wasm.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',

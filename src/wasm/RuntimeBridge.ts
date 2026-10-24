@@ -95,4 +95,4 @@ export {
   discoverStructures,
 } from './runtime/KernelContractBridge.ts';
 
-export { querySemanticDetailV1 } from './runtime/SemanticEmbodimentBridge.ts';
+export { querySemanticDetailV1, buildDirectDistributionBindingV1 as directDistributionBinding } from './runtime/SemanticEmbodimentBridge.ts';

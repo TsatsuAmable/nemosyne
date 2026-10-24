@@ -13,6 +13,7 @@ import {
   buildClusterSemanticEmbodimentV1,
   buildDensitySemanticEmbodimentV1,
   buildDistributionSemanticEmbodimentV1,
+  buildDirectDistributionBindingV1,
   buildGraphSemanticEmbodimentV1,
   querySemanticDetailV1,
 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
@@ -451,7 +452,7 @@ self.onmessage = async (ev: MessageEvent) => {
       bridgeReadyMs = performance.now() - bridgeStartedAt;
 
       let handle = handleMap.get(req.dataset.fingerprint);
-      if (handle === undefined && req.datasetPayload) {
+      if (handle === undefined && req.operation !== 'directDistributionBinding' && req.datasetPayload) {
         const compatibilityRegistration: AnalyticalDatasetRegistration = {
           registrationId: `compat-${req.requestId}`,
           dataset: req.dataset,
@@ -502,6 +503,18 @@ self.onmessage = async (ev: MessageEvent) => {
             req.params.valueColumn as string | undefined
           );
           kernelMs = performance.now() - kernelStartedAt;
+          resultKind = 'scalar';
+          break;
+        }
+        case 'directDistributionBinding': {
+          operationName = 'DISTRIBUTION_FIELD';
+          const started = performance.now();
+          value = buildDirectDistributionBindingV1(
+            registeredHandle, req.params as unknown as DistributionEmbodimentRequestV1
+          );
+          kernelMs = performance.now() - started;
+          // A refused Rust source must not be substituted with the existing
+          // ungoverned legacy semantic producer.
           resultKind = 'scalar';
           break;
         }

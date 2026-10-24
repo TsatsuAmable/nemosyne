@@ -24,7 +24,7 @@ Existing TEC1 governed export/replay tests must continue passing, proving the V3
 
 ## Remaining integration and design gates
 
-1. Route this **separately versioned** source-and-consumer artifact through the owned analytical Worker port with request generation/dataset fencing, not an importable module-global bridge used as authority.
+1. **FM2-WORKER IMPLEMENTED:** The independent source-and-consumer artifact travels through the existing analytical execution operation `directDistributionBinding` on inline and Worker ports. Only a resident Rust handle can mint it. The request is fenced by generation/version/fingerprint, the transport strips caller handles and compatibility payloads, and the response is revalidated from exact kernel source bytes; stale results and worker recycle refuse. Positive real-WASM Worker handler, separate Node Worker-thread runtime, failure and lifecycle tests are required for qualification.
 2. Define the authoritative policy for using this new claim and its source digest in a **governed persisted direct-use/replay carrier**, with negative tests for forged source, old replay, source divergence, omitted use and invalidated dataset.
 3. Only then wire a typed kernel-issued evidence reference into `SemanticSnapshotV1` and prove actual normal-shell Chromium critique → alternative → compare → branch → replay. No inference, fabricated sample/uncertainty axes, TS-authored receipt, synthetic promotion or new panel.
 

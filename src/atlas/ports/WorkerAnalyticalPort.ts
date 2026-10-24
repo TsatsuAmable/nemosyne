@@ -9,6 +9,7 @@ import type {
   GovernedEvidenceCaptureRequest,
   GovernedEvidenceCaptureV1,
 } from './AnalyticalExecutionPort.ts';
+import { verifyTransportedDirectDistributionBindingV1 } from '../../moneta/representation/DirectDistributionBindingV1.ts';
 import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
 
 export interface WorkerTransport {
@@ -497,6 +498,12 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
       });
     }
 
+    if (req.operation === 'directDistributionBinding' &&
+        !this.hasRegisteredDataset(req.generation, req.dataset.fingerprint)) {
+      return Promise.reject(new KernelUnavailableError(
+        'Direct distribution binding refused: dataset is not registered in this worker generation'
+      ));
+    }
     if (this._pending.size >= this._maxPendingExecutions) {
       return Promise.reject(
         new KernelUnavailableError(
@@ -515,7 +522,17 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         req,
       });
       try {
-        this._worker.postMessage({ type: 'EXECUTE', request: req });
+        // Direct evidence must resolve the worker-resident Rust handle only.
+        // A caller-side handle or first-use raw dataset may never cross this
+        // evidence boundary; other operation transport remains unchanged.
+        const workerRequest = req.operation === 'directDistributionBinding' ? {
+          requestId: req.requestId,
+          operation: req.operation,
+          dataset: req.dataset,
+          generation: req.generation,
+          params: req.params,
+        } : req;
+        this._worker.postMessage({ type: 'EXECUTE', request: workerRequest });
       } catch (err: unknown) {
         this._pending.delete(req.requestId);
         const error = new KernelUnavailableError(
@@ -782,6 +799,22 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         datasetFingerprint: result.datasetFingerprint,
         value: null,
       });
+      return;
+    }
+
+    if (pending.req.operation === 'directDistributionBinding' && result.value !== null) {
+      try {
+        const value = verifyTransportedDirectDistributionBindingV1(result.value, {
+          datasetFingerprint: pending.req.dataset.fingerprint,
+          kernelVersion: (result.value as { kernelVersion?: string }).kernelVersion ?? '',
+        });
+        pending.resolve({ ...result, value });
+      } catch (error: unknown) {
+        pending.reject(new KernelUnavailableError(
+          'Worker direct distribution binding refused: ' +
+          (error instanceof Error ? error.message : String(error))
+        ));
+      }
       return;
     }
 

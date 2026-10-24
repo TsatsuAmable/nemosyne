@@ -20,6 +20,8 @@ export interface DirectDistributionBindingV1 {
   readonly datasetFingerprint: string;
   readonly kernelVersion: string;
   readonly sourceDigest: string;
+  /** Exact Rust source JSON bytes hashed into the digest. */
+  readonly sourceJson: string;
   readonly receiptId: string;
   readonly source: SemanticEmbodimentEnvelopeV1;
 }
@@ -82,7 +84,40 @@ export function parseDirectDistributionBindingV1(
     datasetFingerprint: live.datasetFingerprint,
     kernelVersion: live.kernelVersion,
     sourceDigest: object.sourceDigest,
+    sourceJson: object.sourceJson,
     receiptId: object.receiptId as string,
     source,
   });
+}
+
+/** Validate worker transport without silently trusting TypeScript casting.
+ * Integrity hashes do not prove origin: only the Worker-owned Rust producer
+ * can issue this record; transport may only verify and refuse it.
+ */
+export function verifyTransportedDirectDistributionBindingV1(
+  raw: unknown,
+  live: { readonly datasetFingerprint: string; readonly kernelVersion: string },
+): DirectDistributionBindingV1 {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('[DirectDistributionBinding] Transported binding missing');
+  }
+  const value = raw as Record<string, unknown>;
+  if (Object.keys(value).length !== 10 || !('source' in value)) {
+    throw new Error('[DirectDistributionBinding] Transported binding shape invalid');
+  }
+  const validated = parseDirectDistributionBindingV1({
+    schemaVersion: value.schemaVersion,
+    consumerId: value.consumerId,
+    requirementProfileId: value.requirementProfileId,
+    claimKind: value.claimKind,
+    datasetFingerprint: value.datasetFingerprint,
+    kernelVersion: value.kernelVersion,
+    sourceJson: value.sourceJson,
+    sourceDigest: value.sourceDigest,
+    receiptId: value.receiptId,
+  }, live);
+  if (JSON.stringify(validated.source) !== JSON.stringify(value.source)) {
+    throw new Error('[DirectDistributionBinding] Transported source differs from kernel bytes');
+  }
+  return validated;
 }

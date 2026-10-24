@@ -10,12 +10,14 @@ import type {
   DatasetJSON,
   OperationSpec,
 } from '../../data/types.ts';
+import type { DistributionEmbodimentRequestV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
+import { verifyTransportedDirectDistributionBindingV1 } from '../../moneta/representation/DirectDistributionBindingV1.ts';
 import type { SemanticDetailRequestV1 } from '../../moneta/representation/SemanticDrillDown.ts';
 import { querySemanticDetailV1 } from '../../wasm/runtime/SemanticEmbodimentBridge.ts';
 
 export class InlineAnalyticalPort implements AnalyticalExecutionPort {
   private readonly _kernel: AnalyticalKernelPort;
-  private _fence: { generation?: number; datasetVersion?: number } = {};
+  private _fence: { generation?: number; datasetVersion?: number; datasetFingerprint?: string } = {};
   private _handleMap = new Map<string, number>();
 
   constructor(kernel: AnalyticalKernelPort) {
@@ -26,15 +28,17 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     return false;
   }
 
-  supersede(fence: { generation?: number; datasetVersion?: number }): void {
+  supersede(fence: { generation?: number; datasetVersion?: number; datasetFingerprint?: string }): void {
     if (fence.generation !== undefined) this._fence.generation = fence.generation;
     if (fence.datasetVersion !== undefined) this._fence.datasetVersion = fence.datasetVersion;
+    if (fence.datasetFingerprint !== undefined) this._fence.datasetFingerprint = fence.datasetFingerprint;
   }
 
-  private _isStale(generation: number, datasetVersion: number): boolean {
+  private _isStale(generation: number, datasetVersion: number, datasetFingerprint: string): boolean {
     return (
       (this._fence.generation !== undefined && generation < this._fence.generation) ||
-      (this._fence.datasetVersion !== undefined && datasetVersion < this._fence.datasetVersion)
+      (this._fence.datasetVersion !== undefined && datasetVersion < this._fence.datasetVersion) ||
+      (this._fence.datasetFingerprint !== undefined && datasetFingerprint !== this._fence.datasetFingerprint)
     );
   }
 
@@ -50,7 +54,7 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
   async captureGovernedEvidenceReceipt(
     req: GovernedEvidenceCaptureRequest
   ): Promise<GovernedEvidenceCaptureV1 | null> {
-    if (this._isStale(req.generation, req.dataset.version)) return null;
+    if (this._isStale(req.generation, req.dataset.version, req.dataset.fingerprint)) return null;
 
     const handle = req.handle ?? this._handleMap.get(req.dataset.fingerprint);
     if (!handle) return null;
@@ -116,7 +120,7 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
 
     // Re-check after the producer call: a supersession that raced this capture
     // must not be reported as evidence for the current generation.
-    if (this._isStale(req.generation, req.dataset.version)) return null;
+    if (this._isStale(req.generation, req.dataset.version, req.dataset.fingerprint)) return null;
 
     return {
       requestId: req.requestId,
@@ -133,7 +137,8 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     // Check if request is stale before starting
     if (
       (this._fence.generation !== undefined && req.generation < this._fence.generation) ||
-      (this._fence.datasetVersion !== undefined && req.dataset.version < this._fence.datasetVersion)
+      (this._fence.datasetVersion !== undefined && req.dataset.version < this._fence.datasetVersion) ||
+      (this._fence.datasetFingerprint !== undefined && req.dataset.fingerprint !== this._fence.datasetFingerprint)
     ) {
       return {
         requestId: req.requestId,
@@ -147,7 +152,7 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
     try {
       // Ensure dataset handle is available
       let handle = req.handle ?? this._handleMap.get(req.dataset.fingerprint);
-      if (handle === undefined && req.datasetPayload) {
+      if (handle === undefined && req.operation !== 'directDistributionBinding' && req.datasetPayload) {
         if (req.datasetPayload.type === 'typed' && this._kernel.loadTypedColumns) {
           handle = this._kernel.loadTypedColumns(
             req.datasetPayload.data as ArrayBuffer | Uint8Array,
@@ -178,6 +183,29 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
             value = this._kernel.computeBetti0Curve(handle, req.params) as T;
           }
           break;
+        case 'directDistributionBinding': {
+          // An injected-kernel capability is required: never call the module-
+          // global WASM instance or substitute descriptive-statistics receipts.
+          const produce = this._kernel.directDistributionBinding;
+          const identity = handle && this._kernel.datasetFingerprint?.(handle);
+          const version = this._kernel.kernelVersion?.();
+          if (handle && produce && identity === req.dataset.fingerprint && version) {
+            const raw = produce.call(
+              this._kernel, handle, req.params as unknown as DistributionEmbodimentRequestV1
+            );
+            if (raw) {
+              value = verifyTransportedDirectDistributionBindingV1(raw, {
+                datasetFingerprint: req.dataset.fingerprint,
+                kernelVersion: version,
+              }) as T;
+              if (this._kernel.datasetFingerprint?.(handle) !== identity ||
+                  this._kernel.kernelVersion?.() !== version) {
+                value = null;
+              }
+            }
+          }
+          break;
+        }
         case 'statistics':
           if (handle) {
             value = this._kernel.statistics(handle) as T;
@@ -219,7 +247,8 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
       // Check fence again upon completion
       if (
         (this._fence.generation !== undefined && req.generation < this._fence.generation) ||
-        (this._fence.datasetVersion !== undefined && req.dataset.version < this._fence.datasetVersion)
+        (this._fence.datasetVersion !== undefined && req.dataset.version < this._fence.datasetVersion) ||
+        (this._fence.datasetFingerprint !== undefined && req.dataset.fingerprint !== this._fence.datasetFingerprint)
       ) {
         return {
           requestId: req.requestId,

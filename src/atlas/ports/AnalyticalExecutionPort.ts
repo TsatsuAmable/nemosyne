@@ -10,6 +10,7 @@ export type AnalyticalOperationKind =
   | 'spectralFacts'
   | 'cluster'
   | 'semanticEmbodiment'
+  | 'directDistributionBinding'
   | 'semanticDetail';
 
 export interface AnalyticalDatasetPayload {
