@@ -1,6 +1,6 @@
 ﻿# RFC 0013 — FM8 composition evidence binding
 
-**Status:** PROPOSED for owner review.
+**Status:** ACCEPTED by owner on 24 October 2026: refined Option C (2026-10-22 addendum). Implementation/qualification on PR #1056; no Full Moneta completion claim.
 
 **Governing authority:** [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md).
 **Execution:** [ROADMAP](../ROADMAP.md) (FM8 composition row).
@@ -47,7 +47,7 @@ Adopt the following binding rule and failure semantics for multi-element composi
 
 ## 6. Resulting ADR
 
-Pending acceptance. Link the immutable ADR here once recorded.
+Accepted refined Option C. See [ADR 0014](../architecture/decisions/0014-fm8-governed-composition-evidence-binding.md) for the immutable decision.
 
 ## 7. Notes (related context, not decided here)
 
@@ -73,3 +73,13 @@ Pending acceptance. Link the immutable ADR here once recorded.
 5. Add falsifiers: reordered explicit lists are semantically invariant; explicit `[]` refuses; `AGGREGATION`/unsupported mappings refuse until governed; an unrelated-dataset same-family snapshot refuses; a budget/admission refusal does not register the primary instead; the omitted-list production flow remains unchanged. Keep the current FM3/4 graph-edge and admissibility batteries green.
 
 **Owner decision required:** accept refined C, modify it, or request a larger per-primitive binding API. Until that decision/ADR and code review occur, this addendum proposes no change to runtime behavior. It does not justify a Full Moneta completion claim.
+
+## 9. Implementation contract and adversarial gate (2026-10-24)
+
+**Owner approval:** refined Option C accepted, including explicit empty-list refusal, identity coherence before binding, closed source-family mapping, no substitution, and evidence-basis commitment. Explicit-list only maps `DENSITY:DENSITY`, `DISTRIBUTION:DISTRIBUTION`, `CLUSTER:CLUSTER`, `GRAPH:GRAPH` until a reviewed mapping extension. `AGGREGATION` is intentionally *not* `AGGREGATE` by coincidence.
+
+**Versioning:** The unbound direct runtime retains schema/identity v1 unchanged. FM8 emits schema/identity v2 with per-element `primitiveId`, `basis`, `sourceFamily`, analytical fingerprint and kernel version. Exact selected `snapshotId` and `sliceId` are already in every element record and enter the new digest. The omitted-list composition still renders the same admitted primary slice for every primitive, but now records `PRIMARY_ASSERTED`; the changed composition identity is intentional and must be checked by exact-head tests. Existing historical v1 artifacts are not rewritten.
+
+**STOP/falsifiers:** reject mixed analytical dataset/kernel identity, explicit `[]`, unapproved primitive families, absent or ambiguous matches, unadmitted secondary slices and wrong-snapshot broker output before export. Explicit-list order cannot decide evidence. Reject attempts to reconstruct a bound element with a foreign snapshot. Must preserve prior graph-edge fidelity and all default production paths. No scientific evidence authority delegated to TS: it can only pair already issued snapshots under this owner-approved composition policy. Never claim device, real-data, or human qualification from headless tests.
+
+**Risk classification:** high risk, epistemic/rendering binding. Merge requires reviewed exact head, static analysis, test falsifiers, all Vitest shards, Rust, production/browser CI, CodeQL and approval gate. Revalidate SHADOW-0017 separately before retiring its ledger finding.

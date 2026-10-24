@@ -3,7 +3,7 @@ import {
   type CommittedInvestigationContextV2,
   computeCommittedContextIdentity,
 } from '../../atlas/domain/CommittedInvestigationContext.js';
-import type { RepresentationGraph } from '../representation/RepresentationGraph.js';
+import type { RepresentationGraph, RepresentationPrimitiveKind } from '../representation/RepresentationGraph.js';
 import {
   type ObjectivePreference,
 } from '../search/RepresentationObjectiveModel.js';
@@ -30,6 +30,7 @@ import type { SemanticEmbodimentEnvelopeV1 } from '../representation/SemanticEmb
 import {
   FormaMultiElementRuntime,
   type ComposedRepresentationStateV1,
+  type CompositionEvidenceBindingV2,
 } from '../forma/FormaMultiElementRuntime.js';
 import type { FormaKnowledgeStore } from '../forma/FormaKnowledgeBase.js';
 import { FormaSystem1Proposer, DEFAULT_SYSTEM1_WEIGHTS, FORMA_SYSTEM1_PROPOSAL_SCHEMA_VERSION, type FormaProposalSetV1, type System1ProposalSource } from '../forma/FormaSystem1Proposer.js';
@@ -104,6 +105,104 @@ export interface FullMonetaSynthesisResult {
     readonly fitnessModelVersion: string;
     readonly system1ProposalSetId: string;
   };
+}
+
+/**
+ * Accepted RFC 0013: the closed primitive -> eligible analytical source family
+ * contract. Equal-looking strings in two distinct vocabularies are not proof
+ * of compatibility. New kinds remain unsupported until reviewed explicitly.
+ */
+export const FM8_EXPLICIT_EVIDENCE_FAMILIES: Readonly<
+  Partial<Record<RepresentationPrimitiveKind, readonly string[]>>
+> = Object.freeze({
+  DENSITY: Object.freeze(['DENSITY']),
+  DISTRIBUTION: Object.freeze(['DISTRIBUTION']),
+  CLUSTER: Object.freeze(['CLUSTER']),
+  GRAPH: Object.freeze(['GRAPH']),
+});
+
+export interface FM8CompositionEvidenceSelection {
+  readonly primitiveId: string;
+  readonly snapshot: SemanticSnapshotV1;
+  readonly basis: CompositionEvidenceBindingV2['basis'];
+  readonly sourceFamily: string | null;
+}
+
+/**
+ * Strictly resolves explicit family bindings before registering *any* element.
+ * The omitted-list production caller retains its primary-snapshot assertion.
+ * An explicitly empty list is never equivalent to omission.
+ */
+export function selectFM8CompositionEvidence(
+  graph: RepresentationGraph,
+  primary: SemanticSnapshotV1,
+  explicitSnapshots?: readonly SemanticSnapshotV1[],
+): readonly FM8CompositionEvidenceSelection[] {
+  if (explicitSnapshots === undefined) {
+    return graph.primitives.map((primitive) => ({
+      primitiveId: primitive.id,
+      snapshot: primary,
+      basis: 'PRIMARY_ASSERTED' as const,
+      sourceFamily: null,
+    }));
+  }
+  if (explicitSnapshots.length === 0) {
+    throw new Error('[FullMonetaEngine] [EVIDENCE_BINDING_EMPTY_LIST] Explicit snapshot list contains no evidence');
+  }
+
+  // A multiple-snapshot composition is one analytical investigation, not an
+  // implicit federation. Validate *all* supplied sources, including unused
+  // ones, so mixed-identity evidence cannot hide behind a coincidental match.
+  for (const candidate of explicitSnapshots) {
+    validateSemanticSnapshot(candidate);
+    if (candidate.body.analyticalDatasetFingerprint !== primary.body.analyticalDatasetFingerprint) {
+      throw new Error(
+        `[FullMonetaEngine] [EVIDENCE_BINDING_DATASET_MISMATCH] Snapshot '${candidate.snapshotId}' has a different analytical dataset`,
+      );
+    }
+    if (candidate.body.kernelVersion !== primary.body.kernelVersion) {
+      throw new Error(
+        `[FullMonetaEngine] [EVIDENCE_BINDING_KERNEL_MISMATCH] Snapshot '${candidate.snapshotId}' has a different analytical kernel version`,
+      );
+    }
+  }
+
+  return graph.primitives.map((primitive) => {
+    const eligibleFamilies = FM8_EXPLICIT_EVIDENCE_FAMILIES[primitive.kind];
+    if (!eligibleFamilies || eligibleFamilies.length === 0) {
+      throw new Error(
+        `[FullMonetaEngine] [EVIDENCE_BINDING_UNMAPPED_KIND] Primitive '${primitive.id}' kind '${primitive.kind}' has no approved evidence-family mapping`,
+      );
+    }
+    const matches: { snapshot: SemanticSnapshotV1; sourceFamily: string; sourceId: string }[] = [];
+    for (const candidate of explicitSnapshots) {
+      for (const source of candidate.body.sources) {
+        if (source.state.status === 'AVAILABLE' && eligibleFamilies.includes(source.family)) {
+          if (!matches.some((match) =>
+            match.snapshot.snapshotId === candidate.snapshotId && match.sourceId === source.sourceId
+          )) {
+            matches.push({ snapshot: candidate, sourceFamily: source.family, sourceId: source.sourceId });
+          }
+        }
+      }
+    }
+    if (matches.length === 0) {
+      throw new Error(
+        `[FullMonetaEngine] [EVIDENCE_BINDING_MISSING_FAMILY] Primitive '${primitive.id}' kind '${primitive.kind}' has no available approved evidence source`,
+      );
+    }
+    if (matches.length !== 1) {
+      throw new Error(
+        `[FullMonetaEngine] [EVIDENCE_BINDING_AMBIGUOUS_FAMILY] Primitive '${primitive.id}' kind '${primitive.kind}' matches ${matches.length} distinct sources`,
+      );
+    }
+    return {
+      primitiveId: primitive.id,
+      snapshot: matches[0].snapshot,
+      basis: 'FAMILY_MATCHED' as const,
+      sourceFamily: matches[0].sourceFamily,
+    };
+  });
 }
 
 /**
@@ -299,38 +398,61 @@ export class FullMonetaEngine {
 
     const resolutionVariant = brokerOutcome.variant;
 
-    // 8. Multi-element runtime composition preserving graph relations (FMA-10c)
+    // 8. RFC 0013 governed multi-element composition. Explicit lists MUST
+    // bind through the closed family map, irrespective of input order. Omitted
+    // lists retain the primary-snapshot assertion of the production caller.
+    // Selection is completed before any resident element is registered.
+    const selections = selectFM8CompositionEvidence(
+      selectedGraph, snapshot, options.snapshots,
+    );
     const multiRuntime = new FormaMultiElementRuntime();
-    const snapshotsList = options.snapshots ?? [snapshot];
-
     for (let i = 0; i < selectedGraph.primitives.length; i++) {
       const prim = selectedGraph.primitives[i];
-      // Match snapshot by primitive kind or family if possible, or use index/primary
-      const primSnapshot: SemanticSnapshotV1 =
-        snapshotsList.find((s) => s.body.sources.some((src) => src.family === prim.kind)) ??
-        snapshotsList[i] ??
-        snapshot;
-
+      const selected = selections[i];
+      const primSnapshot = selected.snapshot;
       let sliceToRegister = resolutionVariant.slice;
       if (primSnapshot !== snapshot) {
+        // An automatically chosen primary-only node obligation cannot be
+        // imposed on an unrelated family: derive the default from the actual
+        // selected snapshot. An explicit investigator node obligation is never
+        // weakened and a failure still refuses the entire composition.
+        const perSnapshotObligations: SemanticObligationContractV1 =
+          options.mandatoryNodeIds === undefined
+            ? { ...obligations, mandatoryNodeIds: primSnapshot.body.nodes.slice(0, 1).map((n) => n.nodeId) }
+            : obligations;
         const primOutcome = broker.brokerVariant(
           primSnapshot,
           context,
           manifest,
           budget,
-          obligations,
+          perSnapshotObligations,
           requestedGeneration,
           effectiveAdmissionOptions
         );
-        if (primOutcome.status === 'ADMITTED') {
-          sliceToRegister = primOutcome.variant.slice;
+        if (primOutcome.status !== 'ADMITTED') {
+          throw new Error(
+            `[FullMonetaEngine] [EVIDENCE_BINDING_VARIANT_REFUSED] Primitive '${prim.id}' kind '${prim.kind}' rejected: [${primOutcome.refusal.code}] ${primOutcome.refusal.message}`
+          );
         }
+        sliceToRegister = primOutcome.variant.slice;
+      }
+      if (sliceToRegister.snapshotId !== primSnapshot.snapshotId) {
+        throw new Error(
+          `[FullMonetaEngine] [EVIDENCE_BINDING_SLICE_MISMATCH] Primitive '${prim.id}' received a slice from another snapshot`
+        );
       }
 
       multiRuntime.registerElement(
         `element-${prim.id}`,
         sliceToRegister,
-        prim.kind
+        prim.kind,
+        {
+          primitiveId: prim.id,
+          basis: selected.basis,
+          sourceFamily: selected.sourceFamily,
+          analyticalDatasetFingerprint: primSnapshot.body.analyticalDatasetFingerprint,
+          kernelVersion: primSnapshot.body.kernelVersion,
+        },
       );
     }
 

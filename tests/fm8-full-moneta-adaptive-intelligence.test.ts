@@ -161,7 +161,9 @@ describe('FM8: Full Moneta / Controlled Adaptive Representation Intelligence', (
     expect(result.selectedGraph.primitives.length).toBeGreaterThan(0);
     expect(result.resolutionVariant.variantTier).toBe('MONA_LISA_EXPANSIVE');
     expect(result.composedState.elements.length).toBeGreaterThan(0);
-    expect(result.composedState.composedIdentity).toContain('composed-forma-v1:');
+    expect(result.composedState.composedIdentity).toMatch(/^composed-forma-v2:[a-f0-9]{64}$/);
+    expect(result.composedState.schemaVersion).toBe(2);
+    expect(result.composedState.elements.every((e) => e.evidenceBinding?.basis === 'PRIMARY_ASSERTED')).toBe(true);
     expect(result.paretoFrontier.length).toBeGreaterThan(0);
     expect(result.provenance.datasetFingerprint).toBe(atlas.datasetFingerprint);
   });
