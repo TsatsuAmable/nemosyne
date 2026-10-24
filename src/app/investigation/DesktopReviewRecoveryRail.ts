@@ -1,8 +1,11 @@
 import type { ArchiveEntry } from '../../session/VaultArchiveStore.ts';
 import type { RepresentationReviewSnapshot } from './RepresentationReviewService.ts';
+import type { DirectLoopSurfaceViewsV1 } from '../../moneta/representation/DirectLoopViewModels.ts';
 
 export interface DesktopReviewRecoveryActions {
   representationSnapshot(): RepresentationReviewSnapshot;
+  /** Read-only projections of the authoritative direct-loop, never a command path. */
+  directLoopViews?(): DirectLoopSurfaceViewsV1;
   previewRemediation(remediationId: string): RepresentationReviewSnapshot;
   commitRemediation(remediationId: string): RepresentationReviewSnapshot;
   rejectPreview(): RepresentationReviewSnapshot;
@@ -93,7 +96,13 @@ export function mountDesktopReviewRecoveryRail(
   const preview = compactLine('review-preview');
   const alternatives = compactLine('review-alternatives');
   const constraints = compactLine('review-constraints');
-  body.append(representation, preview, alternatives, constraints);
+  const directAlternatives = compactLine('review-direct-alternatives');
+  const directHistory = compactLine('review-direct-history');
+  const directVariants = compactLine('review-direct-variants');
+  body.append(
+    representation, preview, alternatives, constraints,
+    directAlternatives, directHistory, directVariants,
+  );
 
   const remediationSelect = document.createElement('select');
   remediationSelect.id = 'review-remediation';
@@ -150,6 +159,28 @@ export function mountDesktopReviewRecoveryRail(
     constraints.textContent = state.constraints.length > 0
       ? `Constraints · ${state.constraints.map((entry) => `${entry.candidateName}: ${entry.reason}`).join(' · ')}`
       : 'Constraints · none blocking the current outcome';
+
+    // FM1/FM2: render the existing direct-loop view model in the same
+    // precision rail. Never infer a decision from a legacy ranked candidate
+    // or upgrade a compiled variant into a device-qualified result.
+    const direct = actions.directLoopViews?.();
+    const links = direct?.alternative.alternatives ?? [];
+    directAlternatives.textContent = links.length === 0
+      ? 'Direct-loop alternatives · none recorded'
+      : `Direct-loop alternatives · ${links.length} recorded · ${links.map((entry) =>
+          `${entry.targetElementId}: ${entry.priorDecisionId} → ${entry.alternativeDecisionId}`
+        ).join(' · ')}`;
+    directHistory.textContent = links.length === 0
+      ? 'Direct-loop history · no critique-to-alternative branches'
+      : `Direct-loop history · ${links.map((entry) =>
+          `${entry.critiqueId} / ${entry.contextPurpose} / feedback ${entry.feedbackRecordId ?? 'not recorded'}`
+        ).join(' · ')}`;
+    const pair = direct?.alternative.pair ?? null;
+    directVariants.textContent = pair
+      ? `Compiled direct variants (device unverified) · ${pair.variants.map((entry) =>
+          `${entry.budgetProfile}: ${entry.elementCount} elements / ${entry.variantTier}`
+        ).join(' · ')}`
+      : 'Compiled direct variants · none recorded';
 
     const selected = remediationSelect.value;
     remediationSelect.replaceChildren();
