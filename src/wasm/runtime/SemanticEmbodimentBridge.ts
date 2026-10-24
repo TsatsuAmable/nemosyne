@@ -20,6 +20,12 @@ import type {
 import { allocBytes } from './MemoryAbi.ts';
 import { readPreparedResult } from './PreparedResultBridge.ts';
 import { getRawRuntimeExports } from './RuntimeState.ts';
+import { datasetFingerprint } from './DatasetHandleBridge.ts';
+import { kernelVersion } from './KernelContractBridge.ts';
+import {
+  parseDirectDistributionBindingV1,
+  type DirectDistributionBindingV1,
+} from '../../moneta/representation/DirectDistributionBindingV1.ts';
 
 interface AggregateSemanticRuntime {
   moneta_prepare_aggregate_embodiment_v1(
@@ -28,6 +34,11 @@ interface AggregateSemanticRuntime {
     inputLen: number,
   ): number;
   moneta_prepare_distribution_embodiment_v1(
+    handle: number,
+    inputPtr: number,
+    inputLen: number,
+  ): number;
+  moneta_prepare_direct_distribution_binding_v1?(
     handle: number,
     inputPtr: number,
     inputLen: number,
@@ -208,6 +219,44 @@ export function buildDistributionSemanticEmbodimentV1(
   const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
   if (typeof runtime.moneta_prepare_distribution_embodiment_v1 !== 'function') return null;
   return invokeEmbodimentBuilder(handle, request, runtime.moneta_prepare_distribution_embodiment_v1.bind(runtime));
+}
+
+/**
+ * Single-pass, kernel-minted descriptive distribution and source-specific
+ * consumer binding. No caller can supply an existing semantic envelope to
+ * this producer, so a receipt cannot be laundered onto unrelated geometry.
+ * This is intentionally NOT a V3 replay use or a full direct-loop admission.
+ */
+export function buildDirectDistributionBindingV1(
+  handle: number,
+  request: DistributionEmbodimentRequestV1,
+): DirectDistributionBindingV1 | null {
+  if (!Number.isSafeInteger(handle) || handle <= 0) return null;
+  const runtime = getRawRuntimeExports() as unknown as AggregateSemanticRuntime;
+  const prepare = runtime.moneta_prepare_direct_distribution_binding_v1;
+  if (typeof prepare !== 'function') return null;
+  const observedFingerprint = datasetFingerprint(handle);
+  const observedVersion = kernelVersion();
+  if (!observedFingerprint || !observedVersion) return null;
+  const input = new TextEncoder().encode(JSON.stringify(request));
+  const { ptr, len } = allocBytes(input);
+  try {
+    const raw = readPreparedResult(() => prepare.call(runtime, handle, ptr, len), {
+      nullOnReadMismatch: true,
+    });
+    if (raw === null) return null;
+    const binding = parseDirectDistributionBindingV1(JSON.parse(raw), {
+      datasetFingerprint: observedFingerprint,
+      kernelVersion: observedVersion,
+    });
+    if (datasetFingerprint(handle) !== observedFingerprint || kernelVersion() !== observedVersion) {
+      throw new Error('[DirectDistributionBinding] Kernel dataset changed during binding');
+    }
+    retainAuthoritativeRequest(handle, request, binding.source);
+    return binding;
+  } finally {
+    getRawRuntimeExports().host_buffer_dealloc(ptr, len);
+  }
 }
 
 /**
