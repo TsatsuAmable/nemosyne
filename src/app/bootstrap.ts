@@ -29,6 +29,7 @@ import {
   type DesktopReasoningRailActions,
 } from './investigation/DesktopReasoningRail.ts';
 import { RepresentationReviewService } from './investigation/RepresentationReviewService.ts';
+import { buildDirectLoopSurfaceViews } from '../moneta/representation/DirectLoopViewModels.ts';
 import {
   mountDesktopReviewRecoveryRail,
   type DesktopReviewRecoveryActions,
@@ -243,6 +244,11 @@ function desktopReviewRecoveryActions(
   const syncPresentation = (): void => functionalWorldObjects.syncNow();
   return {
     representationSnapshot: () => review.snapshot(),
+    directLoopViews: () => buildDirectLoopSurfaceViews({
+      links: world.atlas.getDirectFeedbackLinks(),
+      bindings: world.atlas.getDirectAlternativeFeedbackBindings(),
+      variantPair: world.atlas.getActiveVariantPair(),
+    }),
     previewRemediation: (remediationId) => {
       const state = review.preview(remediationId);
       syncPresentation();
