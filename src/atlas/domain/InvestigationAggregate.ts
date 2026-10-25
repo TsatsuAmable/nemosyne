@@ -233,6 +233,17 @@ export class InvestigationAggregate {
     this.graph.reset();
     this.discoveries.reset();
     this._nodeDecisions.clear();
+    // Direct-loop compilations and critique lineage are dataset-bound. A new
+    // analytical identity must not leave the review rail able to display or
+    // act on branches minted for the superseded dataset.
+    this._activeFormaResult = undefined;
+    this._activeDirectCompileResult = undefined;
+    this._activeDirectSnapshot = undefined;
+    this._activeVariantPair = undefined;
+    this._activeDirectTraversal = undefined;
+    this._directFeedbackLinks = [];
+    this._directFeedbackBindings = [];
+    this._formaState = undefined;
 
     const fp = this.analytical.getFingerprint() ?? '';
     if (fp && this.analytical.originalNullable) {

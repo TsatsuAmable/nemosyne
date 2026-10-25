@@ -64,6 +64,20 @@ export function installInvestigationJourney(app: AppInstance): () => void {
         liveDatasetFingerprint: world.atlas.datasetFingerprint,
         liveKernelVersion: world.atlas.kernelVersion(),
       });
+    },
+    async () => {
+      const measureField = world.atlas.dataset?.numericColumns[0]?.name;
+      if (!measureField) {
+        throw new Error('Direct compilation refused: current dataset has no numeric measure field.');
+      }
+      return world.atlas.compileDirectDistributionEmbodiment({
+        schemaVersion: 1,
+        candidateId: 'DISTRIBUTION_FIELD',
+        measureField,
+        histogramBinCount: 8,
+        ecdfKnotCount: 8,
+        quantileProbabilities: [0, 0.25, 0.5, 0.75, 1],
+      });
     }
   );
   const panel = new InvestigationJourneyPanel(world.uiManager.analystAnchor, journey);

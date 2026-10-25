@@ -64,6 +64,46 @@ function liveAtlas(): AtlasCore {
 afterEach(() => { document.body.replaceChildren(); });
 
 describe('FM2 direct critique controls use the product NIL command path', () => {
+  it('exposes a compile action and reports disclosure state only after the authority callback returns', async () => {
+    mountRail();
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as never });
+    atlas.loadDataset(new Dataset('direct-compile-control', [
+      { name: 'val', type: ColumnType.NUMERIC },
+    ], [{ val: 1 }, { val: 2 }, { val: 3 }]));
+    // The fixture is presentation evidence only: the callback stands in for
+    // the already-authoritative production Atlas method, while the browser
+    // journey below proves the real Rust binding path separately.
+    const compileDirectDistribution = vi.fn(async () => {
+      const result = atlas.compileDirectEmbodiment({ snapshot: snapshot(atlas.dataset!.fingerprint) });
+      return result;
+    });
+    const executor = new NilExecutor();
+    const controls = mountDesktopDirectLoopControls(
+      atlas,
+      executor,
+      undefined,
+      undefined,
+      undefined,
+      compileDirectDistribution,
+    );
+
+    expect(document.getElementById('review-direct-compile')).not.toBeNull();
+    expect(document.getElementById('review-direct-critique')?.hasAttribute('disabled')).toBe(true);
+    expect(document.getElementById('review-direct-prefer')?.hasAttribute('disabled')).toBe(true);
+
+    document.getElementById('review-direct-compile')?.click();
+    await vi.waitFor(() => {
+      expect(compileDirectDistribution).toHaveBeenCalledTimes(1);
+      expect(document.getElementById('review-direct-action-state')?.textContent)
+        .toContain('Governed direct compilation ready');
+    });
+    expect(document.getElementById('review-direct-disclosures')?.textContent)
+      .toContain('0 conjectural elements');
+    expect(document.getElementById('review-direct-critique')?.hasAttribute('disabled')).toBe(false);
+
+    controls.dispose();
+  });
+
   it('shows a governed evidence refusal without enabling a representation branch', async () => {
     mountRail();
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as never });

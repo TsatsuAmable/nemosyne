@@ -6,6 +6,7 @@ import {
   directEvidenceReadinessMessage,
   type DirectEvidenceReadinessV1,
 } from './DirectEvidenceReadiness.ts';
+import type { DirectEmbodimentCompileResult } from '../../moneta/representation/DirectEmbodimentCompiler.ts';
 
 export interface DesktopDirectLoopHandle {
   refresh(): void;
@@ -59,6 +60,7 @@ export function mountDesktopDirectLoopControls(
   eventBus?: Pick<WorldEventBus, 'on'>,
   onChanged?: () => void,
   diagnoseEvidence?: () => Promise<DirectEvidenceReadinessV1>,
+  compileDirectDistribution?: () => Promise<DirectEmbodimentCompileResult>,
 ): DesktopDirectLoopHandle {
   const anchor = document.getElementById('review-direct-variants');
   if (!anchor?.parentElement) return { refresh: () => {}, dispose: () => {} };
@@ -86,16 +88,23 @@ export function mountDesktopDirectLoopControls(
   const critique = createSelect('review-direct-critique-id', 'Recorded direct critique');
   const prefer = actionButton('review-direct-prefer', 'Explore constrained alternative (device unverified)');
   const evidenceButton = actionButton('review-direct-check-evidence', 'Check Rust evidence for direct representation');
+  const compileButton = actionButton('review-direct-compile', 'Compile governed direct distribution');
+  const disclosures = document.createElement('p');
+  disclosures.id = 'review-direct-disclosures';
+  disclosures.setAttribute('role', 'status');
+  disclosures.setAttribute('aria-live', 'polite');
+  disclosures.style.cssText = 'margin: 0; overflow-wrap: anywhere; font-size: var(--nms-font-size-meta);';
   const evidenceStatus = document.createElement('p');
   evidenceStatus.id = 'review-direct-evidence-status';
   evidenceStatus.setAttribute('role', 'status');
   evidenceStatus.setAttribute('aria-live', 'polite');
   evidenceStatus.style.cssText = 'margin: 0; overflow-wrap: anywhere; font-size: var(--nms-font-size-meta);';
   evidenceStatus.textContent = 'Direct evidence · not checked';
-  root.append(evidenceButton, evidenceStatus, state, target, phenomenon, kind, note, reject, critique, prefer);
+  root.append(compileButton, disclosures, evidenceButton, evidenceStatus, state, target, phenomenon, kind, note, reject, critique, prefer);
   anchor.insertAdjacentElement('afterend', root);
 
   let pending = false;
+  let compiling = false;
   let checkingEvidence = false;
   let disposed = false;
   let checkEpoch = 0;
@@ -115,21 +124,51 @@ export function mountDesktopDirectLoopControls(
     const elements = active?.plan.elements.map((entry) => entry.id) ?? [];
     const phenomena = active?.boundedOverview.phenomenonCoverage ?? [];
     const critiqueIds = active?.critiqueLedger.map((entry) => entry.critiqueId) ?? [];
+    const conjecturalCount = active?.plan.elements.filter((entry) => Boolean(entry.parameters.isConjectural)).length ?? 0;
     fillSelect(target, elements);
     fillSelect(phenomenon, phenomena);
     fillSelect(critique, critiqueIds);
     state.textContent = lastMessage || (!active
       ? 'Direct-loop actions unavailable: no governed direct compilation. Ordinary analysis does not create one.'
       : `Active direct compilation · ${active.compilationId} · ${elements.length} elements; existing branches: ${atlas.getDirectFeedbackLinks().length}`);
+    disclosures.textContent = active
+      ? `Direct-loop disclosure · ${conjecturalCount} conjectural elements; ${elements.length - conjecturalCount} grounded elements.`
+      : 'Direct-loop disclosure · no governed compilation; no representation promoted.';
+    compileButton.toggleAttribute('disabled', compiling || !compileDirectDistribution || !atlas.datasetFingerprint);
     evidenceButton.toggleAttribute('disabled', checkingEvidence || !diagnoseEvidence || !atlas.datasetFingerprint);
-    reject.toggleAttribute('disabled', pending || elements.length === 0 || phenomena.length === 0);
-    prefer.toggleAttribute('disabled', pending || critiqueIds.length === 0);
-    target.disabled = pending || elements.length === 0;
-    phenomenon.disabled = pending || phenomena.length === 0;
-    kind.disabled = pending || elements.length === 0;
-    note.disabled = pending || elements.length === 0;
-    critique.disabled = pending || critiqueIds.length === 0;
+    reject.toggleAttribute('disabled', pending || compiling || elements.length === 0 || phenomena.length === 0);
+    prefer.toggleAttribute('disabled', pending || compiling || critiqueIds.length === 0);
+    target.disabled = pending || compiling || elements.length === 0;
+    phenomenon.disabled = pending || compiling || phenomena.length === 0;
+    kind.disabled = pending || compiling || elements.length === 0;
+    note.disabled = pending || compiling || elements.length === 0;
+    critique.disabled = pending || compiling || critiqueIds.length === 0;
   };
+
+  compileButton.addEventListener('click', () => {
+    if (!compileDirectDistribution || compiling || disposed || !atlas.datasetFingerprint) return;
+    compiling = true;
+    lastMessage = '';
+    const fingerprint = atlas.datasetFingerprint;
+    state.textContent = 'Acquiring Rust direct binding and compiling governed snapshot…';
+    refresh();
+    void compileDirectDistribution().then((result) => {
+      if (disposed) return;
+      if (atlas.datasetFingerprint !== fingerprint || currentCompilation()?.compilationId !== result.compilationId) {
+        lastMessage = 'Direct compilation discarded: dataset or committed context changed.';
+        return;
+      }
+      lastMessage = `Governed direct compilation ready · ${result.compilationId}; active decision unchanged until an explicit researcher action.`;
+      onChanged?.();
+    }).catch((error: unknown) => {
+      if (disposed) return;
+      lastMessage = `Direct compilation refused: ${error instanceof Error ? error.message : String(error)}`;
+    }).finally(() => {
+      if (disposed) return;
+      compiling = false;
+      refresh();
+    });
+  });
 
   evidenceButton.addEventListener('click', () => {
     if (!diagnoseEvidence || checkingEvidence || disposed || !atlas.datasetFingerprint) return;
@@ -239,6 +278,7 @@ export function mountDesktopDirectLoopControls(
       lastMessage = '';
       checkEpoch += 1;
       checkingEvidence = false;
+      compiling = false;
       evidenceStatus.textContent = 'Direct evidence · not checked for the new dataset';
       queueMicrotask(refresh);
     }),
