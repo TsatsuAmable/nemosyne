@@ -116,7 +116,11 @@ import type { FormaAdmissionOptionsV1 } from '../../moneta/forma/FormaAdmission.
 
 export interface FormaInvestigationStateV1 {
   readonly schemaVersion: 1;
-  readonly slice: FormaCompiledSliceV1;
+  /**
+   * Optional for a lineage-only snapshot. Context turnover revokes the active
+   * compilation, but recorded critique alternatives remain durable evidence.
+   */
+  readonly slice?: FormaCompiledSliceV1;
   readonly proposals?: readonly unknown[];
   readonly system1ProposalSet?: FormaProposalSetV1;
   readonly system1AdviceApplied?: boolean;
@@ -1447,6 +1451,17 @@ export class InvestigationAggregate {
         schemaVersion: 1,
         slice: this._activeDirectCompileResult.slice,
         context: this.getActiveContext(),
+        directFeedbackLinks: [...this._directFeedbackLinks],
+        directAlternativeFeedbackBindings: [...this._directFeedbackBindings],
+      };
+    }
+    // Context turnover invalidates the active compilation, not the already
+    // recorded critique->alternative lineage. Preserve that lineage as a
+    // static, non-actionable snapshot so session/checkpoint/export restore can
+    // show what was recorded without reviving stale compilation state.
+    if (this._directFeedbackLinks.length > 0 || this._directFeedbackBindings.length > 0) {
+      return {
+        schemaVersion: 1,
         directFeedbackLinks: [...this._directFeedbackLinks],
         directAlternativeFeedbackBindings: [...this._directFeedbackBindings],
       };

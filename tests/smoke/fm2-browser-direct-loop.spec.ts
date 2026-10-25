@@ -106,6 +106,13 @@ test('normal Chromium completes the governed FM2 direct loop and replays its sav
     strFromU8(payload.extraFiles!['continuity/session-v2.json']!),
   ) as NemosyneSessionJSON;
   expect(typeof savedSnapshot.directDistributionSnapshot).toBe('string');
+  expect(typeof savedSnapshot.formaInvestigationSnapshot).toBe('string');
+  const savedForma = JSON.parse(
+    Buffer.from(savedSnapshot.formaInvestigationSnapshot!, 'base64').toString('utf8'),
+  ) as {
+    directFeedbackLinks?: unknown[];
+  };
+  expect(savedForma.directFeedbackLinks).toHaveLength(1);
   await expect(page.locator('#continuity-feedback')).toContainText('Portable investigation ready');
 
   await page.locator('#continuity-save-now').click();
@@ -128,7 +135,7 @@ test('normal Chromium completes the governed FM2 direct loop and replays its sav
   await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
   await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
   await expect(page.locator('#review-direct-alternatives'))
-    .toHaveText('Direct-loop alternatives · none recorded');
+    .toContainText('1 recorded');
 
   await openPortableThroughVisibleShell(page, packageBytes);
   await expect(page.locator('#continuity-feedback'))
@@ -147,6 +154,8 @@ test('normal Chromium completes the governed FM2 direct loop and replays its sav
     .toContainText('no governed direct compilation');
   await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
   await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
+  await expect(page.locator('#review-direct-alternatives'))
+    .toContainText('1 recorded');
 
   const tamperedFiles = unzipSync(packageBytes);
   const tamperedCarrier = tamperedFiles['investigation/direct-distribution.json'];

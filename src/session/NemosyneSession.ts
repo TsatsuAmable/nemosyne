@@ -786,8 +786,11 @@ export class NemosyneSession {
   loadFromJSON(json: NemosyneSessionJSON): void {
     this._restoreEvidenceReceiptSnapshot(json);
     this._restoreDirectDistributionSnapshot(json);
-    this._restoreFormaInvestigationSnapshot(json);
     this._atlas.restoreState(json);
+    // Atlas state restoration may load the dataset and clear dataset-bound
+    // direct-loop state. Rehydrate the additive Forma/lineage snapshot only
+    // after that authoritative restore has completed.
+    this._restoreFormaInvestigationSnapshot(json);
     if (typeof json.sessionId === 'string' && json.sessionId.length > 0) {
       this._sessionId = json.sessionId;
     }
