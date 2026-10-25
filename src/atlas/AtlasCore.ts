@@ -367,6 +367,10 @@ export class AtlasCore {
 
   setExecutionPort(port: AnalyticalExecutionPort | null): void {
     if (this._executionPort === port) return;
+    // A direct-distribution capture is issued by the outgoing runtime. It is
+    // not portable across execution-port instances, even when the dataset
+    // fingerprint happens to remain unchanged.
+    this._activeDirectDistributionCapture = null;
     this._executionPort?.dispose?.();
     this._executionPort = port;
     if (port) {
@@ -386,6 +390,12 @@ export class AtlasCore {
   setGeneration(generation: number): void {
     if (!Number.isSafeInteger(generation) || generation <= 0) {
       throw new Error('[AtlasCore] runtime generation must be a positive safe integer.');
+    }
+    if (generation !== this._generation) {
+      // Runtime-issued direct carriers are capabilities of one generation;
+      // retaining one after a replacement would let session serialization
+      // persist stale analytical authority.
+      this._activeDirectDistributionCapture = null;
     }
     this._generation = generation;
   }
@@ -408,6 +418,9 @@ export class AtlasCore {
   // --- Kernel binding & status -------------------------------------------
 
   setKernel(kernel: WasmRuntimeBridgeFull | null, capabilities = 0, generation = 1): void {
+    // Kernel replacement is a runtime transition even when its caller reuses
+    // the numeric generation. Invalidate before rebinding the analytical port.
+    this._activeDirectDistributionCapture = null;
     this._aggregate.analytical.invalidateHandle((handle) => this._analytics.destroyDataset(handle));
     this._analytics.setKernel(kernel);
     this._capabilities = capabilities;

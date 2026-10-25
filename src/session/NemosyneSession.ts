@@ -183,6 +183,13 @@ export class NemosyneSession {
   private _evidenceReceiptIdentity: string | null = null;
   private _directDistributionBytes: Uint8Array | null = null;
   private _directDistributionIdentity: { datasetFingerprint: string; kernelVersion: string } | null = null;
+  /**
+   * A live carrier is a handoff from the current Atlas runtime. Restored
+   * bytes are deliberately independent of the current runtime so they can be
+   * replayed in a fresh one; live bytes must be dropped when Atlas invalidates
+   * its active runtime capture.
+   */
+  private _directDistributionSource: 'LIVE_ATLAS' | 'RESTORED_SNAPSHOT' | null = null;
   private _formaInvestigationBytes: Uint8Array | null = null;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
@@ -220,6 +227,7 @@ export class NemosyneSession {
       datasetFingerprint: carrier.binding.datasetFingerprint,
       kernelVersion: carrier.binding.kernelVersion,
     };
+    this._directDistributionSource = 'LIVE_ATLAS';
     return binding;
   }
 
@@ -381,6 +389,7 @@ export class NemosyneSession {
     if (encoded === undefined) {
       this._directDistributionBytes = null;
       this._directDistributionIdentity = null;
+      this._directDistributionSource = null;
       return;
     }
     const restored = decodeDirectDistributionSnapshot(encoded);
@@ -389,6 +398,14 @@ export class NemosyneSession {
       datasetFingerprint: restored.datasetFingerprint,
       kernelVersion: restored.kernelVersion,
     };
+    this._directDistributionSource = 'RESTORED_SNAPSHOT';
+  }
+
+  private _invalidateLiveDirectDistributionCapture(): void {
+    if (this._directDistributionSource !== 'LIVE_ATLAS') return;
+    this._directDistributionBytes = null;
+    this._directDistributionIdentity = null;
+    this._directDistributionSource = null;
   }
 
   /**
@@ -399,9 +416,18 @@ export class NemosyneSession {
    */
   private _adoptAtlasDirectDistributionCapture(): void {
     const capture = this._atlas.getActiveDirectDistributionCapture();
-    if (!capture) return;
+    if (!capture) {
+      // Atlas clears its runtime-issued capture on generation, kernel, port,
+      // and dataset transitions. Do not let the session's earlier live copy
+      // outlive that authority boundary and reach serialization/export.
+      this._invalidateLiveDirectDistributionCapture();
+      return;
+    }
     const datasetFingerprint = this._atlas.datasetFingerprint;
-    if (!datasetFingerprint || capture.binding.datasetFingerprint !== datasetFingerprint) return;
+    if (!datasetFingerprint || capture.binding.datasetFingerprint !== datasetFingerprint) {
+      this._invalidateLiveDirectDistributionCapture();
+      return;
+    }
     const carrier = createDirectDistributionReplayCarrierV1(capture.binding, capture.request, {
       datasetFingerprint,
       kernelVersion: this._atlas.kernelVersion() ?? capture.binding.kernelVersion,
@@ -411,6 +437,7 @@ export class NemosyneSession {
       datasetFingerprint: carrier.binding.datasetFingerprint,
       kernelVersion: carrier.binding.kernelVersion,
     };
+    this._directDistributionSource = 'LIVE_ATLAS';
   }
 
   /**

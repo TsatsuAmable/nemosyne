@@ -334,6 +334,41 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('does not serialize or export a live carrier after runtime generation or port replacement', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataset());
+    atlas.commitInvestigationContext('fm2-runtime-lifecycle', {
+      schemaVersion: 2,
+      nodeId: 'fm2-runtime-lifecycle',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Reject stale direct-distribution authority',
+        currentTask: 'fm2-runtime-lifecycle',
+      },
+    });
+    const session = new NemosyneSession({ atlas });
+    try {
+      await atlas.compileDirectDistributionEmbodiment(request);
+      expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
+
+      atlas.setGeneration(atlas.generation + 1);
+      expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+      await expect(
+        session.exportPortablePackage({}, undefined, { directDistributionBinding: true }),
+      ).rejects.toThrow('Direct-distribution export requires a Rust-issued carrier for the current dataset');
+
+      await expect(session.captureDirectDistributionBinding(request)).resolves.not.toBeNull();
+      atlas.setExecutionPort(null);
+      expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+      await expect(
+        session.exportPortablePackage({}, undefined, { directDistributionBinding: true }),
+      ).rejects.toThrow('Direct-distribution export requires a Rust-issued carrier for the current dataset');
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
+
   it('exports a restored carrier through the public snapshot wrapper without an archived kernel identity', async () => {
     const data = dataset();
     const atlas = new AtlasCore({ kernel: bridge });
