@@ -306,6 +306,28 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('refuses a valid direct carrier embedded in a legacy V1 payload before replay', async () => {
+    const archive = await exportedDirectArchive();
+    const payload = NemosynePackageManager.unpack(archive);
+    const legacyPayload = {
+      ...payload,
+      manifest: {
+        ...payload.manifest,
+        formatVersion: 1,
+        investigationDigestAlgorithm: undefined,
+      },
+    };
+
+    const result = await new InvestigationReplayRunner(bridge).replayPayload(legacyPayload);
+
+    expect(result.success).toBe(false);
+    expect(result.directDistribution).toMatchObject({ status: 'REFUSED' });
+    expect(result.directDistribution?.status).not.toBe('VERIFIED');
+    expect(result.discrepancies.join(' ')).toContain(
+      'Format-v1 package cannot declare a direct-distribution carrier',
+    );
+  }, 60000);
+
   it('refuses dataset invalidation and keeps old packages on their existing path', async () => {
     const archive = await exportedDirectArchive();
     const payload = NemosynePackageManager.unpack(archive);

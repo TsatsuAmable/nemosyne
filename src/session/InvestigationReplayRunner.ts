@@ -528,6 +528,15 @@ export class InvestigationReplayRunner {
           ['Format-v1 package cannot declare an investigation digest algorithm'],
           { envelope: 'absent' });
       }
+      if (manifest.directDistributionDigest != null || directDistributionBytes) {
+        const reason = 'Format-v1 package cannot declare a direct-distribution carrier';
+        return this._failedResult(
+          manifest,
+          [reason],
+          { envelope: 'absent' },
+          { status: 'REFUSED', reason },
+        );
+      }
     } else if (isV2) {
       if (manifest.investigationDigestAlgorithm != null &&
           manifest.investigationDigestAlgorithm !== INVESTIGATION_DIGEST_ALGORITHM) {
