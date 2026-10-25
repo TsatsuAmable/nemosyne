@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import { makeKernelMockBridge } from './helpers/kernelMock.ts';
+import * as rustBridge from '../src/wasm/RuntimeBridge.ts';
+import { InlineAnalyticalPort } from '../src/atlas/ports/InlineAnalyticalPort.ts';
 import { NilExecutor, bindAtlasNilHandlers } from '../src/interaction/nil/index.ts';
 import { mountDesktopDirectLoopControls } from '../src/app/investigation/DesktopDirectLoopControls.ts';
 import { computeSnapshotId, type SemanticSnapshotV1 } from '../src/moneta/representation/SemanticSnapshotV1.ts';
@@ -59,6 +61,19 @@ function liveAtlas(): AtlasCore {
   ], rows));
   atlas.compileDirectEmbodiment({ snapshot: snapshot(atlas.dataset.fingerprint) });
   return atlas;
+}
+
+function commitDirectContext(atlas: AtlasCore): void {
+  atlas.commitInvestigationContext('fm2-runtime-turnover', {
+    schemaVersion: 2,
+    nodeId: 'fm2-runtime-turnover',
+    epistemicPurpose: 'CLAIM_BEARING',
+    intent: {
+      schemaVersion: 1,
+      researchQuestion: 'Inspect a direct empirical distribution',
+      currentTask: 'fm2-runtime-turnover',
+    },
+  });
 }
 
 afterEach(() => { document.body.replaceChildren(); });
@@ -205,4 +220,64 @@ describe('FM2 direct critique controls use the product NIL command path', () => 
     controls.dispose();
     disposeNil();
   });
+
+  it('revokes direct controls after execution-port turnover without changing recorded feedback links', async () => {
+    mountRail();
+    const atlas = new AtlasCore({ kernel: rustBridge });
+    const data = new Dataset('runtime-turnover', [
+      { name: 'val', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ val: index + 1 })));
+    atlas.loadDataset(data);
+    commitDirectContext(atlas);
+    const executor = new NilExecutor();
+    const disposeNil = bindAtlasNilHandlers(executor, atlas);
+    const controls = mountDesktopDirectLoopControls(atlas, executor);
+
+    try {
+      await atlas.compileDirectDistributionEmbodiment({
+        schemaVersion: 1,
+        candidateId: 'DISTRIBUTION_FIELD',
+        measureField: 'val',
+        histogramBinCount: 8,
+        ecdfKnotCount: 8,
+        quantileProbabilities: [0, 0.5, 1],
+      });
+      controls.refresh();
+      expect(document.getElementById('review-direct-critique')?.hasAttribute('disabled')).toBe(false);
+
+      const note = document.getElementById('review-direct-note') as HTMLTextAreaElement;
+      note.value = 'Record a feedback link before runtime turnover.';
+      document.getElementById('review-direct-critique')?.click();
+      await vi.waitFor(() => expect(atlas.getActiveDirectCompileResult()?.critiqueLedger).toHaveLength(1));
+      await vi.waitFor(() =>
+        expect(document.getElementById('review-direct-prefer')?.hasAttribute('disabled')).toBe(false),
+      );
+      (document.getElementById('review-direct-critique-id') as HTMLSelectElement).value =
+        atlas.getActiveDirectCompileResult()!.critiqueLedger[0]!.critiqueId;
+      document.getElementById('review-direct-prefer')?.click();
+      await vi.waitFor(() => expect(atlas.getDirectFeedbackLinks()).toHaveLength(1));
+      const linksBeforeTurnover = [...atlas.getDirectFeedbackLinks()];
+
+      atlas.setExecutionPort(new InlineAnalyticalPort(rustBridge));
+      controls.refresh();
+
+      expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
+      expect(document.getElementById('review-direct-critique')?.hasAttribute('disabled')).toBe(true);
+      expect(document.getElementById('review-direct-prefer')?.hasAttribute('disabled')).toBe(true);
+      expect(atlas.getDirectFeedbackLinks()).toEqual(linksBeforeTurnover);
+      expect(() => atlas.recordDirectLedgerCritique({
+        investigatorId: 'researcher',
+        targetElementId: 'stale-target',
+        targetPhenomenon: 'DISTRIBUTION',
+        critiqueKind: 'CUSTOM',
+        note: 'This must not append after turnover.',
+      })).toThrow('active direct snapshot is stale');
+      expect(() => atlas.resolveDirectAlternativeFromCritique(linksBeforeTurnover[0]!.critiqueId))
+        .toThrow('active direct snapshot is stale');
+    } finally {
+      controls.dispose();
+      disposeNil();
+      atlas.dispose();
+    }
+  }, 60000);
 });

@@ -2077,6 +2077,24 @@ export class AtlasCore {
     );
   }
 
+  /**
+   * Rust-issued direct snapshots are capabilities of one analytical runtime.
+   * The aggregate may retain its semantic result for inspection, but that
+   * result is not actionable after the execution port, generation, dataset,
+   * or kernel has turned over.
+   */
+  private _assertCurrentDirectRuntimeCapability(): void {
+    const snapshot = this._aggregate.getActiveDirectSnapshot();
+    if (
+      snapshot?.body.directDistributionReference !== undefined &&
+      !this._hasCurrentRuntimeIssuedDirectSnapshot(snapshot)
+    ) {
+      throw new Error(
+        '[AtlasCore] Direct interaction refused: active direct snapshot is stale for the current analytical runtime'
+      );
+    }
+  }
+
   compileDirectEmbodiment(options?: {
     readonly snapshot?: SemanticSnapshotV1;
     readonly analyticalEvidence?: {
@@ -2183,7 +2201,14 @@ export class AtlasCore {
   }
 
   getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {
-    return this._aggregate.getActiveDirectCompileResult();
+    const compilation = this._aggregate.getActiveDirectCompileResult();
+    if (!compilation) return undefined;
+    try {
+      this._assertCurrentDirectRuntimeCapability();
+    } catch {
+      return undefined;
+    }
+    return compilation;
   }
 
   getActiveDirectSnapshot(): SemanticSnapshotV1 | undefined {
@@ -2245,6 +2270,7 @@ export class AtlasCore {
     readonly critique: AttributableCritiqueV1;
     readonly compilation: DirectEmbodimentCompileResult;
   } {
+    this._assertCurrentDirectRuntimeCapability();
     return this._aggregate.recordDirectLedgerCritique(input);
   }
 
@@ -2270,6 +2296,7 @@ export class AtlasCore {
     readonly alternative: DirectEmbodimentCompileResult;
     readonly link: CritiqueAlternativeLinkV1;
   } {
+    this._assertCurrentDirectRuntimeCapability();
     return this._aggregate.resolveDirectAlternativeFromCritique(critiqueId, adjustment);
   }
 

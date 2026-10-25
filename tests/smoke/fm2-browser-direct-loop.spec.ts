@@ -76,11 +76,24 @@ test('normal Chromium completes the governed FM2 direct loop and replays its sav
   expect(payload.manifest.formatVersion).toBe(2);
   expect(payload.directDistributionBytes).toBeDefined();
   expect(payload.manifest.directDistributionDigest).toMatch(/^[a-f0-9]{64}$/);
+  const directCarrier = JSON.parse(strFromU8(payload.directDistributionBytes!)) as {
+    binding: {
+      consumerId: string;
+      receiptId: string;
+      sourceDigest: string;
+    };
+  };
+  expect(directCarrier.binding.consumerId).toBe('nemosyne:consumer/direct-distribution/v1');
+  expect(directCarrier.binding.receiptId).toMatch(/^direct-distribution:[a-f0-9]{64}$/);
+  expect(directCarrier.binding.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
   const savedSnapshot = JSON.parse(
     strFromU8(payload.extraFiles!['continuity/session-v2.json']!),
   ) as NemosyneSessionJSON;
   expect(typeof savedSnapshot.directDistributionSnapshot).toBe('string');
   await expect(page.locator('#continuity-feedback')).toContainText('Portable investigation ready');
+
+  await page.locator('#continuity-save-now').click();
+  await expect(page.locator('#continuity-feedback')).toContainText('Investigation saved locally');
 
   const savedDatasetLabel = await page.locator('#dataset-indicator').textContent();
   await page.locator('#action-load-sample').click();
@@ -104,6 +117,14 @@ test('normal Chromium completes the governed FM2 direct loop and replays its sav
   await openPortableThroughVisibleShell(page, packageBytes);
   await expect(page.locator('#continuity-feedback'))
     .toContainText('Replay verified', { timeout: 20_000 });
+  await expect(page.locator('#continuity-feedback'))
+    .toContainText('direct distribution attested');
+  await expect(page.locator('#continuity-feedback'))
+    .toContainText(`consumer ${directCarrier.binding.consumerId}`);
+  await expect(page.locator('#continuity-feedback'))
+    .toContainText(`receipt ${directCarrier.binding.receiptId}`);
+  await expect(page.locator('#continuity-feedback'))
+    .toContainText(`source ${directCarrier.binding.sourceDigest}`);
   await expect(page.locator('#continuity-feedback'))
     .toContainText('Investigation opened and resumable');
   await expect(page.locator('#review-direct-action-state'))

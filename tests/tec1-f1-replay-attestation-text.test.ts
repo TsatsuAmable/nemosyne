@@ -38,6 +38,25 @@ describe('F1 falsifier 10: the surfacing layer cannot overclaim what was enforce
     expect(message).toBe('Replay verified (4 events)');
   });
 
+  it('surfaces the direct replay consumer, receipt, and source identities', () => {
+    const message = replayVerifiedMessage(
+      replayResultDouble({
+        eventsMatched: 4,
+        directDistribution: {
+          status: 'VERIFIED',
+          consumerId: 'nemosyne:consumer/direct-distribution/v1',
+          receiptId: 'direct-distribution:receipt',
+          sourceDigest: 'source-digest',
+        },
+      }),
+    );
+
+    expect(message).toContain('direct distribution attested');
+    expect(message).toContain('consumer nemosyne:consumer/direct-distribution/v1');
+    expect(message).toContain('receipt direct-distribution:receipt');
+    expect(message).toContain('source source-digest');
+  });
+
   it('never renders a governed envelope as a bare verified', () => {
     const message = replayVerifiedMessage(
       replayResultDouble({
