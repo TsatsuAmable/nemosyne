@@ -8,6 +8,8 @@ import type { DistributionEmbodimentRequestV1 } from './SemanticEmbodimentPayloa
 export const DIRECT_DISTRIBUTION_CONSUMER_ID_V1 =
   'nemosyne:consumer/direct-distribution/v1' as const;
 
+const runtimeIssuedDirectDistributionBindings = new WeakSet<object>();
+
 /**
  * Rust single-pass evidence binding, NOT a general V3 statistics receipt or
  * an authorized persisted replay use. Parsing serialized JSON cannot grant a
@@ -25,6 +27,15 @@ export interface DirectDistributionBindingV1 {
   readonly sourceJson: string;
   readonly receiptId: string;
   readonly source: SemanticEmbodimentEnvelopeV1;
+}
+
+/**
+ * This is intentionally only a predicate. The membership is granted inside
+ * request-bound transport verification after a port has checked the injected
+ * Rust producer result; parsing or replay-carrier validation never grants it.
+ */
+export function isRuntimeIssuedDirectDistributionBindingV1(binding: object): boolean {
+  return runtimeIssuedDirectDistributionBindings.has(binding);
 }
 
 function requestRecord(request: DistributionEmbodimentRequestV1): Record<string, unknown> {
@@ -172,7 +183,9 @@ export function verifyTransportedDirectDistributionBindingV1(
   if (JSON.stringify(validated.source) !== JSON.stringify(value.source)) {
     throw new Error('[DirectDistributionBinding] Transported source differs from kernel bytes');
   }
-  return request === undefined
-    ? validated
-    : verifyDirectDistributionBindingRequestV1(validated, request);
+  if (request === undefined) return validated;
+
+  const requestVerified = verifyDirectDistributionBindingRequestV1(validated, request);
+  runtimeIssuedDirectDistributionBindings.add(requestVerified);
+  return requestVerified;
 }

@@ -9,6 +9,8 @@ import type { DirectDistributionBindingV1 } from '../src/moneta/representation/D
 import type { DistributionEmbodimentRequestV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 import { verifyTransportedDirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
 import { buildDirectDistributionBindingV1 } from '../src/wasm/runtime/SemanticEmbodimentBridge.ts';
+import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
+import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
 
 function dataset(): Dataset {
   return new Dataset('fm2-worker-real-rust', [
@@ -82,6 +84,17 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       expect(() => atlas.compileDirectEmbodiment({ snapshot: callerSuppliedSnapshot })).toThrow(
         'runtime-issued direct-distribution admission'
       );
+
+      const formaOutcome = compileFormaSpatialSlice(
+        callerSuppliedSnapshot,
+        atlas.getActiveInvestigationContext()!,
+        createKB0Manifest(),
+      );
+      expect(formaOutcome.status).toBe('REFUSED');
+      if (formaOutcome.status === 'REFUSED') {
+        expect(formaOutcome.refusal.code).toBe('UNTRUSTED_DECODING');
+        expect(formaOutcome.refusal.message).toContain('runtime-issued admission capability');
+      }
     } finally {
       bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
     }

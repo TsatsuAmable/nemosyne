@@ -1,6 +1,7 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
 import {
   type SemanticSnapshotV1,
+  isRuntimeIssuedDirectDistributionSnapshot,
   validateSemanticSnapshot,
 } from '../representation/SemanticSnapshotV1.js';
 import {
@@ -111,6 +112,19 @@ export function compileFormaAdmission(
       refusal: {
         code: 'UNTRUSTED_DECODING',
         message: `Semantic snapshot decoding or validation failed: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    };
+  }
+
+  if (
+    snapshot.body.directDistributionReference !== undefined &&
+    !isRuntimeIssuedDirectDistributionSnapshot(snapshot)
+  ) {
+    return {
+      status: 'REFUSED',
+      refusal: {
+        code: 'UNTRUSTED_DECODING',
+        message: 'Direct-distribution snapshot lacks runtime-issued admission capability',
       },
     };
   }

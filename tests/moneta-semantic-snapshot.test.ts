@@ -179,28 +179,20 @@ describe('SemanticSnapshotV1', () => {
     expect(() => validateSemanticSnapshot(tamperedSnapshot)).toThrow(/Snapshot ID mismatch/);
   });
 
-  it('normalizes a verified direct binding with its fixed kernel-issued reference', () => {
+  it('refuses a caller-authored direct binding before it can become a Forma-admissible snapshot', () => {
     const binding = directBinding();
-    const snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
 
-    expect(snapshot.body.directDistributionReference).toEqual({
-      schemaVersion: '1',
-      consumerId: DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
-      requirementProfileId: DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1.profileId,
-      claimKind: 'DESCRIPTIVE_EMPIRICAL_DISTRIBUTION',
-      datasetFingerprint: binding.datasetFingerprint,
-      kernelVersion: binding.kernelVersion,
-      sourceId: snapshot.body.directDistributionReference!.sourceId,
-    });
-    expect(snapshot.body.sources[0].evidenceReferences).toEqual([]);
-    expect(() => validateSemanticSnapshot(snapshot)).not.toThrow();
-    expect(normalizeDirectDistributionBindingToSnapshot(binding)).toEqual(snapshot);
+    expect(() => normalizeDirectDistributionBindingToSnapshot(binding)).toThrow(
+      'runtime-issued port admission',
+    );
   });
 
-  it('refuses a direct binding whose fixed consumer identity is substituted', () => {
+  it('refuses an unadmitted direct binding before accepting substituted identity fields', () => {
     const binding = directBinding({ consumerId: 'nemosyne:consumer/not-direct/v1' as typeof DIRECT_DISTRIBUTION_CONSUMER_ID_V1 });
 
-    expect(() => normalizeDirectDistributionBindingToSnapshot(binding)).toThrow(/Consumer\/profile\/claim authority mismatch/);
+    expect(() => normalizeDirectDistributionBindingToSnapshot(binding)).toThrow(
+      'runtime-issued port admission',
+    );
   });
 
   it('keeps legacy snapshots free of a direct-distribution reference', () => {

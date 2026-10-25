@@ -4,6 +4,7 @@ import type {
 } from './SemanticEmbodimentPayload.js';
 import {
   DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
+  isRuntimeIssuedDirectDistributionBindingV1,
   verifyTransportedDirectDistributionBindingV1,
   type DirectDistributionBindingV1,
 } from './DirectDistributionBindingV1.js';
@@ -122,6 +123,16 @@ export interface SemanticSnapshotV1 {
   readonly schemaVersion: typeof SEMANTIC_SNAPSHOT_SCHEMA_VERSION;
   readonly snapshotId: string;
   readonly body: SemanticSnapshotBodyV1;
+}
+
+// Snapshot object identity is the live admission capability; the stored ID
+// also detects in-place mutation followed by recomputing a self-consistent ID.
+const runtimeIssuedDirectDistributionSnapshots = new WeakMap<object, string>();
+
+export function isRuntimeIssuedDirectDistributionSnapshot(snapshot: object): boolean {
+  const issuedSnapshotId = runtimeIssuedDirectDistributionSnapshots.get(snapshot);
+  return issuedSnapshotId !== undefined &&
+    issuedSnapshotId === (snapshot as SemanticSnapshotV1).snapshotId;
 }
 
 /** Helper to compute H(tag, body) = tag + ':' + canonicalSha256Hex({ tag, body }) */
@@ -455,11 +466,16 @@ export function normalizeEnvelopeToSnapshot(
 export function normalizeDirectDistributionBindingToSnapshot(
   binding: DirectDistributionBindingV1,
 ): SemanticSnapshotV1 {
+  if (!isRuntimeIssuedDirectDistributionBindingV1(binding)) {
+    throw new Error(
+      '[SemanticSnapshot] Direct distribution binding lacks runtime-issued port admission'
+    );
+  }
   const verified = verifyTransportedDirectDistributionBindingV1(binding, {
     datasetFingerprint: binding.datasetFingerprint,
     kernelVersion: binding.kernelVersion,
   });
-  return normalizeEnvelopeToSnapshotInternal(verified.source, [], {
+  const snapshot = normalizeEnvelopeToSnapshotInternal(verified.source, [], {
     schemaVersion: verified.schemaVersion,
     consumerId: verified.consumerId,
     requirementProfileId: verified.requirementProfileId,
@@ -467,6 +483,8 @@ export function normalizeDirectDistributionBindingToSnapshot(
     datasetFingerprint: verified.datasetFingerprint,
     kernelVersion: verified.kernelVersion,
   });
+  runtimeIssuedDirectDistributionSnapshots.set(snapshot, snapshot.snapshotId);
+  return snapshot;
 }
 
 /**
