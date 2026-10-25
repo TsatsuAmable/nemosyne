@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { ColumnType, Dataset } from '../src/data/Dataset.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
@@ -164,6 +165,27 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('exports a restored carrier through the public snapshot wrapper without an archived kernel identity', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    const session = new NemosyneSession({ atlas });
+    try {
+      await session.captureDirectDistributionBinding(request);
+      const archive = await NemosyneSession.exportPortableSnapshot(
+        session.serialize(),
+        {},
+        undefined,
+        { directDistributionBinding: true },
+      );
+      const payload = NemosynePackageManager.unpack(archive);
+      expect(payload.directDistributionBytes).toBeDefined();
+      expect(payload.manifest.directDistributionDigest).toMatch(/^[a-f0-9]{64}$/);
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
+
   it('replays the exported carrier through the real Rust implementation path', async () => {
     const data = dataset();
     const atlas = new AtlasCore({ kernel: bridge });
@@ -304,6 +326,22 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
       expect(result.directDistribution?.status).toBe('REFUSED');
       expect(result.discrepancies.join(' ')).toContain(`request.${field} must be a string when present`);
     }
+  }, 60000);
+
+  it('rejects a reserved direct-carrier entry without a manifest digest during archive replay', async () => {
+    const archive = await exportedDirectArchive();
+    const files = unzipSync(archive);
+    const manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(files['manifest.json'])) as Record<string, unknown>;
+    delete manifest.directDistributionDigest;
+
+    const malformedArchive = zipSync({
+      ...files,
+      'manifest.json': strToU8(JSON.stringify(manifest)),
+    });
+
+    await expect(
+      new InvestigationReplayRunner(bridge).replayArchive(malformedArchive),
+    ).rejects.toThrow('Direct-distribution bytes require directDistributionDigest');
   }, 60000);
 
   it('refuses a valid direct carrier embedded in a legacy V1 payload before replay', async () => {

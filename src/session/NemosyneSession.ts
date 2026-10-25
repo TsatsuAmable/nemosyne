@@ -712,7 +712,7 @@ export class NemosyneSession {
       .find((result) => typeof result.implementationVersion === 'string')
       ?.implementationVersion;
     const archivedKernelVersion =
-      json.representationDecision?.kernelVersion ?? lastImplementationVersion ?? 'unknown';
+      json.representationDecision?.kernelVersion ?? lastImplementationVersion;
     return session.exportPortablePackage(
       environment,
       replayKernelVersionOverride ?? archivedKernelVersion,

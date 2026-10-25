@@ -503,9 +503,7 @@ export class NemosynePackageManager {
       ? finalFiles[EVIDENCE_RECEIPTS_ENTRY] : undefined;
     assertEvidenceContract(manifestResult.output, evidenceReceiptBytes);
 
-    const directDistributionBytes = manifestResult.output.directDistributionDigest == null
-      ? undefined
-      : finalFiles[DIRECT_DISTRIBUTION_ENTRY];
+    const directDistributionBytes = finalFiles[DIRECT_DISTRIBUTION_ENTRY];
     assertDirectDistributionContract(manifestResult.output, directDistributionBytes);
 
     const formaInvestigationBytes = manifestResult.output.formatVersion === FORMA_PACKAGE_FORMAT_VERSION
