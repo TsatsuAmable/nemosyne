@@ -52,12 +52,17 @@ class ThreadedWorkerTransport implements WorkerTransport {
   readonly posted: unknown[] = [];
   readonly received: unknown[] = [];
   holdResult: ((deliver: () => void) => void) | null = null;
+  mutateResult: ((result: Record<string, unknown>) => Record<string, unknown>) | null = null;
   terminated = false;
 
   constructor(readonly worker: Worker) {
     worker.on('message', (data) => {
       this.received.push(data);
-      const deliver = () => this.onmessage?.({ data } as MessageEvent);
+      const deliveredData =
+        data?.type === 'RESULT' && data.result && this.mutateResult
+          ? { ...data, result: this.mutateResult(data.result as Record<string, unknown>) }
+          : data;
+      const deliver = () => this.onmessage?.({ data: deliveredData } as MessageEvent);
       if (data?.type === 'RESULT' && this.holdResult) {
         this.holdResult(deliver);
       } else {
@@ -330,6 +335,40 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('uses the direct carrier identity after a stale representation decision and dataset mutation', async () => {
+    const dataA = dataset();
+    const dataB = new Dataset(
+      'fm2-replay-mutated',
+      [{ name: 'x', type: ColumnType.NUMERIC }],
+      Array.from({ length: 32 }, (_, index) => ({ x: index + 100.5 })),
+    );
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataA);
+    const decision = atlas.arbitrateRepresentation();
+    expect(decision.datasetFingerprint).toBe(dataA.fingerprint);
+    atlas.loadDataset(dataB);
+    expect(atlas.datasetFingerprint).toBe(dataB.fingerprint);
+    expect(atlas.activeRepresentationDecision?.datasetFingerprint).toBe(dataA.fingerprint);
+
+    try {
+      const session = new NemosyneSession({ atlas });
+      await expect(session.captureDirectDistributionBinding(request)).resolves.not.toBeNull();
+      const snapshot = session.serialize();
+      const restored = NemosyneSession.deserialize(snapshot, new AtlasCore({ kernel: null }));
+      const archive = await restored.exportPortablePackage({}, undefined, {
+        directDistributionBinding: true,
+      });
+      const payload = NemosynePackageManager.unpack(archive);
+      expect(payload.manifest.analyticalDatasetFingerprint).toBe(dataB.fingerprint);
+
+      const replayed = await new InvestigationReplayRunner(bridge).replayArchive(archive);
+      expect(replayed.success).toBe(true);
+      expect(replayed.directDistribution).toMatchObject({ status: 'VERIFIED' });
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
+
   it('captures through a production Worker session, restores, exports, and replays in fresh Rust', async () => {
     const { transport, atlas, session } = await workerSession();
     let archive: Uint8Array;
@@ -361,6 +400,36 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     expect(replayed.success).toBe(true);
     expect(replayed.discrepancies).toEqual([]);
     expect(replayed.directDistribution).toMatchObject({ status: 'VERIFIED' });
+  }, 60000);
+
+  it('refuses a Worker binding whose claim disagrees with independent kernel provenance', async () => {
+    const transport = await startWorkerThread();
+    await awaitHostReady(transport.worker);
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataset());
+    transport.mutateResult = (result) => {
+      const value = objectRecord(result.value);
+      const source = objectRecord(JSON.parse(String(value.sourceJson)));
+      const sourceProvenance = objectRecord(source.provenance);
+      const forgedKernelVersion = 'forged-worker-kernel';
+      sourceProvenance.kernelVersion = forgedKernelVersion;
+      value.kernelVersion = forgedKernelVersion;
+      value.sourceJson = JSON.stringify(source);
+      value.sourceDigest = sha256Hex(String(value.sourceJson));
+      value.receiptId = `direct-distribution:${String(value.sourceDigest)}`;
+      value.source = source;
+      return { ...result, value };
+    };
+    atlas.setExecutionPort(new WorkerAnalyticalPort(transport));
+
+    try {
+      await expect(atlas.captureDirectDistributionBinding(request)).rejects.toThrow(
+        'independent kernel provenance',
+      );
+    } finally {
+      atlas.dispose();
+      transport.terminate();
+    }
   }, 60000);
 
   it('refuses a stale Worker capture during real worker recycle and requires fresh registration', async () => {

@@ -540,6 +540,12 @@ export class NemosyneSession {
       );
     }
 
+    // A direct carrier has already been checked against the current analytical
+    // state above. Its identity must therefore outrank historical
+    // representation/NIL provenance, which can survive a dataset mutation.
+    const directDistributionIdentity =
+      directDistributionBytes === undefined ? null : this._directDistributionIdentity;
+
     const investigationDigest = await this._atlas.aggregate.computeDigest(
       governedBundleIdentity ? governedBundleIdentity.kernelVersion : kernelVersion,
       {
@@ -581,17 +587,23 @@ export class NemosyneSession {
       sessionId: this._sessionId,
       datasetFingerprint: originalDatasetFingerprint,
       datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
-      analyticalDatasetFingerprint: (governedBundleIdentity || isV4)
-        ? (governedBundleIdentity?.datasetFingerprint ?? originalDatasetFingerprint)
-        : (representationDecision?.datasetFingerprint ??
-          nilProvenance?.datasetFingerprint ??
-          core.datasetFingerprint ??
-          originalDatasetFingerprint),
+      analyticalDatasetFingerprint:
+        governedBundleIdentity?.datasetFingerprint ??
+        directDistributionIdentity?.datasetFingerprint ??
+        (isV4
+          ? originalDatasetFingerprint
+          : (representationDecision?.datasetFingerprint ??
+            nilProvenance?.datasetFingerprint ??
+            core.datasetFingerprint ??
+            originalDatasetFingerprint)),
       datasetName: originalDataset.name,
       kernelVersion,
-      analyticalKernelVersion: (governedBundleIdentity || isV4 || directDistributionBytes !== undefined)
-        ? (governedBundleIdentity?.kernelVersion ?? this._directDistributionIdentity?.kernelVersion ?? kernelVersion)
-        : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion),
+      analyticalKernelVersion:
+        governedBundleIdentity?.kernelVersion ??
+        directDistributionIdentity?.kernelVersion ??
+        (isV4
+          ? kernelVersion
+          : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion)),
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,

@@ -458,6 +458,12 @@ pub fn moneta_prepare_direct_distribution_binding_v1(
         let input = copy_host_input(input_ptr, input_len)?;
         let request: DistributionEmbodimentRequestV1 = serde_json::from_slice(&input).ok()?;
         let binding = build_direct_distribution_binding_v1(handle, &request)?;
+        crate::data::provenance::record(
+            "direct_distribution_binding",
+            serde_json::to_value(&request).ok()?,
+            &binding.dataset_fingerprint,
+            &binding.source_digest,
+        );
         serde_json::to_string(&binding).ok()
     })
 }
