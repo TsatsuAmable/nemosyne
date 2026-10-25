@@ -431,6 +431,77 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('revokes a stale direct carrier after an async Worker mutation and reissues only for the new state', async () => {
+    const { transport, atlas, session } = await workerSession();
+    atlas.commitInvestigationContext('fm2-async-invalidation', {
+      schemaVersion: 2,
+      nodeId: 'fm2-async-invalidation',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Reject stale direct-distribution authority after async mutation',
+        currentTask: 'fm2-async-invalidation',
+      },
+    });
+    const originalFingerprint = atlas.datasetFingerprint;
+    try {
+      await atlas.compileDirectDistributionEmbodiment(request);
+      const staleSnapshot = atlas.getActiveDirectSnapshot()!;
+      const originalVersion = atlas.datasetVersion;
+
+      const transformed = await atlas.applyAnalysisAsync(
+        toAnalysisSpec('filter', atlas.dataset!, atlas),
+      );
+      expect(transformed.datasetFingerprint).not.toBe(originalFingerprint);
+      expect(atlas.datasetVersion).toBeGreaterThan(originalVersion);
+      expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+
+      const context = atlas.getActiveInvestigationContext()!;
+      const staleAdmission = compileFormaAdmission(staleSnapshot, context);
+      expect(staleAdmission.status).toBe('REFUSED');
+      const staleSpatial = compileFormaSpatialSlice(
+        staleSnapshot,
+        context,
+        createKB0Manifest(),
+        'SPATIAL_SCATTER_V1',
+      );
+      expect(staleSpatial.status).toBe('REFUSED');
+
+      await atlas.compileDirectDistributionEmbodiment(request);
+      const freshSnapshot = atlas.getActiveDirectSnapshot()!;
+      expect(freshSnapshot).not.toBe(staleSnapshot);
+      expect(freshSnapshot.body.analyticalDatasetFingerprint).toBe(atlas.datasetFingerprint);
+      expect(compileFormaAdmission(freshSnapshot, context).status).toBe('ADMITTED');
+      expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
+
+      const otherAtlas = new AtlasCore({ kernel: bridge });
+      otherAtlas.loadDataset(dataset());
+      expect(() => otherAtlas.compileDirectEmbodiment({ snapshot: freshSnapshot })).toThrow(
+        'runtime-issued direct-distribution admission',
+      );
+      otherAtlas.dispose();
+
+      const bVersion = atlas.datasetVersion;
+      atlas.resetAnalysis();
+      expect(atlas.datasetFingerprint).toBe(originalFingerprint);
+      expect(atlas.datasetVersion).toBeGreaterThan(bVersion);
+      expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+      expect(compileFormaAdmission(freshSnapshot, context).status).toBe('REFUSED');
+
+      await atlas.compileDirectDistributionEmbodiment(request);
+      const roundTripSnapshot = atlas.getActiveDirectSnapshot()!;
+      expect(roundTripSnapshot.body.analyticalDatasetFingerprint).toBe(originalFingerprint);
+      expect(compileFormaAdmission(roundTripSnapshot, context).status).toBe('ADMITTED');
+
+      const currentContext = atlas.getActiveInvestigationContext()!;
+      atlas.dispose();
+      expect(compileFormaAdmission(roundTripSnapshot, currentContext).status).toBe('REFUSED');
+    } finally {
+      atlas.dispose();
+      transport.terminate();
+    }
+  }, 60000);
+
   it('exports a restored carrier through the public snapshot wrapper without an archived kernel identity', async () => {
     const data = dataset();
     const atlas = new AtlasCore({ kernel: bridge });

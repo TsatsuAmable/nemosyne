@@ -975,10 +975,6 @@ export class AtlasCore {
       );
     }
     this._requireCurrentAnalysisFingerprint(spec, 'sync');
-    // A successful analytical transition creates a new live dataset state;
-    // any direct-distribution capture belongs to the prior state, even when a
-    // later reset happens to restore the same fingerprint.
-    this._clearRuntimeIssuedDirectSnapshots();
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
@@ -1010,6 +1006,12 @@ export class AtlasCore {
         },
         (handle: number) => this._analytics.destroyDataset(handle)
       );
+      // Revoke only after the authoritative analytical commit succeeds. A
+      // refused operation leaves the prior dataset state and its capture
+      // capability intact; a committed transition invalidates every prior
+      // direct-distribution snapshot, even if a later reset restores its
+      // fingerprint.
+      this._clearRuntimeIssuedDirectSnapshots();
       this._setWorkerPayloadFromDataset(nextDataset);
     } catch (err) {
       this._analytics.destroyDataset(outHandle);
@@ -1241,6 +1243,10 @@ export class AtlasCore {
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );
+    // The async Worker result is now the committed analytical state. Revoke
+    // the prior direct-distribution capability only at this point so a
+    // refused/superseded operation cannot clear an otherwise current capture.
+    this._clearRuntimeIssuedDirectSnapshots();
     this._executionPort.supersede({
       generation: this._generation,
       datasetVersion: this.datasetVersion,

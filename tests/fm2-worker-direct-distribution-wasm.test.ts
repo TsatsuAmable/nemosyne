@@ -14,6 +14,7 @@ import { sha256Hex } from '../src/security/CryptoHash.ts';
 import { compileFormaAdmission } from '../src/moneta/forma/FormaAdmission.ts';
 import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
 import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
+import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 
 function dataset(): Dataset {
   return new Dataset('fm2-worker-real-rust', [
@@ -362,10 +363,30 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       commitContext(atlas);
       const compiled = await atlas.compileDirectDistributionEmbodiment(params);
       expect(compiled.plan.planId).toMatch(/^plan-direct-/);
-      expect(atlas.getActiveDirectSnapshot()?.body.directDistributionReference).toMatchObject({
+      const staleSnapshot = atlas.getActiveDirectSnapshot()!;
+      expect(staleSnapshot.body.directDistributionReference).toMatchObject({
         consumerId: 'nemosyne:consumer/direct-distribution/v1',
         datasetFingerprint: data.fingerprint,
       });
+
+      const transformed = await atlas.applyAnalysisAsync(
+        toAnalysisSpec('filter', atlas.dataset!, atlas),
+      );
+      expect(transformed.datasetFingerprint).not.toBe(data.fingerprint);
+      expect(atlas.datasetVersion).toBeGreaterThan(1);
+
+      const context = atlas.getActiveInvestigationContext()!;
+      expect(compileFormaAdmission(staleSnapshot, context).status).toBe('REFUSED');
+      expect(
+        compileFormaSpatialSlice(staleSnapshot, context, createKB0Manifest()).status,
+      ).toBe('REFUSED');
+
+      const freshCompiled = await atlas.compileDirectDistributionEmbodiment(params);
+      const freshSnapshot = atlas.getActiveDirectSnapshot()!;
+      expect(freshCompiled.plan.planId).toMatch(/^plan-direct-/);
+      expect(freshSnapshot).not.toBe(staleSnapshot);
+      expect(freshSnapshot.body.analyticalDatasetFingerprint).toBe(atlas.datasetFingerprint);
+      expect(compileFormaAdmission(freshSnapshot, context).status).toBe('ADMITTED');
 
       const refused = await port.execute<DirectDistributionBindingV1>({
         ...request(data.fingerprint), requestId: 'fm2-invalid-measure',
@@ -382,6 +403,17 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       port.supersede({ generation: 2, datasetVersion: 2, datasetFingerprint: 'new-data' });
       await expect(port.execute(request(data.fingerprint))).resolves.toMatchObject({ value: null });
       await expect(port.execute(request('new-data', 2, 2))).rejects.toThrow('not registered');
+
+      const otherAtlas = new AtlasCore({ kernel: bridge });
+      otherAtlas.loadDataset(data);
+      expect(() => otherAtlas.compileDirectEmbodiment({ snapshot: freshSnapshot })).toThrow(
+        'runtime-issued direct-distribution admission',
+      );
+      otherAtlas.dispose();
+
+      const freshContext = atlas.getActiveInvestigationContext()!;
+      atlas.dispose();
+      expect(compileFormaAdmission(freshSnapshot, freshContext).status).toBe('REFUSED');
       port.dispose();
     } finally {
       vi.stubGlobal('self', previousSelf);
