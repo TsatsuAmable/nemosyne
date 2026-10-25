@@ -84,6 +84,19 @@ function payloadWithCarrierMutation(
   };
 }
 
+function payloadWithManifestMutation(
+  archive: Uint8Array,
+  mutate: (manifest: Record<string, unknown>) => void,
+): ReturnType<typeof NemosynePackageManager.unpack> {
+  const payload = NemosynePackageManager.unpack(archive);
+  const manifest = { ...payload.manifest } as Record<string, unknown>;
+  mutate(manifest);
+  return {
+    ...payload,
+    manifest: manifest as typeof payload.manifest,
+  };
+}
+
 describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
   beforeAll(async () => {
     if (!bridge.isReady()) await bridge.initRuntime('/wasm/pkg/nemosyne_wasm_bg.wasm');
@@ -232,6 +245,28 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
       success: false,
       directDistribution: { status: 'REFUSED' },
     });
+  }, 60000);
+
+  it('refuses empty or missing manifest kernel identities before direct replay', async () => {
+    const archive = await exportedDirectArchive();
+    const cases = [
+      ['empty kernelVersion', (manifest: Record<string, unknown>) => { manifest.kernelVersion = ''; }],
+      ['missing kernelVersion', (manifest: Record<string, unknown>) => { delete manifest.kernelVersion; }],
+      ['empty analyticalKernelVersion', (manifest: Record<string, unknown>) => { manifest.analyticalKernelVersion = ''; }],
+      ['missing analyticalKernelVersion', (manifest: Record<string, unknown>) => { delete manifest.analyticalKernelVersion; }],
+    ] as const;
+
+    for (const [name, mutate] of cases) {
+      const payload = payloadWithManifestMutation(archive, mutate);
+      expect(() => NemosynePackageManager.pack(payload), name).toThrow();
+
+      const result = await new InvestigationReplayRunner(bridge).replayPayload(payload);
+      expect(result.success, name).toBe(false);
+      expect(result.directDistribution, name).toMatchObject({ status: 'REFUSED' });
+      expect(result.discrepancies.join(' '), name).toContain(
+        'Direct-distribution carrier requires explicit non-empty kernel identities',
+      );
+    }
   }, 60000);
 
   it('refuses a rehashed forged source instead of trusting the carrier digest', async () => {

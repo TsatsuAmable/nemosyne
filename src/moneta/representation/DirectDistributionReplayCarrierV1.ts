@@ -211,11 +211,14 @@ export function parseDirectDistributionReplayCarrierV1(
     'binding',
   );
   const claimed = expectedIdentity(rawBinding, 'binding');
-  const replayIdentity = expected?.kernelVersion
-    ? { datasetFingerprint: expected.datasetFingerprint, kernelVersion: expected.kernelVersion }
+  const replayIdentity = expected
+    ? {
+        datasetFingerprint: stringIdentity(expected.datasetFingerprint, 'expected.datasetFingerprint'),
+        kernelVersion: stringIdentity(expected.kernelVersion, 'expected.kernelVersion'),
+      }
     : claimed;
   const binding = parseDirectDistributionBindingV1(rawBinding, replayIdentity);
-  if (expected && expected.kernelVersion && (binding.datasetFingerprint !== expected.datasetFingerprint || binding.kernelVersion !== expected.kernelVersion)) {
+  if (expected && (binding.datasetFingerprint !== replayIdentity.datasetFingerprint || binding.kernelVersion !== replayIdentity.kernelVersion)) {
     throw new Error('[DirectDistributionReplay] carrier identity does not match expected identity');
   }
   const use = parseUse(outer.use, binding);

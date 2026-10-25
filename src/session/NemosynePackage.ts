@@ -263,6 +263,15 @@ function assertDirectDistributionContract(
   if (manifest.formatVersion < NEMOSYNE_PACKAGE_FORMAT_VERSION) {
     throw new Error('Direct-distribution carrier requires a canonical format-v2-or-newer package');
   }
+  if (
+    typeof manifest.kernelVersion !== 'string' || manifest.kernelVersion.length === 0 ||
+    typeof manifest.analyticalKernelVersion !== 'string' || manifest.analyticalKernelVersion.length === 0
+  ) {
+    throw new Error('Direct-distribution carrier requires explicit non-empty kernel identities');
+  }
+  if (manifest.kernelVersion !== manifest.analyticalKernelVersion) {
+    throw new Error('Direct-distribution carrier kernel identities do not correspond');
+  }
   if (!/^[0-9a-f]{64}$/.test(manifest.directDistributionDigest)) {
     throw new Error('directDistributionDigest must be a lowercase SHA-256 digest');
   }
@@ -274,7 +283,7 @@ function assertDirectDistributionContract(
     JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)),
     {
       datasetFingerprint: manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint,
-      kernelVersion: manifest.analyticalKernelVersion ?? manifest.kernelVersion,
+      kernelVersion: manifest.kernelVersion,
     },
   );
 }

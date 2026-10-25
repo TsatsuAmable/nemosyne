@@ -589,8 +589,8 @@ export class NemosyneSession {
           originalDatasetFingerprint),
       datasetName: originalDataset.name,
       kernelVersion,
-      analyticalKernelVersion: (governedBundleIdentity || isV4)
-        ? (governedBundleIdentity?.kernelVersion ?? kernelVersion)
+      analyticalKernelVersion: (governedBundleIdentity || isV4 || directDistributionBytes !== undefined)
+        ? (governedBundleIdentity?.kernelVersion ?? this._directDistributionIdentity?.kernelVersion ?? kernelVersion)
         : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion),
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,

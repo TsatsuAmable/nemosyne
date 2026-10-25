@@ -558,6 +558,27 @@ export class InvestigationReplayRunner {
         : { envelope: 'absent' };
     let directCarrier: DirectDistributionReplayCarrierV1 | null = null;
     if (manifest.directDistributionDigest != null) {
+      if (
+        typeof manifest.kernelVersion !== 'string' || manifest.kernelVersion.length === 0 ||
+        typeof manifest.analyticalKernelVersion !== 'string' || manifest.analyticalKernelVersion.length === 0
+      ) {
+        const reason = 'Direct-distribution carrier requires explicit non-empty kernel identities';
+        return this._failedResult(
+          manifest,
+          [reason],
+          directEvidenceState('not-established'),
+          { status: 'REFUSED', reason },
+        );
+      }
+      if (manifest.kernelVersion !== manifest.analyticalKernelVersion) {
+        const reason = 'Direct-distribution carrier kernel identities do not correspond';
+        return this._failedResult(
+          manifest,
+          [reason],
+          directEvidenceState('not-established'),
+          { status: 'REFUSED', reason },
+        );
+      }
       if (!directDistributionBytes) {
         return this._failedResult(
           manifest,
@@ -574,7 +595,7 @@ export class InvestigationReplayRunner {
           JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(directDistributionBytes)),
           {
             datasetFingerprint: manifest.analyticalDatasetFingerprint ?? manifest.datasetFingerprint,
-            kernelVersion: manifest.analyticalKernelVersion ?? manifest.kernelVersion,
+            kernelVersion: manifest.kernelVersion,
           },
         );
       } catch (error) {
