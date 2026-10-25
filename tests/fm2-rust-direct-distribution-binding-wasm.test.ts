@@ -55,6 +55,9 @@ describe('FM2 kernel-issued direct distribution binding v1, real WASM', () => {
         .toBe(DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1);
       expect(first!.datasetFingerprint).toBe(atlas.datasetFingerprint);
       expect(first!.kernelVersion).toBe(bridge.kernelVersion());
+      expect(first!.source.analyticalMethod.parameters).toMatchObject({
+        request,
+      });
 
       // Same Rust dataset, different bounded analytical request. The binding
       // cannot be carried forward onto an alternative geometry.

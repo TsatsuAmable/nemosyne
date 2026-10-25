@@ -24,6 +24,7 @@ import { datasetFingerprint } from './DatasetHandleBridge.ts';
 import { kernelVersion } from './KernelContractBridge.ts';
 import {
   parseDirectDistributionBindingV1,
+  verifyDirectDistributionBindingRequestV1,
   type DirectDistributionBindingV1,
 } from '../../moneta/representation/DirectDistributionBindingV1.ts';
 
@@ -249,6 +250,7 @@ export function buildDirectDistributionBindingV1(
       datasetFingerprint: observedFingerprint,
       kernelVersion: observedVersion,
     });
+    verifyDirectDistributionBindingRequestV1(binding, request);
     if (datasetFingerprint(handle) !== observedFingerprint || kernelVersion() !== observedVersion) {
       throw new Error('[DirectDistributionBinding] Kernel dataset changed during binding');
     }

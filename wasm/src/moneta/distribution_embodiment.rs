@@ -34,6 +34,7 @@ fn information_contract() -> InformationContractV1 {
 
 fn analytical_parameters(request: &DistributionEmbodimentRequestV1) -> serde_json::Value {
     serde_json::json!({
+        "request": request,
         "histogram": {
             "binning": "equal-width",
             "interval": "left-closed-right-open-final-closed"

@@ -1092,6 +1092,10 @@ export class InvestigationAggregate {
     return this._activeDirectCompileResult;
   }
 
+  getActiveDirectSnapshot(): SemanticSnapshotV1 | undefined {
+    return this._activeDirectSnapshot;
+  }
+
   /**
    * DSE2: Compiles desktop and constrained budget variants of the active
    * evidence, admitting the pair only when mandatory obligations survive in

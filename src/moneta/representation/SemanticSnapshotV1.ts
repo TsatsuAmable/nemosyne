@@ -2,6 +2,12 @@ import { canonicalSha256Hex } from '../../security/CryptoHash.js';
 import type {
   SemanticEmbodimentEnvelopeV1,
 } from './SemanticEmbodimentPayload.js';
+import {
+  DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
+  verifyTransportedDirectDistributionBindingV1,
+  type DirectDistributionBindingV1,
+} from './DirectDistributionBindingV1.js';
+import { DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1 } from '../../data/evidence/EvidenceRequirementProfile.js';
 
 export const SEMANTIC_SNAPSHOT_SCHEMA_VERSION = 1 as const;
 
@@ -75,6 +81,22 @@ export interface SemanticLimitationRecordV1 {
   readonly description: string;
 }
 
+/**
+ * Decision-independent direct-distribution identity carried by a semantic
+ * snapshot. The exact Rust source digest, receipt, source bytes and full
+ * request remain in the governed replay carrier; copying those request-bound
+ * fields here would make snapshot identity decision-dependent.
+ */
+export interface DirectDistributionReferenceV1 {
+  readonly schemaVersion: '1';
+  readonly consumerId: typeof DIRECT_DISTRIBUTION_CONSUMER_ID_V1;
+  readonly requirementProfileId: typeof DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1.profileId;
+  readonly claimKind: 'DESCRIPTIVE_EMPIRICAL_DISTRIBUTION';
+  readonly datasetFingerprint: string;
+  readonly kernelVersion: string;
+  readonly sourceId: string;
+}
+
 export interface SemanticSnapshotBodyV1 {
   readonly analyticalDatasetFingerprint: string;
   readonly kernelVersion: string;
@@ -93,6 +115,7 @@ export interface SemanticSnapshotBodyV1 {
   readonly nodes: readonly SemanticNodeRecordV1[];
   readonly relations: readonly SemanticRelationRecordV1[];
   readonly limitations: readonly SemanticLimitationRecordV1[];
+  readonly directDistributionReference?: DirectDistributionReferenceV1;
 }
 
 export interface SemanticSnapshotV1 {
@@ -145,6 +168,26 @@ export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
 
   const { sources, nodes, relations, limitations } = snapshot.body;
 
+  const directReference = snapshot.body.directDistributionReference;
+  if (directReference !== undefined) {
+    const directSource = sources.find((source) => source.sourceId === directReference.sourceId);
+    if (
+      directReference.schemaVersion !== '1' ||
+      directReference.consumerId !== DIRECT_DISTRIBUTION_CONSUMER_ID_V1 ||
+      directReference.requirementProfileId !== DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1.profileId ||
+      directReference.claimKind !== 'DESCRIPTIVE_EMPIRICAL_DISTRIBUTION' ||
+      !directReference.datasetFingerprint ||
+      !directReference.kernelVersion ||
+      directReference.datasetFingerprint !== snapshot.body.analyticalDatasetFingerprint ||
+      directReference.kernelVersion !== snapshot.body.kernelVersion ||
+      directSource === undefined ||
+      directSource.family !== 'DISTRIBUTION' ||
+      directSource.state.status !== 'AVAILABLE'
+    ) {
+      throw new Error('Direct-distribution reference identity mismatch');
+    }
+  }
+
   // Validate sources ordering by sourceId
   for (let i = 1; i < sources.length; i++) {
     if (sources[i].sourceId <= sources[i - 1].sourceId) {
@@ -189,17 +232,50 @@ export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
  * Normalizes a Rust analytical payload envelope into a decision-independent SemanticSnapshotV1.
  * Explicitly strips decision IDs, model versions, timestamps, and presentation hints.
  */
-export function normalizeEnvelopeToSnapshot(
+const DECISION_METADATA_KEYS = new Set([
+  'decisionId',
+  'decisionModelVersion',
+  'decisionModelArtifactHash',
+]);
+
+function decisionIndependentAnalyticalMethod(
+  method: SemanticEmbodimentEnvelopeV1['analyticalMethod'],
+): SemanticEmbodimentEnvelopeV1['analyticalMethod'] {
+  const parameters = method.parameters;
+  if (parameters === null || typeof parameters !== 'object' || Array.isArray(parameters)) {
+    return method;
+  }
+
+  const request = (parameters as Record<string, unknown>).request;
+  if (request === null || typeof request !== 'object' || Array.isArray(request)) {
+    return method;
+  }
+
+  return {
+    ...method,
+    parameters: {
+      ...(parameters as Record<string, unknown>),
+      request: Object.fromEntries(
+        Object.entries(request as Record<string, unknown>)
+          .filter(([key]) => !DECISION_METADATA_KEYS.has(key)),
+      ),
+    },
+  };
+}
+
+function normalizeEnvelopeToSnapshotInternal(
   envelope: SemanticEmbodimentEnvelopeV1,
   evidenceReferences: readonly EvidenceReferenceTupleV1[] = [],
+  directReference?: Omit<DirectDistributionReferenceV1, 'sourceId'>,
 ): SemanticSnapshotV1 {
   const datasetFingerprint = envelope.datasetFingerprint;
   const kernelVersion = envelope.provenance?.kernelVersion ?? '1.0.0';
 
-  const parametersDigest = canonicalSha256Hex(envelope.analyticalMethod.parameters ?? {});
+  const identityAnalyticalMethod = decisionIndependentAnalyticalMethod(envelope.analyticalMethod);
+  const parametersDigest = canonicalSha256Hex(identityAnalyticalMethod.parameters ?? {});
   const requestIdentity = taggedDigest('analytical-request-v1', {
     candidateId: envelope.candidateId,
-    method: envelope.analyticalMethod,
+    method: identityAnalyticalMethod,
   });
 
   const state: SemanticStateV1 =
@@ -220,8 +296,8 @@ export function normalizeEnvelopeToSnapshot(
   const sourcePreimage = {
     family: envelope.representationFamily,
     analyticalRequestIdentity: requestIdentity,
-    method: envelope.analyticalMethod.name,
-    methodVersion: envelope.analyticalMethod.version,
+    method: identityAnalyticalMethod.name,
+    methodVersion: identityAnalyticalMethod.version,
     parametersDigest,
     state,
     analyticalContentRef: taggedDigest('analytical-content-v1', envelope.result),
@@ -347,6 +423,9 @@ export function normalizeEnvelopeToSnapshot(
     nodes,
     relations,
     limitations,
+    ...(directReference === undefined
+      ? {}
+      : { directDistributionReference: { ...directReference, sourceId } }),
   };
 
   const snapshotId = computeSnapshotId(body);
@@ -357,6 +436,37 @@ export function normalizeEnvelopeToSnapshot(
   };
 
   validateSemanticSnapshot(snapshot);
+  return snapshot;
+}
+
+export function normalizeEnvelopeToSnapshot(
+  envelope: SemanticEmbodimentEnvelopeV1,
+  evidenceReferences: readonly EvidenceReferenceTupleV1[] = [],
+): SemanticSnapshotV1 {
+  return normalizeEnvelopeToSnapshotInternal(envelope, evidenceReferences);
+}
+
+/**
+ * Converts a binding already verified by the selected analytical port into
+ * the normal decision-independent snapshot. The port remains responsible for
+ * runtime-local provenance; this function only preserves the Rust-issued
+ * identity and normalizes the Rust source envelope.
+ */
+export function normalizeDirectDistributionBindingToSnapshot(
+  binding: DirectDistributionBindingV1,
+): SemanticSnapshotV1 {
+  const verified = verifyTransportedDirectDistributionBindingV1(binding, {
+    datasetFingerprint: binding.datasetFingerprint,
+    kernelVersion: binding.kernelVersion,
+  });
+  const snapshot = normalizeEnvelopeToSnapshotInternal(verified.source, [], {
+    schemaVersion: verified.schemaVersion,
+    consumerId: verified.consumerId,
+    requirementProfileId: verified.requirementProfileId,
+    claimKind: verified.claimKind,
+    datasetFingerprint: verified.datasetFingerprint,
+    kernelVersion: verified.kernelVersion,
+  });
   return snapshot;
 }
 

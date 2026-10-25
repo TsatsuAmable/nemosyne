@@ -197,7 +197,7 @@ export class InlineAnalyticalPort implements AnalyticalExecutionPort {
               value = verifyTransportedDirectDistributionBindingV1(raw, {
                 datasetFingerprint: req.dataset.fingerprint,
                 kernelVersion: version,
-              }) as T;
+              }, req.params as unknown as DistributionEmbodimentRequestV1) as T;
               if (this._kernel.datasetFingerprint?.(handle) !== identity ||
                   this._kernel.kernelVersion?.() !== version) {
                 value = null;

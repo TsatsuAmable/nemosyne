@@ -320,6 +320,8 @@ struct DensityAnalyticalParametersV1 {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct DistributionAnalyticalParametersV1 {
+    #[serde(default)]
+    request: Option<DistributionEmbodimentRequestV1>,
     histogram: DistributionHistogramMethodParametersV1,
     ecdf: DistributionEcdfMethodParametersV1,
     quantiles: DistributionQuantileMethodParametersV1,

@@ -1,4 +1,5 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
+import { isRuntimeIssuedDirectSnapshot } from '../../atlas/AtlasCore.js';
 import {
   type SemanticSnapshotV1,
   validateSemanticSnapshot,
@@ -115,6 +116,19 @@ export function compileFormaAdmission(
     };
   }
 
+  if (
+    snapshot.body.directDistributionReference !== undefined &&
+    !isRuntimeIssuedDirectSnapshot(snapshot)
+  ) {
+    return {
+      status: 'REFUSED',
+      refusal: {
+        code: 'UNTRUSTED_DECODING',
+        message: 'Direct-distribution snapshot lacks Atlas-local runtime-issued admission capability',
+      },
+    };
+  }
+
   // 3. Evidence and source validation
   if (!snapshot.body.sources || snapshot.body.sources.length === 0) {
     return {
@@ -145,7 +159,10 @@ export function compileFormaAdmission(
         },
       };
     }
+    const hasDirectDistributionReference =
+      snapshot.body.directDistributionReference?.sourceId === src.sourceId;
     if (!src.evidenceReferences || src.evidenceReferences.length === 0) {
+      if (hasDirectDistributionReference) continue;
       return {
         status: 'REFUSED',
         refusal: {

@@ -2,6 +2,7 @@ import { sha256Hex } from '../../security/CryptoHash.ts';
 import {
   DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
   parseDirectDistributionBindingV1,
+  verifyDirectDistributionBindingRequestV1,
   type DirectDistributionBindingV1,
 } from './DirectDistributionBindingV1.ts';
 import {
@@ -180,6 +181,7 @@ export function createDirectDistributionReplayCarrierV1(
     kernelVersion,
   });
   const parsedRequest = parseRequest(request);
+  verifyDirectDistributionBindingRequestV1(validated, parsedRequest);
   const use: DirectDistributionUseV1 = Object.freeze({
     consumerId: validated.consumerId,
     receiptId: validated.receiptId,
@@ -223,6 +225,7 @@ export function parseDirectDistributionReplayCarrierV1(
   }
   const use = parseUse(outer.use, binding);
   const request = parseRequest(outer.request);
+  verifyDirectDistributionBindingRequestV1(binding, request);
   return Object.freeze({
     schemaVersion: DIRECT_DISTRIBUTION_REPLAY_SCHEMA_VERSION,
     policyId: DIRECT_DISTRIBUTION_REPLAY_POLICY_ID,
