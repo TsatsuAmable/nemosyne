@@ -201,6 +201,12 @@ export class AtlasCore {
   private _generation = 1;
   private _requestSeq = 0;
   /**
+   * Monotonic identity for successful replacements of the Atlas dataset
+   * incarnation. Fingerprints can repeat, so session-scoped persisted carriers
+   * must bind to this runtime-local epoch rather than to content identity.
+   */
+  private _datasetReplacementEpoch = 0;
+  /**
    * Exact payload capable of reconstructing the current analytical dataset in
    * another WASM instance. Typed inputs remain typed; row-backed datasets use
    * their canonical DatasetJSON. This is registration material, not a second
@@ -233,6 +239,10 @@ export class AtlasCore {
   private _clearRuntimeIssuedDirectSnapshots(): void {
     this._revokeRuntimeIssuedDirectSnapshots();
     this._activeDirectDistributionCapture = null;
+  }
+
+  private _markDatasetReplacement(): void {
+    this._datasetReplacementEpoch += 1;
   }
 
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
@@ -675,6 +685,7 @@ export class AtlasCore {
   loadDataset(dataset: Dataset): void {
     this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
+    this._markDatasetReplacement();
     const fingerprint = this.datasetFingerprint ?? undefined;
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
     this._executionPort?.supersede({
@@ -708,6 +719,7 @@ export class AtlasCore {
       this._analytics.destroyDataset(handle);
       throw error;
     }
+    this._markDatasetReplacement();
     // A validated replacement is now authoritative. Only successful adoption
     // may revoke the prior runtime-issued direct capability and FM2 lineage.
     this._clearRuntimeIssuedDirectSnapshots();
@@ -729,6 +741,7 @@ export class AtlasCore {
     this._aggregate.analytical.setCurrentDataset(dataset, (handle) =>
       this._analytics.destroyDataset(handle)
     );
+    this._markDatasetReplacement();
     const fingerprint = this.datasetFingerprint ?? undefined;
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
     this._executionPort?.supersede({
@@ -763,6 +776,10 @@ export class AtlasCore {
 
   get datasetVersion(): number {
     return this._aggregate.analytical.datasetVersion;
+  }
+
+  get datasetReplacementEpoch(): number {
+    return this._datasetReplacementEpoch;
   }
 
   // --- Evidence, History & Ledger -----------------------------------------
@@ -1019,6 +1036,7 @@ export class AtlasCore {
         },
         (handle: number) => this._analytics.destroyDataset(handle)
       );
+      this._markDatasetReplacement();
       // Revoke only after the authoritative analytical commit succeeds. A
       // refused operation leaves the prior dataset state and its capture
       // capability intact; a committed transition invalidates every prior
@@ -1256,6 +1274,7 @@ export class AtlasCore {
       },
       (handle: number) => this._analytics.destroyDataset(handle)
     );
+    this._markDatasetReplacement();
     // The async Worker result is now the committed analytical state. Revoke
     // the prior direct-distribution capability only at this point so a
     // refused/superseded operation cannot clear an otherwise current capture.
@@ -1364,6 +1383,7 @@ export class AtlasCore {
     this._aggregate.analytical.advanceDataset(this._aggregate.analytical.original.clone(), (h) =>
       this._analytics.destroyDataset(h)
     );
+    this._markDatasetReplacement();
 
     const fp = this.datasetFingerprint ?? '';
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
@@ -2391,6 +2411,7 @@ export class AtlasCore {
   restoreState(state: AtlasCoreState): void {
     this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.restoreState(state, (handle) => this._analytics.destroyDataset(handle));
+    this._markDatasetReplacement();
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
     this._executionPort?.supersede({
       generation: this._generation,

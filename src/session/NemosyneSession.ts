@@ -191,6 +191,7 @@ export class NemosyneSession {
    */
   private _directDistributionSource: 'LIVE_ATLAS' | 'RESTORED_SNAPSHOT' | null = null;
   private _formaInvestigationBytes: Uint8Array | null = null;
+  private _formaInvestigationEpoch: number | null = null;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
     this._atlas = atlas;
@@ -253,21 +254,34 @@ export class NemosyneSession {
     if (partial.focus) this._presentation.focus = partial.focus;
   }
 
-  get formaInvestigationBytes(): Uint8Array | null { return this._formaInvestigationBytes; }
-  setFormaInvestigationBytes(bytes: Uint8Array | null): void { this._formaInvestigationBytes = bytes; }
+  get formaInvestigationBytes(): Uint8Array | null {
+    if (this._formaInvestigationBytes === null) return null;
+    if (this._formaInvestigationEpoch !== this._atlas.datasetReplacementEpoch) {
+      this._formaInvestigationBytes = null;
+      this._formaInvestigationEpoch = null;
+      return null;
+    }
+    return this._formaInvestigationBytes;
+  }
+  setFormaInvestigationBytes(bytes: Uint8Array | null): void {
+    this._formaInvestigationBytes = bytes;
+    this._formaInvestigationEpoch = bytes === null ? null : this._atlas.datasetReplacementEpoch;
+  }
 
   private _formaInvestigationSnapshotBase64(): string | undefined {
-    const bytes = this._formaInvestigationBytes ?? this._atlas.exportFormaInvestigationBytes();
+    const bytes = this.formaInvestigationBytes ?? this._atlas.exportFormaInvestigationBytes();
     return bytes ? base64Encode(bytes) : undefined;
   }
 
   private _restoreFormaInvestigationSnapshot(json: NemosyneSessionJSON): void {
-    this._formaInvestigationBytes = json.formaInvestigationSnapshot
-      ? base64Decode(json.formaInvestigationSnapshot)
-      : null;
-    if (this._formaInvestigationBytes) {
+    this.setFormaInvestigationBytes(
+      json.formaInvestigationSnapshot
+        ? base64Decode(json.formaInvestigationSnapshot)
+        : null,
+    );
+    if (this.formaInvestigationBytes) {
       try {
-        const text = new TextDecoder('utf-8', { fatal: true }).decode(this._formaInvestigationBytes);
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(this.formaInvestigationBytes);
         const parsed = JSON.parse(text);
         this._atlas.setFormaState(parsed);
       } catch {
@@ -618,7 +632,7 @@ export class NemosyneSession {
     if (governedOptions?.formaPreservation === true || governedOptions?.formaInvestigationBytes !== undefined) {
       formaInvestigationBytes =
         governedOptions.formaInvestigationBytes ??
-        this._formaInvestigationBytes ??
+        this.formaInvestigationBytes ??
         this._atlas.exportFormaInvestigationBytes() ??
         undefined;
       if (!formaInvestigationBytes) {

@@ -613,6 +613,53 @@ describe('FM2 typed dataset turnover clears dataset-bound direct state', () => {
     }
   }, 60000);
 
+  it('retires a rehydrated Forma carrier only after a successful typed turnover', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    const session = new NemosyneSession({ atlas });
+    const rowDataset = new Dataset('fm2-rehydrated-forma-carrier', [
+      { name: 'x', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ x: index + 1 })));
+    const typed = typedPayload(Array.from({ length: 20 }, (_, index) => index + 101));
+
+    try {
+      atlas.loadDataset(rowDataset);
+      commitContext(atlas);
+      await seedDirectState(atlas);
+      await session.captureDirectDistributionBinding(params);
+
+      const before = session.serialize();
+      expect(before.formaInvestigationSnapshot).toBeTypeOf('string');
+      const beforeFormaBytes = session.formaInvestigationBytes;
+      expect(beforeFormaBytes).toBeNull();
+
+      // Rehydration intentionally makes the persisted Forma bytes a session
+      // carrier even after Atlas has restored its ordinary state.
+      session.loadFromJSON(before);
+      const rehydratedFormaBytes = session.formaInvestigationBytes;
+      expect(rehydratedFormaBytes).toBeInstanceOf(Uint8Array);
+      expect(session.serialize().formaInvestigationSnapshot).toBe(before.formaInvestigationSnapshot);
+
+      const epochBeforeFailure = atlas.datasetReplacementEpoch;
+      expect(() => atlas.loadTypedDataset(new Uint8Array([0, 1, 2, 3]), 'invalid-typed'))
+        .toThrow('Kernel rejected typed columns payload.');
+      expect(atlas.datasetReplacementEpoch).toBe(epochBeforeFailure);
+      expect(session.formaInvestigationBytes).toEqual(rehydratedFormaBytes);
+      expect(session.serialize().formaInvestigationSnapshot).toBe(before.formaInvestigationSnapshot);
+
+      const typedHandle = atlas.loadTypedDataset(typed, 'typed-replacement');
+      expect(typedHandle).toBeGreaterThan(0);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(epochBeforeFailure);
+      expect(atlas.aggregate.getFormaState()).toBeUndefined();
+      expect(session.formaInvestigationBytes).toBeNull();
+      expect(session.serialize().formaInvestigationSnapshot).toBeUndefined();
+      await expect(
+        session.exportPortablePackage({}, undefined, { formaPreservation: true }),
+      ).rejects.toThrow();
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
+
   it('clears direct lineage and persisted Forma state across row, typed, same-fingerprint, and row turnovers', async () => {
     const atlas = new AtlasCore({ kernel: bridge });
     const session = new NemosyneSession({ atlas });
@@ -637,8 +684,10 @@ describe('FM2 typed dataset turnover clears dataset-bound direct state', () => {
       expect(beforeForma.directFeedbackLinks).toHaveLength(1);
       expect(beforeForma.directAlternativeFeedbackBindings).toHaveLength(1);
 
+      const rowEpoch = atlas.datasetReplacementEpoch;
       const typedAHandle = atlas.loadTypedDataset(typedA, 'typed-a');
       expect(typedAHandle).toBeGreaterThan(0);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(rowEpoch);
       expectTypedWorkerPayload(atlas, typedA);
       expectDatasetBoundStateCleared(atlas, session, atlas.datasetFingerprint!);
 
@@ -647,9 +696,11 @@ describe('FM2 typed dataset turnover clears dataset-bound direct state', () => {
       expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
       const typedAFingerprint = atlas.datasetFingerprint!;
       const typedAVersion = atlas.datasetVersion;
+      const typedAEpoch = atlas.datasetReplacementEpoch;
 
       const typedBHandle = atlas.loadTypedDataset(typedB, 'typed-b');
       expect(typedBHandle).toBeGreaterThan(0);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(typedAEpoch);
       expectTypedWorkerPayload(atlas, typedB);
       expectDatasetBoundStateCleared(atlas, session, atlas.datasetFingerprint!);
       expect(atlas.datasetFingerprint).not.toBe(typedAFingerprint);
@@ -659,19 +710,23 @@ describe('FM2 typed dataset turnover clears dataset-bound direct state', () => {
       expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
       const sameFingerprint = atlas.datasetFingerprint!;
       const sameFingerprintVersion = atlas.datasetVersion;
+      const sameFingerprintEpoch = atlas.datasetReplacementEpoch;
       const samePayloadHandle = atlas.loadTypedDataset(typedB, 'typed-b');
       expect(samePayloadHandle).toBeGreaterThan(0);
       expect(atlas.datasetFingerprint).toBe(sameFingerprint);
       expect(atlas.datasetVersion).toBeGreaterThan(sameFingerprintVersion);
       expect(atlas.datasetVersion).toBeGreaterThan(typedAVersion);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(sameFingerprintEpoch);
       expectTypedWorkerPayload(atlas, typedB);
       expectDatasetBoundStateCleared(atlas, session, sameFingerprint);
 
       atlas.aggregate.setFormaState(beforeForma);
       expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
+      const rowReplacementEpoch = atlas.datasetReplacementEpoch;
       atlas.loadDataset(new Dataset('fm2-row-replacement', [
         { name: 'x', type: ColumnType.NUMERIC },
       ], [{ x: 1000 }, { x: 2000 }]));
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(rowReplacementEpoch);
       const rowPayload = (atlas as unknown as { _workerRegistrationPayload(): { type: string } })._workerRegistrationPayload();
       expect(rowPayload.type).toBe('json');
       expectDatasetBoundStateCleared(atlas, session, atlas.datasetFingerprint!);
