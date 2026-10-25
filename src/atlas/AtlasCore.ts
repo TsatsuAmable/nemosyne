@@ -221,13 +221,17 @@ export class AtlasCore {
    * and are used only to revoke the module-local weak-ledger entries during
    * lifecycle transitions.
    */
-  private readonly _runtimeIssuedDirectSnapshotRefs = new Set<object>();
+  private readonly _runtimeIssuedDirectSnapshotRefs = new Set<SemanticSnapshotV1>();
 
-  private _clearRuntimeIssuedDirectSnapshots(): void {
+  private _revokeRuntimeIssuedDirectSnapshots(): void {
     for (const snapshot of this._runtimeIssuedDirectSnapshotRefs) {
       revokeRuntimeIssuedDirectSnapshot(snapshot);
     }
     this._runtimeIssuedDirectSnapshotRefs.clear();
+  }
+
+  private _clearRuntimeIssuedDirectSnapshots(): void {
+    this._revokeRuntimeIssuedDirectSnapshots();
     this._activeDirectDistributionCapture = null;
   }
 
@@ -2113,23 +2117,69 @@ export class AtlasCore {
       readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
     },
   ): Promise<DirectEmbodimentCompileResult> {
-    const binding = await this.captureDirectDistributionBinding(request);
-    if (!binding) {
-      throw new Error(
-        '[AtlasCore] Direct distribution compilation refused: Rust binding unavailable or stale'
-      );
+    const previousExecutionPort = this._executionPort;
+    const previousGeneration = this._generation;
+    const previousDatasetVersion = this.datasetVersion;
+    const previousDatasetFingerprint = this.datasetFingerprint ?? '';
+    const previousKernelVersion = this.kernelVersion();
+    const previousCapture = this._activeDirectDistributionCapture;
+    const previousSnapshots = [...this._runtimeIssuedDirectSnapshotRefs].map((snapshot) => ({
+      snapshot,
+      record: runtimeIssuedDirectSnapshotLedger.get(snapshot),
+    }));
+    let snapshot: SemanticSnapshotV1 | undefined;
+    let candidateCapture: typeof this._activeDirectDistributionCapture | undefined;
+    try {
+      const binding = await this.captureDirectDistributionBinding(request);
+      if (!binding) {
+        throw new Error(
+          '[AtlasCore] Direct distribution compilation refused: Rust binding unavailable or stale'
+        );
+      }
+      candidateCapture = this._activeDirectDistributionCapture;
+      snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
+
+      // Revoke the prior snapshot before issuing the replacement so this Atlas
+      // instance never retains more than one live direct-distribution authority.
+      // This intentionally leaves the active capture carrier untouched.
+      this._revokeRuntimeIssuedDirectSnapshots();
+      issueRuntimeIssuedDirectSnapshot(snapshot, {
+        owner: this,
+        executionPort: this._executionPort!,
+        generation: this._generation,
+        datasetVersion: this.datasetVersion,
+        datasetFingerprint: this.datasetFingerprint ?? '',
+        kernelVersion: binding.kernelVersion,
+      });
+      this._runtimeIssuedDirectSnapshotRefs.add(snapshot);
+      return this.compileDirectEmbodiment({ ...options, snapshot });
+    } catch (error) {
+      if (snapshot) {
+        revokeRuntimeIssuedDirectSnapshot(snapshot);
+        this._runtimeIssuedDirectSnapshotRefs.delete(snapshot);
+      }
+      const sameRuntimeIdentity =
+        this._executionPort === previousExecutionPort &&
+        this._generation === previousGeneration &&
+        this.datasetVersion === previousDatasetVersion &&
+        (this.datasetFingerprint ?? '') === previousDatasetFingerprint &&
+        this.kernelVersion() === previousKernelVersion;
+      if (sameRuntimeIdentity) {
+        for (const previous of previousSnapshots) {
+          if (previous.record) {
+            issueRuntimeIssuedDirectSnapshot(previous.snapshot, previous.record);
+            this._runtimeIssuedDirectSnapshotRefs.add(previous.snapshot);
+          }
+        }
+        if (
+          candidateCapture !== undefined &&
+          this._activeDirectDistributionCapture === candidateCapture
+        ) {
+          this._activeDirectDistributionCapture = previousCapture;
+        }
+      }
+      throw error;
     }
-    const snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
-    issueRuntimeIssuedDirectSnapshot(snapshot, {
-      owner: this,
-      executionPort: this._executionPort!,
-      generation: this._generation,
-      datasetVersion: this.datasetVersion,
-      datasetFingerprint: this.datasetFingerprint ?? '',
-      kernelVersion: binding.kernelVersion,
-    });
-    this._runtimeIssuedDirectSnapshotRefs.add(snapshot);
-    return this.compileDirectEmbodiment({ ...options, snapshot });
   }
 
   getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {

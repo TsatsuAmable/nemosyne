@@ -344,6 +344,72 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('bounds repeated same-state direct snapshot authority to one and preserves it on failed recompilation', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    atlas.commitInvestigationContext('fm2-bounded-direct-snapshot', {
+      schemaVersion: 2,
+      nodeId: 'fm2-bounded-direct-snapshot',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Bound repeated direct-distribution snapshot authority',
+        currentTask: 'fm2-bounded-direct-snapshot',
+      },
+    });
+    const session = new NemosyneSession({ atlas });
+    try {
+      await atlas.compileDirectDistributionEmbodiment(request);
+      const firstSnapshot = atlas.getActiveDirectSnapshot()!;
+      const context = atlas.getActiveInvestigationContext()!;
+      expect(compileFormaAdmission(firstSnapshot, context).status).toBe('ADMITTED');
+
+      await expect(
+        atlas.compileDirectDistributionEmbodiment(request, {
+          budget: {
+            profileName: 'invalid-test-budget',
+            maxElements: 0,
+            maxMemoryBytes: 1,
+            maxChannels: 1,
+            allowedShapes: ['SPHERE'],
+            allowSecondaryEncodings: false,
+          },
+        })
+      ).rejects.toThrow("device budget 'maxElements'");
+      expect(atlas.getActiveDirectSnapshot()).toBe(firstSnapshot);
+      expect(compileFormaAdmission(firstSnapshot, context).status).toBe('ADMITTED');
+      expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
+
+      const snapshots = [firstSnapshot];
+      for (let index = 0; index < 24; index += 1) {
+        await atlas.compileDirectDistributionEmbodiment(request);
+        snapshots.push(atlas.getActiveDirectSnapshot()!);
+      }
+
+      const runtimeRefs = (
+        atlas as unknown as {
+          _runtimeIssuedDirectSnapshotRefs: Set<object>;
+        }
+      )._runtimeIssuedDirectSnapshotRefs;
+      expect(runtimeRefs.size).toBe(1);
+      const freshSnapshot = snapshots.at(-1)!;
+      expect(freshSnapshot).not.toBe(firstSnapshot);
+      expect(compileFormaAdmission(firstSnapshot, context).status).toBe('REFUSED');
+      expect(
+        compileFormaSpatialSlice(firstSnapshot, context, createKB0Manifest(), 'SPATIAL_SCATTER_V1')
+          .status
+      ).toBe('REFUSED');
+      expect(compileFormaAdmission(freshSnapshot, context).status).toBe('ADMITTED');
+      expect(
+        compileFormaSpatialSlice(freshSnapshot, context, createKB0Manifest(), 'SPATIAL_SCATTER_V1')
+          .status
+      ).toBe('COMPILED');
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
+
   it('does not serialize or export a live carrier after runtime generation or port replacement', async () => {
     const atlas = new AtlasCore({ kernel: bridge });
     atlas.loadDataset(dataset());
