@@ -1,4 +1,5 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
+import { isRuntimeIssuedDirectSnapshot } from '../../atlas/AtlasCore.js';
 import {
   type SemanticSnapshotV1,
   validateSemanticSnapshot,
@@ -56,8 +57,6 @@ export interface FormaAdmissionOptionsV1 {
   readonly requestedUse?: PermittedExecutionUse;
   readonly conjecturalProposals?: readonly ConjecturalProposalV1[];
   readonly bindings?: readonly FormaBindingV1[];
-  /** @internal Set only by Atlas after its local runtime capability check. */
-  readonly runtimeIssuedDirectSnapshot?: SemanticSnapshotV1;
 }
 
 export interface FormaAdmissionResultV1 {
@@ -119,7 +118,7 @@ export function compileFormaAdmission(
 
   if (
     snapshot.body.directDistributionReference !== undefined &&
-    options.runtimeIssuedDirectSnapshot !== snapshot
+    !isRuntimeIssuedDirectSnapshot(snapshot)
   ) {
     return {
       status: 'REFUSED',

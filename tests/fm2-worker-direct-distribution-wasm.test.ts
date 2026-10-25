@@ -10,6 +10,8 @@ import type { DistributionEmbodimentRequestV1 } from '../src/moneta/representati
 import { verifyTransportedDirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
 import { normalizeDirectDistributionBindingToSnapshot } from '../src/moneta/representation/SemanticSnapshotV1.ts';
 import { buildDirectDistributionBindingV1 } from '../src/wasm/runtime/SemanticEmbodimentBridge.ts';
+import { sha256Hex } from '../src/security/CryptoHash.ts';
+import { compileFormaAdmission } from '../src/moneta/forma/FormaAdmission.ts';
 import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
 import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
 
@@ -98,6 +100,59 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       }
     } finally {
       bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
+  it('refuses a caller self-supply of a self-hashed fake direct snapshot through both public Forma paths', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    commitContext(atlas);
+    try {
+      const issued = await atlas.captureDirectDistributionBinding(params);
+      expect(issued).toBeDefined();
+      const issuedBinding = issued!;
+
+      const forgedSource = structuredClone(issuedBinding.source) as unknown as Record<string, unknown>;
+      const forgedResult = forgedSource.result as Record<string, unknown>;
+      const forgedPayload = forgedResult.payload as Record<string, unknown>;
+      const forgedData = forgedPayload.data as Record<string, unknown>;
+      const forgedHistogram = forgedData.histogram as Array<Record<string, unknown>>;
+      forgedHistogram[0] = { ...forgedHistogram[0], count: 999999 };
+      const forgedSourceJson = JSON.stringify(forgedSource);
+      const forgedSourceDigest = sha256Hex(forgedSourceJson);
+      const forgedBinding = {
+        ...issuedBinding,
+        sourceJson: forgedSourceJson,
+        sourceDigest: forgedSourceDigest,
+        receiptId: `direct-distribution:${forgedSourceDigest}`,
+        source: forgedSource as unknown as typeof issuedBinding.source,
+      };
+      const forgedSnapshot = normalizeDirectDistributionBindingToSnapshot(forgedBinding);
+      const context = atlas.getActiveInvestigationContext()!;
+      // Exercise the legacy caller-controlled field at runtime even though the
+      // repaired public TypeScript API no longer declares it.
+      const forgedOptions = { runtimeIssuedDirectSnapshot: forgedSnapshot } as never;
+
+      const admission = compileFormaAdmission(forgedSnapshot, context, forgedOptions);
+      expect(admission.status).toBe('REFUSED');
+      if (admission.status === 'REFUSED') {
+        expect(admission.refusal.code).toBe('UNTRUSTED_DECODING');
+      }
+
+      const spatial = compileFormaSpatialSlice(
+        forgedSnapshot,
+        context,
+        createKB0Manifest(),
+        'SPATIAL_SCATTER_V1',
+        forgedOptions,
+      );
+      expect(spatial.status).toBe('REFUSED');
+      if (spatial.status === 'REFUSED') {
+        expect(spatial.refusal.code).toBe('UNTRUSTED_DECODING');
+      }
+    } finally {
+      atlas.dispose();
     }
   });
 

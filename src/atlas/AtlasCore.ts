@@ -157,6 +157,38 @@ import type {
 import type { FormaAdmissionOptionsV1 } from '../moneta/forma/FormaAdmission.ts';
 import type { SpatialPhenotype } from '../moneta/forma/FormaSpatialCompiler.ts';
 
+interface RuntimeIssuedDirectSnapshotRecord {
+  readonly owner: object;
+  readonly executionPort: AnalyticalExecutionPort;
+  readonly generation: number;
+  readonly datasetVersion: number;
+  readonly datasetFingerprint: string;
+  readonly kernelVersion: string;
+}
+
+/**
+ * Runtime-local direct-snapshot authority. The only writer is AtlasCore's
+ * trusted capture/compile path below; public consumers can only query it.
+ * This is a software-runtime boundary only; it makes no Quest, device, or
+ * human-study qualification claim.
+ */
+const runtimeIssuedDirectSnapshotLedger = new WeakMap<object, RuntimeIssuedDirectSnapshotRecord>();
+
+export function isRuntimeIssuedDirectSnapshot(snapshot: SemanticSnapshotV1): boolean {
+  return runtimeIssuedDirectSnapshotLedger.has(snapshot);
+}
+
+function issueRuntimeIssuedDirectSnapshot(
+  snapshot: SemanticSnapshotV1,
+  record: RuntimeIssuedDirectSnapshotRecord,
+): void {
+  runtimeIssuedDirectSnapshotLedger.set(snapshot, record);
+}
+
+function revokeRuntimeIssuedDirectSnapshot(snapshot: object): void {
+  runtimeIssuedDirectSnapshotLedger.delete(snapshot);
+}
+
 export { KernelUnavailableError };
 export type WasmRuntimeBridgeFull = AnalyticalKernelPort;
 
@@ -185,11 +217,19 @@ export class AtlasCore {
     readonly kernelVersion: string;
   } | null = null;
   /**
-   * Direct-distribution snapshots are admissible through the public compiler
-   * only after this Atlas instance has issued them from its analytical port.
-   * Object identity is intentionally not serializable or caller-reconstructible.
+   * Strong references are bounded to snapshots issued by this Atlas runtime
+   * and are used only to revoke the module-local weak-ledger entries during
+   * lifecycle transitions.
    */
-  private readonly _runtimeIssuedDirectSnapshots = new WeakSet<object>();
+  private readonly _runtimeIssuedDirectSnapshotRefs = new Set<object>();
+
+  private _clearRuntimeIssuedDirectSnapshots(): void {
+    for (const snapshot of this._runtimeIssuedDirectSnapshotRefs) {
+      revokeRuntimeIssuedDirectSnapshot(snapshot);
+    }
+    this._runtimeIssuedDirectSnapshotRefs.clear();
+    this._activeDirectDistributionCapture = null;
+  }
 
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
     return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
@@ -375,7 +415,7 @@ export class AtlasCore {
     // A direct-distribution capture is issued by the outgoing runtime. It is
     // not portable across execution-port instances, even when the dataset
     // fingerprint happens to remain unchanged.
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     this._executionPort?.dispose?.();
     this._executionPort = port;
     if (port) {
@@ -400,7 +440,7 @@ export class AtlasCore {
       // Runtime-issued direct carriers are capabilities of one generation;
       // retaining one after a replacement would let session serialization
       // persist stale analytical authority.
-      this._activeDirectDistributionCapture = null;
+      this._clearRuntimeIssuedDirectSnapshots();
     }
     this._generation = generation;
   }
@@ -425,7 +465,7 @@ export class AtlasCore {
   setKernel(kernel: WasmRuntimeBridgeFull | null, capabilities = 0, generation = 1): void {
     // Kernel replacement is a runtime transition even when its caller reuses
     // the numeric generation. Invalidate before rebinding the analytical port.
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.analytical.invalidateHandle((handle) => this._analytics.destroyDataset(handle));
     this._analytics.setKernel(kernel);
     this._capabilities = capabilities;
@@ -535,6 +575,7 @@ export class AtlasCore {
     const binding = result.value;
     if (!binding || result.datasetFingerprint !== fingerprint) return null;
     if (
+      port !== this._executionPort ||
       generation !== this._generation ||
       version !== this.datasetVersion ||
       fingerprint !== (this.datasetFingerprint ?? '') ||
@@ -578,7 +619,7 @@ export class AtlasCore {
       capture.datasetFingerprint !== (this.datasetFingerprint ?? '') ||
       (currentKernelVersion !== null && capture.kernelVersion !== currentKernelVersion)
     ) {
-      this._activeDirectDistributionCapture = null;
+      this._clearRuntimeIssuedDirectSnapshots();
       return null;
     }
     return { binding: capture.binding, request: structuredClone(capture.request) };
@@ -628,7 +669,7 @@ export class AtlasCore {
   // --- Dataset Lifecycle --------------------------------------------------
 
   loadDataset(dataset: Dataset): void {
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
     const fingerprint = this.datasetFingerprint ?? undefined;
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
@@ -646,7 +687,7 @@ export class AtlasCore {
       );
     }
     const workerCopy = this._cloneTypedPayload(payload);
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     const handle = this._analytics.loadTypedColumns(payload, name);
     if (handle === 0) {
       throw new Error('Kernel rejected typed columns payload.');
@@ -671,7 +712,7 @@ export class AtlasCore {
   }
 
   setCurrentDataset(dataset: Dataset): void {
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.analytical.setCurrentDataset(dataset, (handle) =>
       this._analytics.destroyDataset(handle)
     );
@@ -937,7 +978,7 @@ export class AtlasCore {
     // A successful analytical transition creates a new live dataset state;
     // any direct-distribution capture belongs to the prior state, even when a
     // later reset happens to restore the same fingerprint.
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
@@ -1299,7 +1340,7 @@ export class AtlasCore {
     // Reset advances analytical version even when the original fingerprint is
     // restored. The prior capture is therefore not authoritative for the new
     // state and must be reacquired from the current Rust port.
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
     this._aggregate.analytical.advanceDataset(this._aggregate.analytical.original.clone(), (h) =>
       this._analytics.destroyDataset(h)
@@ -2013,6 +2054,19 @@ export class AtlasCore {
    * DSE1: Executes direct deterministic representation compilation.
    * Produces bounded overview plan and reverse explanation trace without neural advice or population search.
    */
+  private _hasCurrentRuntimeIssuedDirectSnapshot(snapshot: SemanticSnapshotV1): boolean {
+    const record = runtimeIssuedDirectSnapshotLedger.get(snapshot);
+    return Boolean(
+      record &&
+        record.owner === this &&
+        record.executionPort === this._executionPort &&
+        record.generation === this._generation &&
+        record.datasetVersion === this.datasetVersion &&
+        record.datasetFingerprint === (this.datasetFingerprint ?? '') &&
+        (record.executionPort.isAsync || record.kernelVersion === this.kernelVersion()),
+    );
+  }
+
   compileDirectEmbodiment(options?: {
     readonly snapshot?: SemanticSnapshotV1;
     readonly analyticalEvidence?: {
@@ -2027,22 +2081,13 @@ export class AtlasCore {
   }): DirectEmbodimentCompileResult {
     if (
       options?.snapshot?.body?.directDistributionReference !== undefined &&
-      !this._runtimeIssuedDirectSnapshots.has(options.snapshot)
+      !this._hasCurrentRuntimeIssuedDirectSnapshot(options.snapshot)
     ) {
       throw new Error(
         '[AtlasCore] Direct distribution snapshot lacks runtime-issued direct-distribution admission'
       );
     }
-    const trustedOptions = options?.snapshot?.body?.directDistributionReference
-      ? {
-          ...options,
-          admissionOptions: {
-            ...options.admissionOptions,
-            runtimeIssuedDirectSnapshot: options.snapshot,
-          },
-        }
-      : options;
-    return this._aggregate.compileDirectEmbodiment(trustedOptions);
+    return this._aggregate.compileDirectEmbodiment(options);
   }
 
   /**
@@ -2069,7 +2114,15 @@ export class AtlasCore {
       );
     }
     const snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
-    this._runtimeIssuedDirectSnapshots.add(snapshot);
+    issueRuntimeIssuedDirectSnapshot(snapshot, {
+      owner: this,
+      executionPort: this._executionPort!,
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: this.datasetFingerprint ?? '',
+      kernelVersion: binding.kernelVersion,
+    });
+    this._runtimeIssuedDirectSnapshotRefs.add(snapshot);
     return this.compileDirectEmbodiment({ ...options, snapshot });
   }
 
@@ -2244,7 +2297,7 @@ export class AtlasCore {
   }
 
   restoreState(state: AtlasCoreState): void {
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.restoreState(state, (handle) => this._analytics.destroyDataset(handle));
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
     this._executionPort?.supersede({
@@ -2262,7 +2315,7 @@ export class AtlasCore {
     this._executionPort?.dispose?.();
     this._executionPort = null;
     this._workerDatasetPayload = null;
-    this._activeDirectDistributionCapture = null;
+    this._clearRuntimeIssuedDirectSnapshots();
     this._aggregate.dispose((handle) => this._analytics.destroyDataset(handle));
   }
 

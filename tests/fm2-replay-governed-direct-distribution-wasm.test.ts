@@ -28,6 +28,9 @@ import {
   serializeDirectDistributionReplayCarrierV1,
 } from '../src/moneta/representation/DirectDistributionReplayCarrierV1.ts';
 import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
+import { compileFormaAdmission } from '../src/moneta/forma/FormaAdmission.ts';
+import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
+import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
 
 const request = {
   schemaVersion: 1 as const,
@@ -82,6 +85,13 @@ class ThreadedWorkerTransport implements WorkerTransport {
   terminate(): void {
     this.terminated = true;
     void this.worker.terminate();
+  }
+}
+
+/** Keeps a pending result alive so Atlas's port-identity fence is exercised. */
+class NonCancellingWorkerAnalyticalPort extends WorkerAnalyticalPort {
+  override dispose(): void {
+    // The test replaces the port before delivering the old result.
   }
 }
 
@@ -386,6 +396,7 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     const session = new NemosyneSession({ atlas });
     try {
       await atlas.compileDirectDistributionEmbodiment(request);
+      const staleSnapshot = atlas.getActiveDirectSnapshot()!;
       expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
 
       const originalVersion = atlas.datasetVersion;
@@ -396,6 +407,22 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
       expect(atlas.datasetFingerprint).toBe(data.fingerprint);
       expect(atlas.datasetVersion).not.toBe(originalVersion);
       expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+
+      const staleOptions = { runtimeIssuedDirectSnapshot: staleSnapshot } as never;
+      const staleAdmission = compileFormaAdmission(
+        staleSnapshot,
+        atlas.getActiveInvestigationContext()!,
+        staleOptions,
+      );
+      expect(staleAdmission.status).toBe('REFUSED');
+      const staleSpatial = compileFormaSpatialSlice(
+        staleSnapshot,
+        atlas.getActiveInvestigationContext()!,
+        createKB0Manifest(),
+        'SPATIAL_SCATTER_V1',
+        staleOptions,
+      );
+      expect(staleSpatial.status).toBe('REFUSED');
 
       await atlas.compileDirectDistributionEmbodiment(request);
       expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
@@ -727,6 +754,39 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
           return candidate.type === 'EXECUTE' && candidate.request?.operation === 'directDistributionBinding';
         }),
       ).toBe(true);
+    } finally {
+      atlas.dispose();
+      oldTransport.terminate();
+      replacementTransport.terminate();
+    }
+  }, 60000);
+
+  it('refuses a capture that completes after the analytical port is replaced', async () => {
+    const oldTransport = await startWorkerThread();
+    await awaitHostReady(oldTransport.worker);
+    const replacementTransport = await startWorkerThread();
+    await awaitHostReady(replacementTransport.worker);
+
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataset());
+    const oldPort = new NonCancellingWorkerAnalyticalPort(oldTransport);
+    atlas.setExecutionPort(oldPort);
+    let deliverHeldResult: (() => void) | null = null;
+    const resultHeld = new Promise<void>((resolve) => {
+      oldTransport.holdResult = (deliver) => {
+        deliverHeldResult = deliver;
+        resolve();
+      };
+    });
+
+    try {
+      const staleCapture = atlas.captureDirectDistributionBinding(request);
+      await resultHeld;
+      atlas.setExecutionPort(new WorkerAnalyticalPort(replacementTransport));
+      deliverHeldResult!();
+
+      await expect(staleCapture).resolves.toBeNull();
+      expect(atlas.getActiveDirectSnapshot()).toBeUndefined();
     } finally {
       atlas.dispose();
       oldTransport.terminate();
