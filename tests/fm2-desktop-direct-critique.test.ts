@@ -8,6 +8,7 @@ import { InlineAnalyticalPort } from '../src/atlas/ports/InlineAnalyticalPort.ts
 import { NilExecutor, bindAtlasNilHandlers } from '../src/interaction/nil/index.ts';
 import { mountDesktopDirectLoopControls } from '../src/app/investigation/DesktopDirectLoopControls.ts';
 import { computeSnapshotId, type SemanticSnapshotV1 } from '../src/moneta/representation/SemanticSnapshotV1.ts';
+import type { DirectEmbodimentCompileResult } from '../src/moneta/representation/DirectEmbodimentCompiler.ts';
 
 function mountRail(): void {
   document.body.innerHTML =
@@ -140,6 +141,44 @@ describe('FM2 direct critique controls use the product NIL command path', () => 
     expect(document.getElementById('review-direct-prefer')?.hasAttribute('disabled')).toBe(true);
     controls.dispose();
   });
+
+  it('keeps the visible discard refusal after a committed context changes during compilation', async () => {
+    mountRail();
+    const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as never });
+    atlas.loadDataset(new Dataset('discard-status', [
+      { name: 'val', type: ColumnType.NUMERIC },
+    ], [{ val: 1 }, { val: 2 }, { val: 3 }]));
+    commitDirectContext(atlas);
+    const staleResult = atlas.compileDirectEmbodiment({ snapshot: snapshot(atlas.dataset!.fingerprint) });
+    let resolveCompile!: (result: DirectEmbodimentCompileResult) => void;
+    const compileDirectDistribution = vi.fn(() => new Promise<DirectEmbodimentCompileResult>((resolve) => {
+      resolveCompile = resolve;
+    }));
+    const controls = mountDesktopDirectLoopControls(
+      atlas,
+      new NilExecutor(),
+      undefined,
+      undefined,
+      undefined,
+      compileDirectDistribution,
+    );
+
+    document.getElementById('review-direct-compile')?.click();
+    await vi.waitFor(() => expect(compileDirectDistribution).toHaveBeenCalledTimes(1));
+    const context = atlas.getActiveInvestigationContext()!;
+    atlas.commitInvestigationContext(context.nodeId, {
+      ...context,
+      intent: { ...context.intent, researchQuestion: 'A changed question invalidates this compile.' },
+    });
+    controls.refresh();
+    resolveCompile(staleResult);
+
+    await vi.waitFor(() => expect(document.getElementById('review-direct-action-state')?.textContent)
+      .toContain('Direct compilation discarded: dataset or committed context changed.'));
+    controls.dispose();
+    atlas.dispose();
+  });
+
   it('refuses to create a direct-loop decision from ordinary analysis or an absent compilation', () => {
     mountRail();
     const atlas = new AtlasCore({ kernel: makeKernelMockBridge() as never });

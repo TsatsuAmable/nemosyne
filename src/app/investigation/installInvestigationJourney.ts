@@ -20,7 +20,9 @@ export function installInvestigationJourney(app: AppInstance): () => void {
     investigationVersion: 'pt5c-investigation-journey/1',
   });
   const executor = new NilExecutor();
-  const disposeNilRuntime = bindInvestigationJourneyNilRuntime(executor, world.atlas, reasoning);
+  const disposeNilRuntime = bindInvestigationJourneyNilRuntime(executor, world.atlas, reasoning, {
+    onContextCommitted: () => world.eventBus.emit(WorldTopics.INVESTIGATION_CONTEXT_COMMITTED),
+  });
 
   const journey = new InvestigationJourneyController({
     executor,
@@ -31,6 +33,7 @@ export function installInvestigationJourney(app: AppInstance): () => void {
   const subscribeContext = (handler: () => void): (() => void) => {
     const refresh = () => queueMicrotask(handler);
     const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
+    const unsubscribeContext = world.eventBus.on(WorldTopics.INVESTIGATION_CONTEXT_COMMITTED, refresh);
     const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
     // Session/checkpoint/.nemosyne restoration publishes HISTORY_SEEK only
     // after the persisted Atlas state has replaced the transient dataset-load
@@ -39,6 +42,7 @@ export function installInvestigationJourney(app: AppInstance): () => void {
     const unsubscribeHistory = world.eventBus.on(WorldTopics.HISTORY_SEEK, refresh);
     return () => {
       unsubscribeDataset();
+      unsubscribeContext();
       unsubscribeOperation();
       unsubscribeHistory();
     };

@@ -63,6 +63,22 @@ test('normal Chromium completes the governed FM2 direct loop and replays its sav
   await expect(page.locator('#review-direct-history')).toContainText('feedback');
   await expect(page.locator('#review-direct-variants')).toHaveText('Compiled direct variants · none recorded');
 
+  // Visible intent turnover must revoke every action against the previously
+  // compiled context, including critique, preference and new lineage creation.
+  await page.locator('#investigation-question').fill('Does the changed framing still support the direct view?');
+  await page.locator('#investigation-question-save').click();
+  await expect(page.locator('#investigation-feedback')).toContainText('Research question saved');
+  await page.locator('#investigation-hypothesis').fill('The changed framing requires a fresh direct compilation.');
+  await page.locator('#investigation-hypothesis-save').click();
+  await expect(page.locator('#investigation-feedback')).toContainText('Hypothesis saved');
+  await expect(page.locator('#review-direct-action-state'))
+    .toContainText('no governed direct compilation', { timeout: 15_000 });
+  await expect(page.locator('#review-direct-critique')).toHaveAttribute('disabled', '');
+  await expect(page.locator('#review-direct-prefer')).toHaveAttribute('disabled', '');
+  await page.locator('#review-direct-critique').click({ force: true });
+  await page.locator('#review-direct-prefer').click({ force: true });
+  await expect(page.locator('#review-direct-alternatives')).toContainText('1 recorded');
+
   await page.locator('#continuity-checkpoint').click();
   await expect(page.locator('#continuity-feedback')).toContainText('Checkpoint created', { timeout: 15_000 });
 

@@ -120,7 +120,6 @@ export function mountDesktopDirectLoopControls(
   };
   const refresh = (): void => {
     const active = currentCompilation();
-    if (!active) lastMessage = '';
     const elements = active?.plan.elements.map((entry) => entry.id) ?? [];
     const phenomena = active?.boundedOverview.phenomenonCoverage ?? [];
     const critiqueIds = active?.critiqueLedger.map((entry) => entry.critiqueId) ?? [];
@@ -280,6 +279,10 @@ export function mountDesktopDirectLoopControls(
       checkingEvidence = false;
       compiling = false;
       evidenceStatus.textContent = 'Direct evidence · not checked for the new dataset';
+      queueMicrotask(refresh);
+    }),
+    eventBus.on(WorldTopics.INVESTIGATION_CONTEXT_COMMITTED, () => {
+      lastMessage = '';
       queueMicrotask(refresh);
     }),
     eventBus.on(WorldTopics.OPERATION_APPLIED, () => { lastMessage = ''; queueMicrotask(refresh); }),
