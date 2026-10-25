@@ -229,17 +229,9 @@ export class InvestigationAggregate {
     );
   }
 
-  /** Reset all constituent sub-states on loading a new dataset. */
-  loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
-    this.analytical.loadDataset(dataset, destroyer);
-    this.ledger.reset();
-    this.decisions.reset();
-    this.graph.reset();
-    this.discoveries.reset();
+  /** Clear state whose identity is bound to the dataset being replaced. */
+  private _resetDatasetBoundState(): void {
     this._nodeDecisions.clear();
-    // Direct-loop compilations and critique lineage are dataset-bound. A new
-    // analytical identity must not leave the review rail able to display or
-    // act on branches minted for the superseded dataset.
     this._activeFormaResult = undefined;
     this._activeDirectCompileResult = undefined;
     this._activeDirectSnapshot = undefined;
@@ -248,6 +240,16 @@ export class InvestigationAggregate {
     this._directFeedbackLinks = [];
     this._directFeedbackBindings = [];
     this._formaState = undefined;
+  }
+
+  /** Reset all constituent sub-states on loading a new dataset. */
+  loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
+    this.analytical.loadDataset(dataset, destroyer);
+    this.ledger.reset();
+    this.decisions.reset();
+    this.graph.reset();
+    this.discoveries.reset();
+    this._resetDatasetBoundState();
 
     const fp = this.analytical.getFingerprint() ?? '';
     if (fp && this.analytical.originalNullable) {
@@ -303,6 +305,7 @@ export class InvestigationAggregate {
     this.decisions.reset();
     this.graph.reset();
     this.discoveries.reset();
+    this._resetDatasetBoundState();
 
     const fp = fingerprint || (this.analytical.getFingerprint() ?? '');
     this.ledger.appendEvent(
