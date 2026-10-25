@@ -171,6 +171,7 @@ export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
 
   const directReference = snapshot.body.directDistributionReference;
   if (directReference !== undefined) {
+    const directSource = sources.find((source) => source.sourceId === directReference.sourceId);
     if (
       directReference.schemaVersion !== '1' ||
       directReference.consumerId !== DIRECT_DISTRIBUTION_CONSUMER_ID_V1 ||
@@ -182,7 +183,9 @@ export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
       directReference.receiptId !== `direct-distribution:${directReference.sourceDigest}` ||
       directReference.datasetFingerprint !== snapshot.body.analyticalDatasetFingerprint ||
       directReference.kernelVersion !== snapshot.body.kernelVersion ||
-      !sources.some((source) => source.sourceId === directReference.sourceId)
+      directSource === undefined ||
+      directSource.family !== 'DISTRIBUTION' ||
+      directSource.state.status !== 'AVAILABLE'
     ) {
       throw new Error('Direct-distribution reference identity mismatch');
     }
@@ -232,7 +235,7 @@ export function validateSemanticSnapshot(snapshot: SemanticSnapshotV1): void {
  * Normalizes a Rust analytical payload envelope into a decision-independent SemanticSnapshotV1.
  * Explicitly strips decision IDs, model versions, timestamps, and presentation hints.
  */
-export function normalizeEnvelopeToSnapshot(
+function normalizeEnvelopeToSnapshotInternal(
   envelope: SemanticEmbodimentEnvelopeV1,
   evidenceReferences: readonly EvidenceReferenceTupleV1[] = [],
   directReference?: Omit<DirectDistributionReferenceV1, 'sourceId'>,
@@ -407,6 +410,13 @@ export function normalizeEnvelopeToSnapshot(
   return snapshot;
 }
 
+export function normalizeEnvelopeToSnapshot(
+  envelope: SemanticEmbodimentEnvelopeV1,
+  evidenceReferences: readonly EvidenceReferenceTupleV1[] = [],
+): SemanticSnapshotV1 {
+  return normalizeEnvelopeToSnapshotInternal(envelope, evidenceReferences);
+}
+
 /**
  * Converts a binding already verified by the selected analytical port into
  * the normal decision-independent snapshot. The port remains responsible for
@@ -420,7 +430,7 @@ export function normalizeDirectDistributionBindingToSnapshot(
     datasetFingerprint: binding.datasetFingerprint,
     kernelVersion: binding.kernelVersion,
   });
-  return normalizeEnvelopeToSnapshot(verified.source, [], {
+  return normalizeEnvelopeToSnapshotInternal(verified.source, [], {
     schemaVersion: verified.schemaVersion,
     consumerId: verified.consumerId,
     requirementProfileId: verified.requirementProfileId,

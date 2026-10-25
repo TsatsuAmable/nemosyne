@@ -145,6 +145,7 @@ import type {
   SemanticSnapshotV1,
   EvidenceReferenceTupleV1,
 } from '../moneta/representation/SemanticSnapshotV1.ts';
+import { normalizeDirectDistributionBindingToSnapshot } from '../moneta/representation/SemanticSnapshotV1.ts';
 import type { SemanticEmbodimentEnvelopeV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
 import type {
   DeviceCapabilityBudgetV1,
@@ -1950,8 +1951,39 @@ export class AtlasCore {
     return this._aggregate.compileDirectEmbodiment(options);
   }
 
+  /**
+   * FM2-SNAPSHOT: acquire a Rust-issued direct-distribution binding through
+   * the configured analytical port, normalize its exact source into the
+   * decision-independent snapshot, then use the ordinary direct compiler.
+   * There is deliberately no semantic-envelope or JavaScript fallback when
+   * the port cannot attest the requested live identity.
+   */
+  async compileDirectDistributionEmbodiment(
+    request: DistributionEmbodimentRequestV1,
+    options?: {
+      readonly budget?: DeviceCapabilityBudgetV1;
+      readonly obligations?: SemanticObligationContractV1;
+      readonly admissionOptions?: FormaAdmissionOptionsV1;
+      readonly phenotype?: SpatialPhenotype;
+      readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
+    },
+  ): Promise<DirectEmbodimentCompileResult> {
+    const binding = await this.captureDirectDistributionBinding(request);
+    if (!binding) {
+      throw new Error(
+        '[AtlasCore] Direct distribution compilation refused: Rust binding unavailable or stale'
+      );
+    }
+    const snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
+    return this.compileDirectEmbodiment({ ...options, snapshot });
+  }
+
   getActiveDirectCompileResult(): DirectEmbodimentCompileResult | undefined {
     return this._aggregate.getActiveDirectCompileResult();
+  }
+
+  getActiveDirectSnapshot(): SemanticSnapshotV1 | undefined {
+    return this._aggregate.getActiveDirectSnapshot();
   }
 
   /**

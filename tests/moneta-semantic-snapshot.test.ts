@@ -91,10 +91,10 @@ describe('SemanticSnapshotV1', () => {
           kind: 'EMPIRICAL_DISTRIBUTION',
           data: {
             measureField: 'x',
-            observationCounts: { sourceCount: 2, validCount: 2, excludedCount: 0 },
+            counts: { sourceCount: 2, validCount: 2, excludedCount: 0 },
             domain: { min: 1, max: 2 },
             histogram: [{ semanticId: 'bin-0', lowerBound: 1, upperBound: 2, count: 2, upperInclusive: true }],
-            ecdf: [{ semanticId: 'knot-0', value: 1, cumulativeProbability: 0.5 }],
+            ecdf: [{ semanticId: 'knot-0', value: 1, cumulativeProbability: 0.5, cumulativeCount: 1 }],
             quantiles: [],
           },
         },

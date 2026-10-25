@@ -264,6 +264,40 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('persists the reference from normal Atlas compilation through the existing replay carrier', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    atlas.commitInvestigationContext('fm2-snapshot-replay-context', {
+      schemaVersion: 2,
+      nodeId: 'fm2-snapshot-replay-context',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Replay a direct empirical distribution',
+        currentTask: 'fm2-snapshot-replay',
+      },
+    });
+    try {
+      await atlas.compileDirectDistributionEmbodiment(request);
+      const reference = atlas.getActiveDirectSnapshot()?.body.directDistributionReference;
+      expect(reference).toBeDefined();
+
+      const session = new NemosyneSession({ atlas });
+      const binding = await session.captureDirectDistributionBinding(request);
+      expect(binding?.sourceDigest).toBe(reference?.sourceDigest);
+      expect(binding?.receiptId).toBe(reference?.receiptId);
+
+      const archive = await session.exportPortablePackage({}, undefined, {
+        directDistributionBinding: true,
+      });
+      const replayed = await new InvestigationReplayRunner(bridge).replayArchive(archive);
+      expect(replayed.directDistribution).toMatchObject({ status: 'VERIFIED' });
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
+
   it('exports and restores the governed carrier without losing exact bytes', async () => {
     const data = dataset();
     const atlas = new AtlasCore({ kernel: bridge });

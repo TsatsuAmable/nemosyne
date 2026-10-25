@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Dataset, ColumnType } from '../src/data/Dataset.ts';
 import * as bridge from '../src/wasm/RuntimeBridge.ts';
+import { AtlasCore } from '../src/atlas/AtlasCore.ts';
 import { InlineAnalyticalPort } from '../src/atlas/ports/InlineAnalyticalPort.ts';
 import { WorkerAnalyticalPort, type WorkerTransport } from '../src/atlas/ports/WorkerAnalyticalPort.ts';
 import type { AnalyticalExecutionRequest, AnalyticalDatasetRegistration } from '../src/atlas/ports/AnalyticalExecutionPort.ts';
 import type { DirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
+import type { DistributionEmbodimentRequestV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 import { verifyTransportedDirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
 
 function dataset(): Dataset {
@@ -13,7 +15,7 @@ function dataset(): Dataset {
   ], Array.from({ length: 20 }, (_, i) => ({ x: i + 1 })));
 }
 
-const params = {
+const params: DistributionEmbodimentRequestV1 = {
   schemaVersion: 1, candidateId: 'DISTRIBUTION_FIELD', measureField: 'x',
   histogramBinCount: 8, ecdfKnotCount: 8, quantileProbabilities: [0, 0.5, 1],
 };
@@ -23,10 +25,61 @@ const request = (fingerprint: string, version = 1, generation = 1): AnalyticalEx
   operation: 'directDistributionBinding',
   dataset: { fingerprint, version },
   generation,
-  params,
+  params: params as unknown as Record<string, unknown>,
 });
 
+function commitContext(atlas: AtlasCore): void {
+  atlas.commitInvestigationContext('fm2-snapshot-context', {
+    schemaVersion: 2,
+    nodeId: 'fm2-snapshot-context',
+    epistemicPurpose: 'CLAIM_BEARING',
+    intent: {
+      schemaVersion: 1,
+      researchQuestion: 'Inspect a direct empirical distribution',
+      currentTask: 'fm2-snapshot',
+    },
+  });
+}
+
 describe('FM2-WORKER port preserves independent Rust authority', () => {
+  it('normal Atlas direct compilation captures a deterministic Rust reference through the inline port', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    commitContext(atlas);
+    try {
+      const first = await atlas.compileDirectDistributionEmbodiment(params);
+      const firstSnapshot = atlas.getActiveDirectSnapshot();
+      const second = await atlas.compileDirectDistributionEmbodiment(params);
+      const secondSnapshot = atlas.getActiveDirectSnapshot();
+
+      expect(first.plan.planId).toBe(second.plan.planId);
+      expect(firstSnapshot?.body.directDistributionReference).toMatchObject({
+        consumerId: 'nemosyne:consumer/direct-distribution/v1',
+        requirementProfileId: 'direct-empirical-distribution/v1',
+        claimKind: 'DESCRIPTIVE_EMPIRICAL_DISTRIBUTION',
+        datasetFingerprint: data.fingerprint,
+      });
+      expect(firstSnapshot?.snapshotId).toBe(secondSnapshot?.snapshotId);
+      expect(firstSnapshot?.body.sources[0].evidenceReferences).toEqual([]);
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
+  it('refuses normal direct compilation when no authoritative port can issue the binding', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore();
+    atlas.loadDataset(data);
+    commitContext(atlas);
+
+    await expect(atlas.compileDirectDistributionEmbodiment(params)).rejects.toThrow(
+      'Rust binding unavailable or stale'
+    );
+    expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
+    expect(atlas.getActiveDirectSnapshot()).toBeUndefined();
+  });
+
   it('executes the same real Rust source-bound producer through the injected inline port', async () => {
     const data = dataset();
     const handle = bridge.loadDatasetJson(data.toJSON());
@@ -112,6 +165,18 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       expect(Object.keys(posted.request).sort()).toEqual(
         ['dataset', 'generation', 'operation', 'params', 'requestId'].sort()
       );
+
+      const atlas = new AtlasCore();
+      atlas.setExecutionPort(port);
+      atlas.loadDataset(data);
+      commitContext(atlas);
+      const compiled = await atlas.compileDirectDistributionEmbodiment(params);
+      expect(compiled.plan.planId).toMatch(/^plan-direct-/);
+      expect(atlas.getActiveDirectSnapshot()?.body.directDistributionReference).toMatchObject({
+        consumerId: 'nemosyne:consumer/direct-distribution/v1',
+        datasetFingerprint: data.fingerprint,
+      });
+
       const refused = await port.execute<DirectDistributionBindingV1>({
         ...request(data.fingerprint), requestId: 'fm2-invalid-measure',
         params: { ...params, measureField: 'not-present' },

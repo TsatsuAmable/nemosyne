@@ -3,6 +3,7 @@ import type {
   SemanticSnapshotV1,
   SemanticNodeRecordV1,
   EvidenceReferenceTupleV1,
+  DirectDistributionReferenceV1,
 } from '../representation/SemanticSnapshotV1.js';
 import type { CommittedInvestigationContextV2 } from '../../atlas/domain/CommittedInvestigationContext.js';
 import {
@@ -40,6 +41,7 @@ export interface FormaReverseTraceV1 {
   readonly producerSemanticId: string;
   readonly propertyPath: string;
   readonly evidenceReferences: readonly EvidenceReferenceTupleV1[];
+  readonly directDistributionReference?: DirectDistributionReferenceV1;
   readonly rationale: string;
   readonly bindingKind?: 'GROUNDED' | 'CONJECTURAL';
   readonly epistemicStatus?: string;
@@ -101,6 +103,7 @@ export function compileFormaSpatialSlice(
   // 2. Evidence validation: every source must have non-empty evidence references
   for (const src of snapshot.body.sources) {
     if (!src.evidenceReferences || src.evidenceReferences.length === 0) {
+      if (snapshot.body.directDistributionReference?.sourceId === src.sourceId) continue;
       return {
         status: 'REFUSED',
         refusal: {
@@ -327,6 +330,10 @@ export function compileFormaSpatialSlice(
     // Lookup evidence references from corresponding source
     const sourceRecord = snapshot.body.sources.find((s) => s.sourceId === node.sourceId);
     const evidenceReferences = sourceRecord?.evidenceReferences ?? [];
+    const directDistributionReference =
+      sourceRecord?.sourceId === snapshot.body.directDistributionReference?.sourceId
+        ? snapshot.body.directDistributionReference
+        : undefined;
 
     reverseExplanation.push({
       elementId,
@@ -335,6 +342,7 @@ export function compileFormaSpatialSlice(
       producerSemanticId: node.producerSemanticId,
       propertyPath: node.propertyPath,
       evidenceReferences,
+      ...(directDistributionReference === undefined ? {} : { directDistributionReference }),
       rationale,
       bindingKind,
       epistemicStatus,

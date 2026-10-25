@@ -85,4 +85,3 @@
 - [ ] Run focused snapshot, real-WASM Worker, replay, typecheck, lint, and applicable docs checks.
 - [ ] Perform a separate post-implementation adversarial pass against the production call graph and the contract above; record BLOCKER/DEFER/SUGGESTION disposition in the handoff/commit notes.
 - [ ] Commit task-specific changes and leave the worktree clean.
-

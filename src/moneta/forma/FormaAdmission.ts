@@ -145,7 +145,10 @@ export function compileFormaAdmission(
         },
       };
     }
+    const hasDirectDistributionReference =
+      snapshot.body.directDistributionReference?.sourceId === src.sourceId;
     if (!src.evidenceReferences || src.evidenceReferences.length === 0) {
+      if (hasDirectDistributionReference) continue;
       return {
         status: 'REFUSED',
         refusal: {
