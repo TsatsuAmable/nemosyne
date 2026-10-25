@@ -405,7 +405,9 @@ export class InvestigationAggregate {
       ...active,
       epistemicPurpose: purpose,
     };
-    return this.contextLedger.commit(active.nodeId, updatedContext);
+    const activation = this.contextLedger.commit(active.nodeId, updatedContext);
+    this._invalidateActiveDirectCompilation();
+    return activation;
   }
 
   /**

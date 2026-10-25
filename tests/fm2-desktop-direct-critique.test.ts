@@ -326,4 +326,48 @@ describe('FM2 direct critique controls use the product NIL command path', () => 
       atlas.dispose();
     }
   }, 60000);
+
+  it('refuses Atlas REJECT and PREFER mutations after epistemic purpose turnover', async () => {
+    const atlas = new AtlasCore({ kernel: rustBridge });
+    const data = new Dataset('purpose-turnover-authority', [
+      { name: 'val', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ val: index + 1 })));
+    atlas.loadDataset(data);
+    commitDirectContext(atlas);
+
+    try {
+      const initial = await atlas.compileDirectDistributionEmbodiment({
+        schemaVersion: 1,
+        candidateId: 'DISTRIBUTION_FIELD',
+        measureField: 'val',
+        histogramBinCount: 8,
+        ecdfKnotCount: 8,
+        quantileProbabilities: [0, 0.5, 1],
+      });
+      const recorded = atlas.recordDirectLedgerCritique({
+        investigatorId: 'researcher',
+        targetElementId: initial.plan.elements[0]!.id,
+        targetPhenomenon: 'DISTRIBUTION',
+        critiqueKind: 'CUSTOM',
+        note: 'Record a critique before epistemic purpose turnover.',
+      });
+
+      atlas.aggregate.setEpistemicPurpose('EXPLORATORY_ABDUCTION');
+
+      expect(atlas.getActiveInvestigationContext()?.epistemicPurpose).toBe('EXPLORATORY_ABDUCTION');
+      expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
+      expect(() => atlas.recordDirectLedgerCritique({
+        investigatorId: 'researcher',
+        targetElementId: initial.plan.elements[0]!.id,
+        targetPhenomenon: 'DISTRIBUTION',
+        critiqueKind: 'CUSTOM',
+        note: 'This must be refused after purpose turnover.',
+      })).toThrow('no active direct compilation');
+      expect(() => atlas.resolveDirectAlternativeFromCritique(recorded.critique.critiqueId))
+        .toThrow('no active direct compilation');
+      expect(atlas.getDirectFeedbackLinks()).toHaveLength(0);
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
 });
