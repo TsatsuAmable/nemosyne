@@ -617,7 +617,7 @@ describe('DSE3: production entry point via AtlasCore', () => {
     expect(atlas.getDirectAlternativeFeedbackBindings()).toHaveLength(1);
   });
 
-  it('a later CLAIM_BEARING context closes conjectural traversal on the same compilation', () => {
+  it('a later CLAIM_BEARING context invalidates conjectural traversal before it can reopen', () => {
     const atlas = buildAtlas('EXPLORATORY_ABDUCTION');
     const fingerprint = atlas.dataset.fingerprint;
     const snapshot = createDistributionSnapshot(fingerprint);
@@ -666,7 +666,7 @@ describe('DSE3: production entry point via AtlasCore', () => {
       },
     });
     expect(() => atlas.openDirectTraversal(conjectural.id, 'DISTRIBUTION', authority)).toThrow(
-      'EXPLORATORY_ABDUCTION'
+      'no active direct compilation'
     );
   });
 

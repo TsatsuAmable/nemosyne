@@ -108,6 +108,31 @@ function fixture(initial = makeSnapshot('session-a', 'theme-a')): {
 }
 
 describe('PT5D investigation continuity', () => {
+  it('carries a governed direct-distribution snapshot through the visible continuity export', async () => {
+    const source = makeSnapshot('session-direct', 'neon-direct');
+    source.directDistributionSnapshot = 'rust-issued-carrier';
+    const baseArchive = await NemosyneSession.exportPortableSnapshot(
+      makeSnapshot('session-direct', 'neon-direct'),
+      { platform: 'test' },
+      '0.2.0',
+    );
+    const exportPortableSnapshot = vi
+      .spyOn(NemosyneSession, 'exportPortableSnapshot')
+      .mockResolvedValue(baseArchive);
+    try {
+      const f = fixture(source);
+      await f.controller.exportCurrent();
+      expect(exportPortableSnapshot).toHaveBeenCalledWith(
+        source,
+        { platform: 'test', webxrSupported: true },
+        '0.2.0',
+        { directDistributionBinding: true },
+      );
+    } finally {
+      exportPortableSnapshot.mockRestore();
+    }
+  });
+
   it('exports a resumable package for the live replay kernel and reopens the exact investigation while retaining recipient device settings', async () => {
     const source = makeSnapshot('session-source', 'neon-source');
     source.presentation.settings = { reducedMotion: true, productAnalytics: true };

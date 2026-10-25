@@ -300,9 +300,11 @@ function desktopReviewRecoveryActions(
       const refresh = () => queueMicrotask(handler);
       const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
       const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
+      const unsubscribeHistory = world.eventBus.on(WorldTopics.HISTORY_SEEK, refresh);
       return () => {
         unsubscribeDataset();
         unsubscribeOperation();
+        unsubscribeHistory();
       };
     },
   };
