@@ -82,6 +82,11 @@ function parseRequest(value: unknown): DistributionEmbodimentRequestV1 {
   if (actual.some((key) => !allowed.includes(key))) {
     throw new Error('[DirectDistributionReplay] request has unsupported fields');
   }
+  for (const field of ['decisionId', 'decisionModelVersion', 'decisionModelArtifactHash'] as const) {
+    if (actual.includes(field) && typeof object[field] !== 'string') {
+      throw new Error(`[DirectDistributionReplay] request.${field} must be a string when present`);
+    }
+  }
   if (
     object.schemaVersion !== 1 ||
     object.candidateId !== 'DISTRIBUTION_FIELD' ||
@@ -110,9 +115,9 @@ function parseRequest(value: unknown): DistributionEmbodimentRequestV1 {
     histogramBinCount: histogramBinCount as number,
     ecdfKnotCount: ecdfKnotCount as number,
     quantileProbabilities: [...boundedQuantileProbabilities],
-    ...(typeof object.decisionId === 'string' ? { decisionId: object.decisionId } : {}),
-    ...(typeof object.decisionModelVersion === 'string' ? { decisionModelVersion: object.decisionModelVersion } : {}),
-    ...(typeof object.decisionModelArtifactHash === 'string' ? { decisionModelArtifactHash: object.decisionModelArtifactHash } : {}),
+    ...(actual.includes('decisionId') ? { decisionId: object.decisionId as string } : {}),
+    ...(actual.includes('decisionModelVersion') ? { decisionModelVersion: object.decisionModelVersion as string } : {}),
+    ...(actual.includes('decisionModelArtifactHash') ? { decisionModelArtifactHash: object.decisionModelArtifactHash as string } : {}),
   });
 }
 

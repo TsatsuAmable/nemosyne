@@ -35,6 +35,7 @@ function dataset(): Dataset {
 
 type MutableDirectCarrier = {
   binding: Record<string, unknown>;
+  request?: Record<string, unknown>;
   use?: Record<string, unknown>;
   [key: string]: unknown;
 };
@@ -252,6 +253,22 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     expect(result.success).toBe(false);
     expect(result.directDistribution).toMatchObject({ status: 'REFUSED' });
     expect(result.discrepancies.join(' ')).toContain('does not reproduce through the live Rust producer');
+  }, 60000);
+
+  it('refuses present non-string optional request fields through real-WASM replay', async () => {
+    const archive = await exportedDirectArchive();
+    const runner = new InvestigationReplayRunner(bridge);
+
+    for (const field of ['decisionId', 'decisionModelVersion', 'decisionModelArtifactHash'] as const) {
+      const payload = payloadWithCarrierMutation(archive, (carrier) => {
+        if (!carrier.request) throw new Error('test carrier request missing');
+        carrier.request[field] = 123;
+      });
+      const result = await runner.replayPayload(payload);
+      expect(result.success).toBe(false);
+      expect(result.directDistribution?.status).toBe('REFUSED');
+      expect(result.discrepancies.join(' ')).toContain(`request.${field} must be a string when present`);
+    }
   }, 60000);
 
   it('refuses dataset invalidation and keeps old packages on their existing path', async () => {
