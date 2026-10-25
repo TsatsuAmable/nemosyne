@@ -845,86 +845,13 @@ export class InvestigationReplayRunner {
     }
 
     let directDistribution: ReplayVerificationResult['directDistribution'];
-    if (directCarrier) {
-      if (
-        directCarrier.binding.datasetFingerprint !== atlas.datasetFingerprint ||
-        directCarrier.binding.kernelVersion !== replayKernelVersion
-      ) {
-        const reason = 'direct-distribution carrier does not match reconstructed dataset or replay kernel';
-        discrepancies.push(reason);
-        return this._failedResult(
-          manifest,
-          discrepancies,
-          postEnvelopeEvidence,
-          { status: 'REFUSED', reason },
-        );
-      }
-      try {
-        const liveBinding = await atlas.captureDirectDistributionBinding(directCarrier.request);
-        if (!liveBinding || !directDistributionBindingsEqualV1(directCarrier.binding, liveBinding)) {
-          const reason = 'direct-distribution source does not reproduce through the live Rust producer';
-          discrepancies.push(reason);
-          return this._failedResult(
-            manifest,
-            discrepancies,
-            postEnvelopeEvidence,
-            { status: 'REFUSED', reason },
-          );
-        }
-      } catch (error) {
-        const reason = `direct-distribution replay refused: ${(error as Error).message}`;
-        discrepancies.push(reason);
-        return this._failedResult(
-          manifest,
-          discrepancies,
-          postEnvelopeEvidence,
-          { status: 'REFUSED', reason },
-        );
-      }
-      directDistribution = {
-        status: 'VERIFIED',
-        consumerId: directCarrier.binding.consumerId,
-        receiptId: directCarrier.binding.receiptId,
-        sourceDigest: directCarrier.binding.sourceDigest,
-      };
-    }
-
-    // RFC 0009 step 3: compare the persisted bundle identity against the state
-    // this replay actually reconstructed, never against the manifest strings
-    // that transport validation already compared. Sourcing these from the
-    // manifest would make the two refusals below unreachable dead code. The
-    // reconstructable identity is the *transformed analytical* fingerprint, so
-    // it is deliberately not the manifest's portable datasetFingerprint.
-    if (envelope) {
-      const reconstructedAnalyticalFingerprint = atlas.datasetFingerprint;
-      if (envelope.bundle.datasetFingerprint !== reconstructedAnalyticalFingerprint) {
-        discrepancies.push(
-          'Governed evidence dataset identity does not match the reconstructed analytical dataset: ' +
-          `bundle claims '${envelope.bundle.datasetFingerprint}', replay reconstructed '${String(reconstructedAnalyticalFingerprint)}'`);
-        return this._failedResult(
-          manifest,
-          discrepancies,
-          verifiedEvidence('DATASET_MISMATCH'),
-        );
-      }
-      if (envelope.bundle.kernelVersion !== replayKernelVersion) {
-        discrepancies.push(
-          'Governed evidence kernel identity does not match the replay kernel: ' +
-          `bundle claims '${envelope.bundle.kernelVersion}', replay kernel is '${String(replayKernelVersion)}'`);
-        return this._failedResult(
-          manifest,
-          discrepancies,
-          verifiedEvidence('KERNEL_MISMATCH'),
-        );
-      }
-    }
-
     let commandsReplayed = 0;
     let eventsMatched = 0;
     let provenanceEventsVerified = 0;
     let representationProvenanceVerified = false;
     let remediationEventsVerified = 0;
     let refusalEventsVerified = 0;
+    let durableAnalyticalOperationsVerified = true;
 
     for (let i = 0; i < loggedEvents.length; i++) {
       const item = loggedEvents[i];
@@ -938,12 +865,16 @@ export class InvestigationReplayRunner {
             if (!event.result) {
               if (usesSemanticDigest) {
                 if (typeof event.intervention === 'string' && event.intervention.length > 0) eventsMatched += 1;
-                else discrepancies.push(`Malformed semantic-v2 analysis event at #${i}: missing result and intervention`);
+                else {
+                  durableAnalyticalOperationsVerified = false;
+                  discrepancies.push(`Malformed semantic-v2 analysis event at #${i}: missing result and intervention`);
+                }
                 break;
               }
             }
             const spec = usesSemanticDigest ? eventAnalysisSpec(event) : (event.command as AnalysisSpec);
             if (!spec) {
+              durableAnalyticalOperationsVerified = false;
               discrepancies.push(`Malformed analysis event at #${i}: missing executable AnalysisSpec`);
               break;
             }
@@ -957,6 +888,7 @@ export class InvestigationReplayRunner {
                   if (resultDiscrepancies.length === 0 && event.result.provenance) provenanceEventsVerified += 1;
                   if (resultDiscrepancies.length > 0) {
                     eventMatches = false;
+                    durableAnalyticalOperationsVerified = false;
                     for (const entry of resultDiscrepancies) {
                       discrepancies.push(`Analysis drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
                     }
@@ -965,12 +897,14 @@ export class InvestigationReplayRunner {
                   if (event.result.outputHash && res.outputHash !== event.result.outputHash) {
                     discrepancies.push(`Output hash drift at event #${i} (${spec.label ?? spec.operation.op}): expected ${event.result.outputHash}, computed ${res.outputHash}`);
                     eventMatches = false;
+                    durableAnalyticalOperationsVerified = false;
                   }
                   if (event.result.provenance) {
                     const provenanceDiscrepancies = compareProvenance(event.result.provenance, res.provenance);
                     if (provenanceDiscrepancies.length === 0) provenanceEventsVerified += 1;
                     else {
                       eventMatches = false;
+                      durableAnalyticalOperationsVerified = false;
                       for (const entry of provenanceDiscrepancies) {
                         discrepancies.push(`Provenance drift at event #${i} (${spec.label ?? spec.operation.op}): ${entry}`);
                       }
@@ -980,6 +914,7 @@ export class InvestigationReplayRunner {
               }
               if (eventMatches) eventsMatched += 1;
             } catch (err) {
+              durableAnalyticalOperationsVerified = false;
               discrepancies.push(`Replay execution failure at event #${i}: ${(err as Error).message}`);
             }
             break;
@@ -1066,6 +1001,7 @@ export class InvestigationReplayRunner {
           commandsReplayed += 1;
           eventsMatched += 1;
         } catch (err) {
+          durableAnalyticalOperationsVerified = false;
           discrepancies.push(`Replay execution failure for spec #${i}: ${(err as Error).message}`);
         }
       }
@@ -1122,6 +1058,93 @@ export class InvestigationReplayRunner {
             else refusalEventsVerified += 1;
           }
         }
+      }
+    }
+
+    // Direct-carrier and governed-envelope identities are claims about the
+    // analytical state the replay reconstructed, not about the portable seed
+    // or manifest strings. Only inspect them after the durable operation log
+    // has been replayed and its analytical results have been verified.
+    if (directCarrier) {
+      if (
+        directCarrier.binding.datasetFingerprint !== atlas.datasetFingerprint ||
+        directCarrier.binding.kernelVersion !== replayKernelVersion
+      ) {
+        const reason = 'direct-distribution carrier does not match reconstructed dataset or replay kernel';
+        discrepancies.push(reason);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          postEnvelopeEvidence,
+          { status: 'REFUSED', reason },
+        );
+      }
+      if (!durableAnalyticalOperationsVerified) {
+        const reason = 'direct-distribution replay refused: durable analytical operations were not fully verified';
+        discrepancies.push(reason);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          postEnvelopeEvidence,
+          { status: 'REFUSED', reason },
+        );
+      }
+      try {
+        const liveBinding = await atlas.captureDirectDistributionBinding(directCarrier.request);
+        if (!liveBinding || !directDistributionBindingsEqualV1(directCarrier.binding, liveBinding)) {
+          const reason = 'direct-distribution source does not reproduce through the live Rust producer';
+          discrepancies.push(reason);
+          return this._failedResult(
+            manifest,
+            discrepancies,
+            postEnvelopeEvidence,
+            { status: 'REFUSED', reason },
+          );
+        }
+      } catch (error) {
+        const reason = `direct-distribution replay refused: ${(error as Error).message}`;
+        discrepancies.push(reason);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          postEnvelopeEvidence,
+          { status: 'REFUSED', reason },
+        );
+      }
+      directDistribution = {
+        status: 'VERIFIED',
+        consumerId: directCarrier.binding.consumerId,
+        receiptId: directCarrier.binding.receiptId,
+        sourceDigest: directCarrier.binding.sourceDigest,
+      };
+    }
+
+    // RFC 0009 step 3: compare the persisted bundle identity against the state
+    // this replay actually reconstructed, never against the manifest strings
+    // that transport validation already compared. The reconstructable identity
+    // is the *transformed analytical* fingerprint, so it is deliberately not
+    // the manifest's portable datasetFingerprint.
+    if (envelope) {
+      const reconstructedAnalyticalFingerprint = atlas.datasetFingerprint;
+      if (envelope.bundle.datasetFingerprint !== reconstructedAnalyticalFingerprint) {
+        discrepancies.push(
+          'Governed evidence dataset identity does not match the reconstructed analytical dataset: ' +
+          `bundle claims '${envelope.bundle.datasetFingerprint}', replay reconstructed '${String(reconstructedAnalyticalFingerprint)}'`);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          verifiedEvidence('DATASET_MISMATCH'),
+        );
+      }
+      if (envelope.bundle.kernelVersion !== replayKernelVersion) {
+        discrepancies.push(
+          'Governed evidence kernel identity does not match the replay kernel: ' +
+          `bundle claims '${envelope.bundle.kernelVersion}', replay kernel is '${String(replayKernelVersion)}'`);
+        return this._failedResult(
+          manifest,
+          discrepancies,
+          verifiedEvidence('KERNEL_MISMATCH'),
+        );
       }
     }
 

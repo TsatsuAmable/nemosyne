@@ -26,6 +26,7 @@ import {
   parseDirectDistributionReplayCarrierV1,
   serializeDirectDistributionReplayCarrierV1,
 } from '../src/moneta/representation/DirectDistributionReplayCarrierV1.ts';
+import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
 
 const request = {
   schemaVersion: 1 as const,
@@ -330,6 +331,77 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
       expect(result.success).toBe(true);
       expect((result as { directDistribution?: { status: string } }).directDistribution)
         .toMatchObject({ status: 'VERIFIED' });
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
+
+  it('replays a carrier captured after a durable filter against the transformed analytical state', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    const originalFingerprint = atlas.datasetFingerprint;
+    try {
+      const filterResult = atlas.applyAnalysis(
+        toAnalysisSpec('filter', atlas.dataset!, atlas),
+      );
+      expect(filterResult.datasetFingerprint).not.toBe(originalFingerprint);
+      expect(atlas.datasetFingerprint).toBe(filterResult.datasetFingerprint);
+      expect(
+        atlas.evidenceLedger.ledger.some((event) => event.kind === 'analysis'),
+      ).toBe(true);
+
+      const session = new NemosyneSession({ atlas });
+      const binding = await session.captureDirectDistributionBinding(request);
+      expect(binding?.datasetFingerprint).toBe(filterResult.datasetFingerprint);
+
+      const archive = await session.exportPortablePackage({}, undefined, {
+        directDistributionBinding: true,
+      });
+      const payload = NemosynePackageManager.unpack(archive);
+      expect(payload.manifest.datasetFingerprint).toBe(originalFingerprint);
+      expect(payload.manifest.analyticalDatasetFingerprint).toBe(
+        filterResult.datasetFingerprint,
+      );
+
+      const replayed = await new InvestigationReplayRunner(bridge).replayArchive(archive);
+      expect(replayed.success, replayed.discrepancies.join('\n')).toBe(true);
+      expect(replayed.directDistribution).toMatchObject({ status: 'VERIFIED' });
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  }, 60000);
+
+  it('refuses the direct claim when the transformation log reconstructs a different state', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    try {
+      atlas.applyAnalysis(toAnalysisSpec('filter', atlas.dataset!, atlas));
+      const session = new NemosyneSession({ atlas });
+      await expect(session.captureDirectDistributionBinding(request)).resolves.not.toBeNull();
+      const archive = await session.exportPortablePackage({}, undefined, {
+        directDistributionBinding: true,
+      });
+      const payload = NemosynePackageManager.unpack(archive);
+      const events = JSON.parse(
+        new TextDecoder('utf-8', { fatal: true }).decode(payload.commandLogBytes),
+      ) as Array<Record<string, unknown>>;
+      const analysis = events.find((event) => event.kind === 'analysis');
+      if (!analysis) throw new Error('transformed replay fixture is missing its analysis event');
+      const command = objectRecord(analysis.command);
+      const operation = objectRecord(command.operation);
+      const predicate = objectRecord(operation.predicate);
+      predicate.value = Number(predicate.value) + 1;
+      payload.commandLogBytes = new TextEncoder().encode(JSON.stringify(events));
+
+      const replayed = await new InvestigationReplayRunner(bridge).replayPayload(payload);
+      expect(replayed.success).toBe(false);
+      expect(replayed.directDistribution).toMatchObject({ status: 'REFUSED' });
+      expect(replayed.directDistribution?.status).not.toBe('VERIFIED');
+      expect(replayed.discrepancies.join(' ')).toContain(
+        'direct-distribution carrier does not match reconstructed dataset',
+      );
     } finally {
       bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
     }

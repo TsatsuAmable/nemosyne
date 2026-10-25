@@ -900,6 +900,11 @@ export class AtlasCore {
       this._analytics.destroyDataset(outHandle);
       throw err;
     }
+    this._executionPort?.supersede({
+      generation: this._generation,
+      datasetVersion: this.datasetVersion,
+      datasetFingerprint: outputHash,
+    });
 
     const resultId = this._aggregate.ledger.nextResultId(
       outputHash,
