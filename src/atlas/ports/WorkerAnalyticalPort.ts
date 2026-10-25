@@ -804,9 +804,26 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
 
     if (pending.req.operation === 'directDistributionBinding' && result.value !== null) {
       try {
+        const workerProvenance = result.provenance;
+        if (
+          !workerProvenance ||
+          workerProvenance.kernel !== 'nemosyne-wasm' ||
+          typeof workerProvenance.kernelVersion !== 'string' ||
+          workerProvenance.kernelVersion.length === 0
+        ) {
+          throw new Error('independent kernel provenance is missing or invalid');
+        }
+        const claimedKernelVersion =
+          typeof result.value === 'object' && result.value !== null &&
+          'kernelVersion' in result.value
+            ? (result.value as { kernelVersion?: unknown }).kernelVersion
+            : undefined;
+        if (claimedKernelVersion !== workerProvenance.kernelVersion) {
+          throw new Error('binding kernel identity disagrees with independent kernel provenance');
+        }
         const value = verifyTransportedDirectDistributionBindingV1(result.value, {
           datasetFingerprint: pending.req.dataset.fingerprint,
-          kernelVersion: (result.value as { kernelVersion?: string }).kernelVersion ?? '',
+          kernelVersion: workerProvenance.kernelVersion,
         });
         pending.resolve({ ...result, value });
       } catch (error: unknown) {

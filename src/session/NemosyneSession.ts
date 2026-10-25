@@ -34,6 +34,13 @@ import {
 } from '../data/evidence/PersistedEvidenceReceipts.ts';
 import { bindConsumerUsesV1, governedConsumerPolicyV1 } from '../data/evidence/index.ts';
 import { strToU8 } from 'fflate';
+import {
+  createDirectDistributionReplayCarrierV1,
+  parseDirectDistributionReplayCarrierV1,
+  serializeDirectDistributionReplayCarrierV1,
+} from '../moneta/representation/DirectDistributionReplayCarrierV1.ts';
+import type { DirectDistributionBindingV1 } from '../moneta/representation/DirectDistributionBindingV1.ts';
+import type { DistributionEmbodimentRequestV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
 
 export interface PresentationState {
   camera: { position: [number, number, number]; rotationY: number };
@@ -83,6 +90,8 @@ export interface NemosyneSessionJSON extends AtlasCoreState {
    * rejected at load instead of silently dropped.
    */
   evidenceReceiptSnapshot?: string;
+  /** FM2-REPLAY: exact bytes of the Rust-issued direct-use replay carrier. */
+  directDistributionSnapshot?: string;
   /**
    * DM-4 / FMA-09: base64 of the exact closed investigation/forma.json entry bytes.
    */
@@ -96,6 +105,8 @@ export interface GovernedPortableExportOptions {
    * never silently downgrades to V2.
    */
   governedEvidence?: boolean;
+  /** FM2-REPLAY: export the session's Rust-issued direct-distribution carrier. */
+  directDistributionBinding?: boolean;
   /**
    * DM-4 / FMA-09: when true or when formaInvestigationBytes are provided,
    * export a V4 package containing investigation/forma.json.
@@ -140,6 +151,22 @@ function decodePersistedEvidenceReceiptSnapshot(encoded: string): {
   return { bytes, datasetFingerprint: envelope.bundle.datasetFingerprint };
 }
 
+function decodeDirectDistributionSnapshot(encoded: string): {
+  bytes: Uint8Array;
+  datasetFingerprint: string;
+  kernelVersion: string;
+} {
+  const bytes = base64Decode(encoded);
+  const carrier = parseDirectDistributionReplayCarrierV1(
+    JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)),
+  );
+  return {
+    bytes,
+    datasetFingerprint: carrier.binding.datasetFingerprint,
+    kernelVersion: carrier.binding.kernelVersion,
+  };
+}
+
 export class NemosyneSession {
   private _atlas: AtlasCore;
   private _sessionId: string;
@@ -154,6 +181,8 @@ export class NemosyneSession {
    * the envelope on every save.
    */
   private _evidenceReceiptIdentity: string | null = null;
+  private _directDistributionBytes: Uint8Array | null = null;
+  private _directDistributionIdentity: { datasetFingerprint: string; kernelVersion: string } | null = null;
   private _formaInvestigationBytes: Uint8Array | null = null;
 
   constructor({ atlas, sessionId }: { atlas: AtlasCore; sessionId?: string }) {
@@ -175,6 +204,24 @@ export class NemosyneSession {
   get presentation(): PresentationState { return this._presentation; }
   get researchContext(): ResearchContext { return this._researchContext; }
   get nilOutcomes(): readonly NoFeasibleRepresentationRecord[] { return this._nilOutcomes.all(); }
+
+  /** Acquire and retain a Rust-issued direct-distribution carrier for export. */
+  async captureDirectDistributionBinding(
+    request: DistributionEmbodimentRequestV1,
+  ): Promise<DirectDistributionBindingV1 | null> {
+    const binding = await this._atlas.captureDirectDistributionBinding(request);
+    if (!binding) return null;
+    const carrier = createDirectDistributionReplayCarrierV1(binding, request, {
+      datasetFingerprint: this._atlas.datasetFingerprint ?? binding.datasetFingerprint,
+      kernelVersion: this._atlas.kernelVersion() ?? binding.kernelVersion,
+    });
+    this._directDistributionBytes = serializeDirectDistributionReplayCarrierV1(carrier);
+    this._directDistributionIdentity = {
+      datasetFingerprint: carrier.binding.datasetFingerprint,
+      kernelVersion: carrier.binding.kernelVersion,
+    };
+    return binding;
+  }
 
   setResearchContext(ctx: Partial<ResearchContext>): void {
     this._researchContext = { ...this._researchContext, ...ctx };
@@ -262,6 +309,13 @@ export class NemosyneSession {
       ...(evidenceReceiptSnapshot === null
         ? {}
         : { evidenceReceiptSnapshot }),
+      ...(this._directDistributionSnapshotBase64(committedAnalyticalFingerprint) === null
+        ? {}
+        : {
+            directDistributionSnapshot: this._directDistributionSnapshotBase64(
+              committedAnalyticalFingerprint,
+            )!,
+          }),
       ...(formaInvestigationSnapshot === undefined
         ? {}
         : { formaInvestigationSnapshot }),
@@ -309,6 +363,31 @@ export class NemosyneSession {
     const restored = decodePersistedEvidenceReceiptSnapshot(encoded);
     this._evidenceReceiptBytes = restored.bytes;
     this._evidenceReceiptIdentity = restored.datasetFingerprint;
+  }
+
+  private _directDistributionSnapshotBase64(committedFingerprint: string | null): string | null {
+    if (
+      this._directDistributionBytes === null ||
+      this._directDistributionIdentity?.datasetFingerprint !== committedFingerprint
+    ) {
+      return null;
+    }
+    return base64Encode(this._directDistributionBytes);
+  }
+
+  private _restoreDirectDistributionSnapshot(json: NemosyneSessionJSON): void {
+    const encoded = json.directDistributionSnapshot;
+    if (encoded === undefined) {
+      this._directDistributionBytes = null;
+      this._directDistributionIdentity = null;
+      return;
+    }
+    const restored = decodeDirectDistributionSnapshot(encoded);
+    this._directDistributionBytes = restored.bytes;
+    this._directDistributionIdentity = {
+      datasetFingerprint: restored.datasetFingerprint,
+      kernelVersion: restored.kernelVersion,
+    };
   }
 
   /**
@@ -365,7 +444,17 @@ export class NemosyneSession {
     const fitnessModelVersion =
       representationDecision?.fitnessModelVersion ??
       representationDecision?.provenance.fitnessModelVersion;
-    const kernelVersion = kernelVersionOverride ?? this._atlas.kernelVersion() ?? 'unknown';
+    let kernelVersion = kernelVersionOverride ?? this._atlas.kernelVersion() ?? 'unknown';
+    if (
+      governedOptions?.directDistributionBinding === true &&
+      kernelVersionOverride === undefined &&
+      this._atlas.kernelVersion() === null &&
+      this._directDistributionIdentity?.kernelVersion
+    ) {
+      // A restored carrier is the only available live identity in a clean
+      // session. An explicit override remains checked against the carrier.
+      kernelVersion = this._directDistributionIdentity.kernelVersion;
+    }
 
     // RFC 0009 tranche 2: governed export is fail-closed. The declared
     // analytical identity is the captured Rust bundle identity, and the
@@ -380,6 +469,13 @@ export class NemosyneSession {
     ) {
       // A truthy non-boolean must not silently downgrade the export to V2.
       throw new Error('Governed evidence export requires a boolean governedEvidence option');
+    }
+    if (
+      governedOptions !== undefined &&
+      governedOptions.directDistributionBinding !== undefined &&
+      typeof governedOptions.directDistributionBinding !== 'boolean'
+    ) {
+      throw new Error('Direct-distribution export requires a boolean directDistributionBinding option');
     }
     if (governedOptions?.governedEvidence === true) {
       const acquisition = await this._requireGovernedEvidenceBytes();
@@ -429,6 +525,27 @@ export class NemosyneSession {
       }
     }
 
+    let directDistributionBytes: Uint8Array | undefined;
+    if (governedOptions?.directDistributionBinding === true) {
+      const currentAnalyticalFingerprint =
+        core.datasetFingerprint ?? canonicalDatasetIdentityHex(core.originalDataset);
+      const encoded = this._directDistributionSnapshotBase64(currentAnalyticalFingerprint);
+      if (encoded === null) {
+        throw new Error('Direct-distribution export requires a Rust-issued carrier for the current dataset');
+      }
+      directDistributionBytes = base64Decode(encoded);
+      parseDirectDistributionReplayCarrierV1(
+        JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(directDistributionBytes)),
+        { datasetFingerprint: currentAnalyticalFingerprint, kernelVersion },
+      );
+    }
+
+    // A direct carrier has already been checked against the current analytical
+    // state above. Its identity must therefore outrank historical
+    // representation/NIL provenance, which can survive a dataset mutation.
+    const directDistributionIdentity =
+      directDistributionBytes === undefined ? null : this._directDistributionIdentity;
+
     const investigationDigest = await this._atlas.aggregate.computeDigest(
       governedBundleIdentity ? governedBundleIdentity.kernelVersion : kernelVersion,
       {
@@ -470,17 +587,23 @@ export class NemosyneSession {
       sessionId: this._sessionId,
       datasetFingerprint: originalDatasetFingerprint,
       datasetIdentityAlgorithm: CANONICAL_DATASET_IDENTITY_ALGORITHM,
-      analyticalDatasetFingerprint: (governedBundleIdentity || isV4)
-        ? (governedBundleIdentity?.datasetFingerprint ?? originalDatasetFingerprint)
-        : (representationDecision?.datasetFingerprint ??
-          nilProvenance?.datasetFingerprint ??
-          core.datasetFingerprint ??
-          originalDatasetFingerprint),
+      analyticalDatasetFingerprint:
+        governedBundleIdentity?.datasetFingerprint ??
+        directDistributionIdentity?.datasetFingerprint ??
+        (isV4
+          ? originalDatasetFingerprint
+          : (representationDecision?.datasetFingerprint ??
+            nilProvenance?.datasetFingerprint ??
+            core.datasetFingerprint ??
+            originalDatasetFingerprint)),
       datasetName: originalDataset.name,
       kernelVersion,
-      analyticalKernelVersion: (governedBundleIdentity || isV4)
-        ? (governedBundleIdentity?.kernelVersion ?? kernelVersion)
-        : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion),
+      analyticalKernelVersion:
+        governedBundleIdentity?.kernelVersion ??
+        directDistributionIdentity?.kernelVersion ??
+        (isV4
+          ? kernelVersion
+          : (representationDecision?.kernelVersion ?? nilProvenance?.kernelVersion)),
       createdAt: typeof Date !== 'undefined' && Date.now ? Date.now() : 0,
       commandCount: core.eventLedger.length,
       discoveryCount: discoveryEpisodes?.episodes.length ?? 0,
@@ -494,6 +617,9 @@ export class NemosyneSession {
         : {}),
       ...(formaInvestigationBytes !== undefined
         ? { formaDigest: sha256Hex(formaInvestigationBytes) }
+        : {}),
+      ...(directDistributionBytes !== undefined
+        ? { directDistributionDigest: sha256Hex(directDistributionBytes) }
         : {}),
       researchContext: this._researchContext,
       representationModel:
@@ -533,6 +659,9 @@ export class NemosyneSession {
       ...(formaInvestigationBytes === undefined
         ? {}
         : { formaInvestigationBytes }),
+      ...(directDistributionBytes === undefined
+        ? {}
+        : { directDistributionBytes }),
     });
   }
 
@@ -595,7 +724,7 @@ export class NemosyneSession {
       .find((result) => typeof result.implementationVersion === 'string')
       ?.implementationVersion;
     const archivedKernelVersion =
-      json.representationDecision?.kernelVersion ?? lastImplementationVersion ?? 'unknown';
+      json.representationDecision?.kernelVersion ?? lastImplementationVersion;
     return session.exportPortablePackage(
       environment,
       replayKernelVersionOverride ?? archivedKernelVersion,
@@ -605,6 +734,7 @@ export class NemosyneSession {
 
   loadFromJSON(json: NemosyneSessionJSON): void {
     this._restoreEvidenceReceiptSnapshot(json);
+    this._restoreDirectDistributionSnapshot(json);
     this._restoreFormaInvestigationSnapshot(json);
     this._atlas.restoreState(json);
     if (typeof json.sessionId === 'string' && json.sessionId.length > 0) {
@@ -632,6 +762,7 @@ export class NemosyneSession {
       : undefined;
     const session = new NemosyneSession({ atlas, sessionId });
     session._restoreEvidenceReceiptSnapshot(json);
+    session._restoreDirectDistributionSnapshot(json);
     session._restoreFormaInvestigationSnapshot(json);
     if (json.nilOutcomes) session._nilOutcomes.restore(json.nilOutcomes);
     session._presentation = {

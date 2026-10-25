@@ -143,6 +143,9 @@ export const WASM_TESTS = [
   // FM2-WORKER: direct Rust-bound source traverses inline and production Worker
   // execution paths, retaining generation/fingerprint and refusing shortcuts.
   'tests/fm2-worker-direct-distribution-wasm.test.ts',
+  // FM2-REPLAY: persisted direct-use carrier must reproduce the exact Rust
+  // source through export, restore, and real-WASM replay.
+  'tests/fm2-replay-governed-direct-distribution-wasm.test.ts',
   'tests/uxr3-statistics-json-wasm.test.ts',
   'tests/uxr3-semantic-transfer-wasm.test.ts',
   'tests/uxr3-spectral-transfer-wasm.test.ts',

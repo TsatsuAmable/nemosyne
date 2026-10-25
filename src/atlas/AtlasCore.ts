@@ -107,6 +107,8 @@ import type {
   DatasetPayload,
   GovernedEvidenceCaptureV1,
 } from './ports/AnalyticalExecutionPort.ts';
+import type { DistributionEmbodimentRequestV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
+import type { DirectDistributionBindingV1 } from '../moneta/representation/DirectDistributionBindingV1.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 import {
   type RepresentationSearchResult,
@@ -466,6 +468,53 @@ export class AtlasCore {
     if (!capture) return null;
 
     return this._composeGovernedEvidence(capture, { generation, version, fingerprint });
+  }
+
+  /**
+   * FM2-REPLAY: acquire the independent Rust direct-distribution binding from
+   * the currently installed analytical port. The request is caller intent;
+   * the source, digest, receipt identity and analytical values remain Rust-
+   * owned. A stale or substituted port result is refused after the await.
+   */
+  async captureDirectDistributionBinding(
+    request: DistributionEmbodimentRequestV1,
+  ): Promise<DirectDistributionBindingV1 | null> {
+    const port = this._executionPort;
+    if (!port) return null;
+    const fingerprint = this.datasetFingerprint ?? '';
+    const version = this.datasetVersion;
+    const generation = this._generation;
+    const handle = this._aggregate.analytical.currentHandle;
+    if (!fingerprint) return null;
+    if (port.isAsync) {
+      if (!(await this._registerCurrentDatasetInWorker(fingerprint, version))) return null;
+    } else if (!handle) {
+      return null;
+    }
+
+    const result = await port.execute<DirectDistributionBindingV1>({
+      requestId: `adirect-${++this._requestSeq}`,
+      operation: 'directDistributionBinding',
+      dataset: { fingerprint, version },
+      generation,
+      ...(port.isAsync ? {} : { handle }),
+      params: request as unknown as Record<string, unknown>,
+    });
+    const binding = result.value;
+    if (!binding || result.datasetFingerprint !== fingerprint) return null;
+    if (
+      generation !== this._generation ||
+      version !== this.datasetVersion ||
+      fingerprint !== (this.datasetFingerprint ?? '') ||
+      binding.datasetFingerprint !== fingerprint
+    ) {
+      return null;
+    }
+    const liveKernelVersion = this.kernelVersion();
+    if (!port.isAsync && (!liveKernelVersion || binding.kernelVersion !== liveKernelVersion)) {
+      return null;
+    }
+    return binding;
   }
 
   /**
