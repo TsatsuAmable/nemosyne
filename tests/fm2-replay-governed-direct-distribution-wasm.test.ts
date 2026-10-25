@@ -369,6 +369,41 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     }
   }, 60000);
 
+  it('invalidates a live carrier across an A-to-B-to-A analytical round trip', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    atlas.commitInvestigationContext('fm2-round-trip', {
+      schemaVersion: 2,
+      nodeId: 'fm2-round-trip',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Reject stale direct-distribution authority after reset',
+        currentTask: 'fm2-round-trip',
+      },
+    });
+    const session = new NemosyneSession({ atlas });
+    try {
+      await atlas.compileDirectDistributionEmbodiment(request);
+      expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
+
+      const originalVersion = atlas.datasetVersion;
+      const filtered = atlas.applyAnalysis(toAnalysisSpec('filter', atlas.dataset!, atlas));
+      expect(filtered.datasetFingerprint).not.toBe(data.fingerprint);
+
+      atlas.resetAnalysis();
+      expect(atlas.datasetFingerprint).toBe(data.fingerprint);
+      expect(atlas.datasetVersion).not.toBe(originalVersion);
+      expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+
+      await atlas.compileDirectDistributionEmbodiment(request);
+      expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
+
   it('exports a restored carrier through the public snapshot wrapper without an archived kernel identity', async () => {
     const data = dataset();
     const atlas = new AtlasCore({ kernel: bridge });

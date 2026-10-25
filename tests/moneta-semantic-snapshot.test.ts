@@ -12,8 +12,11 @@ import {
 import {
   DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
   type DirectDistributionBindingV1,
+  verifyTransportedDirectDistributionBindingV1,
 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
 import { DIRECT_EMPIRICAL_DISTRIBUTION_REQUIREMENT_PROFILE_V1 } from '../src/data/evidence/EvidenceRequirementProfile.ts';
+import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
+import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
 
 describe('SemanticSnapshotV1', () => {
   const sampleEvidenceRef: EvidenceReferenceTupleV1 = {
@@ -76,6 +79,14 @@ describe('SemanticSnapshotV1', () => {
   };
 
   function directBinding(overrides: Partial<DirectDistributionBindingV1> = {}): DirectDistributionBindingV1 {
+    const request = {
+      schemaVersion: 1,
+      candidateId: 'DISTRIBUTION_FIELD',
+      measureField: 'x',
+      histogramBinCount: 8,
+      ecdfKnotCount: 8,
+      quantileProbabilities: [0, 0.5, 1],
+    } as const;
     const source: SemanticEmbodimentEnvelopeV1 = {
       ...sampleEnvelope,
       candidateId: 'DISTRIBUTION_FIELD',
@@ -83,7 +94,7 @@ describe('SemanticSnapshotV1', () => {
       analyticalMethod: {
         name: 'univariate-empirical-distribution',
         version: '1.0.0',
-        parameters: { measureField: 'x', histogramBinCount: 8, ecdfKnotCount: 8 },
+        parameters: { measureField: 'x', histogramBinCount: 8, ecdfKnotCount: 8, request },
       },
       result: {
         status: 'READY',
@@ -179,19 +190,55 @@ describe('SemanticSnapshotV1', () => {
     expect(() => validateSemanticSnapshot(tamperedSnapshot)).toThrow(/Snapshot ID mismatch/);
   });
 
-  it('refuses a caller-authored direct binding before it can become a Forma-admissible snapshot', () => {
+  it('normalizes caller-authored direct bytes without minting admission capability', () => {
     const binding = directBinding();
 
-    expect(() => normalizeDirectDistributionBindingToSnapshot(binding)).toThrow(
-      'runtime-issued port admission',
-    );
+    const snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
+    expect(snapshot.body.directDistributionReference).toBeDefined();
   });
 
-  it('refuses an unadmitted direct binding before accepting substituted identity fields', () => {
+  it('keeps a fabricated self-consistent binding outside Forma after exported verification', () => {
+    const request = {
+      schemaVersion: 1 as const,
+      candidateId: 'DISTRIBUTION_FIELD' as const,
+      measureField: 'x',
+      histogramBinCount: 8,
+      ecdfKnotCount: 8,
+      quantileProbabilities: [0, 0.5, 1],
+    };
+    const fabricated = structuredClone(directBinding());
+    const verified = verifyTransportedDirectDistributionBindingV1(
+      fabricated,
+      { datasetFingerprint: fabricated.datasetFingerprint, kernelVersion: fabricated.kernelVersion },
+      request,
+    );
+    const snapshot = normalizeDirectDistributionBindingToSnapshot(verified);
+    const outcome = compileFormaSpatialSlice(
+      snapshot,
+      {
+        schemaVersion: 2,
+        nodeId: 'fabricated-direct',
+        epistemicPurpose: 'CLAIM_BEARING',
+        intent: {
+          schemaVersion: 1,
+          researchQuestion: 'Reject fabricated direct evidence',
+          currentTask: 'snapshot-admission',
+        },
+      },
+      createKB0Manifest(),
+    );
+
+    expect(outcome.status).toBe('REFUSED');
+    if (outcome.status === 'REFUSED') {
+      expect(outcome.refusal.code).toBe('UNTRUSTED_DECODING');
+    }
+  });
+
+  it('refuses a direct binding with substituted identity fields during structural normalization', () => {
     const binding = directBinding({ consumerId: 'nemosyne:consumer/not-direct/v1' as typeof DIRECT_DISTRIBUTION_CONSUMER_ID_V1 });
 
     expect(() => normalizeDirectDistributionBindingToSnapshot(binding)).toThrow(
-      'runtime-issued port admission',
+      'Consumer/profile/claim authority mismatch',
     );
   });
 

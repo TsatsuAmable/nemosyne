@@ -178,6 +178,11 @@ export class AtlasCore {
   private _activeDirectDistributionCapture: {
     readonly binding: DirectDistributionBindingV1;
     readonly request: DistributionEmbodimentRequestV1;
+    readonly executionPort: AnalyticalExecutionPort;
+    readonly generation: number;
+    readonly datasetVersion: number;
+    readonly datasetFingerprint: string;
+    readonly kernelVersion: string;
   } | null = null;
   /**
    * Direct-distribution snapshots are admissible through the public compiler
@@ -545,6 +550,11 @@ export class AtlasCore {
     this._activeDirectDistributionCapture = {
       binding: verified,
       request: structuredClone(request),
+      executionPort: port,
+      generation,
+      datasetVersion: version,
+      datasetFingerprint: fingerprint,
+      kernelVersion: verified.kernelVersion,
     };
     return verified;
   }
@@ -559,9 +569,19 @@ export class AtlasCore {
     readonly request: DistributionEmbodimentRequestV1;
   } | null {
     const capture = this._activeDirectDistributionCapture;
-    return capture === null
-      ? null
-      : { binding: capture.binding, request: structuredClone(capture.request) };
+    if (capture === null) return null;
+    const currentKernelVersion = this.kernelVersion();
+    if (
+      capture.executionPort !== this._executionPort ||
+      capture.generation !== this._generation ||
+      capture.datasetVersion !== this.datasetVersion ||
+      capture.datasetFingerprint !== (this.datasetFingerprint ?? '') ||
+      (currentKernelVersion !== null && capture.kernelVersion !== currentKernelVersion)
+    ) {
+      this._activeDirectDistributionCapture = null;
+      return null;
+    }
+    return { binding: capture.binding, request: structuredClone(capture.request) };
   }
 
   /**
@@ -914,6 +934,10 @@ export class AtlasCore {
       );
     }
     this._requireCurrentAnalysisFingerprint(spec, 'sync');
+    // A successful analytical transition creates a new live dataset state;
+    // any direct-distribution capture belongs to the prior state, even when a
+    // later reset happens to restore the same fingerprint.
+    this._activeDirectDistributionCapture = null;
     const inputHandle = this._ensureHandle();
     if (inputHandle === 0) {
       throw new Error('[AtlasCore] kernel rejected input dataset');
@@ -1272,6 +1296,10 @@ export class AtlasCore {
 
   resetAnalysis(): AnalysisResult | null {
     if (!this._aggregate.analytical.originalNullable) return null;
+    // Reset advances analytical version even when the original fingerprint is
+    // restored. The prior capture is therefore not authoritative for the new
+    // state and must be reacquired from the current Rust port.
+    this._activeDirectDistributionCapture = null;
     const prevVersionId = `${this._aggregate.sessionId}:v${this.datasetVersion}`;
     this._aggregate.analytical.advanceDataset(this._aggregate.analytical.original.clone(), (h) =>
       this._analytics.destroyDataset(h)
@@ -2005,7 +2033,16 @@ export class AtlasCore {
         '[AtlasCore] Direct distribution snapshot lacks runtime-issued direct-distribution admission'
       );
     }
-    return this._aggregate.compileDirectEmbodiment(options);
+    const trustedOptions = options?.snapshot?.body?.directDistributionReference
+      ? {
+          ...options,
+          admissionOptions: {
+            ...options.admissionOptions,
+            runtimeIssuedDirectSnapshot: options.snapshot,
+          },
+        }
+      : options;
+    return this._aggregate.compileDirectEmbodiment(trustedOptions);
   }
 
   /**

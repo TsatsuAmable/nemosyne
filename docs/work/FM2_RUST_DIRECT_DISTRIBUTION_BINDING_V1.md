@@ -1,6 +1,8 @@
 # FM2: Rust-issued direct empirical-distribution binding (v1)
 
-**Status:** Distribution-only kernel producer/policy identity, governed persisted direct-use/replay carrier, and FM2-SNAPSHOT typed SemanticSnapshot/normal Atlas inline+Worker compilation are verified on this unmerged branch; roadmap promotion remains OPEN pending supervisor review and merge. Normal browser direct-loop qualification, multi-family source admission and human/Quest qualification remain OPEN.
+**Status:** PR #1068 repair implemented locally: two independent review blockers are covered by real-WASM/Worker regressions and the existing inline/Worker/replay paths remain green. Roadmap promotion remains OPEN pending a separate independent review and merge; no independent-review claim is made here. Normal browser direct-loop qualification, multi-family source admission and human/Quest qualification remain OPEN.
+
+**Repair checkpoint:** the exported transport verifier must remain structural/request-validating only and must never mint runtime-issued authority; Atlas-local admission is the only live Forma capability. Captures are bound to generation, dataset version/fingerprint, and kernel identity and are cleared on every analytical dataset transition, including filter A → reset A. The repair does not add an RFC/ADR, alter a public package format, or claim independent review.
 
 ## Why this exists
 

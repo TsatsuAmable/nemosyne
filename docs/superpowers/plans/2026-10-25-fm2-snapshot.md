@@ -20,6 +20,37 @@
 
 ## High-risk pre-implementation adversarial contract
 
+### PR #1068 repair checkpoint — 2026-10-25
+
+**Risk:** high. This repair changes the live Rust/WASM-to-Forma capability boundary and
+the generation/version lifecycle of persisted direct-distribution authority.
+
+**Invariant:** an exported structural verifier, parser, replay carrier, or caller-authored
+object can never mint runtime-issued direct-distribution authority; only a fresh result from
+the selected inline/Worker Rust analytical port can reach Atlas's local admission set. A live
+capture is reusable only while its generation, dataset version, dataset fingerprint, and
+kernel identity all match the current Atlas state; every analytical dataset transition
+invalidates it, including an A→B→A round trip.
+
+**Production path and authority:** Rust remains the source/receipt authority; the selected
+analytical port validates the fresh producer response; `AtlasCore` owns the runtime-local
+snapshot admission and capture lifecycle; `NemosyneSession` may serialize only the current
+Atlas capture or an explicitly restored carrier; Forma must refuse caller-forged snapshots.
+
+**Failure modes:** exported `verifyTransportedDirectDistributionBindingV1` marks a fabricated
+binding and `normalizeDirectDistributionBindingToSnapshot` lets it through Forma; an old A
+capture survives filter-to-B and reset-to-A because the fingerprint returns to A; a Worker
+positive path loses its typed binding while the capability boundary is tightened.
+
+**Falsifying evidence:** a direct imported verifier + fabricated, self-consistent Rust-shaped
+binding must not admit through snapshot normalization or `compileFormaSpatialSlice`; a real
+WASM A→B→A session must serialize no old carrier and must serialize a fresh one after
+recapture; existing real inline/Worker compile, replay, persistence, stale-result, and
+Forma-negative tests must remain green.
+
+**Non-goals:** no new architecture/RFC/ADR, analytical implementation, package format,
+browser/Quest qualification, CI-threshold/proof-boundary change, or independent-review claim.
+
 **Invariant:** A direct-distribution snapshot is admitted only when its `directDistributionReference` is derived from a binding validated from the selected Rust runtime for the Atlas's current generation/version/fingerprint, fixed direct consumer/profile, kernel version, exact source digest/receipt identity, and Rust source envelope. Snapshot identity includes only the decision-independent analytical source projection; the exact request-bound source digest, receipt, source bytes, and full request remain in the governed replay carrier.
 
 **Authority and production path:** Rust's `moneta_prepare_direct_distribution_binding_v1` mints the source bytes/digest/receipt identity. `InlineAnalyticalPort` or `WorkerAnalyticalPort` obtains and revalidates that result. `AtlasCore.compileDirectDistributionEmbodiment` converts the validated binding to `SemanticSnapshotV1` and delegates to `InvestigationAggregate.compileDirectEmbodiment`, which remains the normal direct compiler. `NemosyneSession`/package replay remains the durable carrier authority.

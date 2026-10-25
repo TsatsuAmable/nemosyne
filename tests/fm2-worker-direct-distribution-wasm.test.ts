@@ -8,6 +8,7 @@ import type { AnalyticalExecutionRequest, AnalyticalDatasetRegistration } from '
 import type { DirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
 import type { DistributionEmbodimentRequestV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 import { verifyTransportedDirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
+import { normalizeDirectDistributionBindingToSnapshot } from '../src/moneta/representation/SemanticSnapshotV1.ts';
 import { buildDirectDistributionBindingV1 } from '../src/wasm/runtime/SemanticEmbodimentBridge.ts';
 import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
 import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
@@ -97,6 +98,41 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       }
     } finally {
       bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
+  it('does not let exported transport verification authorize a caller-owned binding through Forma', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    commitContext(atlas);
+    try {
+      const issued = await atlas.captureDirectDistributionBinding(params);
+      expect(issued).toBeDefined();
+
+      // The clone is caller-owned. A structural verifier may validate its
+      // bytes, but it must not turn that clone into a live analytical
+      // capability merely because the request matches.
+      const callerBinding = structuredClone(issued!);
+      const verified = verifyTransportedDirectDistributionBindingV1(
+        callerBinding,
+        { datasetFingerprint: data.fingerprint, kernelVersion: bridge.kernelVersion()! },
+        params,
+      );
+      const callerSnapshot = normalizeDirectDistributionBindingToSnapshot(verified);
+      const formaOutcome = compileFormaSpatialSlice(
+        callerSnapshot,
+        atlas.getActiveInvestigationContext()!,
+        createKB0Manifest(),
+      );
+
+      expect(formaOutcome.status).toBe('REFUSED');
+      if (formaOutcome.status === 'REFUSED') {
+        expect(formaOutcome.refusal.code).toBe('UNTRUSTED_DECODING');
+        expect(formaOutcome.refusal.message).toContain('runtime-issued admission capability');
+      }
+    } finally {
+      atlas.dispose();
     }
   });
 

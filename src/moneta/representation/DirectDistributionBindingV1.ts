@@ -8,12 +8,11 @@ import type { DistributionEmbodimentRequestV1 } from './SemanticEmbodimentPayloa
 export const DIRECT_DISTRIBUTION_CONSUMER_ID_V1 =
   'nemosyne:consumer/direct-distribution/v1' as const;
 
-const runtimeIssuedDirectDistributionBindings = new WeakSet<object>();
-
 /**
  * Rust single-pass evidence binding, NOT a general V3 statistics receipt or
  * an authorized persisted replay use. Parsing serialized JSON cannot grant a
- * live kernel capability. Only the runtime bridge may assert its provenance.
+ * live kernel capability. The selected analytical port validates its
+ * provenance, while Atlas owns the runtime-local admission capability.
  */
 export interface DirectDistributionBindingV1 {
   readonly schemaVersion: '1';
@@ -27,15 +26,6 @@ export interface DirectDistributionBindingV1 {
   readonly sourceJson: string;
   readonly receiptId: string;
   readonly source: SemanticEmbodimentEnvelopeV1;
-}
-
-/**
- * This is intentionally only a predicate. The membership is granted inside
- * request-bound transport verification after a port has checked the injected
- * Rust producer result; parsing or replay-carrier validation never grants it.
- */
-export function isRuntimeIssuedDirectDistributionBindingV1(binding: object): boolean {
-  return runtimeIssuedDirectDistributionBindings.has(binding);
 }
 
 function requestRecord(request: DistributionEmbodimentRequestV1): Record<string, unknown> {
@@ -154,8 +144,10 @@ export function parseDirectDistributionBindingV1(
 }
 
 /** Validate worker transport without silently trusting TypeScript casting.
- * Integrity hashes do not prove origin: only the Worker-owned Rust producer
- * can issue this record; transport may only verify and refuse it.
+ * Integrity hashes do not prove origin: this function only validates the
+ * transported shape, exact source bytes, and requested parameters. It never
+ * mints a runtime capability; Atlas admits only the fresh result returned by
+ * its selected analytical port.
  */
 export function verifyTransportedDirectDistributionBindingV1(
   raw: unknown,
@@ -185,7 +177,5 @@ export function verifyTransportedDirectDistributionBindingV1(
   }
   if (request === undefined) return validated;
 
-  const requestVerified = verifyDirectDistributionBindingRequestV1(validated, request);
-  runtimeIssuedDirectDistributionBindings.add(requestVerified);
-  return requestVerified;
+  return verifyDirectDistributionBindingRequestV1(validated, request);
 }

@@ -1,7 +1,6 @@
 import { canonicalSha256Hex } from '../../security/CryptoHash.js';
 import {
   type SemanticSnapshotV1,
-  isRuntimeIssuedDirectDistributionSnapshot,
   validateSemanticSnapshot,
 } from '../representation/SemanticSnapshotV1.js';
 import {
@@ -57,6 +56,8 @@ export interface FormaAdmissionOptionsV1 {
   readonly requestedUse?: PermittedExecutionUse;
   readonly conjecturalProposals?: readonly ConjecturalProposalV1[];
   readonly bindings?: readonly FormaBindingV1[];
+  /** @internal Set only by Atlas after its local runtime capability check. */
+  readonly runtimeIssuedDirectSnapshot?: SemanticSnapshotV1;
 }
 
 export interface FormaAdmissionResultV1 {
@@ -118,13 +119,13 @@ export function compileFormaAdmission(
 
   if (
     snapshot.body.directDistributionReference !== undefined &&
-    !isRuntimeIssuedDirectDistributionSnapshot(snapshot)
+    options.runtimeIssuedDirectSnapshot !== snapshot
   ) {
     return {
       status: 'REFUSED',
       refusal: {
         code: 'UNTRUSTED_DECODING',
-        message: 'Direct-distribution snapshot lacks runtime-issued admission capability',
+        message: 'Direct-distribution snapshot lacks Atlas-local runtime-issued admission capability',
       },
     };
   }
