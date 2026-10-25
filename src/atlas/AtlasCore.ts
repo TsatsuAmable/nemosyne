@@ -691,7 +691,6 @@ export class AtlasCore {
       );
     }
     const workerCopy = this._cloneTypedPayload(payload);
-    this._clearRuntimeIssuedDirectSnapshots();
     const handle = this._analytics.loadTypedColumns(payload, name);
     if (handle === 0) {
       throw new Error('Kernel rejected typed columns payload.');
@@ -701,7 +700,17 @@ export class AtlasCore {
       this._analytics.destroyDataset(handle);
       throw new Error('Kernel accepted typed columns but produced no authoritative fingerprint.');
     }
-    this._aggregate.loadTypedDataset(handle, fp, (h) => this._analytics.destroyDataset(h));
+    try {
+      this._aggregate.loadTypedDataset(handle, fp, (h) => this._analytics.destroyDataset(h));
+    } catch (error) {
+      // Do not leak a newly acquired Rust handle when aggregate adoption
+      // raises; the prior runtime-issued direct authority remains untouched.
+      this._analytics.destroyDataset(handle);
+      throw error;
+    }
+    // A validated replacement is now authoritative. Only successful adoption
+    // may revoke the prior runtime-issued direct capability and FM2 lineage.
+    this._clearRuntimeIssuedDirectSnapshots();
     this._workerDatasetPayload = { type: 'typed', data: workerCopy, name };
     this._executionPort?.supersede({
       generation: this._generation,

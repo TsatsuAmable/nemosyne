@@ -513,6 +513,11 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
         (entry as { type?: string }).type === 'REGISTER'
       ) as { registration: AnalyticalDatasetRegistration };
       expect(typedRegistrationA.registration.payload.type).toBe('typed');
+      expect(typedRegistrationA.registration.dataset).toEqual({
+        fingerprint: typedFingerprintA,
+        version: typedVersionA,
+      });
+      expect(typedRegistrationA.registration.generation).toBe(typedAtlas.generation);
       const registeredBytesA = typedRegistrationA.registration.payload.data instanceof Uint8Array
         ? typedRegistrationA.registration.payload.data
         : new Uint8Array(typedRegistrationA.registration.payload.data as ArrayBuffer);
@@ -530,6 +535,11 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       const registeredBytesB = typedRegistrationB.registration.payload.data instanceof Uint8Array
         ? typedRegistrationB.registration.payload.data
         : new Uint8Array(typedRegistrationB.registration.payload.data as ArrayBuffer);
+      expect(typedRegistrationB.registration.dataset).toEqual({
+        fingerprint: typedFingerprintB,
+        version: typedAtlas.datasetVersion,
+      });
+      expect(typedRegistrationB.registration.generation).toBe(typedAtlas.generation);
       expect(registeredBytesB).toEqual(typedBytesB);
       typedAtlas.dispose();
 
@@ -564,13 +574,40 @@ describe('FM2 typed dataset turnover clears dataset-bound direct state', () => {
       await seedDirectState(atlas);
       await session.captureDirectDistributionBinding(params);
       const currentFingerprint = atlas.datasetFingerprint;
-      expect(session.serialize().directDistributionSnapshot).toBeTypeOf('string');
+      const currentVersion = atlas.datasetVersion;
+      const beforeSnapshot = atlas.getActiveDirectSnapshot();
+      const beforeCompile = atlas.getActiveDirectCompileResult();
+      const beforeVariants = atlas.getActiveVariantPair();
+      const beforeFormaResult = atlas.getActiveFormaResult();
+      const beforeFormaSlice = atlas.getActiveFormaSlice();
+      const beforeFormaState = atlas.aggregate.getFormaState();
+      const beforeLinks = atlas.getDirectFeedbackLinks();
+      const beforeBindings = atlas.getDirectAlternativeFeedbackBindings();
+      const beforeSession = session.serialize();
+      expect(beforeSession.directDistributionSnapshot).toBeTypeOf('string');
+      expect(beforeSession.formaInvestigationSnapshot).toBeTypeOf('string');
 
       expect(() => atlas.loadTypedDataset(new Uint8Array([0, 1, 2, 3]), 'invalid-typed'))
         .toThrow('Kernel rejected typed columns payload.');
       expect(atlas.datasetFingerprint).toBe(currentFingerprint);
-      expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
-      expect(session.serialize().directDistributionSnapshot).toBeUndefined();
+      expect(atlas.datasetVersion).toBe(currentVersion);
+      expect(atlas.getActiveDirectSnapshot()).toEqual(beforeSnapshot);
+      expect(atlas.getActiveDirectCompileResult()).toEqual(beforeCompile);
+      expect(atlas.getActiveVariantPair()).toEqual(beforeVariants);
+      expect(atlas.getActiveFormaResult()).toEqual(beforeFormaResult);
+      expect(atlas.getActiveFormaSlice()).toEqual(beforeFormaSlice);
+      expect(atlas.aggregate.getFormaState()).toEqual(beforeFormaState);
+      expect(atlas.getDirectFeedbackLinks()).toEqual(beforeLinks);
+      expect(atlas.getDirectAlternativeFeedbackBindings()).toEqual(beforeBindings);
+
+      const afterSession = session.serialize();
+      expect(afterSession.datasetFingerprint).toBe(beforeSession.datasetFingerprint);
+      expect(afterSession.datasetVersion).toBe(beforeSession.datasetVersion);
+      expect(afterSession.directDistributionSnapshot).toBe(beforeSession.directDistributionSnapshot);
+      expect(afterSession.formaInvestigationSnapshot).toBe(beforeSession.formaInvestigationSnapshot);
+
+      const oldAuthority = await atlas.captureDirectDistributionBinding(params);
+      expect(oldAuthority?.datasetFingerprint).toBe(currentFingerprint);
     } finally {
       atlas.dispose();
     }
