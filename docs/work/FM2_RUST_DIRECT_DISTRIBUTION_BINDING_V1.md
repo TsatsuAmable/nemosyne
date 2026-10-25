@@ -12,6 +12,7 @@ A new, independent Rust prepared-result operation `moneta_prepare_direct_distrib
 
 - Kernel-owned `nemosyne:consumer/direct-distribution/v1`, separately minted policy identity `direct-empirical-distribution/v1`, fixed claim kind `DESCRIPTIVE_EMPIRICAL_DISTRIBUTION`.
 - The exact source bytes (`sourceJson`), their `sourceDigest`, and a uniquely source-bound `receiptId`.
+- The full bounded distribution request embedded in the Rust source analytical parameters and checked against the caller request at inline, Worker, Atlas, and replay-carrier boundaries.
 - Original live dataset fingerprint and canonical Rust kernel contract version, checked against the source envelope and the live handle on return.
 
 The TS closed requirement-profile registry mints an explicit descriptive, violated-assumption-refusing direct distribution profile. The dedicated bridge checks each kernel-issued fixed field, hashes the raw `sourceJson` string without float-reserialization drift, verifies exact live identity and still refuses unsupported/missing/invalid results. No caller-supplied semantic envelope is admitted for binding. Digest is **integrity protection**, not an origin-authenticating digital signature or evidence of statistical generalization.

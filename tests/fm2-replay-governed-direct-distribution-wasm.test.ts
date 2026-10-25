@@ -17,6 +17,7 @@ import {
   type ReplayVerificationResult,
 } from '../src/session/InvestigationReplayRunner.ts';
 import { sha256Hex } from '../src/security/CryptoHash.ts';
+import { buildDirectDistributionBindingV1 } from '../src/wasm/runtime/SemanticEmbodimentBridge.ts';
 import {
   DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
   type DirectDistributionBindingV1,
@@ -284,9 +285,13 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
       expect(reference).toBeDefined();
 
       const session = new NemosyneSession({ atlas });
-      const binding = await session.captureDirectDistributionBinding(request);
-      expect(binding?.sourceDigest).toBe(reference?.sourceDigest);
-      expect(binding?.receiptId).toBe(reference?.receiptId);
+      const snapshot = session.serialize();
+      expect(snapshot.directDistributionSnapshot).toBeTypeOf('string');
+      const persisted = JSON.parse(new TextDecoder().decode(
+        Uint8Array.from(atob(snapshot.directDistributionSnapshot!), (char) => char.charCodeAt(0)),
+      )) as { binding: { sourceDigest: string; receiptId: string } };
+      expect(persisted.binding.sourceDigest).toBe(reference?.sourceDigest);
+      expect(persisted.binding.receiptId).toBe(reference?.receiptId);
 
       const archive = await session.exportPortablePackage({}, undefined, {
         directDistributionBinding: true,
@@ -506,6 +511,71 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
     expect(replayed.success).toBe(true);
     expect(replayed.discrepancies).toEqual([]);
     expect(replayed.directDistribution).toMatchObject({ status: 'VERIFIED' });
+  }, 60000);
+
+  it('compiles through a separate production Worker and persists that normal compilation carrier', async () => {
+    const { transport, atlas, session } = await workerSession();
+    let archive: Uint8Array;
+    atlas.commitInvestigationContext('fm2-worker-compilation-context', {
+      schemaVersion: 2,
+      nodeId: 'fm2-worker-compilation-context',
+      epistemicPurpose: 'CLAIM_BEARING',
+      intent: {
+        schemaVersion: 1,
+        researchQuestion: 'Compile a direct empirical distribution in a Worker',
+        currentTask: 'fm2-worker-compilation',
+      },
+    });
+    try {
+      const compiled = await atlas.compileDirectDistributionEmbodiment(request);
+      expect(compiled.plan.planId).toMatch(/^plan-direct-/);
+      expect(atlas.getActiveDirectSnapshot()?.body.directDistributionReference).toMatchObject({
+        consumerId: DIRECT_DISTRIBUTION_CONSUMER_ID_V1,
+        datasetFingerprint: atlas.datasetFingerprint,
+      });
+      expect(
+        transport.posted.some((message) => {
+          const candidate = message as { type?: string; request?: { operation?: string } };
+          return candidate.type === 'EXECUTE' && candidate.request?.operation === 'directDistributionBinding';
+        }),
+      ).toBe(true);
+
+      const snapshot = session.serialize();
+      expect(snapshot.directDistributionSnapshot).toBeTypeOf('string');
+      archive = await session.exportPortablePackage({}, undefined, {
+        directDistributionBinding: true,
+      });
+    } finally {
+      atlas.dispose();
+      transport.terminate();
+    }
+
+    const replayed = await replayInFreshWorker(archive);
+    expect(replayed.success).toBe(true);
+    expect(replayed.discrepancies).toEqual([]);
+    expect(replayed.directDistribution).toMatchObject({ status: 'VERIFIED' });
+  }, 60000);
+
+  it('refuses a real Worker binding whose source was minted for a different request', async () => {
+    const transport = await startWorkerThread();
+    await awaitHostReady(transport.worker);
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(dataset());
+    const handle = atlas.aggregate.analytical.currentHandle;
+    const mismatchingRequest = { ...request, ecdfKnotCount: 2 };
+    transport.mutateResult = (result) => ({
+      ...result,
+      value: buildDirectDistributionBindingV1(handle, mismatchingRequest),
+    });
+    atlas.setExecutionPort(new WorkerAnalyticalPort(transport));
+    try {
+      await expect(atlas.captureDirectDistributionBinding(request)).rejects.toThrow(
+        'Source request does not match requested distribution',
+      );
+    } finally {
+      atlas.dispose();
+      transport.terminate();
+    }
   }, 60000);
 
   it('refuses a Worker binding whose claim disagrees with independent kernel provenance', async () => {

@@ -121,6 +121,27 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
     }
   });
 
+  it('refuses an inline binding minted for a different distribution request', async () => {
+    const data = dataset();
+    const mismatchingRequest = { ...params, ecdfKnotCount: 2 };
+    const mismatchingKernel = {
+      ...bridge,
+      directDistributionBinding(handle: number) {
+        return bridge.directDistributionBinding?.(handle, mismatchingRequest) ?? null;
+      },
+    };
+    const atlas = new AtlasCore({ kernel: mismatchingKernel });
+    atlas.loadDataset(data);
+    commitContext(atlas);
+    try {
+      await expect(atlas.compileDirectDistributionEmbodiment(params)).rejects.toThrow(
+        'Rust binding unavailable or stale',
+      );
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
   it('uses the real analytical.worker handler, worker-resident handle and exact fences', async () => {
     const previousSelf = globalThis.self;
     let handler: ((event: MessageEvent) => void | Promise<void>) | null = null;

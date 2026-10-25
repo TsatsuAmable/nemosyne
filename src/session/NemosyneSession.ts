@@ -270,6 +270,7 @@ export class NemosyneSession {
 
   serialize(): NemosyneSessionJSON {
     const core = this._atlas.toState();
+    this._adoptAtlasDirectDistributionCapture();
     // The same analytical identity the governed export validates a carrier
     // against, so serialization and export cannot disagree about which dataset
     // the carrier describes.
@@ -323,18 +324,18 @@ export class NemosyneSession {
   }
 
   /**
-   * Serialize the receipt carrier this session already holds: one restored from
-   * a persisted snapshot, or one acquired by a governed export on this session
-   * (see {@link exportPortablePackage}).
+   * Serialize the direct-distribution carrier this session already holds: one
+   * restored from a persisted snapshot, one acquired explicitly, or one
+   * adopted from normal Atlas compilation.
    *
    * Issue #834, record item (4) in `docs/ROADMAP.md`: serialization is a pure
    * snapshot operation. It performs no analytical work and acquires nothing — it never
-   * reaches a kernel, a port, or a module-global bridge. Acquisition is
-   * asynchronous and happens in exactly one place, the governed export, so
-   * there is no second authority that could attest a state this session is not
-   * in. A session that has neither restored nor captured a carrier serializes
-   * without one, and a governed export of it fails closed rather than
-   * manufacturing evidence.
+   * reaches a kernel, a port, or a module-global bridge. Analytical acquisition
+   * happens before this handoff through Atlas compilation or explicit capture;
+   * serialization/export only packages a carrier already admitted for the
+   * current state. A session that has neither restored nor captured/compiled a
+   * carrier serializes without one, and governed export fails closed rather
+   * than manufacturing evidence.
    *
    * `committedFingerprint` is the analytical identity the snapshot is about to
    * commit. A carrier captured for some *other* dataset is omitted rather than
@@ -391,6 +392,28 @@ export class NemosyneSession {
   }
 
   /**
+   * Adopt a binding already admitted by normal Atlas compilation. This is a
+   * pure in-memory carrier handoff: compilation acquired and verified the
+   * Rust source, while serialization only packages the exact bytes and
+   * request that Atlas already retained.
+   */
+  private _adoptAtlasDirectDistributionCapture(): void {
+    const capture = this._atlas.getActiveDirectDistributionCapture();
+    if (!capture) return;
+    const datasetFingerprint = this._atlas.datasetFingerprint;
+    if (!datasetFingerprint || capture.binding.datasetFingerprint !== datasetFingerprint) return;
+    const carrier = createDirectDistributionReplayCarrierV1(capture.binding, capture.request, {
+      datasetFingerprint,
+      kernelVersion: this._atlas.kernelVersion() ?? capture.binding.kernelVersion,
+    });
+    this._directDistributionBytes = serializeDirectDistributionReplayCarrierV1(carrier);
+    this._directDistributionIdentity = {
+      datasetFingerprint: carrier.binding.datasetFingerprint,
+      kernelVersion: carrier.binding.kernelVersion,
+    };
+  }
+
+  /**
    * RFC 0009 tranche 3 slice 2: an export may commit `uses` only when they
    * bind under the authority-owned policy against this very bundle. This is
    * literally the same test the replay loader applies at its binding step —
@@ -430,6 +453,7 @@ export class NemosyneSession {
     kernelVersionOverride?: string,
     governedOptions?: GovernedPortableExportOptions,
   ): Promise<Uint8Array> {
+    this._adoptAtlasDirectDistributionCapture();
     const core = this._atlas.toState();
     if (!core.originalDataset) {
       throw new Error('Cannot export portable investigation without an original dataset');

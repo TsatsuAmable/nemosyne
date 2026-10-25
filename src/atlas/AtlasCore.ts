@@ -108,7 +108,10 @@ import type {
   GovernedEvidenceCaptureV1,
 } from './ports/AnalyticalExecutionPort.ts';
 import type { DistributionEmbodimentRequestV1 } from '../moneta/representation/SemanticEmbodimentPayload.ts';
-import type { DirectDistributionBindingV1 } from '../moneta/representation/DirectDistributionBindingV1.ts';
+import {
+  verifyDirectDistributionBindingRequestV1,
+  type DirectDistributionBindingV1,
+} from '../moneta/representation/DirectDistributionBindingV1.ts';
 import { InlineAnalyticalPort } from './ports/InlineAnalyticalPort.ts';
 import {
   type RepresentationSearchResult,
@@ -172,6 +175,10 @@ export class AtlasCore {
    * analytical implementation.
    */
   private _workerDatasetPayload: DatasetPayload | null = null;
+  private _activeDirectDistributionCapture: {
+    readonly binding: DirectDistributionBindingV1;
+    readonly request: DistributionEmbodimentRequestV1;
+  } | null = null;
 
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
     return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
@@ -515,7 +522,27 @@ export class AtlasCore {
     if (!port.isAsync && (!liveKernelVersion || binding.kernelVersion !== liveKernelVersion)) {
       return null;
     }
-    return binding;
+    const verified = verifyDirectDistributionBindingRequestV1(binding, request);
+    this._activeDirectDistributionCapture = {
+      binding: verified,
+      request: structuredClone(request),
+    };
+    return verified;
+  }
+
+  /**
+   * Return the last request/source pair admitted by the live analytical port.
+   * This is a persistence handoff only; it performs no analytical work and
+   * never acquires a new binding.
+   */
+  getActiveDirectDistributionCapture(): {
+    readonly binding: DirectDistributionBindingV1;
+    readonly request: DistributionEmbodimentRequestV1;
+  } | null {
+    const capture = this._activeDirectDistributionCapture;
+    return capture === null
+      ? null
+      : { binding: capture.binding, request: structuredClone(capture.request) };
   }
 
   /**
@@ -562,6 +589,7 @@ export class AtlasCore {
   // --- Dataset Lifecycle --------------------------------------------------
 
   loadDataset(dataset: Dataset): void {
+    this._activeDirectDistributionCapture = null;
     this._aggregate.loadDataset(dataset, (handle) => this._analytics.destroyDataset(handle));
     const fingerprint = this.datasetFingerprint ?? undefined;
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
@@ -579,6 +607,7 @@ export class AtlasCore {
       );
     }
     const workerCopy = this._cloneTypedPayload(payload);
+    this._activeDirectDistributionCapture = null;
     const handle = this._analytics.loadTypedColumns(payload, name);
     if (handle === 0) {
       throw new Error('Kernel rejected typed columns payload.');
@@ -603,6 +632,7 @@ export class AtlasCore {
   }
 
   setCurrentDataset(dataset: Dataset): void {
+    this._activeDirectDistributionCapture = null;
     this._aggregate.analytical.setCurrentDataset(dataset, (handle) =>
       this._analytics.destroyDataset(handle)
     );
@@ -2149,6 +2179,7 @@ export class AtlasCore {
   }
 
   restoreState(state: AtlasCoreState): void {
+    this._activeDirectDistributionCapture = null;
     this._aggregate.restoreState(state, (handle) => this._analytics.destroyDataset(handle));
     this._setWorkerPayloadFromDataset(this._aggregate.analytical.currentNullable);
     this._executionPort?.supersede({
@@ -2166,6 +2197,7 @@ export class AtlasCore {
     this._executionPort?.dispose?.();
     this._executionPort = null;
     this._workerDatasetPayload = null;
+    this._activeDirectDistributionCapture = null;
     this._aggregate.dispose((handle) => this._analytics.destroyDataset(handle));
   }
 

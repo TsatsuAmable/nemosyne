@@ -11,6 +11,7 @@ import type {
 } from './AnalyticalExecutionPort.ts';
 import { verifyTransportedDirectDistributionBindingV1 } from '../../moneta/representation/DirectDistributionBindingV1.ts';
 import { KernelUnavailableError, UnsupportedAtScaleError } from '../../wasm/RuntimeBridge.ts';
+import type { DistributionEmbodimentRequestV1 } from '../../moneta/representation/SemanticEmbodimentPayload.ts';
 
 export interface WorkerTransport {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -824,7 +825,7 @@ export class WorkerAnalyticalPort implements AnalyticalExecutionPort {
         const value = verifyTransportedDirectDistributionBindingV1(result.value, {
           datasetFingerprint: pending.req.dataset.fingerprint,
           kernelVersion: workerProvenance.kernelVersion,
-        });
+        }, pending.req.params as unknown as DistributionEmbodimentRequestV1);
         pending.resolve({ ...result, value });
       } catch (error: unknown) {
         pending.reject(new KernelUnavailableError(
