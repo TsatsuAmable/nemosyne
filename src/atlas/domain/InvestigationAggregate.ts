@@ -343,6 +343,7 @@ export class InvestigationAggregate {
   commitContext(nodeId: string, context: unknown): CommittedContextActivation {
     const activation = this.contextLedger.commit(nodeId, context);
     this.graph.setActiveNode(nodeId);
+    this._invalidateActiveDirectCompilation();
     return activation;
   }
 
@@ -361,6 +362,7 @@ export class InvestigationAggregate {
   activateContext(nodeId: string, revision?: number): CommittedContextActivation {
     const activation = this.contextLedger.activate(nodeId, revision);
     this.graph.setActiveNode(nodeId);
+    this._invalidateActiveDirectCompilation();
     const nodeDecision = this._nodeDecisions.get(nodeId);
     if (nodeDecision) {
       this.representation.activeDecision = nodeDecision;
@@ -384,7 +386,9 @@ export class InvestigationAggregate {
       ...active,
       perspective: canonicalPerspective,
     };
-    return this.contextLedger.commit(active.nodeId, updatedContext);
+    const activation = this.contextLedger.commit(active.nodeId, updatedContext);
+    this._invalidateActiveDirectCompilation();
+    return activation;
   }
 
   /**
@@ -1041,6 +1045,13 @@ export class InvestigationAggregate {
   private _directFeedbackLinks: CritiqueAlternativeLinkV1[] = [];
   private _directFeedbackBindings: AlternativeFeedbackBindingV1[] = [];
   private _formaState?: FormaInvestigationStateV1;
+
+  private _invalidateActiveDirectCompilation(): void {
+    this._activeDirectCompileResult = undefined;
+    this._activeDirectSnapshot = undefined;
+    this._activeVariantPair = undefined;
+    this._activeDirectTraversal = undefined;
+  }
 
   /**
    * DSE1: Executes direct deterministic representation compilation.

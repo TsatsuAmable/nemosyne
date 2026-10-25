@@ -280,4 +280,50 @@ describe('FM2 direct critique controls use the product NIL command path', () => 
       atlas.dispose();
     }
   }, 60000);
+
+  it('refuses Atlas REJECT and PREFER mutations after committed context turnover', async () => {
+    const atlas = new AtlasCore({ kernel: rustBridge });
+    const data = new Dataset('context-turnover-authority', [
+      { name: 'val', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ val: index + 1 })));
+    atlas.loadDataset(data);
+    commitDirectContext(atlas);
+
+    try {
+      const initial = await atlas.compileDirectDistributionEmbodiment({
+        schemaVersion: 1,
+        candidateId: 'DISTRIBUTION_FIELD',
+        measureField: 'val',
+        histogramBinCount: 8,
+        ecdfKnotCount: 8,
+        quantileProbabilities: [0, 0.5, 1],
+      });
+      const recorded = atlas.recordDirectLedgerCritique({
+        investigatorId: 'researcher',
+        targetElementId: initial.plan.elements[0]!.id,
+        targetPhenomenon: 'DISTRIBUTION',
+        critiqueKind: 'CUSTOM',
+        note: 'Record a critique before committed context turnover.',
+      });
+      const context = atlas.getActiveInvestigationContext()!;
+      atlas.commitInvestigationContext(context.nodeId, {
+        ...context,
+        intent: { ...context.intent, researchQuestion: 'A different committed question' },
+      });
+      expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
+
+      expect(() => atlas.recordDirectLedgerCritique({
+        investigatorId: 'researcher',
+        targetElementId: initial.plan.elements[0]!.id,
+        targetPhenomenon: 'DISTRIBUTION',
+        critiqueKind: 'CUSTOM',
+        note: 'This must be refused after context turnover.',
+      })).toThrow();
+      expect(() => atlas.resolveDirectAlternativeFromCritique(recorded.critique.critiqueId))
+        .toThrow();
+      expect(atlas.getDirectFeedbackLinks()).toHaveLength(0);
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
 });
