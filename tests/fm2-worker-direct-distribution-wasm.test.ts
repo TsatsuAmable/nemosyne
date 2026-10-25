@@ -8,6 +8,7 @@ import type { AnalyticalExecutionRequest, AnalyticalDatasetRegistration } from '
 import type { DirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
 import type { DistributionEmbodimentRequestV1 } from '../src/moneta/representation/SemanticEmbodimentPayload.ts';
 import { verifyTransportedDirectDistributionBindingV1 } from '../src/moneta/representation/DirectDistributionBindingV1.ts';
+import { buildDirectDistributionBindingV1 } from '../src/wasm/runtime/SemanticEmbodimentBridge.ts';
 
 function dataset(): Dataset {
   return new Dataset('fm2-worker-real-rust', [
@@ -62,6 +63,51 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       });
       expect(firstSnapshot?.snapshotId).toBe(secondSnapshot?.snapshotId);
       expect(firstSnapshot?.body.sources[0].evidenceReferences).toEqual([]);
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
+  it('keeps snapshot identity independent of decision metadata while retaining exact request binding', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    commitContext(atlas);
+    const firstRequest: DistributionEmbodimentRequestV1 = {
+      ...params,
+      decisionId: 'decision-fm2-a',
+      decisionModelVersion: 'model-a',
+      decisionModelArtifactHash: 'a'.repeat(64),
+    };
+    const secondRequest: DistributionEmbodimentRequestV1 = {
+      ...params,
+      decisionId: 'decision-fm2-b',
+      decisionModelVersion: 'model-b',
+      decisionModelArtifactHash: 'b'.repeat(64),
+    };
+    try {
+      await atlas.compileDirectDistributionEmbodiment(firstRequest);
+      const firstSnapshot = atlas.getActiveDirectSnapshot();
+      const firstBinding = buildDirectDistributionBindingV1(
+        atlas.aggregate.analytical.currentHandle,
+        firstRequest,
+      );
+      await atlas.compileDirectDistributionEmbodiment(secondRequest);
+      const secondSnapshot = atlas.getActiveDirectSnapshot();
+      const secondBinding = buildDirectDistributionBindingV1(
+        atlas.aggregate.analytical.currentHandle,
+        secondRequest,
+      );
+
+      expect(firstBinding?.source.analyticalMethod.parameters).toMatchObject({
+        request: firstRequest,
+      });
+      expect(secondBinding?.source.analyticalMethod.parameters).toMatchObject({
+        request: secondRequest,
+      });
+      expect(firstBinding?.sourceDigest).not.toBe(secondBinding?.sourceDigest);
+      expect(firstSnapshot?.body).toEqual(secondSnapshot?.body);
+      expect(firstSnapshot?.snapshotId).toBe(secondSnapshot?.snapshotId);
     } finally {
       bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
     }

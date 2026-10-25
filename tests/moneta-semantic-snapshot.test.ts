@@ -190,8 +190,6 @@ describe('SemanticSnapshotV1', () => {
       claimKind: 'DESCRIPTIVE_EMPIRICAL_DISTRIBUTION',
       datasetFingerprint: binding.datasetFingerprint,
       kernelVersion: binding.kernelVersion,
-      sourceDigest: binding.sourceDigest,
-      receiptId: binding.receiptId,
       sourceId: snapshot.body.directDistributionReference!.sourceId,
     });
     expect(snapshot.body.sources[0].evidenceReferences).toEqual([]);

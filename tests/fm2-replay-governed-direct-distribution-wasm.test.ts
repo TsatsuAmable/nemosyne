@@ -290,8 +290,9 @@ describe('FM2 governed direct-distribution replay carrier, real WASM', () => {
       const persisted = JSON.parse(new TextDecoder().decode(
         Uint8Array.from(atob(snapshot.directDistributionSnapshot!), (char) => char.charCodeAt(0)),
       )) as { binding: { sourceDigest: string; receiptId: string } };
-      expect(persisted.binding.sourceDigest).toBe(reference?.sourceDigest);
-      expect(persisted.binding.receiptId).toBe(reference?.receiptId);
+      expect(persisted.binding.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(persisted.binding.receiptId).toBe(`direct-distribution:${persisted.binding.sourceDigest}`);
+      expect(reference?.sourceId).toBe(atlas.getActiveDirectSnapshot()?.body.sources[0]?.sourceId);
 
       const archive = await session.exportPortablePackage({}, undefined, {
         directDistributionBinding: true,

@@ -20,7 +20,7 @@
 
 ## High-risk pre-implementation adversarial contract
 
-**Invariant:** A direct-distribution snapshot is admitted only when its `directDistributionReference` exactly corresponds to a binding validated from the selected Rust runtime for the Atlas's current generation/version/fingerprint, fixed direct consumer/profile, kernel version, source digest, receipt identity, and Rust source envelope; equal source inputs produce equal snapshot identity.
+**Invariant:** A direct-distribution snapshot is admitted only when its `directDistributionReference` is derived from a binding validated from the selected Rust runtime for the Atlas's current generation/version/fingerprint, fixed direct consumer/profile, kernel version, exact source digest/receipt identity, and Rust source envelope. Snapshot identity includes only the decision-independent analytical source projection; the exact request-bound source digest, receipt, source bytes, and full request remain in the governed replay carrier.
 
 **Authority and production path:** Rust's `moneta_prepare_direct_distribution_binding_v1` mints the source bytes/digest/receipt identity. `InlineAnalyticalPort` or `WorkerAnalyticalPort` obtains and revalidates that result. `AtlasCore.compileDirectDistributionEmbodiment` converts the validated binding to `SemanticSnapshotV1` and delegates to `InvestigationAggregate.compileDirectEmbodiment`, which remains the normal direct compiler. `NemosyneSession`/package replay remains the durable carrier authority.
 
