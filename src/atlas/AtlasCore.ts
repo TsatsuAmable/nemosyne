@@ -179,6 +179,12 @@ export class AtlasCore {
     readonly binding: DirectDistributionBindingV1;
     readonly request: DistributionEmbodimentRequestV1;
   } | null = null;
+  /**
+   * Direct-distribution snapshots are admissible through the public compiler
+   * only after this Atlas instance has issued them from its analytical port.
+   * Object identity is intentionally not serializable or caller-reconstructible.
+   */
+  private readonly _runtimeIssuedDirectSnapshots = new WeakSet<object>();
 
   private _cloneTypedPayload(payload: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
     return payload instanceof Uint8Array ? payload.slice() : payload.slice(0);
@@ -1978,6 +1984,14 @@ export class AtlasCore {
     readonly phenotype?: SpatialPhenotype;
     readonly critiqueFeedback?: readonly AttributableCritiqueV1[];
   }): DirectEmbodimentCompileResult {
+    if (
+      options?.snapshot?.body?.directDistributionReference !== undefined &&
+      !this._runtimeIssuedDirectSnapshots.has(options.snapshot)
+    ) {
+      throw new Error(
+        '[AtlasCore] Direct distribution snapshot lacks runtime-issued direct-distribution admission'
+      );
+    }
     return this._aggregate.compileDirectEmbodiment(options);
   }
 
@@ -2005,6 +2019,7 @@ export class AtlasCore {
       );
     }
     const snapshot = normalizeDirectDistributionBindingToSnapshot(binding);
+    this._runtimeIssuedDirectSnapshots.add(snapshot);
     return this.compileDirectEmbodiment({ ...options, snapshot });
   }
 

@@ -68,6 +68,25 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
     }
   });
 
+  it('refuses a caller-supplied clone of a direct snapshot without runtime admission', async () => {
+    const data = dataset();
+    const atlas = new AtlasCore({ kernel: bridge });
+    atlas.loadDataset(data);
+    commitContext(atlas);
+    try {
+      await atlas.compileDirectDistributionEmbodiment(params);
+      const captured = atlas.getActiveDirectSnapshot();
+      expect(captured).toBeDefined();
+
+      const callerSuppliedSnapshot = structuredClone(captured!);
+      expect(() => atlas.compileDirectEmbodiment({ snapshot: callerSuppliedSnapshot })).toThrow(
+        'runtime-issued direct-distribution admission'
+      );
+    } finally {
+      bridge.destroyDataset(atlas.aggregate.analytical.currentHandle);
+    }
+  });
+
   it('keeps snapshot identity independent of decision metadata while retaining exact request binding', async () => {
     const data = dataset();
     const atlas = new AtlasCore({ kernel: bridge });
