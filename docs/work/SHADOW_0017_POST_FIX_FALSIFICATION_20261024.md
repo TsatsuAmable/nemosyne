@@ -1,6 +1,6 @@
 # SHADOW-0017 post-fix falsification
 
-**Scope:** independent-path *test evidence* over the merged FM8 patch at `main@323080714062949a70ee9a7cca656fb04dce9531`, not self-certification of the SHADOW finding. Original finding remains `CANDIDATE` in `governance/shadow/findings.jsonl` until the governed independent verifier signs the record. No duplicate finding or parallel roadmap authority.
+**Scope:** independent-path test evidence over the merged FM8 patch at `main@323080714062949a70ee9a7cca656fb04dce9531`; separately reviewed on 10 November 2026 against `main@6a83340b`. The original SHADOW-0017 software defect is now dispositioned `VERIFIED_FIXED` in its canonical shadow ledger. No parallel finding or broad FM8 completion is asserted.
 
 ## Original failure (4 October 2026)
 
@@ -12,4 +12,4 @@
 
 ## Evidence limits and disposition
 
-A green exact-head CI test shows the original *software reproducer* is blocked at the tested path; a failing test is a STOP for correction, not reason to waive the case. Code inspection also confirms that the former `snapshotsList[i] ?? snapshot` fallback has been removed from `FullMonetaEngine`. No claim is made about separate researcher-facing rendering, Quest, human understanding, or every possible semantic mapping. **Formal SHADOW-0017 transition remains the independent validator's responsibility**, after reviewing this falsification against its original claim and the exact merged commit. Do not edit the original record as a side effect of implementing a test.
+A green exact-head CI test shows the original *software reproducer* is blocked at the tested path; a failing test is a STOP for correction, not reason to waive the case. Code inspection also confirms that the former `snapshotsList[i] ?? snapshot` fallback has been removed from `FullMonetaEngine`. No claim is made about separate researcher-facing rendering, Quest, human understanding, or every possible semantic mapping. **Independent software-only verification (10 November 2026):** A separate reviewer examined #962's actual `snapshotsList[i] ?? snapshot` fallback, #1056's strict `selectFM8CompositionEvidence` path and no-substitution broker refusal, and #1058's direct original-reproducer and order-invariance controls. #1058 exact-head CI, CodeQL and approval gate passed. Current `main@6a83340b` retains the strict source selection. **Disposition: VERIFIED_FIXED for the original positional/primary-fallback defect only.** This review used source and hosted CI evidence, not a fresh local hardware or application run. Cross-family completeness, semantic usability, physical Quest performance and all other FM8 gates remain unqualified.
