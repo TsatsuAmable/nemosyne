@@ -13,7 +13,7 @@ Executable facts such as commands, dependency/tool versions, CI topology, covera
 
 ## Engineering governance
 
-- [`rfcs/0013-fm8-composition-evidence-binding.md`](rfcs/0013-fm8-composition-evidence-binding.md) - accepted and implemented FM8 strict composition evidence binding (ADR 0014, PR #1056); independent SHADOW-0017 status verification remains.
+- [`rfcs/0013-fm8-composition-evidence-binding.md`](rfcs/0013-fm8-composition-evidence-binding.md) - accepted and implemented FM8 strict composition evidence binding (ADR 0014, PR #1056); SHADOW-0017 original positional fallback independently verified fixed; broader FM8 qualification open.
 - [`rfcs/0012-minimum-nemosyne-architecture.md`](rfcs/0012-minimum-nemosyne-architecture.md) - proposed minimum architecture and removal-first disposition register; start here for what to delete, merge, defer or externalize before implementing the dataset design.
 
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - contribution and verification workflow.

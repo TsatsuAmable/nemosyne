@@ -1,10 +1,10 @@
 ﻿# RFC 0013 — FM8 composition evidence binding
 
-**Status:** ACCEPTED and IMPLEMENTED (#1056, merge `f5bd84d7`, 24 October 2026); independent SHADOW-0017 revalidation and Full Moneta integration qualification remain open.
+**Status:** ACCEPTED and IMPLEMENTED (#1056, merge `f5bd84d7`, 24 October 2026). The SHADOW-0017 original software defect was independently verified fixed on 10 November 2026; Full Moneta integration, investigator comprehension and Quest qualification remain open.
 
 **Governing authority:** [Definitive Vision](../Nemosyne_Definitive_Vision_and_Roadmap.md).
 **Execution:** [ROADMAP](../ROADMAP.md) (FM8 composition row).
-**Related:** SHADOW-0017 (candidate finding), [RFC 0011](0011-dual-epistemic-embodiment-and-preservation.md) (snapshot/context boundaries), PR #962 (FMA-10 repair, whose fallback this RFC replaces).
+**Related:** SHADOW-0017 (original software defect verified fixed, 10 November 2026), [RFC 0011](0011-dual-epistemic-embodiment-and-preservation.md) (snapshot/context boundaries), PR #962 (FMA-10 repair, whose fallback this RFC replaces).
 
 ## 1. Context
 
