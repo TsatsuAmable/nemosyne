@@ -22,6 +22,7 @@ function fixture() {
   const observations: Observation[] = [];
   const findings: Finding[] = [];
   const results: AnalysisResult[] = [];
+  let activeContext: unknown;
   let observationId = 0;
   let findingId = 0;
 
@@ -50,6 +51,12 @@ function fixture() {
     recordAnnotation: () => {
       throw new Error('not used');
     },
+    commitInvestigationContext: (nodeId: string, context: unknown) => {
+      activeContext = context;
+      return aggregate.commitContext(nodeId, context);
+    },
+    getActiveInvestigationContext: () => activeContext,
+    getActiveNodeId: () => aggregate.graph.activeNodeId,
     recordFinding: (input: Omit<Finding, 'id' | 'timestamp' | 'datasetFingerprint' | 'datasetVersion'>) => {
       const finding: Finding = {
         ...input,
@@ -100,7 +107,19 @@ function fixture() {
     return result;
   };
 
-  return { aggregate, atlas, observations, findings, results, reasoning, executor, journey, addResult, dispose };
+  return {
+    aggregate,
+    atlas,
+    observations,
+    findings,
+    results,
+    reasoning,
+    executor,
+    journey,
+    addResult,
+    activeContext: () => activeContext,
+    dispose,
+  };
 }
 
 async function reachHypothesis(f: ReturnType<typeof fixture>) {
@@ -111,6 +130,21 @@ async function reachHypothesis(f: ReturnType<typeof fixture>) {
 }
 
 describe('PT5C canonical investigation journey', () => {
+  it('commits visible question and hypothesis text into the active Atlas context', async () => {
+    const f = fixture();
+    const notice = await f.journey.observe('Region A looks unusually separated.', ['region-a']);
+    const discoveryId = await f.journey.ask(notice.id, 'Is the separation stable?');
+
+    expect((f.activeContext() as { intent?: { researchQuestion?: string } } | undefined)?.intent?.researchQuestion)
+      .toBe('Is the separation stable?');
+
+    await f.journey.hypothesise(discoveryId, 'Region A remains separated under anomaly analysis.');
+
+    expect((f.activeContext() as { intent?: { hypothesis?: string } } | undefined)?.intent?.hypothesis)
+      .toBe('Region A remains separated under anomaly analysis.');
+    f.dispose();
+  });
+
   it('uses one sequenced NIL path from notice through evidence-backed discovery', async () => {
     const f = fixture();
     const { notice, discoveryId } = await reachHypothesis(f);

@@ -14,7 +14,11 @@ import { sha256Hex } from '../src/security/CryptoHash.ts';
 import { compileFormaAdmission } from '../src/moneta/forma/FormaAdmission.ts';
 import { compileFormaSpatialSlice } from '../src/moneta/forma/FormaSpatialCompiler.ts';
 import { createKB0Manifest } from '../src/moneta/forma/KB0Manifest.ts';
+import { QUEST_CONSTRAINED_BUDGET } from '../src/moneta/forma/FormaResolutionBroker.ts';
+import { buildDirectLoopSurfaceViews } from '../src/moneta/representation/DirectLoopViewModels.ts';
+import { NemosyneSession } from '../src/session/NemosyneSession.ts';
 import { toAnalysisSpec } from '../src/vr/interactions/DataOperations.ts';
+import { encodeTypedColumnsPayload } from '../src/wasm/TypedColumnsCodec.ts';
 
 function dataset(): Dataset {
   return new Dataset('fm2-worker-real-rust', [
@@ -46,6 +50,87 @@ function commitContext(atlas: AtlasCore): void {
       currentTask: 'fm2-snapshot',
     },
   });
+}
+
+function typedPayload(values: readonly number[]): Uint8Array {
+  return encodeTypedColumnsPayload({
+    rowCount: values.length,
+    columns: [{
+      name: 'x',
+      type: 'numeric',
+      values: new Float64Array(values),
+      validity: new Uint8Array(values.length).fill(1),
+    }],
+  });
+}
+
+async function seedDirectState(atlas: AtlasCore): Promise<void> {
+  expect(bridge.datasetFingerprint(atlas.aggregate.analytical.currentHandle)).toBe(
+    atlas.datasetFingerprint,
+  );
+  const compilation = await atlas.compileDirectDistributionEmbodiment(params);
+  const target = compilation.plan.elements[0];
+  if (!target) throw new Error('real direct compilation produced no target element');
+
+  const recorded = atlas.recordDirectLedgerCritique({
+    investigatorId: 'typed-turnover-test',
+    targetElementId: target.id,
+    targetPhenomenon: 'DISTRIBUTION',
+    critiqueKind: 'SPATIAL_SCALE',
+    note: 'The overview needs a constrained alternative before typed turnover.',
+  });
+  const { alternative, link } = atlas.resolveDirectAlternativeFromCritique(
+    recorded.critique.critiqueId,
+    { budget: QUEST_CONSTRAINED_BUDGET },
+  );
+  const alternativeTarget = alternative.plan.elements[0] ?? target;
+  atlas.recordDirectAlternativeFeedback(link.linkId, {
+    planId: alternative.plan.planId,
+    sliceId: alternative.slice.sliceId,
+    contextId: alternative.slice.contextId,
+    semanticNodeId: alternativeTarget.semanticNodeId,
+    critiqueText: 'The constrained alternative preserves the requested distribution detail.',
+    confirmed: true,
+  });
+  atlas.compileObligationPreservingVariants({ snapshot: atlas.getActiveDirectSnapshot()! });
+}
+
+function expectDatasetBoundStateCleared(
+  atlas: AtlasCore,
+  session: NemosyneSession,
+  fingerprint: string,
+): void {
+  expect(atlas.datasetFingerprint).toBe(fingerprint);
+  expect(atlas.getActiveDirectSnapshot()).toBeUndefined();
+  expect(atlas.getActiveDirectCompileResult()).toBeUndefined();
+  expect(atlas.getActiveVariantPair()).toBeUndefined();
+  expect(atlas.getActiveFormaResult()).toBeUndefined();
+  expect(atlas.getActiveFormaSlice()).toBeUndefined();
+  expect(atlas.getDirectFeedbackLinks()).toEqual([]);
+  expect(atlas.getDirectAlternativeFeedbackBindings()).toEqual([]);
+  expect(atlas.aggregate.getFormaState()).toBeUndefined();
+
+  const surface = buildDirectLoopSurfaceViews({
+    links: atlas.getDirectFeedbackLinks(),
+    bindings: atlas.getDirectAlternativeFeedbackBindings(),
+    variantPair: atlas.getActiveVariantPair(),
+  });
+  expect(surface.inspector.alternatives).toEqual([]);
+  expect(surface.history.bindings).toEqual([]);
+  expect(surface.alternative.pair).toBeNull();
+
+  const persisted = session.serialize();
+  expect(persisted.formaInvestigationSnapshot).toBeUndefined();
+  expect(persisted.directDistributionSnapshot).toBeUndefined();
+}
+
+function expectTypedWorkerPayload(atlas: AtlasCore, bytes: Uint8Array): void {
+  const payload = (atlas as unknown as { _workerRegistrationPayload(): { type: string; data: unknown } })._workerRegistrationPayload();
+  expect(payload.type).toBe('typed');
+  const workerBytes = payload.data instanceof Uint8Array
+    ? payload.data
+    : new Uint8Array(payload.data as ArrayBuffer);
+  expect(workerBytes).toEqual(bytes);
 }
 
 describe('FM2-WORKER port preserves independent Rust authority', () => {
@@ -404,6 +489,60 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       await expect(port.execute(request(data.fingerprint))).resolves.toMatchObject({ value: null });
       await expect(port.execute(request('new-data', 2, 2))).rejects.toThrow('not registered');
 
+      const typedTransport: WorkerTransport & { posted: unknown[] } = {
+        posted: [],
+        onmessage: null,
+        onerror: null,
+        postMessage(msg: unknown) {
+          this.posted.push(msg);
+          queueMicrotask(() => { void runWorker(new MessageEvent('message', { data: msg })); });
+        },
+      };
+      transport = typedTransport;
+      const typedPort = new WorkerAnalyticalPort(typedTransport);
+      const typedAtlas = new AtlasCore({ kernel: bridge });
+      typedAtlas.setExecutionPort(typedPort);
+      const typedBytesA = typedPayload(Array.from({ length: 20 }, (_, index) => index + 1));
+      const typedBytesB = typedPayload(Array.from({ length: 20 }, (_, index) => index + 101));
+      typedAtlas.loadTypedDataset(typedBytesA, 'worker-typed-a');
+      const typedFingerprintA = typedAtlas.datasetFingerprint!;
+      const typedVersionA = typedAtlas.datasetVersion;
+      const typedBindingA = await typedAtlas.captureDirectDistributionBinding(params);
+      expect(typedBindingA?.datasetFingerprint).toBe(typedFingerprintA);
+      const typedRegistrationA = [...typedTransport.posted].reverse().find((entry) =>
+        (entry as { type?: string }).type === 'REGISTER'
+      ) as { registration: AnalyticalDatasetRegistration };
+      expect(typedRegistrationA.registration.payload.type).toBe('typed');
+      expect(typedRegistrationA.registration.dataset).toEqual({
+        fingerprint: typedFingerprintA,
+        version: typedVersionA,
+      });
+      expect(typedRegistrationA.registration.generation).toBe(typedAtlas.generation);
+      const registeredBytesA = typedRegistrationA.registration.payload.data instanceof Uint8Array
+        ? typedRegistrationA.registration.payload.data
+        : new Uint8Array(typedRegistrationA.registration.payload.data as ArrayBuffer);
+      expect(registeredBytesA).toEqual(typedBytesA);
+
+      typedAtlas.loadTypedDataset(typedBytesB, 'worker-typed-b');
+      await expect(typedPort.execute(request(typedFingerprintA, typedVersionA, 1)))
+        .resolves.toMatchObject({ value: null });
+      const typedFingerprintB = typedAtlas.datasetFingerprint!;
+      const typedBindingB = await typedAtlas.captureDirectDistributionBinding(params);
+      expect(typedBindingB?.datasetFingerprint).toBe(typedFingerprintB);
+      const typedRegistrationB = [...typedTransport.posted].reverse().find((entry) =>
+        (entry as { type?: string }).type === 'REGISTER'
+      ) as { registration: AnalyticalDatasetRegistration };
+      const registeredBytesB = typedRegistrationB.registration.payload.data instanceof Uint8Array
+        ? typedRegistrationB.registration.payload.data
+        : new Uint8Array(typedRegistrationB.registration.payload.data as ArrayBuffer);
+      expect(typedRegistrationB.registration.dataset).toEqual({
+        fingerprint: typedFingerprintB,
+        version: typedAtlas.datasetVersion,
+      });
+      expect(typedRegistrationB.registration.generation).toBe(typedAtlas.generation);
+      expect(registeredBytesB).toEqual(typedBytesB);
+      typedAtlas.dispose();
+
       const otherAtlas = new AtlasCore({ kernel: bridge });
       otherAtlas.loadDataset(data);
       expect(() => otherAtlas.compileDirectEmbodiment({ snapshot: freshSnapshot })).toThrow(
@@ -419,6 +558,182 @@ describe('FM2-WORKER port preserves independent Rust authority', () => {
       vi.stubGlobal('self', previousSelf);
     }
   });
+});
+
+describe('FM2 typed dataset turnover clears dataset-bound direct state', () => {
+  it('drops the live direct carrier when typed ingestion fails without changing the current dataset', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    const session = new NemosyneSession({ atlas });
+    const rowDataset = new Dataset('fm2-failed-typed-load', [
+      { name: 'x', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ x: index + 1 })));
+
+    try {
+      atlas.loadDataset(rowDataset);
+      commitContext(atlas);
+      await seedDirectState(atlas);
+      await session.captureDirectDistributionBinding(params);
+      const currentFingerprint = atlas.datasetFingerprint;
+      const currentVersion = atlas.datasetVersion;
+      const beforeSnapshot = atlas.getActiveDirectSnapshot();
+      const beforeCompile = atlas.getActiveDirectCompileResult();
+      const beforeVariants = atlas.getActiveVariantPair();
+      const beforeFormaResult = atlas.getActiveFormaResult();
+      const beforeFormaSlice = atlas.getActiveFormaSlice();
+      const beforeFormaState = atlas.aggregate.getFormaState();
+      const beforeLinks = atlas.getDirectFeedbackLinks();
+      const beforeBindings = atlas.getDirectAlternativeFeedbackBindings();
+      const beforeSession = session.serialize();
+      expect(beforeSession.directDistributionSnapshot).toBeTypeOf('string');
+      expect(beforeSession.formaInvestigationSnapshot).toBeTypeOf('string');
+
+      expect(() => atlas.loadTypedDataset(new Uint8Array([0, 1, 2, 3]), 'invalid-typed'))
+        .toThrow('Kernel rejected typed columns payload.');
+      expect(atlas.datasetFingerprint).toBe(currentFingerprint);
+      expect(atlas.datasetVersion).toBe(currentVersion);
+      expect(atlas.getActiveDirectSnapshot()).toEqual(beforeSnapshot);
+      expect(atlas.getActiveDirectCompileResult()).toEqual(beforeCompile);
+      expect(atlas.getActiveVariantPair()).toEqual(beforeVariants);
+      expect(atlas.getActiveFormaResult()).toEqual(beforeFormaResult);
+      expect(atlas.getActiveFormaSlice()).toEqual(beforeFormaSlice);
+      expect(atlas.aggregate.getFormaState()).toEqual(beforeFormaState);
+      expect(atlas.getDirectFeedbackLinks()).toEqual(beforeLinks);
+      expect(atlas.getDirectAlternativeFeedbackBindings()).toEqual(beforeBindings);
+
+      const afterSession = session.serialize();
+      expect(afterSession.datasetFingerprint).toBe(beforeSession.datasetFingerprint);
+      expect(afterSession.datasetVersion).toBe(beforeSession.datasetVersion);
+      expect(afterSession.directDistributionSnapshot).toBe(beforeSession.directDistributionSnapshot);
+      expect(afterSession.formaInvestigationSnapshot).toBe(beforeSession.formaInvestigationSnapshot);
+
+      const oldAuthority = await atlas.captureDirectDistributionBinding(params);
+      expect(oldAuthority?.datasetFingerprint).toBe(currentFingerprint);
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
+
+  it('retires a rehydrated Forma carrier only after a successful typed turnover', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    const session = new NemosyneSession({ atlas });
+    const rowDataset = new Dataset('fm2-rehydrated-forma-carrier', [
+      { name: 'x', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ x: index + 1 })));
+    const typed = typedPayload(Array.from({ length: 20 }, (_, index) => index + 101));
+
+    try {
+      atlas.loadDataset(rowDataset);
+      commitContext(atlas);
+      await seedDirectState(atlas);
+      await session.captureDirectDistributionBinding(params);
+
+      const before = session.serialize();
+      expect(before.formaInvestigationSnapshot).toBeTypeOf('string');
+      const beforeFormaBytes = session.formaInvestigationBytes;
+      expect(beforeFormaBytes).toBeNull();
+
+      // Rehydration intentionally makes the persisted Forma bytes a session
+      // carrier even after Atlas has restored its ordinary state.
+      session.loadFromJSON(before);
+      const rehydratedFormaBytes = session.formaInvestigationBytes;
+      expect(rehydratedFormaBytes).toBeInstanceOf(Uint8Array);
+      expect(session.serialize().formaInvestigationSnapshot).toBe(before.formaInvestigationSnapshot);
+
+      const epochBeforeFailure = atlas.datasetReplacementEpoch;
+      expect(() => atlas.loadTypedDataset(new Uint8Array([0, 1, 2, 3]), 'invalid-typed'))
+        .toThrow('Kernel rejected typed columns payload.');
+      expect(atlas.datasetReplacementEpoch).toBe(epochBeforeFailure);
+      expect(session.formaInvestigationBytes).toEqual(rehydratedFormaBytes);
+      expect(session.serialize().formaInvestigationSnapshot).toBe(before.formaInvestigationSnapshot);
+
+      const typedHandle = atlas.loadTypedDataset(typed, 'typed-replacement');
+      expect(typedHandle).toBeGreaterThan(0);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(epochBeforeFailure);
+      expect(atlas.aggregate.getFormaState()).toBeUndefined();
+      expect(session.formaInvestigationBytes).toBeNull();
+      expect(session.serialize().formaInvestigationSnapshot).toBeUndefined();
+      await expect(
+        session.exportPortablePackage({}, undefined, { formaPreservation: true }),
+      ).rejects.toThrow();
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
+
+  it('clears direct lineage and persisted Forma state across row, typed, same-fingerprint, and row turnovers', async () => {
+    const atlas = new AtlasCore({ kernel: bridge });
+    const session = new NemosyneSession({ atlas });
+    const rowDataset = new Dataset('fm2-row-turnover', [
+      { name: 'x', type: ColumnType.NUMERIC },
+    ], Array.from({ length: 20 }, (_, index) => ({ x: index + 1 })));
+    const typedA = typedPayload(Array.from({ length: 20 }, (_, index) => index + 10));
+    const typedB = typedPayload(Array.from({ length: 20 }, (_, index) => index + 100));
+
+    try {
+      atlas.loadDataset(rowDataset);
+      commitContext(atlas);
+      await seedDirectState(atlas);
+      await session.captureDirectDistributionBinding(params);
+
+      const beforeTurnover = session.serialize();
+      expect(beforeTurnover.formaInvestigationSnapshot).toBeTypeOf('string');
+      expect(beforeTurnover.directDistributionSnapshot).toBeTypeOf('string');
+      const beforeForma = JSON.parse(
+        Buffer.from(beforeTurnover.formaInvestigationSnapshot!, 'base64').toString('utf8'),
+      ) as Parameters<typeof atlas.aggregate.setFormaState>[0];
+      expect(beforeForma.directFeedbackLinks).toHaveLength(1);
+      expect(beforeForma.directAlternativeFeedbackBindings).toHaveLength(1);
+
+      const rowEpoch = atlas.datasetReplacementEpoch;
+      const typedAHandle = atlas.loadTypedDataset(typedA, 'typed-a');
+      expect(typedAHandle).toBeGreaterThan(0);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(rowEpoch);
+      expectTypedWorkerPayload(atlas, typedA);
+      expectDatasetBoundStateCleared(atlas, session, atlas.datasetFingerprint!);
+
+      commitContext(atlas);
+      atlas.aggregate.setFormaState(beforeForma);
+      expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
+      const typedAFingerprint = atlas.datasetFingerprint!;
+      const typedAVersion = atlas.datasetVersion;
+      const typedAEpoch = atlas.datasetReplacementEpoch;
+
+      const typedBHandle = atlas.loadTypedDataset(typedB, 'typed-b');
+      expect(typedBHandle).toBeGreaterThan(0);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(typedAEpoch);
+      expectTypedWorkerPayload(atlas, typedB);
+      expectDatasetBoundStateCleared(atlas, session, atlas.datasetFingerprint!);
+      expect(atlas.datasetFingerprint).not.toBe(typedAFingerprint);
+
+      commitContext(atlas);
+      atlas.aggregate.setFormaState(beforeForma);
+      expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
+      const sameFingerprint = atlas.datasetFingerprint!;
+      const sameFingerprintVersion = atlas.datasetVersion;
+      const sameFingerprintEpoch = atlas.datasetReplacementEpoch;
+      const samePayloadHandle = atlas.loadTypedDataset(typedB, 'typed-b');
+      expect(samePayloadHandle).toBeGreaterThan(0);
+      expect(atlas.datasetFingerprint).toBe(sameFingerprint);
+      expect(atlas.datasetVersion).toBeGreaterThan(sameFingerprintVersion);
+      expect(atlas.datasetVersion).toBeGreaterThan(typedAVersion);
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(sameFingerprintEpoch);
+      expectTypedWorkerPayload(atlas, typedB);
+      expectDatasetBoundStateCleared(atlas, session, sameFingerprint);
+
+      atlas.aggregate.setFormaState(beforeForma);
+      expect(atlas.getDirectFeedbackLinks()).toHaveLength(1);
+      const rowReplacementEpoch = atlas.datasetReplacementEpoch;
+      atlas.loadDataset(new Dataset('fm2-row-replacement', [
+        { name: 'x', type: ColumnType.NUMERIC },
+      ], [{ x: 1000 }, { x: 2000 }]));
+      expect(atlas.datasetReplacementEpoch).toBeGreaterThan(rowReplacementEpoch);
+      const rowPayload = (atlas as unknown as { _workerRegistrationPayload(): { type: string } })._workerRegistrationPayload();
+      expect(rowPayload.type).toBe('json');
+      expectDatasetBoundStateCleared(atlas, session, atlas.datasetFingerprint!);
+    } finally {
+      atlas.dispose();
+    }
+  }, 60000);
 });
 
 function controlledTransport() {

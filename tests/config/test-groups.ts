@@ -140,6 +140,10 @@ export const WASM_TESTS = [
   // FM2: single-pass kernel-issued semantic source and independent bound
   // descriptive-only direct consumer; never grant the V3 statistics consumer.
   'tests/fm2-rust-direct-distribution-binding-wasm.test.ts',
+  // FM2 desktop controls: the ordinary cases are presentation-only, while
+  // the runtime-turnover regression must boot the real Rust direct path before
+  // replacing the execution port and asserting the controls fail closed.
+  'tests/fm2-desktop-direct-critique.test.ts',
   // FM2-WORKER: direct Rust-bound source traverses inline and production Worker
   // execution paths, retaining generation/fingerprint and refusing shortcuts.
   'tests/fm2-worker-direct-distribution-wasm.test.ts',

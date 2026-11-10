@@ -22,6 +22,7 @@ export const WorldTopics = {
   SESSION_CAPTURE: 'session:capture',
   SETTINGS_CHANGED: 'settings:changed',
   DATASET_LOADED: 'dataset:loaded',
+  INVESTIGATION_CONTEXT_COMMITTED: 'investigation:context-committed',
   OPERATION_APPLIED: 'operation:applied',
   OPERATION_PREVIEW: 'operation:preview',
   OPERATION_CLEAR_PREVIEW: 'operation:clear-preview',
@@ -55,6 +56,7 @@ export interface NemosyneEventMap {
   'session:capture': unknown;
   'settings:changed': Record<string, unknown>;
   'dataset:loaded': unknown;
+  'investigation:context-committed': unknown;
   'operation:applied': unknown;
   'operation:preview': unknown;
   'operation:clear-preview': void;

@@ -13,17 +13,38 @@ function stringParameter(command: NilCommand, key: string): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+export interface InvestigationJourneyNilRuntimeOptions {
+  onContextCommitted?: () => void;
+}
+
 /** Bind the production investigation NIL verbs and their cross-domain fences. */
 export function bindInvestigationJourneyNilRuntime(
   executor: NilExecutor,
   atlas: AtlasCore,
   reasoning: DiscoveryReasoningService,
+  options: InvestigationJourneyNilRuntimeOptions = {},
 ): () => void {
   const disposeAtlasBindings = bindAtlasNilHandlers(executor, atlas, {
-    // DiscoveryReasoningService owns these verbs in this production composition.
-    // Avoid duplicate registration while retaining Atlas intent bindings for
-    // compositions that do not install the discovery handlers.
-    bindIntentCommands: false,
+    // Atlas owns the single QUESTION/HYPOTHESISE handler in this composition so
+    // visible intent commits the context that fences direct-loop authority.
+    onContextCommitted: (command) => {
+      if (command.verb === 'QUESTION') {
+        const observationId = command.targetIds[0];
+        if (!observationId) throw new Error('NIL QUESTION requires an observation target id');
+        reasoning.ask({
+          observationId,
+          question: stringParameter(command, 'question') ?? '',
+        });
+      } else if (command.verb === 'HYPOTHESISE') {
+        const discoveryId = command.targetIds[0];
+        if (!discoveryId) throw new Error('NIL HYPOTHESISE requires a discovery target id');
+        reasoning.hypothesise({
+          discoveryId,
+          hypothesis: stringParameter(command, 'hypothesis') ?? '',
+        });
+      }
+      options.onContextCommitted?.();
+    },
     beforeRecordFinding: (command, finding) => {
       const discoveryId = stringParameter(command, 'discoveryId');
       if (!discoveryId) return;
@@ -71,7 +92,9 @@ export function bindInvestigationJourneyNilRuntime(
       if (discoveryId) reasoning.recordUnderstandingFromFinding(discoveryId, finding.id);
     },
   });
-  const disposeDiscoveryBindings = bindDiscoveryNilHandlers(executor, reasoning);
+  const disposeDiscoveryBindings = bindDiscoveryNilHandlers(executor, reasoning, {
+    bindIntentCommands: false,
+  });
 
   return () => {
     disposeDiscoveryBindings();

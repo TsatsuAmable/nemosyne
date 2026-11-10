@@ -104,11 +104,16 @@ export function replayFailureDetail(result: ReplayVerificationResult): string {
  */
 export function replayVerifiedMessage(result: ReplayVerificationResult): string {
   const base = `Replay verified (${result.eventsMatched} events)`;
-  if (result.evidence.envelope === 'absent') return base;
+  const directAttestation = result.directDistribution?.status === 'VERIFIED'
+    ? ` · direct distribution attested · consumer ${result.directDistribution.consumerId}` +
+      ` · receipt ${result.directDistribution.receiptId} · source ${result.directDistribution.sourceDigest}`
+    : '';
+  if (result.evidence.envelope === 'absent') return `${base}${directAttestation}`;
   if (result.evidence.integrity !== 'verified') {
-    return `${base} · governed evidence integrity not established`;
+    return `${base} · governed evidence integrity not established${directAttestation}`;
   }
-  return result.evidence.enforcement === 'consumer-policy'
+  const evidenceAttestation = result.evidence.enforcement === 'consumer-policy'
     ? `${base} · governed evidence verified under the consumer policy`
     : `${base} · governed evidence verified, no consumer policy enforced`;
+  return `${evidenceAttestation}${directAttestation}`;
 }

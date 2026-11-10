@@ -116,7 +116,11 @@ import type { FormaAdmissionOptionsV1 } from '../../moneta/forma/FormaAdmission.
 
 export interface FormaInvestigationStateV1 {
   readonly schemaVersion: 1;
-  readonly slice: FormaCompiledSliceV1;
+  /**
+   * Optional for a lineage-only snapshot. Context turnover revokes the active
+   * compilation, but recorded critique alternatives remain durable evidence.
+   */
+  readonly slice?: FormaCompiledSliceV1;
   readonly proposals?: readonly unknown[];
   readonly system1ProposalSet?: FormaProposalSetV1;
   readonly system1AdviceApplied?: boolean;
@@ -225,6 +229,19 @@ export class InvestigationAggregate {
     );
   }
 
+  /** Clear state whose identity is bound to the dataset being replaced. */
+  private _resetDatasetBoundState(): void {
+    this._nodeDecisions.clear();
+    this._activeFormaResult = undefined;
+    this._activeDirectCompileResult = undefined;
+    this._activeDirectSnapshot = undefined;
+    this._activeVariantPair = undefined;
+    this._activeDirectTraversal = undefined;
+    this._directFeedbackLinks = [];
+    this._directFeedbackBindings = [];
+    this._formaState = undefined;
+  }
+
   /** Reset all constituent sub-states on loading a new dataset. */
   loadDataset(dataset: Dataset, destroyer?: (handle: number) => void): void {
     this.analytical.loadDataset(dataset, destroyer);
@@ -232,7 +249,7 @@ export class InvestigationAggregate {
     this.decisions.reset();
     this.graph.reset();
     this.discoveries.reset();
-    this._nodeDecisions.clear();
+    this._resetDatasetBoundState();
 
     const fp = this.analytical.getFingerprint() ?? '';
     if (fp && this.analytical.originalNullable) {
@@ -288,6 +305,7 @@ export class InvestigationAggregate {
     this.decisions.reset();
     this.graph.reset();
     this.discoveries.reset();
+    this._resetDatasetBoundState();
 
     const fp = fingerprint || (this.analytical.getFingerprint() ?? '');
     this.ledger.appendEvent(
@@ -332,6 +350,7 @@ export class InvestigationAggregate {
   commitContext(nodeId: string, context: unknown): CommittedContextActivation {
     const activation = this.contextLedger.commit(nodeId, context);
     this.graph.setActiveNode(nodeId);
+    this._invalidateActiveDirectCompilation();
     return activation;
   }
 
@@ -350,6 +369,7 @@ export class InvestigationAggregate {
   activateContext(nodeId: string, revision?: number): CommittedContextActivation {
     const activation = this.contextLedger.activate(nodeId, revision);
     this.graph.setActiveNode(nodeId);
+    this._invalidateActiveDirectCompilation();
     const nodeDecision = this._nodeDecisions.get(nodeId);
     if (nodeDecision) {
       this.representation.activeDecision = nodeDecision;
@@ -373,7 +393,9 @@ export class InvestigationAggregate {
       ...active,
       perspective: canonicalPerspective,
     };
-    return this.contextLedger.commit(active.nodeId, updatedContext);
+    const activation = this.contextLedger.commit(active.nodeId, updatedContext);
+    this._invalidateActiveDirectCompilation();
+    return activation;
   }
 
   /**
@@ -390,7 +412,9 @@ export class InvestigationAggregate {
       ...active,
       epistemicPurpose: purpose,
     };
-    return this.contextLedger.commit(active.nodeId, updatedContext);
+    const activation = this.contextLedger.commit(active.nodeId, updatedContext);
+    this._invalidateActiveDirectCompilation();
+    return activation;
   }
 
   /**
@@ -1031,6 +1055,13 @@ export class InvestigationAggregate {
   private _directFeedbackBindings: AlternativeFeedbackBindingV1[] = [];
   private _formaState?: FormaInvestigationStateV1;
 
+  private _invalidateActiveDirectCompilation(): void {
+    this._activeDirectCompileResult = undefined;
+    this._activeDirectSnapshot = undefined;
+    this._activeVariantPair = undefined;
+    this._activeDirectTraversal = undefined;
+  }
+
   /**
    * DSE1: Executes direct deterministic representation compilation.
    * Compiles bounded spatial overview and reverse explanation without neural overhead or population search.
@@ -1423,6 +1454,17 @@ export class InvestigationAggregate {
         schemaVersion: 1,
         slice: this._activeDirectCompileResult.slice,
         context: this.getActiveContext(),
+        directFeedbackLinks: [...this._directFeedbackLinks],
+        directAlternativeFeedbackBindings: [...this._directFeedbackBindings],
+      };
+    }
+    // Context turnover invalidates the active compilation, not the already
+    // recorded critique->alternative lineage. Preserve that lineage as a
+    // static, non-actionable snapshot so session/checkpoint/export restore can
+    // show what was recorded without reviving stale compilation state.
+    if (this._directFeedbackLinks.length > 0 || this._directFeedbackBindings.length > 0) {
+      return {
+        schemaVersion: 1,
         directFeedbackLinks: [...this._directFeedbackLinks],
         directAlternativeFeedbackBindings: [...this._directFeedbackBindings],
       };

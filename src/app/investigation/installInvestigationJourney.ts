@@ -20,7 +20,9 @@ export function installInvestigationJourney(app: AppInstance): () => void {
     investigationVersion: 'pt5c-investigation-journey/1',
   });
   const executor = new NilExecutor();
-  const disposeNilRuntime = bindInvestigationJourneyNilRuntime(executor, world.atlas, reasoning);
+  const disposeNilRuntime = bindInvestigationJourneyNilRuntime(executor, world.atlas, reasoning, {
+    onContextCommitted: () => world.eventBus.emit(WorldTopics.INVESTIGATION_CONTEXT_COMMITTED),
+  });
 
   const journey = new InvestigationJourneyController({
     executor,
@@ -31,6 +33,7 @@ export function installInvestigationJourney(app: AppInstance): () => void {
   const subscribeContext = (handler: () => void): (() => void) => {
     const refresh = () => queueMicrotask(handler);
     const unsubscribeDataset = world.eventBus.on(WorldTopics.DATASET_LOADED, refresh);
+    const unsubscribeContext = world.eventBus.on(WorldTopics.INVESTIGATION_CONTEXT_COMMITTED, refresh);
     const unsubscribeOperation = world.eventBus.on(WorldTopics.OPERATION_APPLIED, refresh);
     // Session/checkpoint/.nemosyne restoration publishes HISTORY_SEEK only
     // after the persisted Atlas state has replaced the transient dataset-load
@@ -39,6 +42,7 @@ export function installInvestigationJourney(app: AppInstance): () => void {
     const unsubscribeHistory = world.eventBus.on(WorldTopics.HISTORY_SEEK, refresh);
     return () => {
       unsubscribeDataset();
+      unsubscribeContext();
       unsubscribeOperation();
       unsubscribeHistory();
     };
@@ -63,6 +67,20 @@ export function installInvestigationJourney(app: AppInstance): () => void {
         source, capture,
         liveDatasetFingerprint: world.atlas.datasetFingerprint,
         liveKernelVersion: world.atlas.kernelVersion(),
+      });
+    },
+    async () => {
+      const measureField = world.atlas.dataset?.numericColumns[0]?.name;
+      if (!measureField) {
+        throw new Error('Direct compilation refused: current dataset has no numeric measure field.');
+      }
+      return world.atlas.compileDirectDistributionEmbodiment({
+        schemaVersion: 1,
+        candidateId: 'DISTRIBUTION_FIELD',
+        measureField,
+        histogramBinCount: 8,
+        ecdfKnotCount: 8,
+        quantileProbabilities: [0, 0.25, 0.5, 0.75, 1],
       });
     }
   );

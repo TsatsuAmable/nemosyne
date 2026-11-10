@@ -28,28 +28,34 @@ function requiredDiscoveryId(command: NilCommand): string {
 export function bindDiscoveryNilHandlers(
   executor: NilExecutor,
   reasoning: DiscoveryReasoningService,
+  options: { bindIntentCommands?: boolean } = {},
 ): () => void {
   const unregister: Array<() => void> = [];
 
-  unregister.push(
-    executor.register('QUESTION', (command) => {
-      const observationId = command.targetIds[0];
-      if (!observationId) throw new Error('NIL QUESTION requires an observation target id');
-      reasoning.ask({
-        observationId,
-        question: requiredString(command, 'question'),
-      });
-    }),
-  );
+  // The production journey composes these verbs with Atlas' committed-context
+  // handlers. Keep the standalone discovery binding for compositions without
+  // an Atlas intent authority, but never register both handlers in one executor.
+  if (options.bindIntentCommands !== false) {
+    unregister.push(
+      executor.register('QUESTION', (command) => {
+        const observationId = command.targetIds[0];
+        if (!observationId) throw new Error('NIL QUESTION requires an observation target id');
+        reasoning.ask({
+          observationId,
+          question: requiredString(command, 'question'),
+        });
+      }),
+    );
 
-  unregister.push(
-    executor.register('HYPOTHESISE', (command) => {
-      reasoning.hypothesise({
-        discoveryId: requiredDiscoveryId(command),
-        hypothesis: requiredString(command, 'hypothesis'),
-      });
-    }),
-  );
+    unregister.push(
+      executor.register('HYPOTHESISE', (command) => {
+        reasoning.hypothesise({
+          discoveryId: requiredDiscoveryId(command),
+          hypothesis: requiredString(command, 'hypothesis'),
+        });
+      }),
+    );
+  }
 
   unregister.push(
     executor.register('SUPPORT', (command) => {

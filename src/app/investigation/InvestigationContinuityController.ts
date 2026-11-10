@@ -277,6 +277,9 @@ export class InvestigationContinuityController {
       snapshot,
       this.environment(),
       liveKernelVersion ?? undefined,
+      snapshot.directDistributionSnapshot
+        ? { directDistributionBinding: true }
+        : undefined,
     );
     const payload = NemosynePackageManager.unpack(baseArchive);
     payload.extraFiles = {
